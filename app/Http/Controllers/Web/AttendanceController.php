@@ -1,0 +1,480 @@
+<?php
+
+namespace App\Http\Controllers\Web;
+
+use App\Http\Controllers\Controller;
+use App\Models\AttendanceRecord;
+use App\Models\AttendanceLog;
+use App\Models\Employee;
+use App\Services\DtrImportService;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
+
+class AttendanceController extends Controller
+{
+    /**
+     * Display daily attendance records
+     */
+    public function daily(Request $request)
+    {
+        $date = $request->query('date') ? Carbon::parse($request->query('date')) : Carbon::now();
+        
+        // Get all employees
+        $employees = Employee::with('department')
+            ->orderBy('first_name')
+            ->paginate(15);
+        
+        // Get attendance records for the date
+        $attendanceRecords = AttendanceRecord::where('date', $date->format('Y-m-d'))
+            ->get()
+            ->keyBy('employee_id');
+        
+        // Calculate summary statistics
+        // Get total count globally rather than just from the paginator's current page
+        $total = Employee::count();
+        $present = $attendanceRecords->count();
+        $absent = $total - $present;
+        $late = $attendanceRecords->where('status', 'late')->count();
+        $attendanceRate = $total > 0 ? round(($present / $total) * 100, 2) : 0;
+        
+        $summary = [
+            'total_employees' => $total,
+            'present' => $present,
+            'absent' => $absent,
+            'late' => $late,
+            'attendance_rate' => $attendanceRate,
+        ];
+        
+        return view('attendance.daily', [
+            'user' => Auth::user(),
+            'date' => $date,
+            'employees' => $employees,
+            'attendanceRecords' => $attendanceRecords,
+            'summary' => $summary,
+        ]);
+    }
+
+    /**
+     * Export daily attendance records
+     */
+    public function exportDaily(Request $request, $format)
+    {
+        // TODO: Implement daily attendance export
+        return response()->json(['message' => 'Export not yet implemented'], 501);
+    }
+
+    /**
+     * Display timekeeping records
+     */
+    public function timekeeping(Request $request)
+    {
+        $user = Auth::user();
+
+        $employees = Employee::with('department')
+            ->orderBy('first_name')
+            ->get();
+        
+        $departments = \App\Models\Department::orderBy('name')
+            ->get();
+        
+        // Default to last 30 days
+        $dateFrom = $request->query('date_from') ? Carbon::parse($request->query('date_from')) : Carbon::now()->subDays(30);
+        $dateTo = $request->query('date_to') ? Carbon::parse($request->query('date_to')) : Carbon::now();
+
+        $baseQuery = AttendanceRecord::whereDate('date', '>=', $dateFrom->toDateString())
+            ->whereDate('date', '<=', $dateTo->toDateString());
+
+        if ($request->filled('employee_id')) {
+            $baseQuery->where('employee_id', $request->employee_id);
+        }
+
+        if ($request->filled('department_id')) {
+            $departmentId = $request->department_id;
+            $baseQuery->whereHas('employee', function ($query) use ($departmentId) {
+                $query->where('department_id', $departmentId);
+            });
+        }
+
+        $attendanceRecords = (clone $baseQuery)
+            ->with(['employee.department', 'breaks', 'timeEntries'])
+            ->orderBy('date', 'desc')
+            ->paginate(50);
+            
+        // Calculate summary statistics
+        // Timekeeping expects: total_hours, regular_hours, overtime_hours, average_hours
+        $summary = [
+            'total_hours' => 0,
+            'regular_hours' => 0,
+            'overtime_hours' => 0,
+            'average_hours' => 0,
+        ];
+
+        $summaryRecords = (clone $baseQuery)
+            ->with(['breaks', 'timeEntries'])
+            ->get();
+
+        if ($summaryRecords->count() > 0) {
+            $totalHours = 0;
+            $regularHours = 0;
+            $overtimeHours = 0;
+
+            foreach ($summaryRecords as $record) {
+                $workedHours = method_exists($record, 'calculateTotalHours')
+                    ? $record->calculateTotalHours()
+                    : (float) ($record->total_hours ?? 0);
+
+                $totalHours += $workedHours;
+                $regularHours += min($workedHours, 8);
+                $overtimeHours += max(0, $workedHours - 8);
+            }
+
+            $summary['total_hours'] = round($totalHours, 2);
+            $summary['regular_hours'] = round($regularHours, 2);
+            $summary['overtime_hours'] = round($overtimeHours, 2);
+            $summary['average_hours'] = round($totalHours / max(1, $summaryRecords->count()), 2);
+        }
+        
+        return view('attendance.timekeeping', [
+            'user' => $user,
+            'employees' => $employees,
+            'departments' => $departments,
+            'attendanceRecords' => $attendanceRecords,
+            'dateFrom' => $dateFrom,
+            'dateTo' => $dateTo,
+            'summary' => $summary,
+        ]);
+    }
+
+    /**
+     * Export timekeeping records
+     */
+    public function exportTimekeeping(Request $request, $format)
+    {
+        // TODO: Implement timekeeping export
+        return response()->json(['message' => 'Export not yet implemented'], 501);
+    }
+
+    /**
+     * Display attendance reports
+     */
+    public function reports(Request $request)
+    {
+        $dateFrom = $request->query('date_from') ? Carbon::parse($request->query('date_from')) : Carbon::now()->startOfMonth();
+        $dateTo = $request->query('date_to') ? Carbon::parse($request->query('date_to')) : Carbon::now()->endOfMonth();
+        
+        $employees = Employee::with('department')
+            ->orderBy('first_name')
+            ->get();
+        
+        $departments = \App\Models\Department::orderBy('name')
+            ->get();
+            
+        $summary = [
+            'present_days' => 0,
+            'absent_days' => 0,
+            'late_arrivals' => 0,
+            'attendance_rate' => 0,
+        ];
+        
+        $reportType = $request->query('report_type', 'daily');
+        
+        return view('attendance.reports', [
+            'user' => Auth::user(),
+            'dateFrom' => $dateFrom,
+            'dateTo' => $dateTo,
+            'employees' => $employees,
+            'departments' => $departments,
+            'summary' => $summary,
+            'reportType' => $reportType,
+            'overtimeData' => [],
+            'leaveData' => [],
+            'attendanceTrend' => [],
+            'departmentStats' => [],
+            'bestAttendance' => [],
+            'needsAttention' => [],
+        ]);
+    }
+
+    /**
+     * Export attendance reports
+     */
+    public function exportReports(Request $request, $format)
+    {
+        // TODO: Implement reports export
+        return response()->json(['message' => 'Export not yet implemented'], 501);
+    }
+
+    /**
+     * Get attendance statistics
+     */
+    public function getStatistics(Request $request)
+    {
+        // TODO: Implement statistics retrieval
+        return response()->json(['message' => 'Statistics not yet implemented'], 501);
+    }
+
+    /**
+     * Show DTR import form
+     */
+    public function importDtr(Request $request)
+    {
+        return view('attendance.import-dtr', [
+            'user' => Auth::user(),
+            'recentImports' => collect([]) // Mocking empty collection for now to clear the error
+        ]);
+    }
+
+    /**
+     * Process DTR import
+     */
+    public function processImportDtr(Request $request)
+    {
+        // Validate that file is present
+        $request->validate([
+            'dtr_file' => 'required|file|mimes:csv,xlsx,xls|max:10240',
+        ]);
+
+        try {
+            // Store uploaded file temporarily
+            $file = $request->file('dtr_file');
+            $filePath = $file->store('temp_dtr', 'local');
+            
+            // Construct the full path using Storage disk path
+            $fullPath = Storage::disk('local')->path($filePath);
+
+            // Initialize the DTR Import Service
+            $dtrService = new DtrImportService();
+
+            // Parse the DTR data from the file
+            $parsedData = $dtrService->parseDtrData($fullPath);
+
+            // Validate the parsed data
+            $validation = $dtrService->validateParsedData($parsedData);
+
+            // Store the parsed data in session for review
+            session(['imported_records' => $parsedData->toArray()]);
+            session(['import_validation' => $validation]);
+            session(['import_file_path' => $fullPath]);
+
+            // Clean up the temporary file
+            Storage::disk('local')->delete($filePath);
+
+            // Return success response with redirect to review page
+            if ($validation['is_valid']) {
+                return redirect()->route('attendance.import-dtr.review')
+                    ->with('success', 'DTR file processed successfully. Please review the records before confirming.');
+            } else {
+                // Return to import page with errors
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', 'DTR file has validation errors. Please check the data and try again.')
+                    ->with('validation_errors', $validation['errors'])
+                    ->with('validation_warnings', $validation['warnings']);
+            }
+
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Failed to process DTR file: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Review imported DTR records
+     */
+    public function reviewImportDtr(Request $request)
+    {
+        $importedRecords = session('imported_records', []);
+        $validation = session('import_validation', ['errors' => collect(), 'warnings' => collect(), 'is_valid' => true]);
+        $filePath = session('import_file_path', '');
+        
+        if (empty($importedRecords)) {
+            return redirect()->route('attendance.import-dtr')
+                ->with('error', 'No imported records found. Please upload a DTR file first.');
+        }
+        
+        $parsedData = collect($importedRecords);
+        $validation['errors'] = collect($validation['errors'] ?? []);
+        $validation['warnings'] = collect($validation['warnings'] ?? []);
+        
+        return view('attendance.import-dtr-review', [
+            'user' => Auth::user(),
+            'parsedData' => $parsedData,
+            'importedRecords' => $importedRecords,
+            'validation' => $validation,
+            'fileName' => basename($filePath),
+        ]);
+    }
+
+    /**
+     * Confirm DTR import
+     */
+    public function confirmImportDtr(Request $request)
+    {
+        try {
+            // Get the imported records from session
+            $importedRecords = session('imported_records', []);
+            
+            if (empty($importedRecords)) {
+                return redirect()->route('attendance.import-dtr')
+                    ->with('error', 'No imported records found. Please upload a DTR file first.');
+            }
+
+            // Get current user for created_by field
+            $user = Auth::user();
+            $hasCreatedByColumn = Schema::hasColumn('attendance_records', 'created_by');
+
+            // Process and store each record
+            $successCount = 0;
+            $errorCount = 0;
+            $errors = [];
+
+            foreach ($importedRecords as $record) {
+                try {
+                    // Find the employee by employee_id
+                    $employee = Employee::where('employee_id', $record['employee_id'])->first();
+                    
+                    if (!$employee) {
+                        $errorCount++;
+                        $errors[] = "Employee {$record['employee_id']} not found";
+                        continue;
+                    }
+
+                    // Check if attendance record already exists
+                    $existingRecord = AttendanceRecord::where('employee_id', $employee->id)
+                        ->where('date', $record['date'])
+                        ->first();
+
+                    if ($existingRecord) {
+                        // Update existing record
+                        $updatePayload = [
+                            'time_in' => $record['time_in'] ? Carbon::parse($record['date'] . ' ' . $record['time_in']) : null,
+                            'time_out' => $record['time_out'] ? Carbon::parse($record['date'] . ' ' . $record['time_out']) : null,
+                            'total_hours' => $record['total_hours'] ?? 0,
+                            'overtime_hours' => $record['overtime_hours'] ?? 0,
+                            'status' => $record['status'] ?? 'present',
+                        ];
+
+                        if ($hasCreatedByColumn && $user) {
+                            $updatePayload['created_by'] = $user->id;
+                        }
+
+                        $existingRecord->update($updatePayload);
+                    } else {
+                        // Create new record
+                        $createPayload = [
+                            'employee_id' => $employee->id,
+                            'date' => $record['date'],
+                            'time_in' => $record['time_in'] ? Carbon::parse($record['date'] . ' ' . $record['time_in']) : null,
+                            'time_out' => $record['time_out'] ? Carbon::parse($record['date'] . ' ' . $record['time_out']) : null,
+                            'total_hours' => $record['total_hours'] ?? 0,
+                            'overtime_hours' => $record['overtime_hours'] ?? 0,
+                            'status' => $record['status'] ?? 'present',
+                        ];
+
+                        if ($hasCreatedByColumn && $user) {
+                            $createPayload['created_by'] = $user->id;
+                        }
+
+                        AttendanceRecord::create($createPayload);
+                    }
+
+                    $successCount++;
+
+                } catch (\Exception $e) {
+                    $errorCount++;
+                    $errors[] = "Error importing {$record['employee_id']} on {$record['date']}: " . $e->getMessage();
+                }
+            }
+
+            // Clear session data
+            session()->forget(['imported_records', 'import_validation', 'import_file_path']);
+
+            // Prepare message
+            $message = "Successfully imported {$successCount} attendance records.";
+            if ($errorCount > 0) {
+                $message .= " {$errorCount} records failed to import.";
+            }
+
+            if ($successCount > 0) {
+                return redirect()->route('attendance.timekeeping')
+                    ->with('success', $message);
+            } else {
+                return redirect()->route('attendance.import-dtr')
+                    ->with('error', $message . ' ' . implode('; ', $errors));
+            }
+
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', 'Failed to confirm DTR import: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Display temporary timekeeping records
+     */
+    public function tempTimekeeping(Request $request)
+    {
+        $employees = Employee::with('department')
+            ->orderBy('first_name')
+            ->get();
+        
+        return view('attendance.temp-timekeeping', [
+            'user' => Auth::user(),
+            'employees' => $employees,
+        ]);
+    }
+
+    /**
+     * Approve temporary timekeeping records
+     */
+    public function approveTempTimekeeping(Request $request)
+    {
+        // TODO: Implement temp timekeeping approval
+        return response()->json(['message' => 'Approval not yet implemented'], 501);
+    }
+
+    /**
+     * Show create attendance record form
+     */
+    public function createRecord(Request $request)
+    {
+        $employees = Employee::with('department')
+            ->orderBy('first_name')
+            ->get();
+        
+        return view('attendance.create-record', [
+            'user' => Auth::user(),
+            'employees' => $employees
+        ]);
+    }
+
+    /**
+     * Store new attendance record
+     */
+    public function storeRecord(Request $request)
+    {
+        // TODO: Implement record storage
+        return response()->json(['message' => 'Record storage not yet implemented'], 501);
+    }
+
+    /**
+     * Show edit attendance record form
+     */
+    public function editRecord(Request $request, $id)
+    {
+        $employees = Employee::with('department')
+            ->orderBy('first_name')
+            ->get();
+        
+        return view('attendance.edit-record', [
+            'id' => $id,
+            'user' => Auth::user(),
+            'employees' => $employees
+        ]);
+    }
+}
+
