@@ -69,60 +69,72 @@
                         <option value="absent" {{ old('status') == 'absent' ? 'selected' : '' }} style="color: #111827 !important;">Absent</option>
                         <option value="late" {{ old('status') == 'late' ? 'selected' : '' }} style="color: #111827 !important;">Late</option>
                         <option value="half_day" {{ old('status') == 'half_day' ? 'selected' : '' }} style="color: #111827 !important;">Half Day</option>
+                        <option value="official_business" {{ old('status') == 'official_business' ? 'selected' : '' }} style="color: #111827 !important;">Official Business</option>
                     </select>
                     @error('status')
                         <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                     @enderror
                 </div>
 
-                <!-- Time In -->
-                <div>
-                    <label for="time_in" class="block text-sm font-medium text-gray-700 mb-2">
-                        Time In <span class="text-red-500">*</span>
-                    </label>
-                    <input type="time" name="time_in" id="time_in" value="{{ old('time_in') }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('time_in') border-red-500 @enderror" style="background-color: white !important; color: #111827 !important;">
-                    @error('time_in')
-                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                    @enderror
+                <!-- Time & Break fields (not applicable to Official Business) -->
+                <div id="time-fields-section" class="contents">
+                    <!-- Time In -->
+                    <div>
+                        <label for="time_in" class="block text-sm font-medium text-gray-700 mb-2">
+                            Time In <span id="time_in_required_indicator" class="text-red-500">*</span>
+                        </label>
+                        <input type="time" name="time_in" id="time_in" value="{{ old('time_in') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('time_in') border-red-500 @enderror" style="background-color: white !important; color: #111827 !important;">
+                        @error('time_in')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <!-- Time Out -->
+                    <div>
+                        <label for="time_out" class="block text-sm font-medium text-gray-700 mb-2">
+                            Time Out
+                        </label>
+                        <input type="time" name="time_out" id="time_out" value="{{ old('time_out') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('time_out') border-red-500 @enderror" style="background-color: white !important; color: #111827 !important;">
+                        @error('time_out')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <!-- Break Start -->
+                    <div>
+                        <label for="break_start" class="block text-sm font-medium text-gray-700 mb-2">
+                            Break Start
+                        </label>
+                        <input type="time" name="break_start" id="break_start" value="{{ old('break_start', '12:00') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('break_start') border-red-500 @enderror" style="background-color: white !important; color: #111827 !important;">
+                        @error('break_start')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <!-- Break End -->
+                    <div>
+                        <label for="break_end" class="block text-sm font-medium text-gray-700 mb-2">
+                            Break End
+                        </label>
+                        <input type="time" name="break_end" id="break_end" value="{{ old('break_end', '13:00') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('break_end') border-red-500 @enderror" style="background-color: white !important; color: #111827 !important;">
+                        @error('break_end')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
                 </div>
 
-                <!-- Time Out -->
-                <div>
-                    <label for="time_out" class="block text-sm font-medium text-gray-700 mb-2">
-                        Time Out
-                    </label>
-                    <input type="time" name="time_out" id="time_out" value="{{ old('time_out') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('time_out') border-red-500 @enderror" style="background-color: white !important; color: #111827 !important;">
-                    @error('time_out')
-                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                    @enderror
-                </div>
-
-                <!-- Break Start -->
-                <div>
-                    <label for="break_start" class="block text-sm font-medium text-gray-700 mb-2">
-                        Break Start
-                    </label>
-                    <input type="time" name="break_start" id="break_start" value="{{ old('break_start', '12:00') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('break_start') border-red-500 @enderror" style="background-color: white !important; color: #111827 !important;">
-                    @error('break_start')
-                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                    @enderror
-                </div>
-
-                <!-- Break End -->
-                <div>
-                    <label for="break_end" class="block text-sm font-medium text-gray-700 mb-2">
-                        Break End
-                    </label>
-                    <input type="time" name="break_end" id="break_end" value="{{ old('break_end', '13:00') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('break_end') border-red-500 @enderror" style="background-color: white !important; color: #111827 !important;">
-                    @error('break_end')
-                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                    @enderror
+                <!-- Official Business notice -->
+                <div id="ob-notice" class="sm:col-span-2 hidden">
+                    <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                        <i class="fas fa-briefcase mr-1"></i>
+                        Official Business doesn't use clock times. Please provide the reason in the Notes field below.
+                    </div>
                 </div>
 
                 <!-- Notes -->
                 <div class="sm:col-span-2">
                     <label for="notes" class="block text-sm font-medium text-gray-700 mb-2">
-                        Notes
+                        Notes <span id="notes_required_indicator" class="text-red-500 hidden">*</span>
                     </label>
                     <textarea name="notes" id="notes" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('notes') border-red-500 @enderror" placeholder="Optional notes about this attendance record..." style="background-color: white !important; color: #111827 !important;">{{ old('notes') }}</textarea>
                     @error('notes')
@@ -159,6 +171,7 @@
                         <li>Break duration is automatically calculated if you provide both Time In and Time Out</li>
                         <li>Total hours will be calculated as: (Time Out - Time In) - Break Duration</li>
                         <li>You cannot add duplicate records for the same employee on the same date</li>
+                        <li>Official Business doesn't require Time In/Out — just select the status and explain the reason in Notes</li>
                     </ul>
                 </div>
             </div>
@@ -173,8 +186,48 @@ document.addEventListener('DOMContentLoaded', function() {
     const timeOutInput = document.getElementById('time_out');
     const breakDurationInput = document.getElementById('break_duration');
     const dateInput = document.getElementById('date');
+    const statusSelect = document.getElementById('status');
+    const timeFieldsSection = document.getElementById('time-fields-section');
+    const obNotice = document.getElementById('ob-notice');
+    const notesTextarea = document.getElementById('notes');
+    const notesRequiredIndicator = document.getElementById('notes_required_indicator');
+    const timeInRequiredIndicator = document.getElementById('time_in_required_indicator');
+
+    function toggleOfficialBusinessFields() {
+        const isOfficialBusiness = statusSelect.value === 'official_business';
+
+        if (isOfficialBusiness) {
+            // Hide clock-based fields; they don't apply to Official Business
+            timeFieldsSection.classList.add('hidden');
+            obNotice.classList.remove('hidden');
+            timeInInput.removeAttribute('required');
+            timeInRequiredIndicator.classList.add('hidden');
+
+            // Notes becomes the required "reason" field
+            notesTextarea.setAttribute('required', 'required');
+            notesTextarea.placeholder = 'Reason for Official Business (required)...';
+            notesRequiredIndicator.classList.remove('hidden');
+        } else {
+            timeFieldsSection.classList.remove('hidden');
+            obNotice.classList.add('hidden');
+            timeInInput.setAttribute('required', 'required');
+            timeInRequiredIndicator.classList.remove('hidden');
+
+            notesTextarea.removeAttribute('required');
+            notesTextarea.placeholder = 'Optional notes about this attendance record...';
+            notesRequiredIndicator.classList.add('hidden');
+        }
+    }
+
+    statusSelect.addEventListener('change', toggleOfficialBusinessFields);
+    // Run once on load in case of old() repopulated status (e.g. after a validation error)
+    toggleOfficialBusinessFields();
 
     function calculateTotalHours() {
+        if (statusSelect.value === 'official_business') {
+            return;
+        }
+
         const timeIn = timeInInput.value;
         const timeOut = timeOutInput.value;
         const breakStart = document.getElementById('break_start').value;

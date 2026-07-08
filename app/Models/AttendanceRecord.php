@@ -18,6 +18,34 @@ class AttendanceRecord extends Model
     protected $keyType = 'string';
     public $incrementing = false;
 
+    /**
+     * Attendance status constants
+     */
+    public const PRESENT = 'present';
+    public const ABSENT = 'absent';
+    public const LATE = 'late';
+    public const HALF_DAY = 'half_day';
+    public const ON_LEAVE = 'on_leave';
+    public const DAY_OFF = 'day_off';
+    public const HOLIDAY = 'holiday';
+    public const OFFICIAL_BUSINESS = 'official_business';
+    public const ERROR = 'error';
+
+    /**
+     * All valid attendance statuses supported by the module.
+     */
+    public const STATUSES = [
+        self::PRESENT,
+        self::ABSENT,
+        self::LATE,
+        self::HALF_DAY,
+        self::ON_LEAVE,
+        self::DAY_OFF,
+        self::HOLIDAY,
+        self::OFFICIAL_BUSINESS,
+        self::ERROR,
+    ];
+
     protected $fillable = [
         'employee_id',
         'date',
@@ -284,6 +312,14 @@ class AttendanceRecord extends Model
         $actualTime = $this->time_in;
 
         return $actualTime->gt($expectedTime->addMinutes($gracePeriod));
+    }
+
+    /**
+     * Check if this record is marked as Official Business
+     */
+    public function isOfficialBusiness(): bool
+    {
+        return $this->status === self::OFFICIAL_BUSINESS;
     }
 
     /**
