@@ -453,12 +453,104 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Store new attendance record
+     * Store new attendance record (including Official Business)
      */
     public function storeRecord(Request $request)
     {
-        // TODO: Implement record storage
-        return response()->json(['message' => 'Record storage not yet implemented'], 501);
+        // Validate inputs
+        $validated = $request->validate([
+            'employee_id' => 'required|exists:employees,id',
+            'date' => 'required|date',
+            'status' => 'required|string|in:' . implode(',', AttendanceRecord::STATUSES),
+            'time_in' => 'nullable|required_unless:status,official_business|date_format:H:i',
+            'time_out' => 'nullable|date_format:H:i|after:time_in',
+            'break_start' => 'nullable|date_format:H:i',
+            'break_end' => 'nullable|date_format:H:i|after:break_start',
+            'notes' => 'nullable|string|max:500',
+        ]);
+
+        $isOfficialBusiness = $validated['status'] === AttendanceRecord::OFFICIAL_BUSINESS;
+
+        // Official Business requires a reason so it's clear why the employee was out
+        if ($isOfficialBusiness && empty($validated['notes'])) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Please provide a reason/notes for Official Business.');
+        }
+
+        // Check existing attendance status for this employee on this date
+        $existingRecord = AttendanceRecord::where('employee_id', $validated['employee_id'])
+            ->where('date', $validated['date'])
+            ->first();
+
+        if ($existingRecord) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'An attendance record already exists for this employee on this date. Please edit the existing record instead.');
+        }
+
+        // Build the payload
+        $payload = [
+            'employee_id' => $validated['employee_id'],
+            'date' => $validated['date'],
+            'status' => $validated['status'],
+            'notes' => $validated['notes'] ?? null,
+        ];
+
+        if ($isOfficialBusiness) {
+            // Official Business is not clock-based; no time in/out, breaks, or computed hours
+            $payload['time_in'] = null;
+            $payload['time_out'] = null;
+            $payload['break_start'] = null;
+            $payload['break_end'] = null;
+            $payload['total_hours'] = 0;
+            $payload['regular_hours'] = 0;
+            $payload['overtime_hours'] = 0;
+        } else {
+            $payload['time_in'] = $validated['time_in'] ? Carbon::parse($validated['date'] . ' ' . $validated['time_in']) : null;
+            $payload['time_out'] = $validated['time_out'] ? Carbon::parse($validated['date'] . ' ' . $validated['time_out']) : null;
+            $payload['break_start'] = $validated['break_start'] ? Carbon::parse($validated['date'] . ' ' . $validated['break_start']) : null;
+            $payload['break_end'] = $validated['break_end'] ? Carbon::parse($validated['date'] . ' ' . $validated['break_end']) : null;
+        }
+
+        if (Schema::hasColumn('attendance_records', 'created_by') && Auth::check()) {
+            $payload['created_by'] = Auth::id();
+        }
+
+        try {
+            $record = AttendanceRecord::create($payload);
+
+            // For clock-based statuses, calculate hours from the time fields just saved
+            if (!$isOfficialBusiness && $record->time_in && $record->time_out) {
+                $timeIn = Carbon::parse($record->time_in);
+                $timeOut = Carbon::parse($record->time_out);
+                $totalMinutes = $timeIn->diffInMinutes($timeOut);
+
+                $breakMinutes = 0;
+                if ($record->break_start && $record->break_end) {
+                    $breakMinutes = Carbon::parse($record->break_start)->diffInMinutes(Carbon::parse($record->break_end));
+                }
+
+                $totalHours = round(max(0, $totalMinutes - $breakMinutes) / 60, 2);
+                $regularHours = min($totalHours, 8);
+                $overtimeHours = max(0, $totalHours - 8);
+
+                $record->update([
+                    'total_hours' => $totalHours,
+                    'regular_hours' => $regularHours,
+                    'overtime_hours' => $overtimeHours,
+                ]);
+            }
+
+            $statusLabel = ucwords(str_replace('_', ' ', $validated['status']));
+
+            return redirect()->route('attendance.daily')
+                ->with('success', "{$statusLabel} record saved successfully.");
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Failed to save attendance record: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -477,4 +569,3 @@ class AttendanceController extends Controller
         ]);
     }
 }
-
