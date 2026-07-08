@@ -24,3 +24,5 @@ Thumbs.db
 .env
 /dtrexample
 TASKS-EJHAY.md
+/storage/framework/views/*
+!/storage/framework/views/.gitignore
