@@ -41,7 +41,7 @@
         <!-- Main Content -->
         <div class="lg:ml-72">
             <!-- Top Navigation -->
-            <x-dashboard.header :title="$pageTitle ?? 'Dashboard'" :user="$user" />
+            <x-dashboard.header title="Dashboard" :user="$user" />
 
             <!-- Dashboard Content -->
             <main class="p-3 sm:p-4 lg:p-6 xl:p-8">

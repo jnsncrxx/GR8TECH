@@ -343,6 +343,15 @@ Route::get('/debug-current-payrolls', function() {
         Route::put('/leave-management/balance/{id}', [App\Http\Controllers\Web\LeaveController::class, 'updateBalance'])->name('leave-management.balance.update');
         Route::get('/leave-management/statistics', [App\Http\Controllers\Web\LeaveController::class, 'getStatistics'])->name('leave-management.statistics');
         
+        // Official Business routes
+        Route::get('/official-business', [App\Http\Controllers\Web\OfficialBusinessController::class, 'index'])->name('official-business');
+        Route::post('/official-business', [App\Http\Controllers\Web\OfficialBusinessController::class, 'store'])->name('official-business.store');
+        Route::delete('/official-business/{id}/cancel', [App\Http\Controllers\Web\OfficialBusinessController::class, 'cancel'])->name('official-business.cancel');
+        Route::get('/official-business/statistics', [App\Http\Controllers\Web\OfficialBusinessController::class, 'getStatistics'])->name('official-business.statistics');
+        Route::put('/official-business/{id}/status', [App\Http\Controllers\Web\OfficialBusinessController::class, 'updateStatus'])
+            ->name('official-business.update-status')
+            ->middleware('role:admin,hr,manager');
+        
         // Admin/HR only routes
         Route::middleware(['role:admin,hr'])->group(function () {
             Route::get('/reports', [App\Http\Controllers\Web\AttendanceController::class, 'reports'])->name('reports');

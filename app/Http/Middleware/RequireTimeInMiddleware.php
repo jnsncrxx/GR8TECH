@@ -52,6 +52,11 @@ class RequireTimeInMiddleware
             'companies.index',
             'hr.help-support',
             'hr.help-support-ticket-store',
+            'attendance.official-business',
+            'attendance.official-business.store',
+            'attendance.official-business.cancel',
+            'attendance.official-business.statistics',
+            'attendance.official-business.update-status',
         ])) {
             return $next($request);
         }
