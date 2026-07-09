@@ -68,6 +68,7 @@ class RequireTimeInMiddleware
             return redirect()->route('dashboard')
                 ->with('error', 'You must be currently timed in to access other modules.');
         }
+    
 
         return $next($request);
     }
