@@ -3719,18 +3719,6 @@ public function downloadPayslip($payrollId)
                 return $item->employee_id . '_' . $item->date->format('Y-m-d');
             });
             
-        // Fetch all approved leave records for these employees intersecting this period
-        $leaveRecords = \App\Models\LeaveRequest::whereIn('employee_id', $employees->pluck('id'))
-            ->where('status', 'approved')
-            ->where(function($query) use ($startDate, $endDate) {
-                $query->whereBetween('start_date', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
-                      ->orWhereBetween('end_date', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
-                      ->orWhere(function($q) use ($startDate, $endDate) {
-                          $q->where('start_date', '<=', $startDate->format('Y-m-d'))
-                            ->where('end_date', '>=', $endDate->format('Y-m-d'));
-                      });
-            })->get();
-        
         foreach ($employees as $employee) {
             $currentDate = $startDate->copy();
             
@@ -3765,22 +3753,6 @@ public function downloadPayslip($payrollId)
                 // Retrieve approved overtime for this specific date
                 $otKey = $employee->id . '_' . $dateStr;
                 $overtime = $overtimeRecords->has($otKey) ? $overtimeRecords->get($otKey)->sum('hours') : 0;
-                
-                // Check if date is within an approved leave
-                $activeLeave = $leaveRecords->where('employee_id', $employee->id)
-                    ->first(function($leave) use ($currentDate) {
-                        $start = \Carbon\Carbon::parse($leave->start_date)->startOfDay();
-                        $end = \Carbon\Carbon::parse($leave->end_date)->endOfDay();
-                        return $currentDate->between($start, $end);
-                    });
-                
-                $hasApprovedLeave = $activeLeave !== null;
-                $leaveType = $activeLeave ? $activeLeave->leave_type : null;
-                
-                // If there is an active approved leave, override schedule status
-                if ($hasApprovedLeave) {
-                    $scheduleStatus = 'Leave';
-                }
                 
                 // Only calculate attendance metrics if schedule status is 'Working' or 'Regular Holiday' or 'Special Holiday'
                 if (in_array($scheduleStatus, ['Working', 'Regular Holiday', 'Special Holiday'])) {
@@ -3827,8 +3799,6 @@ public function downloadPayslip($payrollId)
                     'night_differential_hours' => $nightDifferentialHours,
                     'late_minutes' => $lateMinutes,
                     'is_night_shift' => $isNightShift,
-                    'has_approved_leave' => $hasApprovedLeave,
-                    'leave_type' => $leaveType,
                 ];
                 
                 $currentDate->addDay();
