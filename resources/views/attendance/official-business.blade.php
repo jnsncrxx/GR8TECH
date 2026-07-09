@@ -413,6 +413,7 @@
     </div>
 </div>
 @endunless
+
 <!-- Reviewer: Approve Modal -->
 @if($isReviewer)
 <div id="obApproveModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999;" onclick="closeApproveModal()">
@@ -446,8 +447,8 @@
         </div>
     </div>
 </div>
+
 <!-- Reviewer: Reject Modal -->
-@if($isReviewer)
 <div id="obRejectModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999;" onclick="closeRejectModal()">
     <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" style="max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
         <div class="mt-3">
@@ -503,19 +504,18 @@ function closeObModal() {
 
 @if($isReviewer)
 function approveOb(requestId) {
-    if (!confirm('Are you sure you want to approve this Official Business request?')) {
-        return;
-    }
-    const form = document.createElement('form');
-    form.method = 'POST';
+    const modal = document.getElementById('obApproveModal');
+    const form = document.getElementById('obApproveForm');
+    if (!modal || !form) return;
     form.action = `{{ url('attendance/official-business') }}/${requestId}/status`;
-    form.innerHTML = `
-        @csrf
-        @method('PUT')
-        <input type="hidden" name="status" value="approved">
-    `;
-    document.body.appendChild(form);
-    form.submit();
+    modal.style.display = 'flex';
+    modal.style.alignItems = 'center';
+    modal.style.justifyContent = 'center';
+}
+
+function closeApproveModal() {
+    const modal = document.getElementById('obApproveModal');
+    if (modal) modal.style.display = 'none';
 }
 
 function rejectOb(requestId) {
