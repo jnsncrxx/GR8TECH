@@ -534,7 +534,6 @@
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <input type="checkbox" class="payroll-checkbox" value="{{ $payroll->id }}">
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
                         <td class="px-6 py-4">
                             <div class="flex items-center">
                                 <div class="h-8 w-8 flex-shrink-0">
@@ -988,6 +987,101 @@
     </div>
 </div>
 
+<!-- Generate Payroll Confirm Modal -->
+<div id="generatePayrollConfirmModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 overflow-y-auto" style="display: none;">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 transform transition-all">
+        <div class="p-6">
+            <div class="flex items-center justify-center w-12 h-12 mx-auto bg-blue-100 rounded-full mb-4">
+                <i class="fas fa-file-invoice-dollar text-blue-600 text-xl"></i>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 text-center mb-2">Generate Payroll</h3>
+            <p class="text-sm text-gray-500 text-center mb-6">Are you sure you want to generate payroll for the selected period? This action will calculate salaries, deductions, and net pay for all eligible employees based on their attendance.</p>
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="closeGeneratePayrollModal()" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                    Cancel
+                </button>
+                <button type="button" onclick="confirmGeneratePayroll()" class="px-4 py-2 bg-blue-600 border border-transparent rounded-lg text-white hover:bg-blue-700 transition-colors">
+                    <i class="fas fa-check mr-2"></i>
+                    Generate
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Approve Payroll Modal -->
+<div id="approvePayrollModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 overflow-y-auto" style="display: none;">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 transform transition-all">
+        <div class="p-6">
+            <div class="flex items-center justify-center w-12 h-12 mx-auto bg-green-100 rounded-full mb-4">
+                <i class="fas fa-check text-green-600 text-xl"></i>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 text-center mb-2">Approve Payroll</h3>
+            <p class="text-sm text-gray-500 text-center mb-6">Are you sure you want to approve this payroll?</p>
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="closeApproveModal()" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                    Cancel
+                </button>
+                <button type="button" id="confirmApproveBtn" class="px-4 py-2 bg-green-600 border border-transparent rounded-lg text-white hover:bg-green-700 transition-colors">
+                    <i class="fas fa-check mr-2"></i>
+                    Approve
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Payroll Modal -->
+<div id="rejectPayrollModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 overflow-y-auto" style="display: none;">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 transform transition-all">
+        <div class="p-6">
+            <div class="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full mb-4">
+                <i class="fas fa-times text-red-600 text-xl"></i>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 text-center mb-2">Reject Payroll</h3>
+            <p class="text-sm text-gray-500 text-center mb-4">Are you sure you want to reject this payroll? Please provide a reason.</p>
+            
+            <div class="mb-4 text-left">
+                <label for="rejectReason" class="block text-sm font-medium text-gray-700 mb-1">Reason for Rejection <span class="text-red-500">*</span></label>
+                <textarea id="rejectReason" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500" placeholder="Enter reason here..." required></textarea>
+                <p id="rejectReasonError" class="text-red-500 text-xs mt-1 hidden">Reason is required</p>
+            </div>
+            
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="closeRejectModal()" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                    Cancel
+                </button>
+                <button type="button" id="confirmRejectBtn" class="px-4 py-2 bg-red-600 border border-transparent rounded-lg text-white hover:bg-red-700 transition-colors">
+                    <i class="fas fa-times mr-2"></i>
+                    Reject
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Approve All Pending Modal -->
+<div id="approveAllPendingModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 overflow-y-auto" style="display: none;">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 transform transition-all">
+        <div class="p-6">
+            <div class="flex items-center justify-center w-12 h-12 mx-auto bg-green-100 rounded-full mb-4">
+                <i class="fas fa-check-double text-green-600 text-xl"></i>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 text-center mb-2">Approve All Pending</h3>
+            <p id="approveAllPendingMessage" class="text-sm text-gray-500 text-center mb-6">Are you sure you want to approve all pending payrolls?</p>
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="closeApproveAllPendingModal()" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                    Cancel
+                </button>
+                <button type="button" id="confirmApproveAllPendingBtn" onclick="confirmApproveAllPending()" class="px-4 py-2 bg-green-600 border border-transparent rounded-lg text-white hover:bg-green-700 transition-colors">
+                    <i class="fas fa-check-double mr-2"></i>
+                    Approve All
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 // Define button handler functions globally at the top
 window.generatePayroll = function() {
@@ -999,10 +1093,18 @@ window.generatePayroll = function() {
         return;
     }
     
-    if (confirm('Are you sure you want to generate payroll for the selected period?')) {
-        document.getElementById('generatePayrollForm').submit();
-    }
+    document.getElementById('generatePayrollConfirmModal').style.display = 'flex';
 };
+
+window.closeGeneratePayrollModal = function() {
+    document.getElementById('generatePayrollConfirmModal').style.display = 'none';
+};
+
+window.confirmGeneratePayroll = function() {
+    document.getElementById('generatePayrollConfirmModal').style.display = 'none';
+    document.getElementById('generatePayrollForm').submit();
+};
+
 
 window.processPayments = function() {
     const startDate = document.getElementById('paymentStartDate').value;
@@ -1284,26 +1386,59 @@ async function exportPayrollWithCalculations() {
                 </button>
                 <button onclick="processSelectedPayments()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                     <i class="fas fa-credit-card mr-2"></i>Process Payments
-                </button>
-            </div>
+<!-- Approve Payroll Modal -->
+<div id="approvePayrollModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-1/3 shadow-lg rounded-md bg-white">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">Confirm Approval</h3>
+        <p class="text-sm text-gray-600 mb-6">Are you sure you want to approve this payroll? This action cannot be undone.</p>
+        <div class="flex justify-end space-x-3">
+            <button onclick="closeApproveModal()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
+            <button id="confirmApproveBtn" class="px-4 py-2 bg-green-600 text-white rounded-lg">Approve</button>
         </div>
     </div>
 </div>
-            </div>
+
+<!-- Reject Payroll Modal -->
+<div id="rejectPayrollModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-1/3 shadow-lg rounded-md bg-white">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">Reject Payroll</h3>
+        <p class="text-sm text-gray-600 mb-4">Please provide a reason for rejecting this payroll:</p>
+        <textarea id="rejectReason" class="w-full border rounded p-2 mb-2" rows="3"></textarea>
+        <p id="rejectReasonError" class="text-red-500 text-xs hidden mb-4">Reason is required.</p>
+        <div class="flex justify-end space-x-3">
+            <button onclick="closeRejectModal()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
+            <button id="confirmRejectBtn" class="px-4 py-2 bg-red-600 text-white rounded-lg">Reject</button>
         </div>
     </div>
 </div>
+
 <script>
+let currentPayrollId = null;
+let currentActionButton = null;
 
 /**
  * Approve a single payroll
  */
-function approvePayroll(payrollId) {
-    if (!confirm('Are you sure you want to approve this payroll?')) {
-        return;
-    }
+window.approvePayroll = function(payrollId) {
+    currentPayrollId = payrollId;
+    currentActionButton = event.target.closest('button');
+    document.getElementById('approvePayrollModal').style.display = 'flex';
+    document.getElementById('confirmApproveBtn').onclick = () => confirmApprovePayroll();
+};
+
+window.closeApproveModal = function() {
+    document.getElementById('approvePayrollModal').style.display = 'none';
+    currentPayrollId = null;
+    currentActionButton = null;
+};
+
+window.confirmApprovePayroll = function() {
+    document.getElementById('approvePayrollModal').style.display = 'none';
+    const payrollId = currentPayrollId;
+    const button = currentActionButton;
     
-    const button = event.target.closest('button');
+    if (!payrollId || !button) return;
+    
     const originalHTML = button.innerHTML;
     button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
     button.disabled = true;
@@ -1349,17 +1484,39 @@ function approvePayroll(payrollId) {
         button.innerHTML = originalHTML;
         button.disabled = false;
     });
-}
+};
 
 /**
  * Reject a single payroll - UPDATED
  */
-function rejectPayroll(payrollId) {
-    if (!confirm('Are you sure you want to reject this payroll?')) {
+window.rejectPayroll = function(payrollId) {
+    currentPayrollId = payrollId;
+    currentActionButton = event.target.closest('button');
+    document.getElementById('rejectReason').value = '';
+    document.getElementById('rejectReasonError').classList.add('hidden');
+    document.getElementById('rejectPayrollModal').style.display = 'flex';
+    document.getElementById('confirmRejectBtn').onclick = () => confirmRejectPayroll();
+};
+
+window.closeRejectModal = function() {
+    document.getElementById('rejectPayrollModal').style.display = 'none';
+    currentPayrollId = null;
+    currentActionButton = null;
+};
+
+window.confirmRejectPayroll = function() {
+    const reason = document.getElementById('rejectReason').value.trim();
+    if (!reason) {
+        document.getElementById('rejectReasonError').classList.remove('hidden');
         return;
     }
     
-    const button = event.target.closest('button');
+    document.getElementById('rejectPayrollModal').style.display = 'none';
+    const payrollId = currentPayrollId;
+    const button = currentActionButton;
+    
+    if (!payrollId || !button) return;
+    
     const originalHTML = button.innerHTML;
     button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
     button.disabled = true;
@@ -1376,7 +1533,7 @@ function rejectPayroll(payrollId) {
             'X-Requested-With': 'XMLHttpRequest'
         },
         body: JSON.stringify({
-            reason: 'Rejected by user'
+            reason: reason
         })
     })
     .then(response => response.json())
@@ -1391,7 +1548,7 @@ function rejectPayroll(payrollId) {
             // Show success message
             showNotification(data.message || 'Payroll rejected successfully!', 'success');
             
-            // Reload the page
+            // Reload the page after 1.5 seconds to update summary counts
             setTimeout(() => {
                 window.location.reload();
             }, 1500);
@@ -1407,7 +1564,7 @@ function rejectPayroll(payrollId) {
         button.innerHTML = originalHTML;
         button.disabled = false;
     });
-}
+};
 
 /**
  * Update payroll status in the table
@@ -3246,13 +3403,13 @@ async function approveAllPendingAJAX(startDate, endDate) {
 }
 
 // Approve All Pending with confirmation and auto-refresh
-// Make approveAllPendingWithConfirmation globally accessible
+let bulkApproveStartDate = null;
+let bulkApproveEndDate = null;
+
 window.approveAllPendingWithConfirmation = async function() {
     const button = document.getElementById('approveAllPendingBtn');
-    const originalText = button.innerHTML;
     
     try {
-        // Get date values - FIXED: using the right IDs
         const startDate = document.getElementById('bulkStartDate').value;
         const endDate = document.getElementById('bulkEndDate').value;
         
@@ -3261,37 +3418,65 @@ window.approveAllPendingWithConfirmation = async function() {
             return;
         }
         
+        // Show loading spinner on button while checking
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Checking...';
+        button.disabled = true;
+        
         // Check pending payrolls count
         const pendingCount = await checkPendingPayrolls(startDate, endDate);
+        
+        button.innerHTML = originalText;
+        button.disabled = false;
         
         if (pendingCount === 0) {
             alert('No pending payrolls found for this period.');
             return;
         }
         
-        // Show confirmation dialog
-        const message = `Are you sure you want to approve all pending payrolls?\n\n${pendingCount} pending payroll${pendingCount > 1 ? 's' : ''} found\nPeriod: ${formatDateForDisplay(new Date(startDate))} — ${formatDateForDisplay(new Date(endDate))}\n\nThis action will approve all pending payrolls for the selected period.`;
+        // Show confirmation dialog modal
+        const message = `${pendingCount} pending payroll${pendingCount > 1 ? 's' : ''} found<br>Period: ${formatDateForDisplay(new Date(startDate))} — ${formatDateForDisplay(new Date(endDate))}<br><br>This action will approve all pending payrolls for the selected period.`;
         
-        if (confirm(message)) {
-            // Show loading state
-            button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Approving...';
-            button.disabled = true;
-            
-            // Use the AJAX function (UPDATED)
-            const approvedCount = await approveAllPendingAJAX(startDate, endDate);
-            
-            if (approvedCount > 0) {
-                // Success - reload the page to show updated status
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1000);
-            } else {
-                alert('No payrolls were approved. Please try again.');
-                button.innerHTML = originalText;
-                button.disabled = false;
-            }
+        document.getElementById('approveAllPendingMessage').innerHTML = message;
+        bulkApproveStartDate = startDate;
+        bulkApproveEndDate = endDate;
+        document.getElementById('approveAllPendingModal').style.display = 'flex';
+        
+    } catch (error) {
+        console.error('Error:', error);
+        button.innerHTML = originalText;
+        button.disabled = false;
+        alert('Error: ' + error.message);
+    }
+}
+
+window.closeApproveAllPendingModal = function() {
+    document.getElementById('approveAllPendingModal').style.display = 'none';
+}
+
+window.confirmApproveAllPending = async function() {
+    document.getElementById('approveAllPendingModal').style.display = 'none';
+    const button = document.getElementById('approveAllPendingBtn');
+    const originalText = button.innerHTML;
+    
+    // Show loading state
+    button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Approving...';
+    button.disabled = true;
+    
+    try {
+        // Use the AJAX function (UPDATED)
+        const approvedCount = await approveAllPendingAJAX(bulkApproveStartDate, bulkApproveEndDate);
+        
+        if (approvedCount > 0) {
+            // Success - reload the page to show updated status
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            alert('No payrolls were approved. Please try again.');
+            button.innerHTML = originalText;
+            button.disabled = false;
         }
-        
     } catch (error) {
         console.error('Error:', error);
         button.innerHTML = originalText;
