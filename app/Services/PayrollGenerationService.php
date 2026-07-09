@@ -1252,6 +1252,14 @@ private function calculateDaysWorkedFromRecords($employeeRecords): float
     $totalHours = 0;
     
     foreach ($employeeRecords as $record) {
+        // If it's an approved leave, count it as a full paid day (8 hours)
+        if (isset($record['has_approved_leave']) && $record['has_approved_leave']) {
+            // Unpaid leaves can be handled here if leave types are defined, 
+            // but assuming approved leaves are paid by default.
+            $totalHours += 8;
+            continue;
+        }
+
         // Only count actual hours worked on working days
         if ($record['schedule_status'] === 'Working' && 
             $record['attendance_status'] === 'Present') {
@@ -2078,6 +2086,11 @@ private function calculatePayrollFromRecords(Employee $employee, $employeeRecord
         // Note: Leave days with attendance are treated as rest day work (1.2x premium) and excluded from basic salary
         // Leave days without attendance are not paid
         $workingRecords = $employeeRecords->filter(function($record) {
+            // Include approved paid leaves
+            if (isset($record['has_approved_leave']) && $record['has_approved_leave']) {
+                return true;
+            }
+
             // Exclude Leave days - rest day work (Leave with attendance) gets premium pay separately (1.2x)
             // Leave without attendance is not paid
             if ($record['schedule_status'] === 'Leave') {
@@ -2101,6 +2114,18 @@ private function calculatePayrollFromRecords(Employee $employee, $employeeRecord
         });
         
         foreach ($workingRecords as $record) {
+            // If it's an approved leave, count it as a full paid day (8 hours)
+            if (isset($record['has_approved_leave']) && $record['has_approved_leave']) {
+                $totalScheduledHours += 8;
+                
+                $scheduledHoursDetails[] = [
+                    'date' => $record['date_formatted'],
+                    'hours' => '8 hrs (Paid Leave)',
+                    'decimal_hours' => 8
+                ];
+                continue;
+            }
+
             // Parse scheduled hours from the formatted string (e.g., "7 hrs 1 min" -> 7.017 hours)
             $scheduledHours = $this->parseFormattedHours($record['scheduled_hours']);
             $totalScheduledHours += $scheduledHours;
