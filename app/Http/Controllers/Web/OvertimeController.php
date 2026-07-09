@@ -34,6 +34,7 @@ class OvertimeController extends Controller
             "total" => (clone $summaryQuery)->count(),
             "approved" => (clone $summaryQuery)->where('status', 'approved')->count(),
             "pending" => (clone $summaryQuery)->where('status', 'pending')->count(),
+            "rejected" => (clone $summaryQuery)->where('status', 'rejected')->count(),
             "total_hours" => (clone $summaryQuery)->where('status', 'approved')->sum('hours')
         ];
         

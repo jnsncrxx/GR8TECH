@@ -3735,8 +3735,12 @@ public function downloadPayslip($payrollId)
                     ->where('date', $dateStr)
                     ->first();
                 
-                // Determine schedule status
-                $scheduleStatus = $this->getScheduleStatus($schedule);
+                // Determine schedule status - if no schedule exists but employee has attendance, treat as working day
+                if (!$schedule && $attendanceRecord && $attendanceRecord->time_in) {
+                    $scheduleStatus = 'Working';
+                } else {
+                    $scheduleStatus = $this->getScheduleStatus($schedule);
+                }
                 
                 // Determine attendance status
                 $attendanceStatus = $this->getAttendanceStatus($attendanceRecord, $schedule);

@@ -1223,7 +1223,7 @@ private function calculateAllPayrollComponents(Employee $employee, $employeeReco
         'night_differential_rate' => $hourlyRate * 0.10, // Excel: 10% of hourly rate
         'night_differential_pay' => $nightDiffData['total_pay'],
         'rest_day_premium_pay' => $restDayData['total_pay'],
-        'allowances' => $allowances,
+        'allowances' => $allowances['total'],
         'bonuses' => 0,
         'total_deductions' => $totalDeductions,
         'late_deductions' => $lateDeductions,
@@ -1410,10 +1410,10 @@ private function calculateAbsenceDeductions($employeeRecords, $dailyRate): float
 /**
  * Calculate allowances (incentive leave)
  */
-private function calculateAllowances(Employee $employee, $employeeRecords): array
+private function calculateAllowances(Employee $employee, $dailyRate): array
 {
     $incentiveLeaveDays = 5; // Default from Excel
-    $totalAllowance = $employee->daily_rate * $incentiveLeaveDays;
+    $totalAllowance = $dailyRate * $incentiveLeaveDays;
     
     return [
         'incentive_leave_days' => $incentiveLeaveDays,
@@ -1443,11 +1443,12 @@ private function calculateStatutoryDeductions(Employee $employee, $monthlyRate):
  */
 private function calculateGrossPayWithExcelFormula(
     $basicSalary,
-    $overtimeData,
-    $nightDiffData,
-    $holidayData,
-    $restDayData,
+    $overtimePay,
+    $nightDiffPay,
+    $holidayPay,
+    $restDayPay,
     $allowances,
+    $bonuses,
     $lateDeductions,
     $absentDeductions
 ): float {
@@ -1460,12 +1461,15 @@ private function calculateGrossPayWithExcelFormula(
     // J14, M14, O14, Q14, S14, U14, W14, Y14 = Various premiums and allowances
     // AC14 = Late deductions
     
+    $allowancesTotal = is_array($allowances) ? ($allowances['total'] ?? 0) : $allowances;
+    
     $grossPay = $basicSalary
-        + $allowances['total']  // Incentive leave
-        + $overtimeData['total_pay']
-        + $nightDiffData['total_pay']
-        + $holidayData['total_pay']
-        + $restDayData['total_pay']
+        + $allowancesTotal  // Incentive leave
+        + $overtimePay
+        + $nightDiffPay
+        + $holidayPay
+        + $restDayPay
+        + $bonuses
         - $lateDeductions
         - $absentDeductions;
     
@@ -2027,10 +2031,6 @@ private function calculatePayrollFromRecords(Employee $employee, $employeeRecord
             'pay_period_start' => $startDate->format('Y-m-d'),
             'pay_period_end' => $endDate->format('Y-m-d'),
             'basic_salary' => $components['basic_salary'],
-            'monthly_rate' => $components['monthly_rate'],
-            'semi_monthly_rate' => $components['semi_monthly_rate'],
-            'daily_rate' => $components['daily_rate'],
-            'hourly_rate' => $components['hourly_rate'],
             'holiday_basic_pay' => $components['holiday_basic_pay'] ?? 0,
             'holiday_premium' => $components['holiday_premium'] ?? 0,
             'special_holiday_premium' => $components['special_holiday_premium'] ?? 0,
