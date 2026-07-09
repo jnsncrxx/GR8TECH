@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AttendanceRecord;
 use App\Models\AttendanceLog;
 use App\Models\Employee;
+use App\Models\LeaveRequest;
 use App\Services\DtrImportService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -21,17 +22,17 @@ class AttendanceController extends Controller
     public function daily(Request $request)
     {
         $date = $request->query('date') ? Carbon::parse($request->query('date')) : Carbon::now();
-        
+
         // Get all employees
         $employees = Employee::with('department')
             ->orderBy('first_name')
             ->paginate(15);
-        
+
         // Get attendance records for the date
         $attendanceRecords = AttendanceRecord::where('date', $date->format('Y-m-d'))
             ->get()
             ->keyBy('employee_id');
-        
+
         // Calculate summary statistics
         // Get total count globally rather than just from the paginator's current page
         $total = Employee::count();
@@ -39,7 +40,7 @@ class AttendanceController extends Controller
         $absent = $total - $present;
         $late = $attendanceRecords->where('status', 'late')->count();
         $attendanceRate = $total > 0 ? round(($present / $total) * 100, 2) : 0;
-        
+
         $summary = [
             'total_employees' => $total,
             'present' => $present,
@@ -47,7 +48,7 @@ class AttendanceController extends Controller
             'late' => $late,
             'attendance_rate' => $attendanceRate,
         ];
-        
+
         return view('attendance.daily', [
             'user' => Auth::user(),
             'date' => $date,
@@ -76,10 +77,10 @@ class AttendanceController extends Controller
         $employees = Employee::with('department')
             ->orderBy('first_name')
             ->get();
-        
+
         $departments = \App\Models\Department::orderBy('name')
             ->get();
-        
+
         // Default to last 30 days
         $dateFrom = $request->query('date_from') ? Carbon::parse($request->query('date_from')) : Carbon::now()->subDays(30);
         $dateTo = $request->query('date_to') ? Carbon::parse($request->query('date_to')) : Carbon::now();
@@ -102,7 +103,7 @@ class AttendanceController extends Controller
             ->with(['employee.department', 'breaks', 'timeEntries'])
             ->orderBy('date', 'desc')
             ->paginate(50);
-            
+
         // Calculate summary statistics
         // Timekeeping expects: total_hours, regular_hours, overtime_hours, average_hours
         $summary = [
@@ -136,7 +137,7 @@ class AttendanceController extends Controller
             $summary['overtime_hours'] = round($overtimeHours, 2);
             $summary['average_hours'] = round($totalHours / max(1, $summaryRecords->count()), 2);
         }
-        
+
         return view('attendance.timekeeping', [
             'user' => $user,
             'employees' => $employees,
@@ -162,25 +163,182 @@ class AttendanceController extends Controller
      */
     public function reports(Request $request)
     {
-        $dateFrom = $request->query('date_from') ? Carbon::parse($request->query('date_from')) : Carbon::now()->startOfMonth();
-        $dateTo = $request->query('date_to') ? Carbon::parse($request->query('date_to')) : Carbon::now()->endOfMonth();
-        
+        $reportType = $request->query('report_type', 'daily');
+        $departmentId = $request->query('department_id');
+
+        switch ($reportType) {
+            case 'weekly':
+                $dateFrom = $request->query('date_from') ? Carbon::parse($request->query('date_from'))->startOfDay() : Carbon::now()->startOfWeek();
+                $dateTo = $request->query('date_to') ? Carbon::parse($request->query('date_to'))->endOfDay() : $dateFrom->copy()->endOfWeek();
+                break;
+            case 'monthly':
+                if ($request->filled('month')) {
+                    $month = Carbon::parse($request->query('month') . '-01');
+                    $dateFrom = $month->copy()->startOfMonth();
+                    $dateTo = $month->copy()->endOfMonth();
+                } else {
+                    $dateFrom = $request->query('date_from') ? Carbon::parse($request->query('date_from'))->startOfDay() : Carbon::now()->startOfMonth();
+                    $dateTo = $request->query('date_to') ? Carbon::parse($request->query('date_to'))->endOfDay() : Carbon::now()->endOfMonth();
+                }
+                break;
+            case 'yearly':
+                $year = $request->query('year', Carbon::now()->year);
+                $dateFrom = Carbon::parse($year . '-01-01')->startOfDay();
+                $dateTo = Carbon::parse($year . '-12-31')->endOfDay();
+                break;
+            default:
+                $dateFrom = $request->query('date_from') ? Carbon::parse($request->query('date_from'))->startOfDay() : Carbon::now()->startOfMonth();
+                $dateTo = $request->query('date_to') ? Carbon::parse($request->query('date_to'))->endOfDay() : Carbon::now()->endOfMonth();
+                break;
+        }
+
+        $baseQuery = AttendanceRecord::with(['employee.department'])
+            ->whereDate('date', '>=', $dateFrom->toDateString())
+            ->whereDate('date', '<=', $dateTo->toDateString());
+
+        if ($departmentId) {
+            $baseQuery->whereHas('employee', function ($query) use ($departmentId) {
+                $query->where('department_id', $departmentId);
+            });
+        }
+
+        $attendanceRecords = $baseQuery->get();
+
+        $presentDays = $attendanceRecords->whereIn('status', ['present', 'late', 'half_day'])->count();
+        $absentDays = $attendanceRecords->where('status', 'absent')->count();
+        $lateArrivals = $attendanceRecords->where('status', 'late')->count();
+        $attendanceLeaveDays = $attendanceRecords->where('status', 'on_leave')->count();
+        $officialBusiness = 0;
+        $totalRecords = $attendanceRecords->count();
+        $workingRecords = $presentDays + $absentDays;
+        $attendanceRate = $workingRecords > 0 ? round(($presentDays / $workingRecords) * 100, 2) : 0;
+
+        $approvedLeaveQuery = LeaveRequest::where('status', 'approved')
+            ->where(function ($query) use ($dateFrom, $dateTo) {
+                $query->whereDate('start_date', '>=', $dateFrom->toDateString())
+                    ->whereDate('start_date', '<=', $dateTo->toDateString())
+                    ->orWhere(function ($subQuery) use ($dateFrom, $dateTo) {
+                        $subQuery->whereDate('end_date', '>=', $dateFrom->toDateString())
+                            ->whereDate('end_date', '<=', $dateTo->toDateString());
+                    })
+                    ->orWhere(function ($subQuery) use ($dateFrom, $dateTo) {
+                        $subQuery->whereDate('start_date', '<=', $dateFrom->toDateString())
+                            ->whereDate('end_date', '>=', $dateTo->toDateString());
+                    });
+            });
+
+        if ($departmentId) {
+            $approvedLeaveQuery->whereHas('employee', function ($query) use ($departmentId) {
+                $query->where('department_id', $departmentId);
+            });
+        }
+
+        $approvedLeaveCount = $approvedLeaveQuery->count();
+
+        $summary = [
+            'report' => $totalRecords,
+            'present_days' => $presentDays,
+            'absent_days' => $absentDays,
+            'late_arrivals' => $lateArrivals,
+            'attendance_rate' => $attendanceRate,
+            'official_business' => $officialBusiness,
+            'leave' => $approvedLeaveCount,
+        ];
+
+        $attendanceTrend = [
+            'labels' => [],
+            'data' => [],
+        ];
+
+        $currentDate = $dateFrom->copy();
+        while ($currentDate->lte($dateTo)) {
+            $dailyRecords = $attendanceRecords->where('date', $currentDate->format('Y-m-d'));
+            $dailyPresent = $dailyRecords->whereIn('status', ['present', 'late', 'half_day'])->count();
+            $dailyTotal = $dailyRecords->count();
+            $attendanceTrend['labels'][] = $currentDate->format('M d');
+            $attendanceTrend['data'][] = $dailyTotal > 0 ? round(($dailyPresent / $dailyTotal) * 100, 2) : 0;
+            $currentDate->addDay();
+        }
+
+        $departmentStats = $attendanceRecords
+            ->groupBy(fn ($record) => $record->employee?->department?->name ?? 'No Department')
+            ->map(function ($records, $departmentName) {
+                $present = $records->whereIn('status', ['present', 'late', 'half_day'])->count();
+                $absent = $records->where('status', 'absent')->count();
+                $late = $records->where('status', 'late')->count();
+                $uniqueEmployees = $records->pluck('employee_id')->unique()->count();
+                $attendanceRate = $present + $absent > 0 ? round(($present / ($present + $absent)) * 100, 2) : 0;
+
+                return [
+                    'department' => $departmentName,
+                    'total_employees' => $uniqueEmployees,
+                    'present' => $present,
+                    'absent' => $absent,
+                    'late' => $late,
+                    'attendance_rate' => $attendanceRate,
+                ];
+            })
+            ->values()
+            ->toArray();
+
+        $employeeStats = [];
+        foreach ($attendanceRecords as $record) {
+            if (!$record->employee) {
+                continue;
+            }
+
+            $employeeId = $record->employee_id;
+            if (!isset($employeeStats[$employeeId])) {
+                $employeeStats[$employeeId] = [
+                    'employee' => $record->employee,
+                    'present' => 0,
+                    'absent' => 0,
+                    'late' => 0,
+                    'total' => 0,
+                    'last_attendance_date' => $record->date,
+                ];
+            }
+
+            $employeeStats[$employeeId]['total']++;
+            $employeeStats[$employeeId]['last_attendance_date'] = max($employeeStats[$employeeId]['last_attendance_date'], $record->date);
+
+            if (in_array($record->status, ['present', 'late', 'half_day'])) {
+                $employeeStats[$employeeId]['present']++;
+            }
+            if ($record->status === 'absent') {
+                $employeeStats[$employeeId]['absent']++;
+            }
+            if ($record->status === 'late') {
+                $employeeStats[$employeeId]['late']++;
+            }
+        }
+
+        $employeeTotals = collect($employeeStats)
+            ->transform(function ($stats) {
+                $rate = $stats['total'] > 0 ? round(($stats['present'] / $stats['total']) * 100, 2) : 0;
+                return array_merge($stats, ['rate' => $rate]);
+            });
+
+        $bestAttendance = $employeeTotals
+            ->sortByDesc('rate')
+            ->take(5)
+            ->values()
+            ->toArray();
+
+        $needsAttention = $employeeTotals
+            ->filter(fn ($stats) => $stats['rate'] < 90)
+            ->sortBy('rate')
+            ->take(5)
+            ->values()
+            ->toArray();
+
         $employees = Employee::with('department')
             ->orderBy('first_name')
             ->get();
-        
+
         $departments = \App\Models\Department::orderBy('name')
             ->get();
-            
-        $summary = [
-            'present_days' => 0,
-            'absent_days' => 0,
-            'late_arrivals' => 0,
-            'attendance_rate' => 0,
-        ];
-        
-        $reportType = $request->query('report_type', 'daily');
-        
+
         return view('attendance.reports', [
             'user' => Auth::user(),
             'dateFrom' => $dateFrom,
@@ -191,10 +349,10 @@ class AttendanceController extends Controller
             'reportType' => $reportType,
             'overtimeData' => [],
             'leaveData' => [],
-            'attendanceTrend' => [],
-            'departmentStats' => [],
-            'bestAttendance' => [],
-            'needsAttention' => [],
+            'attendanceTrend' => $attendanceTrend,
+            'departmentStats' => $departmentStats,
+            'bestAttendance' => $bestAttendance,
+            'needsAttention' => $needsAttention,
         ]);
     }
 
@@ -241,7 +399,7 @@ class AttendanceController extends Controller
             // Store uploaded file temporarily
             $file = $request->file('dtr_file');
             $filePath = $file->store('temp_dtr', 'local');
-            
+
             // Construct the full path using Storage disk path
             $fullPath = Storage::disk('local')->path($filePath);
 
@@ -290,16 +448,16 @@ class AttendanceController extends Controller
         $importedRecords = session('imported_records', []);
         $validation = session('import_validation', ['errors' => collect(), 'warnings' => collect(), 'is_valid' => true]);
         $filePath = session('import_file_path', '');
-        
+
         if (empty($importedRecords)) {
             return redirect()->route('attendance.import-dtr')
                 ->with('error', 'No imported records found. Please upload a DTR file first.');
         }
-        
+
         $parsedData = collect($importedRecords);
         $validation['errors'] = collect($validation['errors'] ?? []);
         $validation['warnings'] = collect($validation['warnings'] ?? []);
-        
+
         return view('attendance.import-dtr-review', [
             'user' => Auth::user(),
             'parsedData' => $parsedData,
@@ -317,7 +475,7 @@ class AttendanceController extends Controller
         try {
             // Get the imported records from session
             $importedRecords = session('imported_records', []);
-            
+
             if (empty($importedRecords)) {
                 return redirect()->route('attendance.import-dtr')
                     ->with('error', 'No imported records found. Please upload a DTR file first.');
@@ -336,7 +494,7 @@ class AttendanceController extends Controller
                 try {
                     // Find the employee by employee_id
                     $employee = Employee::where('employee_id', $record['employee_id'])->first();
-                    
+
                     if (!$employee) {
                         $errorCount++;
                         $errors[] = "Employee {$record['employee_id']} not found";
@@ -421,7 +579,7 @@ class AttendanceController extends Controller
         $employees = Employee::with('department')
             ->orderBy('first_name')
             ->get();
-        
+
         return view('attendance.temp-timekeeping', [
             'user' => Auth::user(),
             'employees' => $employees,
@@ -445,7 +603,7 @@ class AttendanceController extends Controller
         $employees = Employee::with('department')
             ->orderBy('first_name')
             ->get();
-        
+
         return view('attendance.create-record', [
             'user' => Auth::user(),
             'employees' => $employees
@@ -469,7 +627,7 @@ class AttendanceController extends Controller
         $employees = Employee::with('department')
             ->orderBy('first_name')
             ->get();
-        
+
         return view('attendance.edit-record', [
             'id' => $id,
             'user' => Auth::user(),

@@ -1,6 +1,4 @@
-@extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'attendance.reports'])
-
-@section('title', 'Attendance Reports')
+<?php $__env->startSection('title', 'Attendance Reports'); ?>
 
 <!-- Flatpickr CSS -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -11,7 +9,7 @@
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
-@section('content')
+<?php $__env->startSection('content'); ?>
 <div class="space-y-6">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -47,7 +45,7 @@
     <!-- Report Filters -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
         <h3 class="text-lg font-medium text-gray-900 mb-4">Report Filters</h3>
-        <form method="GET" action="{{ route('attendance.reports') }}" x-data="reportForm()">
+        <form method="GET" action="<?php echo e(route('attendance.reports')); ?>" x-data="reportForm()">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
                 <label for="reportType" class="block text-sm font-medium text-gray-700 mb-2">Report Type</label>
@@ -64,9 +62,9 @@
                 <label for="department" class="block text-sm font-medium text-gray-700 mb-2">Department</label>
                 <select id="department" name="department_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
                     <option value="" style="color: #111827 !important;">All Departments</option>
-                    @foreach($departments ?? [] as $dept)
-                        <option value="{{ $dept->id }}" {{ request('department_id') == $dept->id ? 'selected' : '' }} style="color: #111827 !important;">{{ $dept->name }}</option>
-                    @endforeach
+                    <?php $__currentLoopData = $departments ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $dept): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <option value="<?php echo e($dept->id); ?>" <?php echo e(request('department_id') == $dept->id ? 'selected' : ''); ?> style="color: #111827 !important;"><?php echo e($dept->name); ?></option>
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                 </select>
             </div>
 
@@ -109,9 +107,9 @@
             <div x-show="reportType === 'yearly'">
                 <label for="yearSelect" class="block text-sm font-medium text-gray-700 mb-2">Year</label>
                 <select id="yearSelect" name="year" x-model="yearValue" @change="updateYearDates()" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
-                    @for($year = now()->year; $year >= now()->year - 5; $year--)
-                        <option value="{{ $year }}" style="color: #111827 !important;">{{ $year }}</option>
-                    @endfor
+                    <?php for($year = now()->year; $year >= now()->year - 5; $year--): ?>
+                        <option value="<?php echo e($year); ?>" style="color: #111827 !important;"><?php echo e($year); ?></option>
+                    <?php endfor; ?>
                 </select>
             </div>
 
@@ -154,7 +152,7 @@
                 </div>
                 <div class="ml-3">
                     <p class="text-sm font-medium text-gray-500">Report Totals</p>
-                        <p class="text-lg font-semibold text-gray-900">{{ number_format($summary['report'] ?? 0) }}</p>
+                        <p class="text-lg font-semibold text-gray-900"><?php echo e(number_format($summary['report'] ?? 0)); ?></p>
                 </div>
             </div>
         </div>
@@ -162,7 +160,7 @@
     </div>
 
     <!-- Report Summary -->
-    @if($reportType === 'overtime' && isset($overtimeData))
+    <?php if($reportType === 'overtime' && isset($overtimeData)): ?>
         <!-- Overtime Report Summary -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
@@ -174,7 +172,7 @@
                     </div>
                     <div class="ml-3">
                         <p class="text-sm font-medium text-gray-500">Total Requests</p>
-                        <p class="text-lg font-semibold text-gray-900">{{ number_format($overtimeData['summary']['total_requests'] ?? 0) }}</p>
+                        <p class="text-lg font-semibold text-gray-900"><?php echo e(number_format($overtimeData['summary']['total_requests'] ?? 0)); ?></p>
                     </div>
                 </div>
             </div>
@@ -188,7 +186,7 @@
                     </div>
                     <div class="ml-3">
                         <p class="text-sm font-medium text-gray-500">Total Hours</p>
-                        <p class="text-lg font-semibold text-gray-900">{{ number_format($overtimeData['summary']['total_hours'] ?? 0, 2) }}h</p>
+                        <p class="text-lg font-semibold text-gray-900"><?php echo e(number_format($overtimeData['summary']['total_hours'] ?? 0, 2)); ?>h</p>
                     </div>
                 </div>
             </div>
@@ -202,7 +200,7 @@
                     </div>
                     <div class="ml-3">
                         <p class="text-sm font-medium text-gray-500">Employees</p>
-                        <p class="text-lg font-semibold text-gray-900">{{ number_format($overtimeData['summary']['total_employees'] ?? 0) }}</p>
+                        <p class="text-lg font-semibold text-gray-900"><?php echo e(number_format($overtimeData['summary']['total_employees'] ?? 0)); ?></p>
                     </div>
                 </div>
             </div>
@@ -216,12 +214,12 @@
                     </div>
                     <div class="ml-3">
                         <p class="text-sm font-medium text-gray-500">Average Hours</p>
-                        <p class="text-lg font-semibold text-gray-900">{{ number_format($overtimeData['summary']['average_hours'] ?? 0, 2) }}h</p>
+                        <p class="text-lg font-semibold text-gray-900"><?php echo e(number_format($overtimeData['summary']['average_hours'] ?? 0, 2)); ?>h</p>
                     </div>
                 </div>
             </div>
         </div>
-    @elseif($reportType === 'leave' && isset($leaveData))
+    <?php elseif($reportType === 'leave' && isset($leaveData)): ?>
         <!-- Leave Report Summary -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
@@ -233,7 +231,7 @@
                     </div>
                     <div class="ml-3">
                         <p class="text-sm font-medium text-gray-500">Total Requests</p>
-                        <p class="text-lg font-semibold text-gray-900">{{ number_format($leaveData['summary']['total_requests'] ?? 0) }}</p>
+                        <p class="text-lg font-semibold text-gray-900"><?php echo e(number_format($leaveData['summary']['total_requests'] ?? 0)); ?></p>
                     </div>
                 </div>
             </div>
@@ -247,7 +245,7 @@
                     </div>
                     <div class="ml-3">
                         <p class="text-sm font-medium text-gray-500">Total Days</p>
-                        <p class="text-lg font-semibold text-gray-900">{{ number_format($leaveData['summary']['total_days'] ?? 0) }}</p>
+                        <p class="text-lg font-semibold text-gray-900"><?php echo e(number_format($leaveData['summary']['total_days'] ?? 0)); ?></p>
                     </div>
                 </div>
             </div>
@@ -261,7 +259,7 @@
                     </div>
                     <div class="ml-3">
                         <p class="text-sm font-medium text-gray-500">Employees</p>
-                        <p class="text-lg font-semibold text-gray-900">{{ number_format($leaveData['summary']['total_employees'] ?? 0) }}</p>
+                        <p class="text-lg font-semibold text-gray-900"><?php echo e(number_format($leaveData['summary']['total_employees'] ?? 0)); ?></p>
                     </div>
                 </div>
             </div>
@@ -275,12 +273,12 @@
                     </div>
                     <div class="ml-3">
                         <p class="text-sm font-medium text-gray-500">Average Days</p>
-                        <p class="text-lg font-semibold text-gray-900">{{ number_format($leaveData['summary']['average_days'] ?? 0, 2) }}</p>
+                        <p class="text-lg font-semibold text-gray-900"><?php echo e(number_format($leaveData['summary']['average_days'] ?? 0, 2)); ?></p>
                     </div>
                 </div>
             </div>
         </div>
-    @else
+    <?php else: ?>
         <!-- Attendance Report Summary -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
@@ -292,7 +290,7 @@
                 </div>
                 <div class="ml-3">
                     <p class="text-sm font-medium text-gray-500">Present Days</p>
-                        <p class="text-lg font-semibold text-gray-900">{{ number_format($summary['present_days'] ?? 0) }}</p>
+                        <p class="text-lg font-semibold text-gray-900"><?php echo e(number_format($summary['present_days'] ?? 0)); ?></p>
                 </div>
             </div>
         </div>
@@ -306,7 +304,7 @@
                 </div>
                 <div class="ml-3">
                     <p class="text-sm font-medium text-gray-500">Absent Days</p>
-                        <p class="text-lg font-semibold text-gray-900">{{ number_format($summary['absent_days'] ?? 0) }}</p>
+                        <p class="text-lg font-semibold text-gray-900"><?php echo e(number_format($summary['absent_days'] ?? 0)); ?></p>
                 </div>
             </div>
         </div>
@@ -320,7 +318,7 @@
                 </div>
                 <div class="ml-3">
                     <p class="text-sm font-medium text-gray-500">Late Arrivals</p>
-                        <p class="text-lg font-semibold text-gray-900">{{ number_format($summary['late_arrivals'] ?? 0) }}</p>
+                        <p class="text-lg font-semibold text-gray-900"><?php echo e(number_format($summary['late_arrivals'] ?? 0)); ?></p>
                 </div>
             </div>
         </div>
@@ -334,7 +332,7 @@
                 </div>
                 <div class="ml-3">
                     <p class="text-sm font-medium text-gray-500">Attendance Rate</p>
-                        <p class="text-lg font-semibold text-gray-900">{{ $summary['attendance_rate'] ?? 0 }}%</p>
+                        <p class="text-lg font-semibold text-gray-900"><?php echo e($summary['attendance_rate'] ?? 0); ?>%</p>
                 </div>
             </div>
         </div>
@@ -348,7 +346,7 @@
                 </div>
                 <div class="ml-3">
                     <p class="text-sm font-medium text-gray-500">Official Business</p>
-                        <p class="text-lg font-semibold text-gray-900">{{ number_format($summary['official_business'] ?? 0) }}</p>
+                        <p class="text-lg font-semibold text-gray-900"><?php echo e(number_format($summary['official_business'] ?? 0)); ?></p>
                 </div>
             </div>
         </div>
@@ -362,14 +360,14 @@
                 </div>
                 <div class="ml-3">
                     <p class="text-sm font-medium text-gray-500">Leave</p>
-                        <p class="text-lg font-semibold text-gray-900">{{ number_format($summary['leave'] ?? 0) }}</p>
+                        <p class="text-lg font-semibold text-gray-900"><?php echo e(number_format($summary['leave'] ?? 0)); ?></p>
                 </div>
             </div>
         </div>
     </div>
-    @endif
+    <?php endif; ?>
 
-    @if($reportType !== 'overtime' && $reportType !== 'leave' && isset($attendanceTrend) && !empty($attendanceTrend['data']))
+    <?php if($reportType !== 'overtime' && $reportType !== 'leave' && isset($attendanceTrend) && !empty($attendanceTrend['data'])): ?>
     <!-- Attendance Chart -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div class="flex items-center justify-between mb-4">
@@ -381,17 +379,17 @@
         <div class="h-80">
             <canvas id="attendanceTrendChart"></canvas>
         </div>
-        @php
+        <?php
             $trendData = $attendanceTrend['data'] ?? [];
             $trendAverage = count($trendData) ? round(collect($trendData)->avg(), 2) : 0;
             $trendMin = count($trendData) ? min($trendData) : 0;
             $trendMax = count($trendData) ? max($trendData) : 0;
-        @endphp
+        ?>
         <div class="mt-4 text-sm text-gray-600 border-t border-gray-200 pt-4">
-            Attendance trend summary: <span class="font-medium text-gray-900">Average {{ $trendAverage }}%</span>, highest {{ $trendMax }}%, lowest {{ $trendMin }}%.
+            Attendance trend summary: <span class="font-medium text-gray-900">Average <?php echo e($trendAverage); ?>%</span>, highest <?php echo e($trendMax); ?>%, lowest <?php echo e($trendMin); ?>%.
         </div>
     </div>
-    @elseif($reportType !== 'overtime' && $reportType !== 'leave')
+    <?php elseif($reportType !== 'overtime' && $reportType !== 'leave'): ?>
     <!-- Attendance Chart Placeholder -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h3 class="text-lg font-medium text-gray-900 mb-4">Attendance Trend</h3>
@@ -403,9 +401,9 @@
             </div>
         </div>
     </div>
-    @endif
+    <?php endif; ?>
 
-    @if($reportType === 'overtime' && isset($overtimeData))
+    <?php if($reportType === 'overtime' && isset($overtimeData)): ?>
         <!-- Overtime Employees Table -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div class="px-4 sm:px-6 py-4 border-b border-gray-200">
@@ -424,48 +422,48 @@
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
-                        @forelse($overtimeData['employee_overtime'] ?? [] as $item)
-                        @php
+                        <?php $__empty_1 = true; $__currentLoopData = $overtimeData['employee_overtime'] ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                        <?php
                             $employee = $item['employee'];
                             $initials = strtoupper(substr($employee->first_name, 0, 1) . substr($employee->last_name, 0, 1));
-                        @endphp
+                        ?>
                     <tr class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="flex items-center">
                                     <div class="flex-shrink-0 h-10 w-10">
                                         <div class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center">
-                                            <span class="text-sm font-medium text-white">{{ $initials }}</span>
+                                            <span class="text-sm font-medium text-white"><?php echo e($initials); ?></span>
                                         </div>
                                     </div>
                                     <div class="ml-4">
-                                        <div class="text-sm font-medium text-gray-900">{{ $employee->full_name }}</div>
-                                        <div class="text-sm text-gray-500">{{ $employee->employee_code ?? 'N/A' }}</div>
+                                        <div class="text-sm font-medium text-gray-900"><?php echo e($employee->full_name); ?></div>
+                                        <div class="text-sm text-gray-500"><?php echo e($employee->employee_code ?? 'N/A'); ?></div>
                                     </div>
                                 </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ $employee->department->name ?? 'N/A' }}</div>
+                                <div class="text-sm text-gray-900"><?php echo e($employee->department->name ?? 'N/A'); ?></div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ $item['total_requests'] }}</div>
+                                <div class="text-sm text-gray-900"><?php echo e($item['total_requests']); ?></div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm font-medium text-gray-900">{{ number_format($item['total_hours'], 2) }}h</div>
+                                <div class="text-sm font-medium text-gray-900"><?php echo e(number_format($item['total_hours'], 2)); ?>h</div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ number_format($item['total_hours'] / $item['total_requests'], 2) }}h</div>
+                                <div class="text-sm text-gray-900"><?php echo e(number_format($item['total_hours'] / $item['total_requests'], 2)); ?>h</div>
                         </td>
                         </tr>
-                        @empty
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <tr>
                             <td colspan="5" class="px-6 py-4 text-center text-gray-500">No approved overtime requests found for the selected period.</td>
                         </tr>
-                        @endforelse
+                        <?php endif; ?>
                     </tbody>
                 </table>
                                 </div>
                             </div>
-    @elseif($reportType === 'leave' && isset($leaveData))
+    <?php elseif($reportType === 'leave' && isset($leaveData)): ?>
         <!-- Leave Employees Table -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <div class="px-4 sm:px-6 py-4 border-b border-gray-200">
@@ -485,57 +483,57 @@
                     </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
-                        @forelse($leaveData['employee_leave'] ?? [] as $item)
-                        @php
+                        <?php $__empty_1 = true; $__currentLoopData = $leaveData['employee_leave'] ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                        <?php
                             $employee = $item['employee'];
                             $initials = strtoupper(substr($employee->first_name, 0, 1) . substr($employee->last_name, 0, 1));
-                        @endphp
+                        ?>
                     <tr class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="flex items-center">
                                     <div class="flex-shrink-0 h-10 w-10">
                                         <div class="h-10 w-10 rounded-full bg-gradient-to-r from-green-500 to-green-600 flex items-center justify-center">
-                                            <span class="text-sm font-medium text-white">{{ $initials }}</span>
+                                            <span class="text-sm font-medium text-white"><?php echo e($initials); ?></span>
                                         </div>
                                     </div>
                                     <div class="ml-4">
-                                        <div class="text-sm font-medium text-gray-900">{{ $employee->full_name }}</div>
-                                        <div class="text-sm text-gray-500">{{ $employee->employee_code ?? 'N/A' }}</div>
+                                        <div class="text-sm font-medium text-gray-900"><?php echo e($employee->full_name); ?></div>
+                                        <div class="text-sm text-gray-500"><?php echo e($employee->employee_code ?? 'N/A'); ?></div>
                                     </div>
                                 </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ $employee->department->name ?? 'N/A' }}</div>
+                                <div class="text-sm text-gray-900"><?php echo e($employee->department->name ?? 'N/A'); ?></div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ $item['total_requests'] }}</div>
+                                <div class="text-sm text-gray-900"><?php echo e($item['total_requests']); ?></div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm font-medium text-gray-900">{{ number_format($item['total_days']) }} days</div>
+                                <div class="text-sm font-medium text-gray-900"><?php echo e(number_format($item['total_days'])); ?> days</div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ number_format($item['total_days'] / $item['total_requests'], 2) }} days</div>
+                                <div class="text-sm text-gray-900"><?php echo e(number_format($item['total_days'] / $item['total_requests'], 2)); ?> days</div>
                         </td>
                             <td class="px-6 py-4">
                                 <div class="flex flex-wrap gap-1">
-                                    @foreach($item['leave_types'] as $type)
+                                    <?php $__currentLoopData = $item['leave_types']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $type): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                        {{ $type['name'] }} ({{ $type['days'] }}d)
+                                        <?php echo e($type['name']); ?> (<?php echo e($type['days']); ?>d)
                                     </span>
-                                    @endforeach
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                             </div>
                         </td>
                     </tr>
-                        @empty
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <tr>
                             <td colspan="6" class="px-6 py-4 text-center text-gray-500">No approved leave requests found for the selected period.</td>
                         </tr>
-                        @endforelse
+                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>
         </div>
-    @else
+    <?php else: ?>
     <!-- Department-wise Attendance -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div class="px-4 sm:px-6 py-4 border-b border-gray-200">
@@ -567,78 +565,78 @@
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
-                    @forelse($departmentStats ?? [] as $stat)
+                    <?php $__empty_1 = true; $__currentLoopData = $departmentStats ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $stat): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                     <tr class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm font-medium text-gray-900">{{ $stat['department'] }}</div>
+                            <div class="text-sm font-medium text-gray-900"><?php echo e($stat['department']); ?></div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">{{ $stat['total_employees'] }}</div>
+                            <div class="text-sm text-gray-900"><?php echo e($stat['total_employees']); ?></div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">{{ $stat['present'] }}</div>
+                            <div class="text-sm text-gray-900"><?php echo e($stat['present']); ?></div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">{{ $stat['absent'] }}</div>
+                            <div class="text-sm text-gray-900"><?php echo e($stat['absent']); ?></div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">{{ $stat['late'] }}</div>
+                            <div class="text-sm text-gray-900"><?php echo e($stat['late']); ?></div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
-                                <div class="text-sm text-gray-900 mr-2">{{ $stat['attendance_rate'] }}%</div>
+                                <div class="text-sm text-gray-900 mr-2"><?php echo e($stat['attendance_rate']); ?>%</div>
                                 <div class="w-16 bg-gray-200 rounded-full h-2">
-                                    @php
+                                    <?php
                                         $color = $stat['attendance_rate'] >= 90 ? 'bg-green-600' : ($stat['attendance_rate'] >= 75 ? 'bg-yellow-600' : 'bg-red-600');
-                                    @endphp
-                                    <div class="{{ $color }} h-2 rounded-full" style="width: {{ min(100, $stat['attendance_rate']) }}%"></div>
+                                    ?>
+                                    <div class="<?php echo e($color); ?> h-2 rounded-full" style="width: <?php echo e(min(100, $stat['attendance_rate'])); ?>%"></div>
                                 </div>
                             </div>
                         </td>
                     </tr>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                     <tr>
                         <td colspan="6" class="px-6 py-4 text-center text-gray-500">No data available. Please generate a report.</td>
                     </tr>
-                    @endforelse
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
-    @endif
+    <?php endif; ?>
 
-    @if($reportType !== 'overtime' && $reportType !== 'leave')
+    <?php if($reportType !== 'overtime' && $reportType !== 'leave'): ?>
     <!-- Top Performers -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Best Attendance -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h3 class="text-lg font-medium text-gray-900 mb-4">Best Attendance</h3>
             <div class="space-y-3">
-                @forelse($bestAttendance ?? [] as $item)
-                @php
+                <?php $__empty_1 = true; $__currentLoopData = $bestAttendance ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                <?php
                     $employee = $item['employee'];
                     $initials = strtoupper(substr($employee->first_name, 0, 1) . substr($employee->last_name, 0, 1));
                     $rate = $item['rate'];
                     $label = $rate >= 98 ? 'Perfect' : ($rate >= 95 ? 'Excellent' : 'Good');
-                @endphp
+                ?>
                 <div class="flex items-center justify-between p-3 bg-green-50 rounded-lg">
                     <div class="flex items-center">
                         <div class="w-8 h-8 rounded-full bg-gradient-to-r from-green-500 to-green-600 flex items-center justify-center mr-3">
-                            <span class="text-xs font-medium text-white">{{ $initials }}</span>
+                            <span class="text-xs font-medium text-white"><?php echo e($initials); ?></span>
                         </div>
                         <div>
-                            <div class="font-medium text-gray-900">{{ $employee->full_name }}</div>
-                            <div class="text-sm text-gray-500">{{ $employee->department->name ?? 'N/A' }}</div>
+                            <div class="font-medium text-gray-900"><?php echo e($employee->full_name); ?></div>
+                            <div class="text-sm text-gray-500"><?php echo e($employee->department->name ?? 'N/A'); ?></div>
                         </div>
                     </div>
                     <div class="text-right">
-                        <div class="text-sm font-medium text-green-600">{{ $rate }}%</div>
-                        <div class="text-xs text-gray-500">{{ $label }}</div>
+                        <div class="text-sm font-medium text-green-600"><?php echo e($rate); ?>%</div>
+                        <div class="text-xs text-gray-500"><?php echo e($label); ?></div>
                     </div>
                 </div>
-                @empty
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                 <p class="text-gray-500 text-sm text-center py-4">No data available. Please generate a report.</p>
-                @endforelse
+                <?php endif; ?>
                         </div>
                         </div>
 
@@ -647,7 +645,7 @@
              x-data="{
                  currentPage: 1,
                  itemsPerPage: 1,
-                 needsAttention: @js(collect($needsAttention ?? [])->map(function($item) use ($dateFrom, $dateTo) {
+                 needsAttention: <?php echo \Illuminate\Support\Js::from(collect($needsAttention ?? [])->map(function($item) use ($dateFrom, $dateTo) {
                      $employee = $item['employee'];
                      return [
                          'employee_id' => $employee->id,
@@ -666,7 +664,7 @@
                          'label' => $item['rate'] < 75 ? 'Below Average' : 'Needs Improvement',
                          'view_url' => route('attendance.timekeeping', ['employee_id' => $employee->id, 'date_from' => $dateFrom, 'date_to' => $dateTo]),
                      ];
-                 })->toArray()),
+                 })->toArray())->toHtml() ?>,
                  get totalPages() {
                      return Math.ceil(this.needsAttention.length / this.itemsPerPage);
                  },
@@ -775,7 +773,7 @@
                 </div>
             </div>
         </div>
-    @endif
+    <?php endif; ?>
 </div>
 
 <style>
@@ -898,7 +896,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 const alpineElement = monthSelectInput.closest('[x-data]');
                 const alpineData = alpineElement ? Alpine.$data(alpineElement) : null;
-                const initialMonth = alpineData?.monthValue || "{{ request('month', now()->format('Y-m')) }}";
+                const initialMonth = alpineData?.monthValue || "<?php echo e(request('month', now()->format('Y-m'))); ?>";
 
                 // Destroy existing instance if any
                 if (window.monthPicker) {
@@ -984,7 +982,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (dateSingleInput && !window.dateSinglePicker && dateSingleInput.offsetParent !== null) {
                 const alpineElement = dateSingleInput.closest('[x-data]');
                 const alpineData = alpineElement ? Alpine.$data(alpineElement) : null;
-                const initialDate = alpineData?.dailyDate || "{{ request('date_from', today()->format('Y-m-d')) }}";
+                const initialDate = alpineData?.dailyDate || "<?php echo e(request('date_from', today()->format('Y-m-d'))); ?>";
 
                 // Destroy existing instance if any
                 if (window.dateSinglePicker) {
@@ -1021,7 +1019,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (weekStartInput && !window.weekStartPicker && weekStartInput.offsetParent !== null) {
                 const alpineElement = weekStartInput.closest('[x-data]');
                 const alpineData = alpineElement ? Alpine.$data(alpineElement) : null;
-                const initialDate = alpineData?.weekStart || "{{ request('date_from', now()->startOfWeek()->format('Y-m-d')) }}";
+                const initialDate = alpineData?.weekStart || "<?php echo e(request('date_from', now()->startOfWeek()->format('Y-m-d'))); ?>";
 
                 // Destroy existing instance if any
                 if (window.weekStartPicker) {
@@ -1061,7 +1059,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (monthSelectInput && !window.monthPicker && monthSelectInput.offsetParent !== null) {
                 const alpineElement = monthSelectInput.closest('[x-data]');
                 const alpineData = alpineElement ? Alpine.$data(alpineElement) : null;
-                const initialMonth = alpineData?.monthValue || "{{ request('month', now()->format('Y-m')) }}";
+                const initialMonth = alpineData?.monthValue || "<?php echo e(request('month', now()->format('Y-m'))); ?>";
 
                 // Destroy existing instance if any
                 if (window.monthPicker) {
@@ -1156,7 +1154,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 dateFormat: "Y-m-d",
                 altInput: true,
                 altFormat: "d/m/Y",
-                defaultDate: "{{ request('date_from', now()->startOfMonth()->format('Y-m-d')) }}",
+                defaultDate: "<?php echo e(request('date_from', now()->startOfMonth()->format('Y-m-d'))); ?>",
                 maxDate: today,
                 allowInput: true,
                 clickOpens: true,
@@ -1189,9 +1187,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 dateFormat: "Y-m-d",
                 altInput: true,
                 altFormat: "d/m/Y",
-                defaultDate: "{{ request('date_to', now()->format('Y-m-d')) }}",
+                defaultDate: "<?php echo e(request('date_to', now()->format('Y-m-d'))); ?>",
                 maxDate: today,
-                minDate: "{{ request('date_from', now()->startOfMonth()->format('Y-m-d')) }}",
+                minDate: "<?php echo e(request('date_from', now()->startOfMonth()->format('Y-m-d'))); ?>",
                 allowInput: true,
                 clickOpens: true,
                 onChange: function(selectedDates, dateStr, instance) {
@@ -1349,18 +1347,18 @@ function reportForm() {
     const yearEndDate = new Date(currentYear, 11, 31);
 
     return {
-        reportType: '{{ request('report_type', 'daily') }}',
-        dailyDate: '{{ request('date_from', today()->format('Y-m-d')) }}',
-        weekStart: '{{ request('date_from', now()->startOfWeek()->format('Y-m-d')) }}',
-        weekEnd: '{{ request('date_to', now()->endOfWeek()->format('Y-m-d')) }}',
-        monthValue: '{{ request('month', now()->format('Y-m')) }}',
-        monthStart: '{{ request('date_from', now()->startOfMonth()->format('Y-m-d')) }}',
-        monthEnd: '{{ request('date_to', now()->endOfMonth()->format('Y-m-d')) }}',
-        yearValue: '{{ request('year', now()->year) }}',
-        yearStart: '{{ request('date_from', now()->startOfYear()->format('Y-m-d')) }}',
-        yearEnd: '{{ request('date_to', now()->endOfYear()->format('Y-m-d')) }}',
-        dateFrom: '{{ request('date_from', now()->startOfMonth()->format('Y-m-d')) }}',
-        dateTo: '{{ request('date_to', now()->format('Y-m-d')) }}',
+        reportType: '<?php echo e(request('report_type', 'daily')); ?>',
+        dailyDate: '<?php echo e(request('date_from', today()->format('Y-m-d'))); ?>',
+        weekStart: '<?php echo e(request('date_from', now()->startOfWeek()->format('Y-m-d'))); ?>',
+        weekEnd: '<?php echo e(request('date_to', now()->endOfWeek()->format('Y-m-d'))); ?>',
+        monthValue: '<?php echo e(request('month', now()->format('Y-m'))); ?>',
+        monthStart: '<?php echo e(request('date_from', now()->startOfMonth()->format('Y-m-d'))); ?>',
+        monthEnd: '<?php echo e(request('date_to', now()->endOfMonth()->format('Y-m-d'))); ?>',
+        yearValue: '<?php echo e(request('year', now()->year)); ?>',
+        yearStart: '<?php echo e(request('date_from', now()->startOfYear()->format('Y-m-d'))); ?>',
+        yearEnd: '<?php echo e(request('date_to', now()->endOfYear()->format('Y-m-d'))); ?>',
+        dateFrom: '<?php echo e(request('date_from', now()->startOfMonth()->format('Y-m-d'))); ?>',
+        dateTo: '<?php echo e(request('date_to', now()->format('Y-m-d'))); ?>',
 
         updateDateInputs() {
             const today = new Date();
@@ -1415,7 +1413,7 @@ function reportForm() {
                             if (window.monthPicker) {
                                 window.monthPicker.destroy();
                             }
-                            const initialMonth = alpineData?.monthValue || "{{ now()->format('Y-m') }}";
+                            const initialMonth = alpineData?.monthValue || "<?php echo e(now()->format('Y-m')); ?>";
                             window.monthPicker = flatpickr(monthInput, {
                                 dateFormat: "Y-m-d",
                                 altInput: false,
@@ -1533,7 +1531,7 @@ function reportForm() {
         },
 
         getExportUrl(format) {
-            const baseUrl = '{{ route("attendance.reports.export", ["format" => "FORMAT"]) }}'.replace('FORMAT', format);
+            const baseUrl = '<?php echo e(route("attendance.reports.export", ["format" => "FORMAT"])); ?>'.replace('FORMAT', format);
             const params = new URLSearchParams();
 
             params.append('report_type', this.reportType);
@@ -1566,11 +1564,11 @@ function getWeekStart(date) {
 }
 
 // Initialize Attendance Trend Chart
-@if(isset($attendanceTrend) && !empty($attendanceTrend['data']))
+<?php if(isset($attendanceTrend) && !empty($attendanceTrend['data'])): ?>
 document.addEventListener('DOMContentLoaded', function() {
     const ctx = document.getElementById('attendanceTrendChart');
     if (ctx) {
-        const trendData = @json($attendanceTrend);
+        const trendData = <?php echo json_encode($attendanceTrend, 15, 512) ?>;
 
         new Chart(ctx, {
             type: 'line',
@@ -1643,7 +1641,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
-@endif
+<?php endif; ?>
 </script>
 
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'attendance.reports'], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH E:\Gr8 tech new\GR8TECH\resources\views/attendance/reports.blade.php ENDPATH**/ ?>
