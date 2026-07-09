@@ -234,7 +234,7 @@
                                 <div class="text-sm font-medium text-gray-900">₱{{ number_format($amount, 2) }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ Str::limit($request->reason, 30) }}</div>
+                                <div class="text-sm text-gray-900">{{ \Illuminate\Support\Str::limit($request->reason, 30) }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $statusColor }}">
@@ -354,7 +354,7 @@
                         </div>
                         <div class="text-sm mb-3">
                             <div class="text-gray-500">Reason</div>
-                            <div class="font-medium">{{ Str::limit($request->reason, 50) }}</div>
+                            <div class="font-medium">{{ \Illuminate\Support\Str::limit($request->reason, 50) }}</div>
                         </div>
                         @if(in_array($user->role, ['admin', 'hr', 'manager']) && $request->status === 'pending')
                         <div class="flex justify-end space-x-2">

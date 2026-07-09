@@ -3710,6 +3710,15 @@ public function downloadPayslip($payrollId)
     {
         $comprehensiveData = [];
         
+        // Fetch all approved overtime records for these employees in this period to avoid N+1 queries
+        $overtimeRecords = \App\Models\OvertimeRequest::whereIn('employee_id', $employees->pluck('id'))
+            ->whereBetween('date', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
+            ->where('status', 'approved')
+            ->get()
+            ->groupBy(function($item) {
+                return $item->employee_id . '_' . $item->date->format('Y-m-d');
+            });
+        
         foreach ($employees as $employee) {
             $currentDate = $startDate->copy();
             
@@ -3737,10 +3746,13 @@ public function downloadPayslip($payrollId)
                 $scheduledHours = '—';
                 $morningOvertime = 0;
                 $eveningOvertime = 0;
-                $overtime = 0;
                 $nightDifferentialHours = 0;
                 $lateMinutes = 0;
                 $isNightShift = false;
+                
+                // Retrieve approved overtime for this specific date
+                $otKey = $employee->id . '_' . $dateStr;
+                $overtime = $overtimeRecords->has($otKey) ? $overtimeRecords->get($otKey)->sum('hours') : 0;
                 
                 // Only calculate attendance metrics if schedule status is 'Working' or 'Regular Holiday' or 'Special Holiday'
                 if (in_array($scheduleStatus, ['Working', 'Regular Holiday', 'Special Holiday'])) {
@@ -3749,11 +3761,6 @@ public function downloadPayslip($payrollId)
                     if ($attendanceRecord && $attendanceRecord->time_in && $attendanceRecord->time_out) {
                         $workedHours = $attendanceRecord->total_hours ?? 0;
                         $scheduledHours = $this->formatHours($workedHours);
-                        
-                        // Calculate overtime
-                        if ($workedHours > 8) {
-                            $overtime = $workedHours - 8;
-                        }
                         
                         // Calculate night differential hours
                         $nightDifferentialHours = $attendanceRecord->calculateNightShiftHours();
