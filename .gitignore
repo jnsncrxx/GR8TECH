@@ -24,3 +24,5 @@ Thumbs.db
 .env
 /dtrexample
 TASKS-EJHAY.md
+/database/.sql
+/storage/framework/views/.php
