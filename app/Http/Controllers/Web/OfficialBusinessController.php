@@ -93,6 +93,9 @@ class OfficialBusinessController extends Controller
         $validated = $request->validate([
             'date' => 'required|date|after_or_equal:today',
             'reason' => 'required|string|max:500',
+            'is_full_day' => 'required|in:0,1',
+            'ob_start_time' => 'nullable|required_if:is_full_day,0|date_format:H:i',
+            'ob_end_time' => 'nullable|required_if:is_full_day,0|date_format:H:i|after:ob_start_time',
         ]);
 
         $employeeId = $this->currentEmployeeId();
@@ -126,6 +129,9 @@ class OfficialBusinessController extends Controller
             'date' => $validated['date'],
             'reason' => $validated['reason'],
             'status' => OfficialBusinessRequest::PENDING,
+            'is_full_day' => (bool) $validated['is_full_day'],
+            'ob_start_time' => $validated['ob_start_time'] ?? null,
+            'ob_end_time' => $validated['ob_end_time'] ?? null,
             'created_by' => Auth::id(),
         ]);
 
@@ -164,17 +170,24 @@ class OfficialBusinessController extends Controller
                     ->with('error', 'An attendance record already exists for this employee on this date. Resolve it before approving.');
             }
 
+            // Credited hours: exact duration for partial-day OB, or the
+            // employee's scheduled shift length for full-day OB.
+            // See OfficialBusinessRequest::computeCreditedHours() — the
+            // full-day branch is a best-effort guess at your schedule model
+            // and should be verified before this feeds payroll.
+            $creditedHours = $obRequest->computeCreditedHours();
+
             $attendanceRecord = AttendanceRecord::create([
                 'employee_id' => $obRequest->employee_id,
                 'date' => $obRequest->date,
                 'status' => AttendanceRecord::OFFICIAL_BUSINESS,
                 'notes' => $obRequest->reason,
-                'time_in' => null,
-                'time_out' => null,
+                'time_in' => $obRequest->is_full_day ? null : $obRequest->ob_start_time,
+                'time_out' => $obRequest->is_full_day ? null : $obRequest->ob_end_time,
                 'break_start' => null,
                 'break_end' => null,
-                'total_hours' => 0,
-                'regular_hours' => 0,
+                'total_hours' => $creditedHours,
+                'regular_hours' => $creditedHours,
                 'overtime_hours' => 0,
             ]);
 
@@ -183,6 +196,7 @@ class OfficialBusinessController extends Controller
                 'reviewed_by' => Auth::id(),
                 'reviewed_at' => Carbon::now(),
                 'attendance_record_id' => $attendanceRecord->id,
+                'credited_hours' => $creditedHours,
             ]);
 
             return redirect()->back()->with('success', 'OB request approved and attendance record created.');

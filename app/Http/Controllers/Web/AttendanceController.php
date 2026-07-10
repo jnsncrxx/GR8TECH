@@ -6,6 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\AttendanceRecord;
 use App\Models\AttendanceLog;
 use App\Models\Employee;
+<<<<<<< Updated upstream
+=======
+use App\Models\LeaveRequest;
+use App\Models\OfficialBusinessRequest;
+>>>>>>> Stashed changes
 use App\Services\DtrImportService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -467,15 +472,28 @@ class AttendanceController extends Controller
             'break_start' => 'nullable|date_format:H:i',
             'break_end' => 'nullable|date_format:H:i|after:break_start',
             'notes' => 'nullable|string|max:500',
+            // Only relevant when status = official_business, mirrors the fields
+            // an employee fills in on the "Apply for Official Business" form.
+            'is_full_day' => 'required_if:status,official_business|in:0,1',
+            'ob_start_time' => 'nullable|required_if:is_full_day,0|date_format:H:i',
+            'ob_end_time' => 'nullable|required_if:is_full_day,0|date_format:H:i|after:ob_start_time',
         ]);
 
         $isOfficialBusiness = $validated['status'] === AttendanceRecord::OFFICIAL_BUSINESS;
+        $isFullDayOb = $isOfficialBusiness ? ($validated['is_full_day'] ?? '1') == '1' : true;
 
         // Official Business requires a reason so it's clear why the employee was out
         if ($isOfficialBusiness && empty($validated['notes'])) {
             return redirect()->back()
                 ->withInput()
                 ->with('error', 'Please provide a reason/notes for Official Business.');
+        }
+
+        // Partial-day Official Business needs a time range, same as the employee-facing form
+        if ($isOfficialBusiness && !$isFullDayOb && (empty($validated['ob_start_time']) || empty($validated['ob_end_time']))) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Please provide a start and end time for a partial-day Official Business record.');
         }
 
         // Check existing attendance status for this employee on this date
@@ -498,13 +516,32 @@ class AttendanceController extends Controller
         ];
 
         if ($isOfficialBusiness) {
-            // Official Business is not clock-based; no time in/out, breaks, or computed hours
-            $payload['time_in'] = null;
-            $payload['time_out'] = null;
+            // Reuse the exact same crediting logic used when an employee-submitted OB
+            // request gets approved (OfficialBusinessRequest::computeCreditedHours()),
+            // so a manually-added OB record and an approved OB request behave the
+            // same way: partial day credits the exact time range, full day credits
+            // the employee's scheduled shift length (falls back to 8.0 hrs).
+            $obForCredit = new OfficialBusinessRequest([
+                'employee_id' => $validated['employee_id'],
+                'date' => $validated['date'],
+                'is_full_day' => $isFullDayOb,
+                'ob_start_time' => $validated['ob_start_time'] ?? null,
+                'ob_end_time' => $validated['ob_end_time'] ?? null,
+            ]);
+            $creditedHours = $obForCredit->computeCreditedHours();
+
+            // Full day: no clock times, just like an OB request approval.
+            // Partial day: keep the actual OB time range on the record.
+            $payload['time_in'] = (!$isFullDayOb && $validated['ob_start_time'])
+                ? Carbon::parse($validated['date'] . ' ' . $validated['ob_start_time'])
+                : null;
+            $payload['time_out'] = (!$isFullDayOb && $validated['ob_end_time'])
+                ? Carbon::parse($validated['date'] . ' ' . $validated['ob_end_time'])
+                : null;
             $payload['break_start'] = null;
             $payload['break_end'] = null;
-            $payload['total_hours'] = 0;
-            $payload['regular_hours'] = 0;
+            $payload['total_hours'] = $creditedHours;
+            $payload['regular_hours'] = $creditedHours;
             $payload['overtime_hours'] = 0;
         } else {
             $payload['time_in'] = $validated['time_in'] ? Carbon::parse($validated['date'] . ' ' . $validated['time_in']) : null;
@@ -519,6 +556,27 @@ class AttendanceController extends Controller
 
         try {
             $record = AttendanceRecord::create($payload);
+
+            // Keep the Official Business module in sync: manually recording an
+            // Official Business attendance entry here should also create the
+            // matching (already-approved) OfficialBusinessRequest, otherwise it
+            // never shows up on the Official Business page.
+            if ($isOfficialBusiness) {
+                OfficialBusinessRequest::create([
+                    'employee_id' => $validated['employee_id'],
+                    'date' => $validated['date'],
+                    'reason' => $validated['notes'],
+                    'status' => OfficialBusinessRequest::APPROVED,
+                    'is_full_day' => $isFullDayOb,
+                    'ob_start_time' => $validated['ob_start_time'] ?? null,
+                    'ob_end_time' => $validated['ob_end_time'] ?? null,
+                    'credited_hours' => $creditedHours,
+                    'reviewed_by' => Auth::id(),
+                    'reviewed_at' => Carbon::now(),
+                    'attendance_record_id' => $record->id,
+                    'created_by' => Auth::id(),
+                ]);
+            }
 
             // For clock-based statuses, calculate hours from the time fields just saved
             if (!$isOfficialBusiness && $record->time_in && $record->time_out) {

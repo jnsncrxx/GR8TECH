@@ -153,11 +153,9 @@
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
-                        @if($isReviewer)
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Employee
                         </th>
-                        @endif
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Date
                         </th>
@@ -186,9 +184,9 @@
                             $obStatus = $ob->isPending() ? 'pending' : ($ob->isApproved() ? 'approved' : 'rejected');
                             $statusColor = $statusColors[$obStatus];
                             $initials = strtoupper(substr($ob->employee->first_name ?? '', 0, 1) . substr($ob->employee->last_name ?? '', 0, 1));
+                            $reviewerName = trim(($ob->reviewer->employee->first_name ?? '') . ' ' . ($ob->reviewer->employee->last_name ?? ''));
                         @endphp
                         <tr class="hover:bg-gray-50 transition-colors">
-                            @if($isReviewer)
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="flex items-center">
                                     <div class="flex-shrink-0 h-10 w-10">
@@ -202,12 +200,16 @@
                                     </div>
                                 </div>
                             </td>
-                            @endif
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">{{ $ob->date->format('M d, Y') }}</div>
                             </td>
                             <td class="px-6 py-4">
                                 <div class="text-sm text-gray-900 max-w-xs truncate" title="{{ $ob->reason }}">{{ \Illuminate\Support\Str::limit($ob->reason, 30) }}</div>
+                                @if($obStatus === 'rejected' && $ob->rejection_reason)
+                                    <div class="text-xs text-red-600 mt-1 max-w-xs truncate" title="{{ $ob->rejection_reason }}">
+                                        Admin Reason: {{ $ob->rejection_reason }}
+                                    </div>
+                                @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $statusColor }}">
@@ -216,7 +218,7 @@
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ $ob->reviewer->full_name ?? '—' }}</div>
+                                <div class="text-sm text-gray-900">{{ $reviewerName !== '' ? $reviewerName : '—' }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                 <div class="flex space-x-2">
@@ -245,7 +247,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ $isReviewer ? 6 : 5 }}" class="px-6 py-4 text-center">
+                            <td colspan="6" class="px-6 py-4 text-center">
                                 <div class="flex flex-col items-center justify-center py-8">
                                     <i class="fas fa-briefcase text-gray-400 text-4xl mb-4"></i>
                                     <p class="text-gray-500 text-lg font-medium mb-2">No official business requests found</p>
@@ -303,6 +305,7 @@
                         $obStatus = $ob->isPending() ? 'pending' : ($ob->isApproved() ? 'approved' : 'rejected');
                         $statusColor = $statusColors[$obStatus];
                         $initials = strtoupper(substr($ob->employee->first_name ?? '', 0, 1) . substr($ob->employee->last_name ?? '', 0, 1));
+                        $reviewerName = trim(($ob->reviewer->employee->first_name ?? '') . ' ' . ($ob->reviewer->employee->last_name ?? ''));
                     @endphp
                     <div class="border border-gray-200 rounded-lg p-4">
                         <div class="flex items-center justify-between mb-3">
@@ -327,12 +330,17 @@
                             </div>
                             <div>
                                 <div class="text-gray-500">Reviewed By</div>
-                                <div class="font-medium">{{ $ob->reviewer->full_name ?? '—' }}</div>
+                                <div class="font-medium">{{ $reviewerName !== '' ? $reviewerName : '—' }}</div>
                             </div>
                         </div>
                         <div class="text-sm mb-3">
                             <div class="text-gray-500">Reason</div>
                             <div class="font-medium">{{ \Illuminate\Support\Str::limit($ob->reason, 50) }}</div>
+                            @if($obStatus === 'rejected' && $ob->rejection_reason)
+                                <div class="text-xs text-red-600 mt-1">
+                                    Admin Reason: {{ $ob->rejection_reason }}
+                                </div>
+                            @endif
                         </div>
                         @if($ob->isPending())
                         <div class="flex justify-end space-x-2">
@@ -388,6 +396,38 @@
                     <input type="date" id="obDate" name="date" required
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                            min="{{ now()->toDateString() }}" value="{{ old('date') }}">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Duration</label>
+                    <div class="flex gap-4">
+                        <label class="inline-flex items-center text-sm text-gray-700">
+                            <input type="radio" name="is_full_day" value="1" checked
+                                   onchange="toggleObDuration(this)"
+                                   class="text-blue-600 focus:ring-blue-500 mr-2">
+                            Full day
+                        </label>
+                        <label class="inline-flex items-center text-sm text-gray-700">
+                            <input type="radio" name="is_full_day" value="0"
+                                   onchange="toggleObDuration(this)"
+                                   class="text-blue-600 focus:ring-blue-500 mr-2">
+                            Partial day
+                        </label>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-400">Full day credits your scheduled shift hours. Partial day credits only the time you select below.</p>
+                </div>
+
+                <div id="obTimeFields" class="grid grid-cols-2 gap-4 hidden">
+                    <div>
+                        <label for="obStartTime" class="block text-sm font-medium text-gray-700 mb-2">Start Time</label>
+                        <input type="time" id="obStartTime" name="ob_start_time"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
+                    </div>
+                    <div>
+                        <label for="obEndTime" class="block text-sm font-medium text-gray-700 mb-2">End Time</label>
+                        <input type="time" id="obEndTime" name="ob_end_time"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
+                    </div>
                 </div>
 
                 <div>
@@ -452,6 +492,21 @@
 @endif
 
 <script>
+function toggleObDuration(radio) {
+    const timeFields = document.getElementById('obTimeFields');
+    const startInput = document.getElementById('obStartTime');
+    const endInput = document.getElementById('obEndTime');
+    if (!timeFields) return;
+    const isPartial = radio.value === '0';
+    timeFields.classList.toggle('hidden', !isPartial);
+    if (startInput) startInput.required = isPartial;
+    if (endInput) endInput.required = isPartial;
+    if (!isPartial) {
+        if (startInput) startInput.value = '';
+        if (endInput) endInput.value = '';
+    }
+}
+
 function openObModal() {
     const modal = document.getElementById('obModal');
     if (!modal) return;
@@ -460,9 +515,32 @@ function openObModal() {
     modal.style.justifyContent = 'center';
     const form = document.getElementById('obForm');
     if (form) form.reset();
+    const timeFields = document.getElementById('obTimeFields');
+    if (timeFields) timeFields.classList.add('hidden');
     const dateInput = document.getElementById('obDate');
     if (dateInput) dateInput.min = new Date().toISOString().split('T')[0];
 }
+
+document.addEventListener('DOMContentLoaded', function () {
+    const obForm = document.getElementById('obForm');
+    if (!obForm) return;
+    obForm.addEventListener('submit', function (e) {
+        const isFullDay = obForm.querySelector('input[name="is_full_day"]:checked')?.value === '1';
+        if (!isFullDay) {
+            const start = document.getElementById('obStartTime')?.value;
+            const end = document.getElementById('obEndTime')?.value;
+            if (!start || !end) {
+                e.preventDefault();
+                alert('Please provide both a start and end time for a partial-day OB request.');
+                return;
+            }
+            if (start >= end) {
+                e.preventDefault();
+                alert('End time must be after start time.');
+            }
+        }
+    });
+});
 
 function closeObModal() {
     const modal = document.getElementById('obModal');

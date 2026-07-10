@@ -26,3 +26,4 @@ Thumbs.db
 TASKS-EJHAY.md
 /storage/framework/views/*
 !/storage/framework/views/.gitignore
+tmp_*.php
