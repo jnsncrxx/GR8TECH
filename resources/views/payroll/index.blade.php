@@ -346,7 +346,7 @@
             ];
         })->toArray();
     @endphp
-    {{ json_encode($employeesData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) }}
+    {!! json_encode($employeesData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) !!}
 </script>
 
 <script>
@@ -508,10 +508,10 @@
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
                         NET PAY
                     </th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
+                    <th class="px-6 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
                         STATUS
                     </th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
+                    <th class="px-6 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
                         ACTIONS
                     </th>
                 </tr>
@@ -565,14 +565,13 @@
                         <td class="px-6 py-4 whitespace-nowrap">
                             <span class="text-sm font-bold text-gray-900">₱{{ number_format($payroll->net_pay, 2) }}</span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $statusColor }}">
-                                <div class="w-1.5 h-1.5 rounded-full mr-1.5 {{ str_replace('text-', 'bg-', $statusColor) }}"></div>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <span class="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium {{ $statusColor }} min-w-[80px]">
                                 {{ ucfirst($payroll->status) }}
                             </span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div class="flex items-center space-x-2">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
+                            <div class="flex items-center justify-center space-x-2">
                                 <!-- Eye icon: View Details -->
                                 <button onclick="openPayrollModal('{{ $payroll->id }}')" 
                                         class="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50" 
@@ -1574,8 +1573,7 @@ function updatePayrollStatus(payrollId, newStatus, statusClass) {
     const statusCell = document.querySelector(`tr[data-payroll-id="${payrollId}"] .status-cell`);
     if (statusCell) {
         statusCell.innerHTML = `
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClass}">
-                <div class="w-1.5 h-1.5 rounded-full mr-1.5 ${statusClass.replace('text-', 'bg-')}"></div>
+            <span class="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium ${statusClass} min-w-[80px]">
                 ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}
             </span>
         `;
