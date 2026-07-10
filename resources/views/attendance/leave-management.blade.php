@@ -2,8 +2,6 @@
 
 @php use Illuminate\Support\Str; @endphp
 
-@extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'attendance.leave-management'])
-
 @section('title', 'Leave Management')
 
 @section('content')
@@ -253,6 +251,9 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">{{ Str::limit($leaveRequest->reason, 30) }}</div>
+                                @if($leaveRequest->status == 'rejected' && $leaveRequest->rejection_reason)
+                                    <div class="text-xs text-red-600 mt-0.5"><span class="font-medium">Admin Reason:</span> {{ Str::limit($leaveRequest->rejection_reason, 30) }}</div>
+                                @endif
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $statusColors[$leaveRequest->status] ?? 'bg-gray-100 text-gray-800' }}">
@@ -262,20 +263,23 @@
                                     {{ ucfirst($leaveRequest->status) }}
                             </span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div class="flex space-x-2">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
+                            <div class="flex justify-center items-center space-x-2">
                                     @if(in_array($user->role, ['admin', 'hr']) && $leaveRequest->status == 'pending')
-                                        <button data-leave-id="{{ $leaveRequest->id }}" data-action="approve" class="time-action-btn text-green-600 hover:text-green-900 transition-colors" title="Approve">
-                                    <i class="fas fa-check"></i>
-                                </button>
-                                        <button data-leave-id="{{ $leaveRequest->id }}" data-action="reject" class="time-action-btn text-red-600 hover:text-red-900 transition-colors" title="Reject">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                                    @endif
-                                    @if($leaveRequest->status == 'pending' && ($user->role == 'employee' && $leaveRequest->employee_id == $user->employee?->id))
-                                        <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn text-orange-600 hover:text-orange-900 transition-colors" title="Cancel">
+                                        <button data-leave-id="{{ $leaveRequest->id }}" data-action="approve" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors" title="Approve">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                        <button data-leave-id="{{ $leaveRequest->id }}" data-action="reject" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors" title="Reject">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    @elseif($leaveRequest->status == 'pending' && ($user->role == 'employee' && $leaveRequest->employee_id == $user->employee?->id))
+                                        <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel">
                                             <i class="fas fa-ban"></i>
                                         </button>
+                                    @else
+                                        <div class="flex justify-center">
+                                            <span class="inline-block w-10 h-px bg-gray-300 rounded-full"></span>
+                                        </div>
                                     @endif
                             </div>
                         </td>
@@ -363,20 +367,26 @@
                     <div class="text-sm mb-3">
                         <div class="text-gray-500">Reason</div>
                             <div class="font-medium">{{ Str::limit($leaveRequest->reason, 50) }}</div>
-                    </div>
-                    <div class="flex justify-end space-x-2">
-                            @if(in_array($user->role, ['admin', 'hr']) && $leaveRequest->status == 'pending')
-                                <button data-leave-id="{{ $leaveRequest->id }}" data-action="approve" class="time-action-btn text-green-600 hover:text-green-900 transition-colors">
-                            <i class="fas fa-check mr-1"></i>Approve
-                        </button>
-                                <button data-leave-id="{{ $leaveRequest->id }}" data-action="reject" class="time-action-btn text-red-600 hover:text-red-900 transition-colors">
-                            <i class="fas fa-times mr-1"></i>Reject
-                        </button>
+                            @if($leaveRequest->status == 'rejected' && $leaveRequest->rejection_reason)
+                                <div class="text-xs text-red-600 mt-0.5"><span class="font-medium">Admin Reason:</span> {{ Str::limit($leaveRequest->rejection_reason, 50) }}</div>
                             @endif
-                            @if($leaveRequest->status == 'pending' && ($user->role == 'employee' && $leaveRequest->employee_id == $user->employee?->id))
-                                <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn text-orange-600 hover:text-orange-900 transition-colors">
-                                    <i class="fas fa-ban mr-1"></i>Cancel
+                    </div>
+                    <div class="flex justify-center space-x-2">
+                            @if(in_array($user->role, ['admin', 'hr']) && $leaveRequest->status == 'pending')
+                                <button data-leave-id="{{ $leaveRequest->id }}" data-action="approve" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors" title="Approve">
+                                    <i class="fas fa-check"></i>
                                 </button>
+                                <button data-leave-id="{{ $leaveRequest->id }}" data-action="reject" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors" title="Reject">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            @elseif($leaveRequest->status == 'pending' && ($user->role == 'employee' && $leaveRequest->employee_id == $user->employee?->id))
+                                <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel">
+                                    <i class="fas fa-ban"></i>
+                                </button>
+                            @else
+                                <div class="flex justify-center">
+                                    <span class="inline-block w-10 h-px bg-gray-300 rounded-full"></span>
+                                </div>
                             @endif
                         </div>
                     </div>
@@ -632,20 +642,49 @@ function showNotification(message, type = 'success') {
     }, 5000);
 }
 
-function updateLeaveStatus(leaveRequestId, status) {
-    if (!confirm(`Are you sure you want to ${status} this leave request?`)) {
+let currentLeaveActionId = null;
+
+function openApproveLeaveModal(leaveId) {
+    currentLeaveActionId = leaveId;
+    document.getElementById('approveLeaveModal').classList.remove('hidden');
+}
+
+function closeApproveLeaveModal() {
+    currentLeaveActionId = null;
+    document.getElementById('approveLeaveModal').classList.add('hidden');
+}
+
+function confirmApproveLeave() {
+    if (!currentLeaveActionId) return;
+    const leaveId = currentLeaveActionId;
+    closeApproveLeaveModal();
+    updateLeaveStatus(leaveId, 'approved');
+}
+
+function openRejectLeaveModal(leaveId) {
+    currentLeaveActionId = leaveId;
+    document.getElementById('rejectLeaveReason').value = '';
+    document.getElementById('rejectLeaveModal').classList.remove('hidden');
+}
+
+function closeRejectLeaveModal() {
+    currentLeaveActionId = null;
+    document.getElementById('rejectLeaveModal').classList.add('hidden');
+}
+
+function confirmRejectLeave() {
+    if (!currentLeaveActionId) return;
+    const reason = document.getElementById('rejectLeaveReason').value.trim();
+    if (!reason) {
+        showNotification('Rejection reason is required.', 'error');
         return;
     }
+    const leaveId = currentLeaveActionId;
+    closeRejectLeaveModal();
+    updateLeaveStatus(leaveId, 'rejected', reason);
+}
 
-    let rejectionReason = null;
-    if (status === 'rejected') {
-        rejectionReason = prompt('Please provide a reason for rejection:');
-        if (!rejectionReason || rejectionReason.trim() === '') {
-            showNotification('Rejection reason is required.', 'error');
-            return;
-        }
-    }
-
+function updateLeaveStatus(leaveRequestId, status, rejectionReason = null) {
     const url = '{{ route("attendance.leave-management.update-status", ["id" => ":id"]) }}'.replace(':id', leaveRequestId);
 
     // Build request body - only include rejection_reason if rejecting
@@ -748,15 +787,68 @@ document.addEventListener('DOMContentLoaded', function() {
         const action = btn.getAttribute('data-action');
 
         if (action === 'approve') {
-            updateLeaveStatus(leaveId, 'approved');
+            openApproveLeaveModal(leaveId);
         } else if (action === 'reject') {
-            updateLeaveStatus(leaveId, 'rejected');
+            openRejectLeaveModal(leaveId);
         } else if (action === 'cancel') {
             cancelLeaveRequest(leaveId);
         }
     });
     });
 </script>
+
+<!-- Approve Leave Request Modal -->
+<div id="approveLeaveModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden z-50 flex items-center justify-center px-4">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">Approve Leave Request</h3>
+            <button onclick="closeApproveLeaveModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="px-6 py-5">
+            <p class="text-sm text-gray-600">Are you sure you want to approve this leave request?</p>
+        </div>
+        <div class="flex justify-end space-x-3 px-6 py-4 border-t border-gray-200">
+            <button type="button" onclick="closeApproveLeaveModal()"
+                    class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                Cancel
+            </button>
+            <button type="button" onclick="confirmApproveLeave()"
+                    class="px-4 py-2 bg-green-600 border border-transparent rounded-lg text-white hover:bg-green-700 transition-colors">
+                <i class="fas fa-check mr-2"></i>Approve Request
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Leave Request Modal -->
+<div id="rejectLeaveModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden z-50 flex items-center justify-center px-4">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">Reject Leave Request</h3>
+            <button onclick="closeRejectLeaveModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="px-6 py-5">
+            <label for="rejectLeaveReason" class="block text-sm font-medium text-gray-700 mb-2">Reason for rejection</label>
+            <textarea id="rejectLeaveReason" rows="4"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      placeholder="Provide a reason for rejecting this leave request..."></textarea>
+        </div>
+        <div class="flex justify-end space-x-3 px-6 py-4 border-t border-gray-200">
+            <button type="button" onclick="closeRejectLeaveModal()"
+                    class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                Cancel
+            </button>
+            <button type="button" onclick="confirmRejectLeave()"
+                    class="px-4 py-2 bg-red-600 border border-transparent rounded-lg text-white hover:bg-red-700 transition-colors">
+                <i class="fas fa-times mr-2"></i>Reject Request
+            </button>
+        </div>
+    </div>
+</div>
 
 <!-- Set Leave Balance Modal -->
 <div id="setLeaveBalanceModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">

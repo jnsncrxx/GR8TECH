@@ -159,21 +159,6 @@
                         @endforeach
                     </div>
                 </div>
-                        @foreach($department_breakdown as $dept)
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center">
-                                <div class="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
-                                <span class="text-sm font-medium text-gray-700">{{ $dept->name }}</span>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <span class="text-sm text-gray-500">{{ $dept->employees_count }} employees</span>
-                                <div class="w-16 bg-gray-200 rounded-full h-2">
-                                    <div class="bg-blue-500 h-2 rounded-full" style="width: {{ $dept->employees_count > 0 ? ($dept->employees_count / $stats['total_employees']) * 100 : 0 }}%"></div>
-                                </div>
-                            </div>
-                        </div>
-                        @endforeach
-                    </div>
                 </div>
 
                 <!-- Recent Activity -->

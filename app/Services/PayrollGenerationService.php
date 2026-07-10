@@ -6,6 +6,7 @@ use App\Models\Payroll;
 use App\Models\Employee;
 use App\Models\AttendanceRecord;
 use App\Models\EmployeeSchedule;
+use App\Models\LeaveRequest;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -1172,8 +1173,11 @@ private function calculateAllPayrollComponents(Employee $employee, $employeeReco
     // Calculate rest day premiums
     $restDayData = $this->calculateRestDayPremiumWithExcelRates($employee, $employeeRecords, $dailyRate);
     
+    // Calculate approved leave compensation for the payroll period
+    $leaveData = $this->calculateApprovedLeaveData($employee, $periodData);
+
     // Calculate allowances (incentive leave from Excel - 5 days)
-    $allowances = $this->calculateAllowances($employee, $dailyRate);
+    $allowances = $this->calculateAllowances($employee, $dailyRate, $leaveData);
     
     // Calculate statutory deductions (SSS, PHIC, HDMF)
     $statutoryDeductions = $this->calculateStatutoryDeductions($employee, $monthlyRate);
@@ -1225,6 +1229,8 @@ private function calculateAllPayrollComponents(Employee $employee, $employeeReco
         'rest_day_premium_pay' => $restDayData['total_pay'],
         'allowances' => $allowances['total'],
         'bonuses' => 0,
+        'sick_leave_days' => $leaveData['sick_leave_days'] ?? 0,
+        'sick_leave_pay' => $leaveData['sick_leave_pay'] ?? 0,
         'total_deductions' => $totalDeductions,
         'late_deductions' => $lateDeductions,
         'absent_deductions' => $absentDeductions,
@@ -1410,14 +1416,62 @@ private function calculateAbsenceDeductions($employeeRecords, $dailyRate): float
 /**
  * Calculate allowances (incentive leave)
  */
-private function calculateAllowances(Employee $employee, $dailyRate): array
+private function calculateAllowances(Employee $employee, $dailyRate, array $leaveData = []): array
 {
     $incentiveLeaveDays = 5; // Default from Excel
-    $totalAllowance = $dailyRate * $incentiveLeaveDays;
+    $incentiveLeavePay = $dailyRate * $incentiveLeaveDays;
+    $sickLeavePay = $leaveData['sick_leave_pay'] ?? 0;
+    $totalAllowance = $incentiveLeavePay + $sickLeavePay;
     
     return [
         'incentive_leave_days' => $incentiveLeaveDays,
+        'sick_leave_days' => $leaveData['sick_leave_days'] ?? 0,
+        'sick_leave_pay' => $sickLeavePay,
+        'incentive_leave_pay' => round($incentiveLeavePay, 2),
         'total' => round($totalAllowance, 2)
+    ];
+}
+
+/**
+ * Calculate approved sick leave pay for the payroll period.
+ */
+private function calculateApprovedLeaveData(Employee $employee, array $periodData): array
+{
+    $startDate = Carbon::parse($periodData['start_date'])->startOfDay();
+    $endDate = Carbon::parse($periodData['end_date'])->endOfDay();
+
+    $leaveRequests = LeaveRequest::where('employee_id', $employee->id)
+        ->where('status', 'approved')
+        ->where(function ($query) use ($startDate, $endDate) {
+            $query->whereBetween('start_date', [$startDate->toDateString(), $endDate->toDateString()])
+                ->orWhereBetween('end_date', [$startDate->toDateString(), $endDate->toDateString()])
+                ->orWhere(function ($subQuery) use ($startDate, $endDate) {
+                    $subQuery->where('start_date', '<=', $startDate->toDateString())
+                        ->where('end_date', '>=', $endDate->toDateString());
+                });
+        })
+        ->get();
+
+    $sickLeaveDays = 0;
+
+    foreach ($leaveRequests as $leaveRequest) {
+        if ($leaveRequest->leave_type !== 'sick') {
+            continue;
+        }
+
+        $overlapStart = max(Carbon::parse($leaveRequest->start_date), $startDate);
+        $overlapEnd = min(Carbon::parse($leaveRequest->end_date), $endDate);
+
+        if ($overlapStart->gt($overlapEnd)) {
+            continue;
+        }
+
+        $sickLeaveDays += $overlapStart->diffInDays($overlapEnd) + 1;
+    }
+
+    return [
+        'sick_leave_days' => $sickLeaveDays,
+        'sick_leave_pay' => round($sickLeaveDays * $employee->daily_rate, 2),
     ];
 }
 
@@ -1970,6 +2024,8 @@ private function generateFallbackPayslipHTML(Payroll $payroll, Employee $employe
         'rest_day_premium_pay' => $components['rest_day_premium_pay'],
         'allowances' => $components['allowances'],
         'bonuses' => $components['bonuses'],
+        'sick_leave_days' => $components['sick_leave_days'],
+        'sick_leave_pay' => $components['sick_leave_pay'],
         'deductions' => $components['late_deductions'] + $components['absent_deductions'],
         'tax_amount' => $components['tax_amount'],
         'gross_pay' => $components['gross_pay'],
@@ -2046,6 +2102,8 @@ private function calculatePayrollFromRecords(Employee $employee, $employeeRecord
             'rest_day_premium_pay' => $components['rest_day_premium_pay'],
             'allowances' => $components['allowances'],
             'bonuses' => $components['bonuses'],
+            'sick_leave_days' => $components['sick_leave_days'] ?? 0,
+            'sick_leave_pay' => $components['sick_leave_pay'] ?? 0,
             'deductions' => $components['total_deductions'],
             'sss' => $components['sss'],
             'phic' => $components['phic'],
