@@ -202,6 +202,7 @@ class LeaveController extends Controller
             'rejection_reason' => ['nullable', 'required_if:status,rejected', 'string', 'max:500'],
         ]);
 
+        $previousStatus = $leaveRequest->status;
         $leaveRequest->status = $data['status'];
         $leaveRequest->approved_by = $user->id;
         $leaveRequest->approved_at = Carbon::now();
@@ -212,7 +213,31 @@ class LeaveController extends Controller
 
         $leaveRequest->save();
 
+        if ($previousStatus !== 'approved' && $data['status'] === 'approved') {
+            $this->applyApprovedLeaveToBalance($leaveRequest);
+        }
+
         return response()->json(['success' => true, 'message' => 'Leave request status updated successfully.']);
+    }
+
+    protected function applyApprovedLeaveToBalance(LeaveRequest $leaveRequest): void
+    {
+        $year = Carbon::parse($leaveRequest->start_date)->year;
+        $leaveBalance = LeaveBalance::firstOrNew([
+            'employee_id' => $leaveRequest->employee_id,
+            'year' => $year,
+        ]);
+
+        if (!$leaveBalance->exists) {
+            foreach ($this->leaveTypes as $type) {
+                $leaveBalance->{$type . '_days_total'} = $leaveBalance->{$type . '_days_total'} ?? 0;
+                $leaveBalance->{$type . '_days_used'} = $leaveBalance->{$type . '_days_used'} ?? 0;
+            }
+        }
+
+        $usedField = $leaveRequest->leave_type . '_days_used';
+        $leaveBalance->{$usedField} = ($leaveBalance->{$usedField} ?? 0) + $leaveRequest->days_requested;
+        $leaveBalance->save();
     }
 
     public function cancel($id)

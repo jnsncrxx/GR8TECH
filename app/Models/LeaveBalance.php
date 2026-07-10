@@ -79,4 +79,11 @@ class LeaveBalance extends Model
     {
         return $this->getRemainingDays($leaveType) >= $daysRequested;
     }
+
+    public function incrementUsedDays(string $leaveType, int $days): void
+    {
+        $usedField = $leaveType . '_days_used';
+        $this->{$usedField} = ($this->{$usedField} ?? 0) + $days;
+        $this->save();
+    }
 }

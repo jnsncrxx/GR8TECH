@@ -1,10 +1,8 @@
-@extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'attendance.leave-management'])
+<?php use Illuminate\Support\Str; ?>
 
-@php use Illuminate\Support\Str; @endphp
+<?php $__env->startSection('title', 'Leave Management'); ?>
 
-@section('title', 'Leave Management')
-
-@section('content')
+<?php $__env->startSection('content'); ?>
 <div class="space-y-6">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -22,24 +20,24 @@
                 </button>
                 <div x-show="open" @click.away="open = false" x-transition class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
                     <div class="py-1">
-                        <a href="{{ route('attendance.leave-management.export', ['format' => 'pdf']) . '?' . http_build_query(request()->query()) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                        <a href="<?php echo e(route('attendance.leave-management.export', ['format' => 'pdf']) . '?' . http_build_query(request()->query())); ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                             <i class="fas fa-file-pdf mr-2 text-red-500"></i>Export as PDF
                         </a>
-                        <a href="{{ route('attendance.leave-management.export', ['format' => 'csv']) . '?' . http_build_query(request()->query()) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                        <a href="<?php echo e(route('attendance.leave-management.export', ['format' => 'csv']) . '?' . http_build_query(request()->query())); ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                             <i class="fas fa-file-csv mr-2 text-green-500"></i>Export as CSV
                         </a>
-                        <a href="{{ route('attendance.leave-management.export', ['format' => 'xls']) . '?' . http_build_query(request()->query()) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                        <a href="<?php echo e(route('attendance.leave-management.export', ['format' => 'xls']) . '?' . http_build_query(request()->query())); ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                             <i class="fas fa-file-excel mr-2 text-green-600"></i>Export as Excel
                         </a>
                     </div>
                 </div>
             </div>
-            @if($user->role === 'employee')
-            <a href="{{ route('attendance.leave-management.create') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+            <?php if($user->role === 'employee'): ?>
+            <a href="<?php echo e(route('attendance.leave-management.create')); ?>" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
                 <i class="fas fa-plus mr-2"></i>
                 New Leave Request
             </a>
-            @endif
+            <?php endif; ?>
         </div>
     </div>
 
@@ -54,7 +52,7 @@
                 </div>
                 <div class="ml-3">
                     <p class="text-sm font-medium text-gray-500">Total Requests</p>
-                    <p class="text-lg font-semibold text-gray-900">{{ $summary['total'] ?? 0 }}</p>
+                    <p class="text-lg font-semibold text-gray-900"><?php echo e($summary['total'] ?? 0); ?></p>
                 </div>
             </div>
         </div>
@@ -68,7 +66,7 @@
                 </div>
                 <div class="ml-3">
                     <p class="text-sm font-medium text-gray-500">Pending</p>
-                    <p class="text-lg font-semibold text-gray-900">{{ $summary['pending'] ?? 0 }}</p>
+                    <p class="text-lg font-semibold text-gray-900"><?php echo e($summary['pending'] ?? 0); ?></p>
                 </div>
             </div>
         </div>
@@ -82,7 +80,7 @@
                 </div>
                 <div class="ml-3">
                     <p class="text-sm font-medium text-gray-500">Approved</p>
-                    <p class="text-lg font-semibold text-gray-900">{{ $summary['approved'] ?? 0 }}</p>
+                    <p class="text-lg font-semibold text-gray-900"><?php echo e($summary['approved'] ?? 0); ?></p>
                 </div>
             </div>
         </div>
@@ -96,7 +94,7 @@
                 </div>
                 <div class="ml-3">
                     <p class="text-sm font-medium text-gray-500">Rejected</p>
-                    <p class="text-lg font-semibold text-gray-900">{{ $summary['rejected'] ?? 0 }}</p>
+                    <p class="text-lg font-semibold text-gray-900"><?php echo e($summary['rejected'] ?? 0); ?></p>
                 </div>
             </div>
         </div>
@@ -105,59 +103,60 @@
     <!-- Filters -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            @if($user->role !== 'employee')
+            <?php if($user->role !== 'employee'): ?>
             <div>
                 <label for="employee" class="block text-sm font-medium text-gray-700 mb-2">Employee</label>
                 <select id="employee" name="employee_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
                     <option value="">All Employees</option>
-                    @if(isset($employees) && $employees->count() > 0)
-                        @foreach($employees as $emp)
-                            <option value="{{ $emp->id }}" {{ request('employee_id') == $emp->id ? 'selected' : '' }}>
-                                {{ $emp->full_name }} - {{ $emp->department->name ?? 'No Department' }}
+                    <?php if(isset($employees) && $employees->count() > 0): ?>
+                        <?php $__currentLoopData = $employees; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $emp): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <option value="<?php echo e($emp->id); ?>" <?php echo e(request('employee_id') == $emp->id ? 'selected' : ''); ?>>
+                                <?php echo e($emp->full_name); ?> - <?php echo e($emp->department->name ?? 'No Department'); ?>
+
                             </option>
-                        @endforeach
-                    @endif
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                    <?php endif; ?>
                 </select>
             </div>
-            @endif
+            <?php endif; ?>
             <div>
                 <label for="leaveType" class="block text-sm font-medium text-gray-700 mb-2">Leave Type</label>
                 <select id="leaveType" name="leave_type" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
                     <option value="">All Types</option>
-                    <option value="vacation" {{ request('leave_type') == 'vacation' ? 'selected' : '' }}>Vacation Leave</option>
-                    <option value="sick" {{ request('leave_type') == 'sick' ? 'selected' : '' }}>Sick Leave</option>
-                    <option value="personal" {{ request('leave_type') == 'personal' ? 'selected' : '' }}>Personal Leave</option>
-                    <option value="emergency" {{ request('leave_type') == 'emergency' ? 'selected' : '' }}>Emergency Leave</option>
-                    <option value="maternity" {{ request('leave_type') == 'maternity' ? 'selected' : '' }}>Maternity Leave</option>
-                    <option value="paternity" {{ request('leave_type') == 'paternity' ? 'selected' : '' }}>Paternity Leave</option>
-                    <option value="bereavement" {{ request('leave_type') == 'bereavement' ? 'selected' : '' }}>Bereavement Leave</option>
-                    <option value="study" {{ request('leave_type') == 'study' ? 'selected' : '' }}>Study Leave</option>
+                    <option value="vacation" <?php echo e(request('leave_type') == 'vacation' ? 'selected' : ''); ?>>Vacation Leave</option>
+                    <option value="sick" <?php echo e(request('leave_type') == 'sick' ? 'selected' : ''); ?>>Sick Leave</option>
+                    <option value="personal" <?php echo e(request('leave_type') == 'personal' ? 'selected' : ''); ?>>Personal Leave</option>
+                    <option value="emergency" <?php echo e(request('leave_type') == 'emergency' ? 'selected' : ''); ?>>Emergency Leave</option>
+                    <option value="maternity" <?php echo e(request('leave_type') == 'maternity' ? 'selected' : ''); ?>>Maternity Leave</option>
+                    <option value="paternity" <?php echo e(request('leave_type') == 'paternity' ? 'selected' : ''); ?>>Paternity Leave</option>
+                    <option value="bereavement" <?php echo e(request('leave_type') == 'bereavement' ? 'selected' : ''); ?>>Bereavement Leave</option>
+                    <option value="study" <?php echo e(request('leave_type') == 'study' ? 'selected' : ''); ?>>Study Leave</option>
                 </select>
             </div>
             <div>
                 <label for="status" class="block text-sm font-medium text-gray-700 mb-2">Status</label>
                 <select id="status" name="status" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
                     <option value="">All Status</option>
-                    <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
-                    <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Approved</option>
-                    <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }}>Rejected</option>
-                    <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+                    <option value="pending" <?php echo e(request('status') == 'pending' ? 'selected' : ''); ?>>Pending</option>
+                    <option value="approved" <?php echo e(request('status') == 'approved' ? 'selected' : ''); ?>>Approved</option>
+                    <option value="rejected" <?php echo e(request('status') == 'rejected' ? 'selected' : ''); ?>>Rejected</option>
+                    <option value="cancelled" <?php echo e(request('status') == 'cancelled' ? 'selected' : ''); ?>>Cancelled</option>
                 </select>
             </div>
             <div>
                 <label for="dateFrom" class="block text-sm font-medium text-gray-700 mb-2">From Date</label>
-                <input type="date" id="dateFrom" name="date_from" value="{{ request('date_from') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
+                <input type="date" id="dateFrom" name="date_from" value="<?php echo e(request('date_from')); ?>" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
             </div>
         </div>
         <div class="mt-4 flex flex-col sm:flex-row gap-3 sm:items-end">
             <button onclick="applyFilters()" class="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
                 <i class="fas fa-search mr-2"></i>Apply Filters
             </button>
-            @if(in_array($user->role, ['admin', 'hr', 'manager']) && ($hasEmployeesWithoutBalances ?? true))
+            <?php if(in_array($user->role, ['admin', 'hr', 'manager']) && ($hasEmployeesWithoutBalances ?? true)): ?>
             <button onclick="openSetLeaveBalanceModal()" class="w-full sm:w-auto px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium" title="Set Leave Balance">
                 <i class="fas fa-calendar-plus mr-2"></i><span class="hidden sm:inline">Set Leave Balance</span><span class="sm:hidden">Set Balance</span>
             </button>
-            @endif
+            <?php endif; ?>
         </div>
     </div>
 
@@ -200,8 +199,8 @@
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
-                    @forelse($leaveRequests as $leaveRequest)
-                        @php
+                    <?php $__empty_1 = true; $__currentLoopData = $leaveRequests; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $leaveRequest): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                        <?php
                             $employee = $leaveRequest->employee;
                             $initials = strtoupper(substr($employee->first_name ?? '', 0, 1) . substr($employee->last_name ?? '', 0, 1));
                             $statusColors = [
@@ -220,90 +219,92 @@
                                 'bereavement' => 'bg-gray-100 text-gray-800',
                                 'study' => 'bg-teal-100 text-teal-800'
                             ];
-                        @endphp
+                        ?>
                     <tr class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
                                 <div class="flex-shrink-0 h-10 w-10">
                                     <div class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center">
-                                            <span class="text-sm font-medium text-white">{{ $initials }}</span>
+                                            <span class="text-sm font-medium text-white"><?php echo e($initials); ?></span>
                                         </div>
                                 </div>
                                 <div class="ml-4">
-                                        <div class="text-sm font-medium text-gray-900">{{ $employee->full_name ?? 'N/A' }}</div>
-                                        <div class="text-sm text-gray-500">{{ $employee->department->name ?? 'No Department' }}</div>
+                                        <div class="text-sm font-medium text-gray-900"><?php echo e($employee->full_name ?? 'N/A'); ?></div>
+                                        <div class="text-sm text-gray-500"><?php echo e($employee->department->name ?? 'No Department'); ?></div>
                                 </div>
                             </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $leaveTypeColors[$leaveRequest->leave_type] ?? 'bg-gray-100 text-gray-800' }}">
-                                    {{ ucfirst(str_replace('_', ' ', $leaveRequest->leave_type)) }} Leave
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo e($leaveTypeColors[$leaveRequest->leave_type] ?? 'bg-gray-100 text-gray-800'); ?>">
+                                    <?php echo e(ucfirst(str_replace('_', ' ', $leaveRequest->leave_type))); ?> Leave
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ \Carbon\Carbon::parse($leaveRequest->start_date)->format('M d, Y') }}</div>
+                                <div class="text-sm text-gray-900"><?php echo e(\Carbon\Carbon::parse($leaveRequest->start_date)->format('M d, Y')); ?></div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ \Carbon\Carbon::parse($leaveRequest->end_date)->format('M d, Y') }}</div>
+                                <div class="text-sm text-gray-900"><?php echo e(\Carbon\Carbon::parse($leaveRequest->end_date)->format('M d, Y')); ?></div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ $leaveRequest->days_requested }} {{ $leaveRequest->days_requested == 1 ? 'day' : 'days' }}</div>
+                                <div class="text-sm text-gray-900"><?php echo e($leaveRequest->days_requested); ?> <?php echo e($leaveRequest->days_requested == 1 ? 'day' : 'days'); ?></div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ Str::limit($leaveRequest->reason, 30) }}</div>
-                                @if($leaveRequest->status == 'rejected' && $leaveRequest->rejection_reason)
-                                    <div class="text-xs text-red-600 mt-0.5"><span class="font-medium">Admin Reason:</span> {{ Str::limit($leaveRequest->rejection_reason, 30) }}</div>
-                                @endif
+                                <div class="text-sm text-gray-900"><?php echo e(Str::limit($leaveRequest->reason, 30)); ?></div>
+                                <?php if($leaveRequest->status == 'rejected' && $leaveRequest->rejection_reason): ?>
+                                    <div class="text-xs text-red-600 mt-0.5"><span class="font-medium">Admin Reason:</span> <?php echo e(Str::limit($leaveRequest->rejection_reason, 30)); ?></div>
+                                <?php endif; ?>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $statusColors[$leaveRequest->status] ?? 'bg-gray-100 text-gray-800' }}">
-                                    @if($leaveRequest->status == 'pending' || $leaveRequest->status == 'approved')
-                                        <div class="w-1.5 h-1.5 rounded-full mr-1.5 {{ $leaveRequest->status == 'pending' ? 'bg-yellow-400' : 'bg-green-400' }}"></div>
-                                    @endif
-                                    {{ ucfirst($leaveRequest->status) }}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo e($statusColors[$leaveRequest->status] ?? 'bg-gray-100 text-gray-800'); ?>">
+                                    <?php if($leaveRequest->status == 'pending' || $leaveRequest->status == 'approved'): ?>
+                                        <div class="w-1.5 h-1.5 rounded-full mr-1.5 <?php echo e($leaveRequest->status == 'pending' ? 'bg-yellow-400' : 'bg-green-400'); ?>"></div>
+                                    <?php endif; ?>
+                                    <?php echo e(ucfirst($leaveRequest->status)); ?>
+
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                             <div class="flex justify-center items-center space-x-2">
-                                    @if(in_array($user->role, ['admin', 'hr']) && $leaveRequest->status == 'pending')
-                                        <button data-leave-id="{{ $leaveRequest->id }}" data-action="approve" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors" title="Approve">
+                                    <?php if(in_array($user->role, ['admin', 'hr']) && $leaveRequest->status == 'pending'): ?>
+                                        <button data-leave-id="<?php echo e($leaveRequest->id); ?>" data-action="approve" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors" title="Approve">
                                             <i class="fas fa-check"></i>
                                         </button>
-                                        <button data-leave-id="{{ $leaveRequest->id }}" data-action="reject" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors" title="Reject">
+                                        <button data-leave-id="<?php echo e($leaveRequest->id); ?>" data-action="reject" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors" title="Reject">
                                             <i class="fas fa-times"></i>
                                         </button>
-                                    @elseif($leaveRequest->status == 'pending' && ($user->role == 'employee' && $leaveRequest->employee_id == $user->employee?->id))
-                                        <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel">
+                                    <?php elseif($leaveRequest->status == 'pending' && ($user->role == 'employee' && $leaveRequest->employee_id == $user->employee?->id)): ?>
+                                        <button data-leave-id="<?php echo e($leaveRequest->id); ?>" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel">
                                             <i class="fas fa-ban"></i>
                                         </button>
-                                    @else
+                                    <?php else: ?>
                                         <div class="flex justify-center">
                                             <span class="inline-block w-10 h-px bg-gray-300 rounded-full"></span>
                                         </div>
-                                    @endif
+                                    <?php endif; ?>
                             </div>
                         </td>
                     </tr>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <tr>
                             <td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">No leave requests found.</td>
                         </tr>
-                    @endforelse
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
 
-        @if($leaveRequests->hasPages())
+        <?php if($leaveRequests->hasPages()): ?>
             <div class="px-6 py-4 border-t border-gray-200">
-                {{ $leaveRequests->appends(request()->query())->links() }}
+                <?php echo e($leaveRequests->appends(request()->query())->links()); ?>
+
             </div>
-        @endif
+        <?php endif; ?>
 
         <!-- Mobile Cards -->
         <div class="lg:hidden">
             <div class="p-4 space-y-4">
-                @forelse($leaveRequests as $leaveRequest)
-                    @php
+                <?php $__empty_1 = true; $__currentLoopData = $leaveRequests; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $leaveRequest): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                    <?php
                         $employee = $leaveRequest->employee;
                         $initials = strtoupper(substr($employee->first_name ?? '', 0, 1) . substr($employee->last_name ?? '', 0, 1));
                         $statusColors = [
@@ -322,89 +323,91 @@
                             'bereavement' => 'bg-gray-100 text-gray-800',
                             'study' => 'bg-teal-100 text-teal-800'
                         ];
-                    @endphp
+                    ?>
                 <div class="border border-gray-200 rounded-lg p-4">
                     <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center space-x-3">
                             <div class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center">
-                                    <span class="text-sm font-medium text-white">{{ $initials }}</span>
+                                    <span class="text-sm font-medium text-white"><?php echo e($initials); ?></span>
                             </div>
                             <div>
-                                    <div class="font-medium text-gray-900">{{ $employee->full_name ?? 'N/A' }}</div>
-                                    <div class="text-sm text-gray-500">{{ $employee->department->name ?? 'No Department' }}</div>
+                                    <div class="font-medium text-gray-900"><?php echo e($employee->full_name ?? 'N/A'); ?></div>
+                                    <div class="text-sm text-gray-500"><?php echo e($employee->department->name ?? 'No Department'); ?></div>
                                 </div>
                             </div>
-                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $statusColors[$leaveRequest->status] ?? 'bg-gray-100 text-gray-800' }}">
-                                @if($leaveRequest->status == 'pending' || $leaveRequest->status == 'approved')
-                                    <div class="w-1.5 h-1.5 rounded-full mr-1 {{ $leaveRequest->status == 'pending' ? 'bg-yellow-400' : 'bg-green-400' }}"></div>
-                                @endif
-                                {{ ucfirst($leaveRequest->status) }}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium <?php echo e($statusColors[$leaveRequest->status] ?? 'bg-gray-100 text-gray-800'); ?>">
+                                <?php if($leaveRequest->status == 'pending' || $leaveRequest->status == 'approved'): ?>
+                                    <div class="w-1.5 h-1.5 rounded-full mr-1 <?php echo e($leaveRequest->status == 'pending' ? 'bg-yellow-400' : 'bg-green-400'); ?>"></div>
+                                <?php endif; ?>
+                                <?php echo e(ucfirst($leaveRequest->status)); ?>
+
                             </span>
                     </div>
                     <div class="mb-3">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $leaveTypeColors[$leaveRequest->leave_type] ?? 'bg-gray-100 text-gray-800' }}">
-                                {{ ucfirst(str_replace('_', ' ', $leaveRequest->leave_type)) }} Leave
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo e($leaveTypeColors[$leaveRequest->leave_type] ?? 'bg-gray-100 text-gray-800'); ?>">
+                                <?php echo e(ucfirst(str_replace('_', ' ', $leaveRequest->leave_type))); ?> Leave
                         </span>
                     </div>
                     <div class="grid grid-cols-2 gap-4 text-sm mb-3">
                         <div>
                             <div class="text-gray-500">Start Date</div>
-                                <div class="font-medium">{{ \Carbon\Carbon::parse($leaveRequest->start_date)->format('M d, Y') }}</div>
+                                <div class="font-medium"><?php echo e(\Carbon\Carbon::parse($leaveRequest->start_date)->format('M d, Y')); ?></div>
                         </div>
                         <div>
                             <div class="text-gray-500">End Date</div>
-                                <div class="font-medium">{{ \Carbon\Carbon::parse($leaveRequest->end_date)->format('M d, Y') }}</div>
+                                <div class="font-medium"><?php echo e(\Carbon\Carbon::parse($leaveRequest->end_date)->format('M d, Y')); ?></div>
                         </div>
                         <div>
                             <div class="text-gray-500">Duration</div>
-                                <div class="font-medium">{{ $leaveRequest->days_requested }} {{ $leaveRequest->days_requested == 1 ? 'day' : 'days' }}</div>
+                                <div class="font-medium"><?php echo e($leaveRequest->days_requested); ?> <?php echo e($leaveRequest->days_requested == 1 ? 'day' : 'days'); ?></div>
                         </div>
                         <div>
                             <div class="text-gray-500">Type</div>
-                                <div class="font-medium">{{ ucfirst(str_replace('_', ' ', $leaveRequest->leave_type)) }}</div>
+                                <div class="font-medium"><?php echo e(ucfirst(str_replace('_', ' ', $leaveRequest->leave_type))); ?></div>
                             </div>
                     </div>
                     <div class="text-sm mb-3">
                         <div class="text-gray-500">Reason</div>
-                            <div class="font-medium">{{ Str::limit($leaveRequest->reason, 50) }}</div>
-                            @if($leaveRequest->status == 'rejected' && $leaveRequest->rejection_reason)
-                                <div class="text-xs text-red-600 mt-0.5"><span class="font-medium">Admin Reason:</span> {{ Str::limit($leaveRequest->rejection_reason, 50) }}</div>
-                            @endif
+                            <div class="font-medium"><?php echo e(Str::limit($leaveRequest->reason, 50)); ?></div>
+                            <?php if($leaveRequest->status == 'rejected' && $leaveRequest->rejection_reason): ?>
+                                <div class="text-xs text-red-600 mt-0.5"><span class="font-medium">Admin Reason:</span> <?php echo e(Str::limit($leaveRequest->rejection_reason, 50)); ?></div>
+                            <?php endif; ?>
                     </div>
                     <div class="flex justify-center space-x-2">
-                            @if(in_array($user->role, ['admin', 'hr']) && $leaveRequest->status == 'pending')
-                                <button data-leave-id="{{ $leaveRequest->id }}" data-action="approve" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors" title="Approve">
+                            <?php if(in_array($user->role, ['admin', 'hr']) && $leaveRequest->status == 'pending'): ?>
+                                <button data-leave-id="<?php echo e($leaveRequest->id); ?>" data-action="approve" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors" title="Approve">
                                     <i class="fas fa-check"></i>
                                 </button>
-                                <button data-leave-id="{{ $leaveRequest->id }}" data-action="reject" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors" title="Reject">
+                                <button data-leave-id="<?php echo e($leaveRequest->id); ?>" data-action="reject" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors" title="Reject">
                                     <i class="fas fa-times"></i>
                                 </button>
-                            @elseif($leaveRequest->status == 'pending' && ($user->role == 'employee' && $leaveRequest->employee_id == $user->employee?->id))
-                                <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel">
+                            <?php elseif($leaveRequest->status == 'pending' && ($user->role == 'employee' && $leaveRequest->employee_id == $user->employee?->id)): ?>
+                                <button data-leave-id="<?php echo e($leaveRequest->id); ?>" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel">
                                     <i class="fas fa-ban"></i>
                                 </button>
-                            @else
+                            <?php else: ?>
                                 <div class="flex justify-center">
                                     <span class="inline-block w-10 h-px bg-gray-300 rounded-full"></span>
                                 </div>
-                            @endif
+                            <?php endif; ?>
                         </div>
                     </div>
-                @empty
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                     <div class="text-center text-sm text-gray-500 py-8">No leave requests found.</div>
-                @endforelse
+                <?php endif; ?>
 
-                @if($leaveRequests->hasPages())
+                <?php if($leaveRequests->hasPages()): ?>
                     <div class="mt-4">
-                        {{ $leaveRequests->appends(request()->query())->links() }}
+                        <?php echo e($leaveRequests->appends(request()->query())->links()); ?>
+
                 </div>
-                @endif
+                <?php endif; ?>
             </div>
         </div>
     </div>
 
     <!-- Leave Balances -->
-    @php
+    <?php
         $selectedEmployeeId = request('employee_id');
         $showLeaveBalances = false;
         $selectedEmployeeBalance = null;
@@ -492,26 +495,27 @@
                 }
             }
         }
-    @endphp
+    ?>
 
-    @if($showLeaveBalances && $selectedEmployee)
+    <?php if($showLeaveBalances && $selectedEmployee): ?>
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div class="flex items-center justify-between mb-4">
             <h3 class="text-lg font-medium text-gray-900">
                 Leave Balances
-                @if($user->role !== 'employee' && $selectedEmployee)
-                    - {{ $selectedEmployee->full_name }}
-                @endif
+                <?php if($user->role !== 'employee' && $selectedEmployee): ?>
+                    - <?php echo e($selectedEmployee->full_name); ?>
+
+                <?php endif; ?>
             </h3>
-            @if(in_array($user->role, ['admin', 'hr', 'manager']) && $selectedEmployeeBalance)
-            <button onclick="openEditLeaveBalanceModal('{{ $selectedEmployee->id }}')" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
+            <?php if(in_array($user->role, ['admin', 'hr', 'manager']) && $selectedEmployeeBalance): ?>
+            <button onclick="openEditLeaveBalanceModal('<?php echo e($selectedEmployee->id); ?>')" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
                 <i class="fas fa-edit mr-2"></i>Edit Balance
             </button>
-            @endif
+            <?php endif; ?>
         </div>
-        @if($selectedEmployeeBalance)
+        <?php if($selectedEmployeeBalance): ?>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            @php
+            <?php
                 $leaveTypes = [
                     'vacation' => ['label' => 'Vacation Leave', 'color' => 'blue'],
                     'sick' => ['label' => 'Sick Leave', 'color' => 'red'],
@@ -522,9 +526,9 @@
                     'bereavement' => ['label' => 'Bereavement Leave', 'color' => 'gray'],
                     'study' => ['label' => 'Study Leave', 'color' => 'purple'],
                 ];
-            @endphp
-            @foreach($leaveTypes as $type => $config)
-                @php
+            ?>
+            <?php $__currentLoopData = $leaveTypes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $type => $config): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                <?php
                     $totalField = $type . '_days_total';
                     $usedField = $type . '_days_used';
                     $total = $selectedEmployeeBalance->$totalField ?? 0;
@@ -543,33 +547,33 @@
                         'purple' => 'bg-purple-600',
                     ];
                     $barColor = $colorClasses[$config['color']] ?? 'bg-blue-600';
-                @endphp
-                @if($total > 0)
+                ?>
+                <?php if($total > 0): ?>
             <div class="border border-gray-200 rounded-lg p-4">
                 <div class="flex items-center justify-between mb-2">
-                        <h4 class="font-medium text-gray-900">{{ $config['label'] }}</h4>
-                        <span class="text-sm text-gray-500">{{ $total }} days</span>
+                        <h4 class="font-medium text-gray-900"><?php echo e($config['label']); ?></h4>
+                        <span class="text-sm text-gray-500"><?php echo e($total); ?> days</span>
                 </div>
                 <div class="w-full bg-gray-200 rounded-full h-2">
-                    <div class="{{ $barColor }} h-2 rounded-full transition-all" style="--width: {{ $widthPercentage }}%; width: var(--width)"></div>
+                    <div class="<?php echo e($barColor); ?> h-2 rounded-full transition-all" style="--width: <?php echo e($widthPercentage); ?>%; width: var(--width)"></div>
                 </div>
                 <div class="text-xs text-gray-500 mt-1">
-                    <span class="font-medium">{{ $used }}</span> days used,
-                    <span class="font-medium text-green-600">{{ $remaining }}</span> remaining
+                    <span class="font-medium"><?php echo e($used); ?></span> days used,
+                    <span class="font-medium text-green-600"><?php echo e($remaining); ?></span> remaining
                 </div>
                 </div>
-                @endif
-            @endforeach
+                <?php endif; ?>
+            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                 </div>
-        @else
+        <?php else: ?>
         <div class="text-center py-8 text-gray-500">
             <i class="fas fa-info-circle text-4xl mb-4 text-gray-400"></i>
             <p class="text-lg font-medium mb-2">No leave balance record found</p>
-            <p class="text-sm">This employee doesn't have a leave balance record for {{ now()->year }}.</p>
+            <p class="text-sm">This employee doesn't have a leave balance record for <?php echo e(now()->year); ?>.</p>
         </div>
-        @endif
+        <?php endif; ?>
     </div>
-    @endif
+    <?php endif; ?>
 </div>
 
 <script>
@@ -587,7 +591,7 @@ function applyFilters() {
     if (dateFrom) params.append('date_from', dateFrom);
 
     // Redirect with filters
-    window.location.href = '{{ route("attendance.leave-management") }}?' + params.toString();
+    window.location.href = '<?php echo e(route("attendance.leave-management")); ?>?' + params.toString();
 }
 
 // Notification system
@@ -685,7 +689,7 @@ function confirmRejectLeave() {
 }
 
 function updateLeaveStatus(leaveRequestId, status, rejectionReason = null) {
-    const url = '{{ route("attendance.leave-management.update-status", ["id" => ":id"]) }}'.replace(':id', leaveRequestId);
+    const url = '<?php echo e(route("attendance.leave-management.update-status", ["id" => ":id"])); ?>'.replace(':id', leaveRequestId);
 
     // Build request body - only include rejection_reason if rejecting
     const requestBody = {
@@ -699,7 +703,7 @@ function updateLeaveStatus(leaveRequestId, status, rejectionReason = null) {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            'X-CSRF-TOKEN': '<?php echo e(csrf_token()); ?>',
             'Accept': 'application/json'
         },
         body: JSON.stringify(requestBody)
@@ -751,13 +755,13 @@ function cancelLeaveRequest(leaveRequestId) {
         return;
     }
 
-    const url = '{{ route("attendance.leave-management.cancel", ["id" => ":id"]) }}'.replace(':id', leaveRequestId);
+    const url = '<?php echo e(route("attendance.leave-management.cancel", ["id" => ":id"])); ?>'.replace(':id', leaveRequestId);
 
     fetch(url, {
         method: 'DELETE',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            'X-CSRF-TOKEN': '<?php echo e(csrf_token()); ?>'
         }
     })
     .then(response => response.json())
@@ -862,17 +866,17 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
 
             <form id="setLeaveBalanceForm" class="space-y-4">
-                @csrf
-                <input type="hidden" id="balanceYear" name="year" value="{{ now()->year }}">
+                <?php echo csrf_field(); ?>
+                <input type="hidden" id="balanceYear" name="year" value="<?php echo e(now()->year); ?>">
 
                 <div>
                     <label for="balanceEmployeeSelect" class="block text-sm font-medium text-gray-700 mb-2">Employee</label>
                     <select id="balanceEmployeeSelect" name="employee_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         <option value="">Select Employee</option>
                         <option value="all">All Employees</option>
-                        @foreach($employees as $emp)
-                            <option value="{{ $emp->id }}">{{ $emp->full_name }} - {{ $emp->department->name ?? 'No Department' }}</option>
-                        @endforeach
+                        <?php $__currentLoopData = $employees; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $emp): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <option value="<?php echo e($emp->id); ?>"><?php echo e($emp->full_name); ?> - <?php echo e($emp->department->name ?? 'No Department'); ?></option>
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </select>
                     <p class="mt-1 text-xs text-gray-500">Select "All Employees" to set leave balance for all employees at once</p>
                 </div>
@@ -880,7 +884,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Leave Types</label>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        @php
+                        <?php
                             $leaveTypes = [
                                 'vacation' => ['label' => 'Vacation Leave', 'default' => 15],
                                 'sick' => ['label' => 'Sick Leave', 'default' => 10],
@@ -891,19 +895,19 @@ document.addEventListener('DOMContentLoaded', function() {
                                 'bereavement' => ['label' => 'Bereavement Leave', 'default' => 0],
                                 'study' => ['label' => 'Study Leave', 'default' => 0],
                             ];
-                        @endphp
-                        @foreach($leaveTypes as $type => $config)
+                        ?>
+                        <?php $__currentLoopData = $leaveTypes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $type => $config): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                         <div class="border border-gray-200 rounded-lg p-3">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">{{ $config['label'] }}</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1"><?php echo e($config['label']); ?></label>
                             <input type="number"
-                                   name="{{ $type }}_days_total"
-                                   id="{{ $type }}_days_total"
+                                   name="<?php echo e($type); ?>_days_total"
+                                   id="<?php echo e($type); ?>_days_total"
                                    min="0"
-                                   value="{{ $config['default'] }}"
+                                   value="<?php echo e($config['default']); ?>"
                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                    placeholder="Days">
                         </div>
-                        @endforeach
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </div>
                 </div>
 
@@ -934,7 +938,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
 
             <form id="editLeaveBalanceForm" class="space-y-4">
-                @csrf
+                <?php echo csrf_field(); ?>
                 <input type="hidden" id="editBalanceId" name="balance_id">
                 <input type="hidden" id="editBalanceEmployeeId" name="employee_id">
                 <input type="hidden" id="editBalanceYear" name="year">
@@ -942,7 +946,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Leave Types</label>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        @php
+                        <?php
                             $leaveTypes = [
                                 'vacation' => ['label' => 'Vacation Leave'],
                                 'sick' => ['label' => 'Sick Leave'],
@@ -953,18 +957,18 @@ document.addEventListener('DOMContentLoaded', function() {
                                 'bereavement' => ['label' => 'Bereavement Leave'],
                                 'study' => ['label' => 'Study Leave'],
                             ];
-                        @endphp
-                        @foreach($leaveTypes as $type => $config)
+                        ?>
+                        <?php $__currentLoopData = $leaveTypes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $type => $config): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                         <div class="border border-gray-200 rounded-lg p-3">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">{{ $config['label'] }}</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1"><?php echo e($config['label']); ?></label>
                             <input type="number"
-                                   name="{{ $type }}_days_total"
-                                   id="edit_{{ $type }}_days_total"
+                                   name="<?php echo e($type); ?>_days_total"
+                                   id="edit_<?php echo e($type); ?>_days_total"
                                    min="0"
                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                    placeholder="Days">
                         </div>
-                        @endforeach
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </div>
                 </div>
 
@@ -998,7 +1002,7 @@ function closeSetLeaveBalanceModal() {
 }
 
 function openEditLeaveBalanceModal(employeeId) {
-    fetch(`{{ route('attendance.leave-management.balance') }}?employee_id=${employeeId}&year={{ now()->year }}`)
+    fetch(`<?php echo e(route('attendance.leave-management.balance')); ?>?employee_id=${employeeId}&year=<?php echo e(now()->year); ?>`)
         .then(response => response.json())
         .then(data => {
             if (data.leave_balance) {
@@ -1058,11 +1062,11 @@ document.getElementById('setLeaveBalanceForm').addEventListener('submit', async 
     };
 
     try {
-        const response = await fetch('{{ route("attendance.leave-management.balance.store") }}', {
+        const response = await fetch('<?php echo e(route("attendance.leave-management.balance.store")); ?>', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                'X-CSRF-TOKEN': '<?php echo e(csrf_token()); ?>'
             },
             body: JSON.stringify(submitData)
         });
@@ -1104,11 +1108,11 @@ document.getElementById('editLeaveBalanceForm').addEventListener('submit', async
     const balanceId = document.getElementById('editBalanceId').value;
 
     try {
-        const response = await fetch(`{{ route("attendance.leave-management.balance.update", ":id") }}`.replace(':id', balanceId), {
+        const response = await fetch(`<?php echo e(route("attendance.leave-management.balance.update", ":id")); ?>`.replace(':id', balanceId), {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                'X-CSRF-TOKEN': '<?php echo e(csrf_token()); ?>'
             },
             body: JSON.stringify(submitData)
         });
@@ -1174,4 +1178,5 @@ document.getElementById('editLeaveBalanceForm').addEventListener('submit', async
         color: #111827 !important;
     }
 </style>
-@endsection
+<?php $__env->stopSection(); ?>
+<?php echo $__env->make('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'attendance.leave-management'], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\GR8TECH\resources\views/attendance/leave-management.blade.php ENDPATH**/ ?>
