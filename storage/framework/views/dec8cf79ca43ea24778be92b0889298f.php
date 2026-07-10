@@ -166,13 +166,13 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Reason
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Status
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Reviewed By
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Actions
                         </th>
                     </tr>
@@ -211,9 +211,8 @@
                             <td class="px-6 py-4">
                                 <div class="text-sm text-gray-900 max-w-xs truncate" title="<?php echo e($ob->reason); ?>"><?php echo e(\Illuminate\Support\Str::limit($ob->reason, 30)); ?></div>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo e($statusColor); ?>">
-                                    <div class="w-1.5 h-1.5 rounded-full mr-1.5 <?php echo e(str_replace('text-', 'bg-', $statusColor)); ?>"></div>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                <span class="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium <?php echo e($statusColor); ?> min-w-[80px]">
                                     <?php echo e(ucfirst($obStatus)); ?>
 
                                 </span>
@@ -221,8 +220,8 @@
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900"><?php echo e($ob->reviewer->full_name ?? '—'); ?></div>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <div class="flex space-x-2">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
+                                <div class="flex space-x-2 justify-center">
                                     <?php if($ob->isPending()): ?>
                                         <?php if($isReviewer): ?>
                                             <button onclick="approveOb('<?php echo e($ob->id); ?>')" class="text-green-600 hover:text-green-900 transition-colors" title="Approve">
@@ -418,8 +417,41 @@
 </div>
 <?php endif; ?>
 
-<!-- Reviewer: Reject Modal -->
+<!-- Reviewer: Approve Modal -->
 <?php if($isReviewer): ?>
+<div id="obApproveModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999;" onclick="closeApproveModal()">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" style="max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium text-gray-900">Approve OB Request</h3>
+                <button onclick="closeApproveModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="obApproveForm" method="POST" class="space-y-4">
+                <?php echo csrf_field(); ?>
+                <?php echo method_field('PUT'); ?>
+                <input type="hidden" name="status" value="approved">
+                <div>
+                    <p class="text-sm text-gray-600 mb-4">Are you sure you want to approve this Official Business request?</p>
+                </div>
+                <div class="flex justify-end space-x-3 pt-4">
+                    <button type="button" onclick="closeApproveModal()"
+                            class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 bg-green-600 border border-transparent rounded-lg text-white hover:bg-green-700 transition-colors">
+                        <i class="fas fa-check mr-2"></i>
+                        Approve Request
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Reviewer: Reject Modal -->
 <div id="obRejectModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999;" onclick="closeRejectModal()">
     <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" style="max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
         <div class="mt-3">
@@ -475,19 +507,18 @@ function closeObModal() {
 
 <?php if($isReviewer): ?>
 function approveOb(requestId) {
-    if (!confirm('Are you sure you want to approve this Official Business request?')) {
-        return;
-    }
-    const form = document.createElement('form');
-    form.method = 'POST';
+    const modal = document.getElementById('obApproveModal');
+    const form = document.getElementById('obApproveForm');
+    if (!modal || !form) return;
     form.action = `<?php echo e(url('attendance/official-business')); ?>/${requestId}/status`;
-    form.innerHTML = `
-        <?php echo csrf_field(); ?>
-        <?php echo method_field('PUT'); ?>
-        <input type="hidden" name="status" value="approved">
-    `;
-    document.body.appendChild(form);
-    form.submit();
+    modal.style.display = 'flex';
+    modal.style.alignItems = 'center';
+    modal.style.justifyContent = 'center';
+}
+
+function closeApproveModal() {
+    const modal = document.getElementById('obApproveModal');
+    if (modal) modal.style.display = 'none';
 }
 
 function rejectOb(requestId) {
@@ -507,5 +538,4 @@ function closeRejectModal() {
 <?php endif; ?>
 </script>
 <?php $__env->stopSection(); ?>
-
 <?php echo $__env->make('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'attendance.official-business'], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\GR8TECH\resources\views/attendance/official-business.blade.php ENDPATH**/ ?>

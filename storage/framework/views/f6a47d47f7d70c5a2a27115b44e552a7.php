@@ -352,7 +352,7 @@
             ];
         })->toArray();
     ?>
-    <?php echo e(json_encode($employeesData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)); ?>
+    <?php echo json_encode($employeesData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>
 
 </script>
 
@@ -515,10 +515,10 @@
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
                         NET PAY
                     </th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
+                    <th class="px-6 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
                         STATUS
                     </th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
+                    <th class="px-6 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
                         ACTIONS
                     </th>
                 </tr>
@@ -572,15 +572,14 @@
                         <td class="px-6 py-4 whitespace-nowrap">
                             <span class="text-sm font-bold text-gray-900">₱<?php echo e(number_format($payroll->net_pay, 2)); ?></span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo e($statusColor); ?>">
-                                <div class="w-1.5 h-1.5 rounded-full mr-1.5 <?php echo e(str_replace('text-', 'bg-', $statusColor)); ?>"></div>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <span class="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium <?php echo e($statusColor); ?> min-w-[80px]">
                                 <?php echo e(ucfirst($payroll->status)); ?>
 
                             </span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div class="flex items-center space-x-2">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
+                            <div class="flex items-center justify-center space-x-2">
                                 <!-- Eye icon: View Details -->
                                 <button onclick="openPayrollModal('<?php echo e($payroll->id); ?>')" 
                                         class="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50" 
@@ -1149,6 +1148,7 @@ window.confirmGeneratePayroll = function() {
     document.getElementById('generatePayrollForm').submit();
 };
 
+
 window.processPayments = function() {
     const startDate = document.getElementById('paymentStartDate').value;
     const endDate = document.getElementById('paymentEndDate').value;
@@ -1429,15 +1429,32 @@ async function exportPayrollWithCalculations() {
                 </button>
                 <button onclick="processSelectedPayments()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                     <i class="fas fa-credit-card mr-2"></i>Process Payments
-                </button>
-            </div>
+<!-- Approve Payroll Modal -->
+<div id="approvePayrollModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-1/3 shadow-lg rounded-md bg-white">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">Confirm Approval</h3>
+        <p class="text-sm text-gray-600 mb-6">Are you sure you want to approve this payroll? This action cannot be undone.</p>
+        <div class="flex justify-end space-x-3">
+            <button onclick="closeApproveModal()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
+            <button id="confirmApproveBtn" class="px-4 py-2 bg-green-600 text-white rounded-lg">Approve</button>
         </div>
     </div>
 </div>
-            </div>
+
+<!-- Reject Payroll Modal -->
+<div id="rejectPayrollModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-1/3 shadow-lg rounded-md bg-white">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">Reject Payroll</h3>
+        <p class="text-sm text-gray-600 mb-4">Please provide a reason for rejecting this payroll:</p>
+        <textarea id="rejectReason" class="w-full border rounded p-2 mb-2" rows="3"></textarea>
+        <p id="rejectReasonError" class="text-red-500 text-xs hidden mb-4">Reason is required.</p>
+        <div class="flex justify-end space-x-3">
+            <button onclick="closeRejectModal()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
+            <button id="confirmRejectBtn" class="px-4 py-2 bg-red-600 text-white rounded-lg">Reject</button>
         </div>
     </div>
 </div>
+
 <script>
 let currentPayrollId = null;
 let currentActionButton = null;
@@ -1600,8 +1617,7 @@ function updatePayrollStatus(payrollId, newStatus, statusClass) {
     const statusCell = document.querySelector(`tr[data-payroll-id="${payrollId}"] .status-cell`);
     if (statusCell) {
         statusCell.innerHTML = `
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClass}">
-                <div class="w-1.5 h-1.5 rounded-full mr-1.5 ${statusClass.replace('text-', 'bg-')}"></div>
+            <span class="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium ${statusClass} min-w-[80px]">
                 ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}
             </span>
         `;
@@ -3700,5 +3716,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 <?php $__env->stopSection(); ?>
-
 <?php echo $__env->make('layouts.dashboard-base', ['user' => auth()->user(), 'activeRoute' => 'payroll.index'], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\GR8TECH\resources\views/payroll/index.blade.php ENDPATH**/ ?>

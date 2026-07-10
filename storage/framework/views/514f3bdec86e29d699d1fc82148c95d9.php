@@ -84,8 +84,7 @@ unset($__defined_vars, $__key, $__value); ?>
                     <span>Employee List</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                    <i class="fas fa-id-card mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                                        <i class="fas fa-id-card mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Employee Info</span>
                 </a>
                 <a href="<?php echo e(route('employees.other-employee-info')); ?>" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group <?php echo e($activeRoute === 'employees.other-employee-info' ? 'bg-white text-blue-600' : ''); ?>">
@@ -101,8 +100,7 @@ unset($__defined_vars, $__key, $__value); ?>
                     <span>Previous Employer & Other</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                    <i class="fas fa-file-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                                        <i class="fas fa-file-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Documents</span>
                 </a>
                 <a href="<?php echo e(route('employees.ytd-info')); ?>" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group <?php echo e($activeRoute === 'employees.ytd-info' ? 'bg-white text-blue-600' : ''); ?>">
@@ -263,116 +261,42 @@ unset($__defined_vars, $__key, $__value); ?>
                     </button>
                     
                     <!-- Timekeeping Reports Submenu -->
-                    <div class="timekeepingReportSubMenu hidden absolute left-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-xl z-50 py-2 max-h-96 overflow-y-auto">
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-hourglass-half mr-3 text-gray-400"></i>
+                    <div class="timekeepingReportSubMenu hidden flex-col pl-4 mt-1 space-y-1 py-2">
+                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
+                                                        <i class="fas fa-hourglass-half mr-3 text-gray-400"></i>
                             <span>Time Summary</span>
                         </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-id-card mr-3 text-gray-400"></i>
+                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
+                                                        <i class="fas fa-id-card mr-3 text-gray-400"></i>
                             <span>Time Card</span>
                         </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-list mr-3 text-gray-400"></i>
+                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
+                                                        <i class="fas fa-list mr-3 text-gray-400"></i>
                             <span>Time Sheets</span>
                         </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-user-slash mr-3 text-gray-400"></i>
+                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
+                                                        <i class="fas fa-user-slash mr-3 text-gray-400"></i>
                             <span>Absences</span>
                         </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-exclamation-triangle mr-3 text-gray-400"></i>
+                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
+                                                        <i class="fas fa-exclamation-triangle mr-3 text-gray-400"></i>
                             <span>Undertime & Tardiness</span>
                         </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-chart-line mr-3 text-gray-400"></i>
+                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
+                                                        <i class="fas fa-chart-line mr-3 text-gray-400"></i>
                             <span>Overtime Report</span>
                         </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-users mr-3 text-gray-400"></i>
+                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
+                                                        <i class="fas fa-users mr-3 text-gray-400"></i>
                             <span>Employee Reports</span>
                         </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-calendar-check mr-3 text-gray-400"></i>
+                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
+                                                        <i class="fas fa-calendar-check mr-3 text-gray-400"></i>
                             <span>Balance of Leaves</span>
                         </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-file-contract mr-3 text-gray-400"></i>
+                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
+                                                        <i class="fas fa-file-contract mr-3 text-gray-400"></i>
                             <span>Employee Filings</span>
-                        </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-birthday-cake mr-3 text-gray-400"></i>
-                            <span>Birthdays per Month</span>
-                        </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-user-plus mr-3 text-gray-400"></i>
-                            <span>New Employees</span>
-                        </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-hourglass-end mr-3 text-gray-400"></i>
-                            <span>End of Contracts</span>
-                        </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-star mr-3 text-gray-400"></i>
-                            <span>Perfect Attendance</span>
-                        </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-barcode mr-3 text-gray-400"></i>
-                            <span>ID with Barcode</span>
-                        </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-chart-star mr-3 text-gray-400"></i>
-                            <span>Performance Evaluation</span>
-                        </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-certificate mr-3 text-gray-400"></i>
-                            <span>Employment Certificates</span>
-                        </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-gavel mr-3 text-gray-400"></i>
-                            <span>Employee Offences</span>
-                        </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-globe mr-3 text-gray-400"></i>
-                            <span>Print HRIS Web Groups</span>
-                        </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-shuttle-van mr-3 text-gray-400"></i>
-                            <span>Shuttle List</span>
-                        </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-sync mr-3 text-gray-400"></i>
-                            <span>Generated Time Summary</span>
-                        </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-print mr-3 text-gray-400"></i>
-                            <span>Print Training</span>
-                        </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                            <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                            <i class="fas fa-people-arrows mr-3 text-gray-400"></i>
-                            <span>Print Manpower Movement</span>
                         </a>
                     </div>
                 </div>
@@ -432,78 +356,63 @@ unset($__defined_vars, $__key, $__value); ?>
                     <span>Payroll Summary</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                    <i class="fas fa-receipt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                                        <i class="fas fa-receipt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Payslips</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                    <i class="fas fa-university mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                                        <i class="fas fa-university mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Bank Remittance</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                    <i class="fas fa-coins mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                                        <i class="fas fa-coins mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Denominations</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                    <i class="fas fa-list mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                                        <i class="fas fa-list mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Received List</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                    <i class="fas fa-gift mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                                        <i class="fas fa-gift mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Allowances</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                    <i class="fas fa-star mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                                        <i class="fas fa-star mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Allowance Special Report</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                    <i class="fas fa-piggy-bank mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                                        <i class="fas fa-piggy-bank mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Loan Balances</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                    <i class="fas fa-book mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                                        <i class="fas fa-book mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Deduction Register</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                    <i class="fas fa-file-pdf mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                                        <i class="fas fa-file-pdf mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>SSS Report</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                    <i class="fas fa-heartbeat mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                                        <i class="fas fa-heartbeat mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Philhealth Report & RF-1</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                    <i class="fas fa-percent mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                                        <i class="fas fa-percent mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Tax Report</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                    <i class="fas fa-shield-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                                        <i class="fas fa-shield-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Pag Ibig Report</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                    <i class="fas fa-ledger mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                                        <i class="fas fa-ledger mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Account Entries</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                    <i class="fas fa-file-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                                        <i class="fas fa-file-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Text File Reports</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-circle text-red-500 mr-2 text-xs"></i>
-                    <i class="fas fa-print mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                                        <i class="fas fa-print mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Print Undeducted Items</span>
                 </a>
             </div>
@@ -532,7 +441,7 @@ unset($__defined_vars, $__key, $__value); ?>
             <span>Add Employee</span>
         </a>
         
-        <a href="#" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-lg transition-all duration-200 group">
+        <a href="<?php echo e(route('documents.export')); ?>" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-lg transition-all duration-200 group">
             <i class="fas fa-file-export mr-3 text-lg text-gray-400 group-hover:text-blue-600"></i>
             <span>Export Data</span>
         </a>
@@ -842,21 +751,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // Show submenu on hover
-        btn.parentElement.addEventListener('mouseenter', function() {
-            const submenu = this.querySelector('.timekeepingReportSubMenu');
-            if (submenu) {
-                submenu.classList.remove('hidden');
-            }
-        });
-
-        // Hide submenu on mouse leave
-        btn.parentElement.addEventListener('mouseleave', function() {
-            const submenu = this.querySelector('.timekeepingReportSubMenu');
-            if (submenu) {
-                submenu.classList.add('hidden');
-            }
-        });
+        // Hover removed for accordion style
     });
 });
-</script><?php /**PATH C:\xampp\htdocs\GR8TECH\resources\views/components/dashboard/sidebar/navigation.blade.php ENDPATH**/ ?>
+</script>
+<?php /**PATH C:\xampp\htdocs\GR8TECH\resources\views/components/dashboard/sidebar/navigation.blade.php ENDPATH**/ ?>

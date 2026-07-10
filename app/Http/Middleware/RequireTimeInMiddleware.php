@@ -24,7 +24,7 @@ class RequireTimeInMiddleware
         }
 
         // Allow admin and hr roles to access all modules regardless of time-in status
-        if (in_array($user->role, ['admin', 'hr'])) {
+        if (in_array(strtolower($user->role), ['admin', 'hr'])) {
             return $next($request);
         }
 
