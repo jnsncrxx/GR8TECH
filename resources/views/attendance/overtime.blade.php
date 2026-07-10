@@ -199,11 +199,11 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Reason
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-10 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Status
                         </th>
                         @if(in_array($user->role, ['admin', 'hr', 'manager']))
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Actions
                         </th>
                         @endif
@@ -257,24 +257,25 @@
                                 </div>
                                 @endif
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $statusColor }}">
-                                    <div class="w-1.5 h-1.5 rounded-full mr-1.5 {{ str_replace('text-', 'bg-', $statusColor) }}"></div>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                <span class="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium {{ $statusColor }} min-w-[80px]">
                                     {{ ucfirst($request->status) }}
                                 </span>
                             </td>
                             @if(in_array($user->role, ['admin', 'hr', 'manager']))
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <div class="flex space-x-2">
-                                    @if($request->status === 'pending')
-                                        <button onclick="approveOvertime('{{ $request->id }}')" class="text-green-600 hover:text-green-900 transition-colors" title="Approve">
-                                            <i class="fas fa-check"></i>
-                                        </button>
-                                        <button onclick="rejectOvertime('{{ $request->id }}')" class="text-red-600 hover:text-red-900 transition-colors" title="Reject">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                    @endif
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
+                                @if($request->status === 'pending')
+                                <div class="flex space-x-2 justify-center">
+                                    <button onclick="approveOvertime('{{ $request->id }}')" class="text-green-600 hover:text-green-900 transition-colors" title="Approve">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    <button onclick="rejectOvertime('{{ $request->id }}')" class="text-red-600 hover:text-red-900 transition-colors" title="Reject">
+                                        <i class="fas fa-times"></i>
+                                    </button>
                                 </div>
+                                @else
+                                    <span class="text-gray-400 font-bold text-lg">&mdash;</span>
+                                @endif
                             </td>
                             @endif
                         </tr>
@@ -352,8 +353,7 @@
                                     <div class="text-sm text-gray-500">{{ $request->employee->department->name ?? 'N/A' }}</div>
                                 </div>
                             </div>
-                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $statusColor }}">
-                                <div class="w-1.5 h-1.5 rounded-full mr-1 {{ str_replace('text-', 'bg-', $statusColor) }}"></div>
+                            <span class="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium {{ $statusColor }} min-w-[80px]">
                                 {{ ucfirst($request->status) }}
                             </span>
                         </div>

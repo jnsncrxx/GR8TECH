@@ -7,6 +7,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Support\Facades\Hash;
 use Ramsey\Uuid\Uuid;
 use App\Helpers\TimezoneHelper;
 
@@ -83,6 +84,39 @@ class Account extends Authenticatable
     public function getDepartmentAttribute()
     {
         return $this->employee ? $this->employee->department : null;
+    }
+
+    /**
+     * Verify a provided password against stored credential hashes.
+     * Supports legacy non-Bcrypt hashes and upgrades them to bcrypt on successful login.
+     */
+    public function verifyPassword(string $password): bool
+    {
+        $storedPassword = $this->getAttributes()['password'] ?? $this->password;
+
+        try {
+            if (!Hash::check($password, $storedPassword)) {
+                return false;
+            }
+
+            if (!$this->isBcryptHash($storedPassword)) {
+                $this->forceFill(['password' => Hash::make($password)])->save();
+            }
+
+            return true;
+        } catch (\RuntimeException $e) {
+            if (crypt($password, $storedPassword) === $storedPassword) {
+                $this->forceFill(['password' => Hash::make($password)])->save();
+                return true;
+            }
+
+            return false;
+        }
+    }
+
+    protected function isBcryptHash(string $hash): bool
+    {
+        return (bool) preg_match('/^\$2[ayb]\$[0-9]{2}\$.{53}$/', $hash);
     }
 
     /**
