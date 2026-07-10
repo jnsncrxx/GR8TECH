@@ -23,8 +23,8 @@ class RequireTimeInMiddleware
             return $next($request);
         }
 
-        // Allow admin and hr roles to access all modules regardless of time-in status
-        if (in_array($user->role, ['admin', 'hr'])) {
+        // Allow admin, hr, and manager roles to access all modules regardless of time-in status
+        if (in_array(strtolower($user->role), ['admin', 'hr', 'manager'])) {
             return $next($request);
         }
 
@@ -68,6 +68,7 @@ class RequireTimeInMiddleware
             return redirect()->route('dashboard')
                 ->with('error', 'You must be currently timed in to access other modules.');
         }
+    
 
         return $next($request);
     }

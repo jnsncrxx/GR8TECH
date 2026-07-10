@@ -69,11 +69,11 @@
                     @endforeach
                 </select>
             </div>
-            
+
             <!-- Single set of hidden inputs for form submission - these will be updated dynamically -->
             <input type="hidden" name="date_from" :value="getDateFrom()">
             <input type="hidden" name="date_to" :value="getDateTo()">
-            
+
             <!-- Daily: Single Date -->
             <div x-show="reportType === 'daily'">
                 <label for="dateSingle" class="block text-sm font-medium text-gray-700 mb-2">Date</label>
@@ -83,7 +83,7 @@
                     <i class="fas fa-calendar absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 calendar-icon" style="pointer-events: auto; cursor: pointer;"></i>
             </div>
             </div>
-            
+
             <!-- Weekly: Week Selector -->
             <div x-show="reportType === 'weekly'">
                 <label for="weekStart" class="block text-sm font-medium text-gray-700 mb-2">Week Starting</label>
@@ -94,7 +94,7 @@
         </div>
                 <p class="mt-1 text-xs text-gray-500" x-text="'Week ending: ' + formatDate(weekEnd)"></p>
             </div>
-            
+
             <!-- Monthly: Month/Year Selector -->
             <div x-show="reportType === 'monthly'">
                 <label for="monthSelect" class="block text-sm font-medium text-gray-700 mb-2">Month</label>
@@ -104,7 +104,7 @@
                     <i class="fas fa-calendar absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 calendar-icon" style="pointer-events: auto; cursor: pointer;"></i>
                 </div>
             </div>
-            
+
             <!-- Yearly: Year Selector -->
             <div x-show="reportType === 'yearly'">
                 <label for="yearSelect" class="block text-sm font-medium text-gray-700 mb-2">Year</label>
@@ -114,7 +114,7 @@
                     @endfor
                 </select>
             </div>
-            
+
             <!-- Overtime/Leave: Date Range - Side by Side -->
             <div x-show="reportType === 'overtime' || reportType === 'leave'" class="sm:col-span-2">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -135,7 +135,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Generate Report Button - Outside Grid -->
         <div class="mt-4 flex justify-end">
             <input type="hidden" name="generate" value="1">
@@ -144,6 +144,21 @@
             </button>
         </div>
         </form>
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-file-alt text-purple-600"></i>
+                    </div>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-500">Report Totals</p>
+                        <p class="text-lg font-semibold text-gray-900">{{ number_format($summary['report'] ?? 0) }}</p>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Report Summary -->
@@ -323,6 +338,34 @@
                 </div>
             </div>
         </div>
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-briefcase text-indigo-600"></i>
+                    </div>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-500">Official Business</p>
+                        <p class="text-lg font-semibold text-gray-900">{{ number_format($summary['official_business'] ?? 0) }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-notes-medical text-pink-600"></i>
+                    </div>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-500">Leave</p>
+                        <p class="text-lg font-semibold text-gray-900">{{ number_format($summary['leave'] ?? 0) }}</p>
+                </div>
+            </div>
+        </div>
     </div>
     @endif
 
@@ -337,6 +380,15 @@
         </div>
         <div class="h-80">
             <canvas id="attendanceTrendChart"></canvas>
+        </div>
+        @php
+            $trendData = $attendanceTrend['data'] ?? [];
+            $trendAverage = count($trendData) ? round(collect($trendData)->avg(), 2) : 0;
+            $trendMin = count($trendData) ? min($trendData) : 0;
+            $trendMax = count($trendData) ? max($trendData) : 0;
+        @endphp
+        <div class="mt-4 text-sm text-gray-600 border-t border-gray-200 pt-4">
+            Attendance trend summary: <span class="font-medium text-gray-900">Average {{ $trendAverage }}%</span>, highest {{ $trendMax }}%, lowest {{ $trendMin }}%.
         </div>
     </div>
     @elseif($reportType !== 'overtime' && $reportType !== 'leave')
@@ -591,9 +643,9 @@
                         </div>
 
         <!-- Needs Attention -->
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6" 
-             x-data="{ 
-                 currentPage: 1, 
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6"
+             x-data="{
+                 currentPage: 1,
                  itemsPerPage: 1,
                  needsAttention: @js(collect($needsAttention ?? [])->map(function($item) use ($dateFrom, $dateTo) {
                      $employee = $item['employee'];
@@ -646,7 +698,7 @@
                     <span x-text="`Showing ${(currentPage - 1) * itemsPerPage + 1}-${Math.min(currentPage * itemsPerPage, needsAttention.length)} of ${needsAttention.length}`"></span>
                     </div>
                     </div>
-            
+
             <div class="space-y-3" x-show="needsAttention.length > 0">
                 <template x-for="(item, index) in displayedItems" :key="index">
                     <div class="p-4" :class="item.bg_color" :class="'border ' + item.border_color" class="rounded-lg">
@@ -685,10 +737,10 @@
                                 <div class="text-sm font-semibold text-gray-900" x-text="item.last_attendance_date"></div>
                     </div>
                 </div>
-                        
+
                         <!-- Action Button -->
                         <div class="mt-3 flex justify-end">
-                            <a :href="item.view_url" 
+                            <a :href="item.view_url"
                                class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors">
                                 <i class="fas fa-eye mr-1.5"></i>View Details
                             </a>
@@ -696,26 +748,26 @@
                         </div>
                 </template>
                     </div>
-            
+
             <!-- Pagination Controls -->
             <div class="flex items-center justify-between mt-6 pt-4 border-t border-gray-200" x-show="needsAttention.length > 1">
-                <button @click="prevPage()" 
+                <button @click="prevPage()"
                         :disabled="currentPage === 1"
                         :class="currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'"
                         class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg transition-colors">
                     <i class="fas fa-chevron-left mr-2"></i>Previous
                 </button>
-                
+
                 <div class="text-sm text-gray-600" x-text="`Page ${currentPage} of ${totalPages}`"></div>
-                
-                <button @click="nextPage()" 
+
+                <button @click="nextPage()"
                         :disabled="!hasMore"
                         :class="!hasMore ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'"
                         class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg transition-colors">
                     Next<i class="fas fa-chevron-right ml-2"></i>
                 </button>
                     </div>
-            
+
             <!-- Empty State -->
             <div class="text-center py-8" x-show="needsAttention.length === 0">
                 <i class="fas fa-check-circle text-green-500 text-4xl mb-3"></i>
@@ -735,44 +787,44 @@
         box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         font-family: inherit;
     }
-    
+
     .flatpickr-months {
         background: #ffffff;
         border-radius: 0.5rem 0.5rem 0 0;
         padding: 0.5rem;
     }
-    
+
     .flatpickr-month {
         color: #111827;
     }
-    
+
     .flatpickr-current-month {
         color: #111827;
         font-weight: 600;
     }
-    
+
     .flatpickr-weekdays {
         background: #f9fafb;
         border-bottom: 1px solid #e5e7eb;
     }
-    
+
     .flatpickr-weekday {
         color: #6b7280;
         font-weight: 600;
         text-transform: uppercase;
         font-size: 0.75rem;
     }
-    
+
     .flatpickr-day {
         color: #111827;
         border-radius: 0.375rem;
     }
-    
+
     .flatpickr-day:hover {
         background: #f3f4f6;
         border-color: #d1d5db;
     }
-    
+
     .flatpickr-day.selected,
     .flatpickr-day.startRange,
     .flatpickr-day.endRange {
@@ -780,39 +832,39 @@
         border-color: #2563eb;
         color: #ffffff;
     }
-    
+
     .flatpickr-day.selected:hover,
     .flatpickr-day.startRange:hover,
     .flatpickr-day.endRange:hover {
         background: #1d4ed8;
         border-color: #1d4ed8;
     }
-    
+
     .flatpickr-day.flatpickr-disabled,
     .flatpickr-day.prevMonthDay,
     .flatpickr-day.nextMonthDay {
         color: #d1d5db;
     }
-    
+
     .flatpickr-day.today {
         border-color: #2563eb;
         font-weight: 600;
     }
-    
+
     .flatpickr-prev-month,
     .flatpickr-next-month {
         color: #6b7280;
     }
-    
+
     .flatpickr-prev-month:hover,
     .flatpickr-next-month:hover {
         color: #2563eb;
     }
-    
+
     .date-picker-input {
         padding-right: 2.5rem;
     }
-    
+
     .fa-calendar {
         pointer-events: auto !important;
         cursor: pointer;
@@ -828,13 +880,13 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Flatpickr is not loaded!');
             return;
         }
-        
+
         const today = new Date().toISOString().split('T')[0];
         let dateFromPicker = null;
         let dateToPicker = null;
         window.dateSinglePicker = null;
         window.weekStartPicker = null;
-        
+
         // Initialize Flatpickr for Monthly Date Picker
         const monthSelectInput = document.getElementById('monthSelect');
         if (monthSelectInput) {
@@ -843,16 +895,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     setTimeout(initMonthPicker, 50);
                     return;
                 }
-                
+
                 const alpineElement = monthSelectInput.closest('[x-data]');
                 const alpineData = alpineElement ? Alpine.$data(alpineElement) : null;
                 const initialMonth = alpineData?.monthValue || "{{ request('month', now()->format('Y-m')) }}";
-                
+
                 // Destroy existing instance if any
                 if (window.monthPicker) {
                     window.monthPicker.destroy();
                 }
-                
+
                 window.monthPicker = flatpickr(monthSelectInput, {
                     dateFormat: "Y-m-d",
                     altInput: false,
@@ -869,9 +921,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             const year = selectedDate.getFullYear();
                             const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
                             const monthValue = year + '-' + month;
-                            
+
                             console.log('Formatted month value:', monthValue);
-                            
+
                             if (alpineData) {
                                 alpineData.monthValue = monthValue;
                                 if (alpineData.updateMonthDates) {
@@ -921,10 +973,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
             };
-            
+
             initMonthPicker();
         }
-        
+
         // Function to initialize date pickers - will be called when inputs become visible
         window.initDatePickers = function() {
             // Initialize Daily Date Picker if visible and not already initialized
@@ -933,12 +985,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 const alpineElement = dateSingleInput.closest('[x-data]');
                 const alpineData = alpineElement ? Alpine.$data(alpineElement) : null;
                 const initialDate = alpineData?.dailyDate || "{{ request('date_from', today()->format('Y-m-d')) }}";
-                
+
                 // Destroy existing instance if any
                 if (window.dateSinglePicker) {
                     window.dateSinglePicker.destroy();
                 }
-                
+
                 window.dateSinglePicker = flatpickr(dateSingleInput, {
                     dateFormat: "Y-m-d",
                     altInput: false,
@@ -963,19 +1015,19 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
             }
-            
+
             // Initialize Weekly Start Date Picker if visible and not already initialized
             const weekStartInput = document.getElementById('weekStart');
             if (weekStartInput && !window.weekStartPicker && weekStartInput.offsetParent !== null) {
                 const alpineElement = weekStartInput.closest('[x-data]');
                 const alpineData = alpineElement ? Alpine.$data(alpineElement) : null;
                 const initialDate = alpineData?.weekStart || "{{ request('date_from', now()->startOfWeek()->format('Y-m-d')) }}";
-                
+
                 // Destroy existing instance if any
                 if (window.weekStartPicker) {
                     window.weekStartPicker.destroy();
                 }
-                
+
                 window.weekStartPicker = flatpickr(weekStartInput, {
                     dateFormat: "Y-m-d",
                     altInput: false,
@@ -1003,19 +1055,19 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
             }
-            
+
             // Initialize Monthly Date Picker if visible and not already initialized
             const monthSelectInput = document.getElementById('monthSelect');
             if (monthSelectInput && !window.monthPicker && monthSelectInput.offsetParent !== null) {
                 const alpineElement = monthSelectInput.closest('[x-data]');
                 const alpineData = alpineElement ? Alpine.$data(alpineElement) : null;
                 const initialMonth = alpineData?.monthValue || "{{ request('month', now()->format('Y-m')) }}";
-                
+
                 // Destroy existing instance if any
                 if (window.monthPicker) {
                     window.monthPicker.destroy();
                 }
-                
+
                 window.monthPicker = flatpickr(monthSelectInput, {
                     dateFormat: "Y-m-d",
                     altInput: false,
@@ -1032,9 +1084,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             const year = selectedDate.getFullYear();
                             const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
                             const monthValue = year + '-' + month;
-                            
+
                             console.log('Formatted month value:', monthValue);
-                            
+
                             if (alpineData) {
                                 alpineData.monthValue = monthValue;
                                 if (alpineData.updateMonthDates) {
@@ -1083,7 +1135,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             }
         };
-        
+
         // Try to initialize pickers after Alpine is ready
         if (window.Alpine) {
             setTimeout(() => window.initDatePickers(), 300);
@@ -1096,7 +1148,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }, 100);
         }
-        
+
         // Initialize Flatpickr for Overtime/Leave From Date
         const dateFromInput = document.getElementById('dateFrom');
         if (dateFromInput) {
@@ -1129,7 +1181,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         }
-        
+
         // Initialize Flatpickr for Overtime/Leave To Date
         const dateToInput = document.getElementById('dateTo');
         if (dateToInput) {
@@ -1159,7 +1211,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         }
-        
+
         // Make calendar icons clickable
         document.querySelectorAll('.calendar-icon, .fa-calendar').forEach(function(icon) {
             icon.addEventListener('click', function(e) {
@@ -1183,7 +1235,7 @@ document.addEventListener('DOMContentLoaded', function() {
             icon.style.cursor = 'pointer';
             icon.style.pointerEvents = 'auto';
         });
-        
+
         // Also make inputs clickable to open calendar
         document.querySelectorAll('.date-picker-input').forEach(function(input) {
             input.addEventListener('click', function() {
@@ -1200,7 +1252,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         });
-        
+
         // Re-initialize pickers when report type changes (Alpine.js)
         if (window.Alpine) {
             Alpine.effect(function() {
@@ -1213,7 +1265,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             const newDateTo = document.getElementById('dateTo');
                             const newDateSingle = document.getElementById('dateSingle');
                             const newWeekStart = document.getElementById('weekStart');
-                            
+
                             if (newDateFrom && !dateFromPicker) {
                                 dateFromPicker = flatpickr("#dateFrom", {
                                     dateFormat: "Y-m-d",
@@ -1232,7 +1284,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     }
                                 });
                             }
-                            
+
                             if (newDateTo && !dateToPicker) {
                                 dateToPicker = flatpickr("#dateTo", {
                                     dateFormat: "Y-m-d",
@@ -1246,7 +1298,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     }
                                 });
                             }
-                            
+
                             if (newDateSingle && !window.dateSinglePicker) {
                                 window.dateSinglePicker = flatpickr("#dateSingle", {
                                     dateFormat: "Y-m-d",
@@ -1260,7 +1312,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     }
                                 });
                             }
-                            
+
                             if (newWeekStart && !window.weekStartPicker) {
                                 window.weekStartPicker = flatpickr("#weekStart", {
                                     dateFormat: "Y-m-d",
@@ -1287,15 +1339,15 @@ function reportForm() {
     const currentWeekStart = getWeekStart(today);
     const currentWeekEnd = new Date(currentWeekStart);
     currentWeekEnd.setDate(currentWeekEnd.getDate() + 6);
-    
+
     const currentMonth = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0');
     const monthStartDate = new Date(today.getFullYear(), today.getMonth(), 1);
     const monthEndDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    
+
     const currentYear = today.getFullYear();
     const yearStartDate = new Date(currentYear, 0, 1);
     const yearEndDate = new Date(currentYear, 11, 31);
-    
+
     return {
         reportType: '{{ request('report_type', 'daily') }}',
         dailyDate: '{{ request('date_from', today()->format('Y-m-d')) }}',
@@ -1309,7 +1361,7 @@ function reportForm() {
         yearEnd: '{{ request('date_to', now()->endOfYear()->format('Y-m-d')) }}',
         dateFrom: '{{ request('date_from', now()->startOfMonth()->format('Y-m-d')) }}',
         dateTo: '{{ request('date_to', now()->format('Y-m-d')) }}',
-        
+
         updateDateInputs() {
             const today = new Date();
             switch(this.reportType) {
@@ -1337,7 +1389,7 @@ function reportForm() {
                     break;
             }
         },
-        
+
         updateWeekEnd() {
             if (this.weekStart) {
                 const start = new Date(this.weekStart);
@@ -1346,7 +1398,7 @@ function reportForm() {
                 this.weekEnd = end.toISOString().split('T')[0];
             }
         },
-        
+
         init() {
             // Watch for reportType changes and initialize pickers when inputs become visible
             this.$watch('reportType', (newType) => {
@@ -1379,7 +1431,7 @@ function reportForm() {
                                         const year = selectedDate.getFullYear();
                                         const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
                                         const monthValue = year + '-' + month;
-                                        
+
                                         if (alpineData) {
                                             alpineData.monthValue = monthValue;
                                             if (alpineData.updateMonthDates) {
@@ -1410,7 +1462,7 @@ function reportForm() {
                     }
                 }, 200);
             });
-            
+
             // Also initialize on initial load if inputs are visible
             setTimeout(() => {
                 if (window.initDatePickers) {
@@ -1418,7 +1470,7 @@ function reportForm() {
                 }
             }, 500);
         },
-        
+
         updateMonthDates() {
             if (this.monthValue) {
                 const [year, month] = this.monthValue.split('-');
@@ -1428,7 +1480,7 @@ function reportForm() {
                 this.monthEnd = end.toISOString().split('T')[0];
             }
         },
-        
+
         updateYearDates() {
             if (this.yearValue) {
                 const start = new Date(this.yearValue, 0, 1);
@@ -1437,13 +1489,13 @@ function reportForm() {
                 this.yearEnd = end.toISOString().split('T')[0];
             }
         },
-        
+
         formatDate(dateString) {
             if (!dateString) return '';
             const date = new Date(dateString);
             return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         },
-        
+
         getDateFrom() {
             switch(this.reportType) {
                 case 'daily':
@@ -1461,7 +1513,7 @@ function reportForm() {
                     return '';
             }
         },
-        
+
         getDateTo() {
             switch(this.reportType) {
                 case 'daily':
@@ -1479,28 +1531,28 @@ function reportForm() {
                     return '';
             }
         },
-        
+
         getExportUrl(format) {
             const baseUrl = '{{ route("attendance.reports.export", ["format" => "FORMAT"]) }}'.replace('FORMAT', format);
             const params = new URLSearchParams();
-            
+
             params.append('report_type', this.reportType);
             params.append('date_from', this.getDateFrom());
             params.append('date_to', this.getDateTo());
-            
+
             const departmentSelect = document.getElementById('department');
             if (departmentSelect && departmentSelect.value) {
                 params.append('department_id', departmentSelect.value);
             }
-            
+
             if (this.reportType === 'monthly' && this.monthValue) {
                 params.append('month', this.monthValue);
             }
-            
+
             if (this.reportType === 'yearly' && this.yearValue) {
                 params.append('year', this.yearValue);
             }
-            
+
             return baseUrl + '?' + params.toString();
         }
     };
@@ -1519,7 +1571,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const ctx = document.getElementById('attendanceTrendChart');
     if (ctx) {
         const trendData = @json($attendanceTrend);
-        
+
         new Chart(ctx, {
             type: 'line',
             data: {

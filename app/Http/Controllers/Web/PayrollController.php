@@ -34,15 +34,9 @@ public function index(Request $request)
     $currentCompany = CompanyHelper::getCurrentCompany();
     $user = Auth::user();
     
-    // SIMPLIFIED QUERY: Get latest payrolls per employee
     $query = Payroll::query();
     
-    // Get the latest payroll per employee
-    $latestPayrollSubquery = DB::table('payrolls as p2')
-        ->select(DB::raw('MAX(p2.id) as latest_id'))
-        ->groupBy('p2.employee_id');
-    
-    $query->whereIn('id', $latestPayrollSubquery);
+    // Get payrolls based on date filters without restricting to MAX(id)
     
     if (!$request->filled('start_date') || !$request->filled('end_date')) {
         $request->merge([
@@ -79,13 +73,13 @@ if ($request->filled('start_date') && $request->filled('end_date')) {
     // BROADER SEARCH: Find any payroll that overlaps with selected period
     $query->where(function($q) use ($startDate, $endDate) {
         // Payroll period starts within selected range
-        $q->whereBetween('latest_payrolls.pay_period_start', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
+        $q->whereBetween('pay_period_start', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
         // OR payroll period ends within selected range
-        ->orWhereBetween('latest_payrolls.pay_period_end', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
+        ->orWhereBetween('pay_period_end', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
         // OR selected range falls completely within a payroll period
         ->orWhere(function($subQ) use ($startDate, $endDate) {
-            $subQ->where('latest_payrolls.pay_period_start', '<=', $startDate->format('Y-m-d'))
-                 ->where('latest_payrolls.pay_period_end', '>=', $endDate->format('Y-m-d'));
+            $subQ->where('pay_period_start', '<=', $startDate->format('Y-m-d'))
+                 ->where('pay_period_end', '>=', $endDate->format('Y-m-d'));
         });
     });
 }
@@ -2626,16 +2620,16 @@ private function exportPayrollToPDF(Request $request)
             ]);
             
             if ($count === 0) {
-                return redirect()->route('payroll.index')
-                    ->with('warning', 'No payroll records were generated. This could be because payroll already exists for this period or there were issues with attendance data.')
-                    ->with('start_date', $request->start_date)
-                    ->with('end_date', $request->end_date);
+                return redirect()->route('payroll.index', [
+                    'start_date' => $request->start_date,
+                    'end_date' => $request->end_date
+                ])->with('warning', 'No payroll records were generated. This could be because payroll already exists for this period or there were issues with attendance data.');
             }
             
-            return redirect()->route('payroll.index')
-                ->with('success', "Generated payroll for {$count} employees!")
-                ->with('start_date', $request->start_date)
-                ->with('end_date', $request->end_date);
+            return redirect()->route('payroll.index', [
+                'start_date' => $request->start_date,
+                'end_date' => $request->end_date
+            ])->with('success', "Generated payroll for {$count} employees!");
                 
         } catch (\Exception $e) {
             Log::error('Payroll generation failed: ' . $e->getMessage(), [
@@ -2644,10 +2638,10 @@ private function exportPayrollToPDF(Request $request)
                 'end_date' => $request->end_date ?? null
             ]);
             
-            return redirect()->route('payroll.index')
-                ->with('error', 'Payroll generation failed: ' . $e->getMessage())
-                ->with('start_date', $request->start_date)
-                ->with('end_date', $request->end_date);
+            return redirect()->route('payroll.index', [
+                'start_date' => $request->start_date,
+                'end_date' => $request->end_date
+            ])->with('error', 'Payroll generation failed: ' . $e->getMessage());
         }
     }
 
@@ -3710,6 +3704,15 @@ public function downloadPayslip($payrollId)
     {
         $comprehensiveData = [];
         
+        // Fetch all approved overtime records for these employees in this period to avoid N+1 queries
+        $overtimeRecords = \App\Models\OvertimeRequest::whereIn('employee_id', $employees->pluck('id'))
+            ->whereBetween('date', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
+            ->where('status', 'approved')
+            ->get()
+            ->groupBy(function($item) {
+                return $item->employee_id . '_' . $item->date->format('Y-m-d');
+            });
+        
         foreach ($employees as $employee) {
             $currentDate = $startDate->copy();
             
@@ -3726,8 +3729,12 @@ public function downloadPayslip($payrollId)
                     ->where('date', $dateStr)
                     ->first();
                 
-                // Determine schedule status
-                $scheduleStatus = $this->getScheduleStatus($schedule);
+                // Determine schedule status - if no schedule exists but employee has attendance, treat as working day
+                if (!$schedule && $attendanceRecord && $attendanceRecord->time_in) {
+                    $scheduleStatus = 'Working';
+                } else {
+                    $scheduleStatus = $this->getScheduleStatus($schedule);
+                }
                 
                 // Determine attendance status
                 $attendanceStatus = $this->getAttendanceStatus($attendanceRecord, $schedule);
@@ -3737,10 +3744,13 @@ public function downloadPayslip($payrollId)
                 $scheduledHours = '—';
                 $morningOvertime = 0;
                 $eveningOvertime = 0;
-                $overtime = 0;
                 $nightDifferentialHours = 0;
                 $lateMinutes = 0;
                 $isNightShift = false;
+                
+                // Retrieve approved overtime for this specific date
+                $otKey = $employee->id . '_' . $dateStr;
+                $overtime = $overtimeRecords->has($otKey) ? $overtimeRecords->get($otKey)->sum('hours') : 0;
                 
                 // Only calculate attendance metrics if schedule status is 'Working' or 'Regular Holiday' or 'Special Holiday'
                 if (in_array($scheduleStatus, ['Working', 'Regular Holiday', 'Special Holiday'])) {
@@ -3749,11 +3759,6 @@ public function downloadPayslip($payrollId)
                     if ($attendanceRecord && $attendanceRecord->time_in && $attendanceRecord->time_out) {
                         $workedHours = $attendanceRecord->total_hours ?? 0;
                         $scheduledHours = $this->formatHours($workedHours);
-                        
-                        // Calculate overtime
-                        if ($workedHours > 8) {
-                            $overtime = $workedHours - 8;
-                        }
                         
                         // Calculate night differential hours
                         $nightDifferentialHours = $attendanceRecord->calculateNightShiftHours();

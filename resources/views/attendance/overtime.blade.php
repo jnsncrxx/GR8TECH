@@ -46,7 +46,7 @@
     </div>
 
     <!-- Overtime Summary -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
             <div class="flex items-center">
                 <div class="flex-shrink-0">
@@ -85,6 +85,20 @@
                 <div class="ml-3">
                     <p class="text-sm font-medium text-gray-500">Pending</p>
                     <p class="text-lg font-semibold text-gray-900">{{ $summary['pending'] }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-times-circle text-red-600"></i>
+                    </div>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-500">Rejected</p>
+                    <p class="text-lg font-semibold text-gray-900">{{ $summary['rejected'] }}</p>
                 </div>
             </div>
         </div>
@@ -185,12 +199,14 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Reason
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-10 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Status
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        @if(in_array($user->role, ['admin', 'hr', 'manager']))
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Actions
                         </th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -234,30 +250,38 @@
                                 <div class="text-sm font-medium text-gray-900">₱{{ number_format($amount, 2) }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ Str::limit($request->reason, 30) }}</div>
+                                <div class="text-sm text-gray-900" title="{{ $request->reason }}">{{ \Illuminate\Support\Str::limit($request->reason, 30) }}</div>
+                                @if($request->status === 'rejected' && $request->rejection_reason)
+                                <div class="text-xs text-red-600 mt-1" title="{{ $request->rejection_reason }}">
+                                    <span class="font-medium">Admin Reason:</span> {{ \Illuminate\Support\Str::limit($request->rejection_reason, 30) }}
+                                </div>
+                                @endif
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $statusColor }}">
-                                    <div class="w-1.5 h-1.5 rounded-full mr-1.5 {{ str_replace('text-', 'bg-', $statusColor) }}"></div>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                <span class="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium {{ $statusColor }} min-w-[80px]">
                                     {{ ucfirst($request->status) }}
                                 </span>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <div class="flex space-x-2">
-                                    @if(in_array($user->role, ['admin', 'hr', 'manager']) && $request->status === 'pending')
-                                        <button onclick="approveOvertime('{{ $request->id }}')" class="text-green-600 hover:text-green-900 transition-colors" title="Approve">
-                                            <i class="fas fa-check"></i>
-                                        </button>
-                                        <button onclick="rejectOvertime('{{ $request->id }}')" class="text-red-600 hover:text-red-900 transition-colors" title="Reject">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                    @endif
+                            @if(in_array($user->role, ['admin', 'hr', 'manager']))
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
+                                @if($request->status === 'pending')
+                                <div class="flex space-x-2 justify-center">
+                                    <button onclick="approveOvertime('{{ $request->id }}')" class="text-green-600 hover:text-green-900 transition-colors" title="Approve">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    <button onclick="rejectOvertime('{{ $request->id }}')" class="text-red-600 hover:text-red-900 transition-colors" title="Reject">
+                                        <i class="fas fa-times"></i>
+                                    </button>
                                 </div>
+                                @else
+                                    <span class="text-gray-400 font-bold text-lg">&mdash;</span>
+                                @endif
                             </td>
+                            @endif
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-6 py-4 text-center">
+                            <td colspan="{{ in_array($user->role, ['admin', 'hr', 'manager']) ? 8 : 7 }}" class="px-6 py-4 text-center">
                                 <div class="flex flex-col items-center justify-center py-8">
                                     <i class="fas fa-clock text-gray-400 text-4xl mb-4"></i>
                                     <p class="text-gray-500 text-lg font-medium mb-2">No overtime requests found</p>
@@ -329,8 +353,7 @@
                                     <div class="text-sm text-gray-500">{{ $request->employee->department->name ?? 'N/A' }}</div>
                                 </div>
                             </div>
-                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $statusColor }}">
-                                <div class="w-1.5 h-1.5 rounded-full mr-1 {{ str_replace('text-', 'bg-', $statusColor) }}"></div>
+                            <span class="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium {{ $statusColor }} min-w-[80px]">
                                 {{ ucfirst($request->status) }}
                             </span>
                         </div>
@@ -354,8 +377,14 @@
                         </div>
                         <div class="text-sm mb-3">
                             <div class="text-gray-500">Reason</div>
-                            <div class="font-medium">{{ Str::limit($request->reason, 50) }}</div>
+                            <div class="font-medium">{{ \Illuminate\Support\Str::limit($request->reason, 50) }}</div>
                         </div>
+                        @if($request->status === 'rejected' && $request->rejection_reason)
+                        <div class="text-sm mb-3">
+                            <div class="text-red-500 font-medium">Admin Reason</div>
+                            <div class="font-medium text-red-600">{{ \Illuminate\Support\Str::limit($request->rejection_reason, 50) }}</div>
+                        </div>
+                        @endif
                         @if(in_array($user->role, ['admin', 'hr', 'manager']) && $request->status === 'pending')
                         <div class="flex justify-end space-x-2">
                             <button onclick="approveOvertime('{{ $request->id }}')" class="text-green-600 hover:text-green-900 transition-colors">
@@ -436,6 +465,70 @@
         </div>
     </div>
 </div>
+
+@if(in_array($user->role, ['admin', 'hr', 'manager']))
+<!-- Overtime Approve Modal -->
+<div id="overtimeApproveModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999;" onclick="closeApproveModal()">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" style="max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium text-gray-900">Approve Overtime Request</h3>
+                <button onclick="closeApproveModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="overtimeApproveForm" class="space-y-4">
+                <div>
+                    <p class="text-sm text-gray-600 mb-4">Are you sure you want to approve this overtime request?</p>
+                </div>
+                <div class="flex justify-end space-x-3 pt-4">
+                    <button type="button" onclick="closeApproveModal()"
+                            class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 bg-green-600 border border-transparent rounded-lg text-white hover:bg-green-700 transition-colors">
+                        <i class="fas fa-check mr-2"></i>
+                        Approve Request
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Overtime Reject Modal -->
+<div id="overtimeRejectModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999;" onclick="closeRejectModal()">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" style="max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium text-gray-900">Reject Overtime Request</h3>
+                <button onclick="closeRejectModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="overtimeRejectForm" class="space-y-4">
+                <div>
+                    <label for="rejectionReason" class="block text-sm font-medium text-gray-700 mb-2">Reason for rejection</label>
+                    <textarea id="rejectionReason" name="rejection_reason" rows="3" required maxlength="500"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"></textarea>
+                </div>
+                <div class="flex justify-end space-x-3 pt-4">
+                    <button type="button" onclick="closeRejectModal()"
+                            class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 bg-red-600 border border-transparent rounded-lg text-white hover:bg-red-700 transition-colors">
+                        <i class="fas fa-times mr-2"></i>
+                        Reject Request
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
 
 <script>
 console.log('Overtime page JavaScript loaded successfully');
@@ -560,75 +653,102 @@ document.addEventListener('DOMContentLoaded', function() {
     } catch (error) {
         console.error('Error setting up event listeners:', error);
     }
+    const approveForm = document.getElementById('overtimeApproveForm');
+    if (approveForm) {
+        approveForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            if (!currentApproveId) return;
+            try {
+                const response = await fetch(`{{ url('attendance/overtime') }}/${currentApproveId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ status: 'approved' })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showSuccess(data.message || 'Overtime request approved successfully');
+                    closeApproveModal();
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    showError(data.error || 'Failed to approve overtime request');
+                }
+            } catch (error) {
+                console.error('Error approving overtime:', error);
+                showError('Failed to approve overtime request');
+            }
+        });
+    }
+
+    const rejectForm = document.getElementById('overtimeRejectForm');
+    if (rejectForm) {
+        rejectForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            if (!currentRejectId) return;
+            const reason = document.getElementById('rejectionReason').value;
+            try {
+                const response = await fetch(`{{ url('attendance/overtime') }}/${currentRejectId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ status: 'rejected', rejection_reason: reason })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showSuccess(data.message || 'Overtime request rejected successfully');
+                    closeRejectModal();
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    showError(data.error || 'Failed to reject overtime request');
+                }
+            } catch (error) {
+                console.error('Error rejecting overtime:', error);
+                showError('Failed to reject overtime request');
+            }
+        });
+    }
 });
 
-async function approveOvertime(requestId) {
-    if (!confirm('Are you sure you want to approve this overtime request?')) {
-        return;
-    }
-    
-    try {
-        const response = await fetch(`{{ url('attendance/overtime') }}/${requestId}/status`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': '{{ csrf_token() }}'
-            },
-            body: JSON.stringify({
-                status: 'approved'
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-            showSuccess(data.message || 'Overtime request approved successfully');
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
-        } else {
-            showError(data.error || 'Failed to approve overtime request');
-        }
-    } catch (error) {
-        console.error('Error approving overtime:', error);
-        showError('Failed to approve overtime request');
+let currentApproveId = null;
+function approveOvertime(requestId) {
+    currentApproveId = requestId;
+    const modal = document.getElementById('overtimeApproveModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
     }
 }
 
-async function rejectOvertime(requestId) {
-    const reason = prompt('Please provide a reason for rejection:');
-    if (!reason || reason.trim() === '') {
-        alert('Rejection reason is required.');
-        return;
+function closeApproveModal() {
+    const modal = document.getElementById('overtimeApproveModal');
+    if (modal) modal.style.display = 'none';
+}
+
+let currentRejectId = null;
+function rejectOvertime(requestId) {
+    currentRejectId = requestId;
+    const modal = document.getElementById('overtimeRejectModal');
+    const form = document.getElementById('overtimeRejectForm');
+    if (form) form.reset();
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
     }
-    
-    try {
-        const response = await fetch(`{{ url('attendance/overtime') }}/${requestId}/status`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': '{{ csrf_token() }}'
-            },
-            body: JSON.stringify({
-                status: 'rejected',
-                rejection_reason: reason
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-            showSuccess(data.message || 'Overtime request rejected successfully');
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
-        } else {
-            showError(data.error || 'Failed to reject overtime request');
-        }
-    } catch (error) {
-        console.error('Error rejecting overtime:', error);
-        showError('Failed to reject overtime request');
-    }
+}
+
+function closeRejectModal() {
+    const modal = document.getElementById('overtimeRejectModal');
+    if (modal) modal.style.display = 'none';
 }
 
 function showSuccess(message) {

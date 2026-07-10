@@ -2,8 +2,6 @@
 
 @php use Illuminate\Support\Str; @endphp
 
-@extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'attendance.leave-management'])
-
 @section('title', 'Leave Management')
 
 @section('content')
@@ -253,6 +251,9 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">{{ Str::limit($leaveRequest->reason, 30) }}</div>
+                                @if($leaveRequest->status == 'rejected' && $leaveRequest->rejection_reason)
+                                    <div class="text-xs text-red-600 mt-0.5"><span class="font-medium">Admin Reason:</span> {{ Str::limit($leaveRequest->rejection_reason, 30) }}</div>
+                                @endif
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $statusColors[$leaveRequest->status] ?? 'bg-gray-100 text-gray-800' }}">
@@ -262,20 +263,23 @@
                                     {{ ucfirst($leaveRequest->status) }}
                             </span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div class="flex space-x-2">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
+                            <div class="flex justify-center items-center space-x-2">
                                     @if(in_array($user->role, ['admin', 'hr']) && $leaveRequest->status == 'pending')
-                                        <button data-leave-id="{{ $leaveRequest->id }}" data-action="approve" class="time-action-btn text-green-600 hover:text-green-900 transition-colors" title="Approve">
-                                    <i class="fas fa-check"></i>
-                                </button>
-                                        <button data-leave-id="{{ $leaveRequest->id }}" data-action="reject" class="time-action-btn text-red-600 hover:text-red-900 transition-colors" title="Reject">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                                    @endif
-                                    @if($leaveRequest->status == 'pending' && ($user->role == 'employee' && $leaveRequest->employee_id == $user->employee?->id))
-                                        <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn text-orange-600 hover:text-orange-900 transition-colors" title="Cancel">
+                                        <button data-leave-id="{{ $leaveRequest->id }}" data-action="approve" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors" title="Approve">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                        <button data-leave-id="{{ $leaveRequest->id }}" data-action="reject" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors" title="Reject">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    @elseif($leaveRequest->status == 'pending' && ($user->role == 'employee' && $leaveRequest->employee_id == $user->employee?->id))
+                                        <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel">
                                             <i class="fas fa-ban"></i>
                                         </button>
+                                    @else
+                                        <div class="flex justify-center">
+                                            <span class="inline-block w-10 h-px bg-gray-300 rounded-full"></span>
+                                        </div>
                                     @endif
                             </div>
                         </td>
@@ -288,7 +292,7 @@
                 </tbody>
             </table>
         </div>
-        
+
         @if($leaveRequests->hasPages())
             <div class="px-6 py-4 border-t border-gray-200">
                 {{ $leaveRequests->appends(request()->query())->links() }}
@@ -363,27 +367,33 @@
                     <div class="text-sm mb-3">
                         <div class="text-gray-500">Reason</div>
                             <div class="font-medium">{{ Str::limit($leaveRequest->reason, 50) }}</div>
-                    </div>
-                    <div class="flex justify-end space-x-2">
-                            @if(in_array($user->role, ['admin', 'hr']) && $leaveRequest->status == 'pending')
-                                <button data-leave-id="{{ $leaveRequest->id }}" data-action="approve" class="time-action-btn text-green-600 hover:text-green-900 transition-colors">
-                            <i class="fas fa-check mr-1"></i>Approve
-                        </button>
-                                <button data-leave-id="{{ $leaveRequest->id }}" data-action="reject" class="time-action-btn text-red-600 hover:text-red-900 transition-colors">
-                            <i class="fas fa-times mr-1"></i>Reject
-                        </button>
+                            @if($leaveRequest->status == 'rejected' && $leaveRequest->rejection_reason)
+                                <div class="text-xs text-red-600 mt-0.5"><span class="font-medium">Admin Reason:</span> {{ Str::limit($leaveRequest->rejection_reason, 50) }}</div>
                             @endif
-                            @if($leaveRequest->status == 'pending' && ($user->role == 'employee' && $leaveRequest->employee_id == $user->employee?->id))
-                                <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn text-orange-600 hover:text-orange-900 transition-colors">
-                                    <i class="fas fa-ban mr-1"></i>Cancel
+                    </div>
+                    <div class="flex justify-center space-x-2">
+                            @if(in_array($user->role, ['admin', 'hr']) && $leaveRequest->status == 'pending')
+                                <button data-leave-id="{{ $leaveRequest->id }}" data-action="approve" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors" title="Approve">
+                                    <i class="fas fa-check"></i>
                                 </button>
+                                <button data-leave-id="{{ $leaveRequest->id }}" data-action="reject" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors" title="Reject">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            @elseif($leaveRequest->status == 'pending' && ($user->role == 'employee' && $leaveRequest->employee_id == $user->employee?->id))
+                                <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel">
+                                    <i class="fas fa-ban"></i>
+                                </button>
+                            @else
+                                <div class="flex justify-center">
+                                    <span class="inline-block w-10 h-px bg-gray-300 rounded-full"></span>
+                                </div>
                             @endif
                         </div>
                     </div>
                 @empty
                     <div class="text-center text-sm text-gray-500 py-8">No leave requests found.</div>
                 @endforelse
-                
+
                 @if($leaveRequests->hasPages())
                     <div class="mt-4">
                         {{ $leaveRequests->appends(request()->query())->links() }}
@@ -399,7 +409,7 @@
         $showLeaveBalances = false;
         $selectedEmployeeBalance = null;
         $selectedEmployee = null;
-        
+
         // For employees, always show their own balance
         if ($user->role === 'employee' && $user->employee) {
             $showLeaveBalances = true;
@@ -410,16 +420,16 @@
             $approvedLeaves = \App\Models\LeaveRequest::where('employee_id', $user->employee->id)
                 ->where('status', 'approved')
                 ->get();
-            
+
             // Find the year with the most recent approved leave
             $mostRecentYear = $currentYear;
             if ($approvedLeaves->count() > 0) {
                 $mostRecentLeave = $approvedLeaves->sortByDesc('start_date')->first();
-                $mostRecentYear = $mostRecentLeave->start_date instanceof \Carbon\Carbon 
-                    ? $mostRecentLeave->start_date->year 
+                $mostRecentYear = $mostRecentLeave->start_date instanceof \Carbon\Carbon
+                    ? $mostRecentLeave->start_date->year
                     : \Carbon\Carbon::parse($mostRecentLeave->start_date)->year;
             }
-            
+
             // Prioritize the year with approved leaves, then current year, then others
             $selectedEmployeeBalance = \App\Models\LeaveBalance::where('employee_id', $user->employee->id)
                 ->where(function($q) use ($currentYear, $mostRecentYear) {
@@ -431,7 +441,7 @@
                 ->orderByRaw("CASE WHEN year = {$mostRecentYear} THEN 1 WHEN year = {$currentYear} THEN 2 ELSE 3 END")
                 ->orderBy('year', 'desc')
                 ->first();
-            
+
             // If no balance found, leave the selected employee balance null.
             if (!$selectedEmployeeBalance) {
                 $selectedEmployeeBalance = null;
@@ -444,26 +454,26 @@
             $selectedEmployee = $employees->first(function($emp) use ($selectedEmployeeId) {
                 return (string)$emp->id === (string)$selectedEmployeeId;
             });
-            
+
             if ($selectedEmployee) {
                 $showLeaveBalances = true;
-                
+
                 // Always refresh balance from database to ensure we have latest data
                 // Check which year has the most recent approved leaves and prioritize that year
                 $currentYear = now()->year;
                 $approvedLeaves = \App\Models\LeaveRequest::where('employee_id', $selectedEmployeeId)
                     ->where('status', 'approved')
                     ->get();
-                
+
                 // Find the year with the most recent approved leave
                 $mostRecentYear = $currentYear;
                 if ($approvedLeaves->count() > 0) {
                     $mostRecentLeave = $approvedLeaves->sortByDesc('start_date')->first();
-                    $mostRecentYear = $mostRecentLeave->start_date instanceof \Carbon\Carbon 
-                        ? $mostRecentLeave->start_date->year 
+                    $mostRecentYear = $mostRecentLeave->start_date instanceof \Carbon\Carbon
+                        ? $mostRecentLeave->start_date->year
                         : \Carbon\Carbon::parse($mostRecentLeave->start_date)->year;
                 }
-                
+
                 // Prioritize the year with approved leaves, then current year, then others
                 $selectedEmployeeBalance = \App\Models\LeaveBalance::where('employee_id', $selectedEmployeeId)
                     ->where(function($q) use ($currentYear, $mostRecentYear) {
@@ -475,7 +485,7 @@
                     ->orderByRaw("CASE WHEN year = {$mostRecentYear} THEN 1 WHEN year = {$currentYear} THEN 2 ELSE 3 END")
                     ->orderBy('year', 'desc')
                     ->first();
-                
+
                 // If no balance found, leave the selected employee balance null.
                 if (!$selectedEmployeeBalance) {
                     $selectedEmployeeBalance = null;
@@ -483,7 +493,7 @@
             }
         }
     @endphp
-    
+
     @if($showLeaveBalances && $selectedEmployee)
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div class="flex items-center justify-between mb-4">
@@ -544,7 +554,7 @@
                     <div class="{{ $barColor }} h-2 rounded-full transition-all" style="--width: {{ $widthPercentage }}%; width: var(--width)"></div>
                 </div>
                 <div class="text-xs text-gray-500 mt-1">
-                    <span class="font-medium">{{ $used }}</span> days used, 
+                    <span class="font-medium">{{ $used }}</span> days used,
                     <span class="font-medium text-green-600">{{ $remaining }}</span> remaining
                 </div>
                 </div>
@@ -568,14 +578,14 @@ function applyFilters() {
     const leaveType = document.getElementById('leaveType').value;
     const status = document.getElementById('status').value;
     const dateFrom = document.getElementById('dateFrom').value;
-    
+
     // Build query string
     const params = new URLSearchParams();
     if (employee) params.append('employee_id', employee);
     if (leaveType) params.append('leave_type', leaveType);
     if (status) params.append('status', status);
     if (dateFrom) params.append('date_from', dateFrom);
-    
+
     // Redirect with filters
     window.location.href = '{{ route("attendance.leave-management") }}?' + params.toString();
 }
@@ -585,17 +595,17 @@ function showNotification(message, type = 'success') {
     // Remove any existing notifications
     const existingNotifications = document.querySelectorAll('.dynamic-notification');
     existingNotifications.forEach(notif => notif.remove());
-    
+
     const notification = document.createElement('div');
     notification.className = 'dynamic-notification fixed top-4 right-4 z-50 max-w-md w-full';
     notification.style.opacity = '0';
     notification.style.transform = 'translateX(100%)';
-    
+
     const bgColor = type === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200';
     const iconColor = type === 'success' ? 'text-green-400' : 'text-red-400';
     const textColor = type === 'success' ? 'text-green-800' : 'text-red-800';
     const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
-    
+
     notification.innerHTML = `
         <div class="${bgColor} border rounded-lg p-4 shadow-lg">
             <div class="flex items-start">
@@ -613,16 +623,16 @@ function showNotification(message, type = 'success') {
             </div>
         </div>
     `;
-    
+
     document.body.appendChild(notification);
-    
+
     // Animate in
     setTimeout(() => {
         notification.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
         notification.style.opacity = '1';
         notification.style.transform = 'translateX(0)';
     }, 10);
-    
+
     // Auto-remove after 5 seconds
     setTimeout(() => {
         notification.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
@@ -632,22 +642,51 @@ function showNotification(message, type = 'success') {
     }, 5000);
 }
 
-function updateLeaveStatus(leaveRequestId, status) {
-    if (!confirm(`Are you sure you want to ${status} this leave request?`)) {
+let currentLeaveActionId = null;
+
+function openApproveLeaveModal(leaveId) {
+    currentLeaveActionId = leaveId;
+    document.getElementById('approveLeaveModal').classList.remove('hidden');
+}
+
+function closeApproveLeaveModal() {
+    currentLeaveActionId = null;
+    document.getElementById('approveLeaveModal').classList.add('hidden');
+}
+
+function confirmApproveLeave() {
+    if (!currentLeaveActionId) return;
+    const leaveId = currentLeaveActionId;
+    closeApproveLeaveModal();
+    updateLeaveStatus(leaveId, 'approved');
+}
+
+function openRejectLeaveModal(leaveId) {
+    currentLeaveActionId = leaveId;
+    document.getElementById('rejectLeaveReason').value = '';
+    document.getElementById('rejectLeaveModal').classList.remove('hidden');
+}
+
+function closeRejectLeaveModal() {
+    currentLeaveActionId = null;
+    document.getElementById('rejectLeaveModal').classList.add('hidden');
+}
+
+function confirmRejectLeave() {
+    if (!currentLeaveActionId) return;
+    const reason = document.getElementById('rejectLeaveReason').value.trim();
+    if (!reason) {
+        showNotification('Rejection reason is required.', 'error');
         return;
     }
-    
-    let rejectionReason = null;
-    if (status === 'rejected') {
-        rejectionReason = prompt('Please provide a reason for rejection:');
-        if (!rejectionReason || rejectionReason.trim() === '') {
-            showNotification('Rejection reason is required.', 'error');
-            return;
-        }
-    }
-    
+    const leaveId = currentLeaveActionId;
+    closeRejectLeaveModal();
+    updateLeaveStatus(leaveId, 'rejected', reason);
+}
+
+function updateLeaveStatus(leaveRequestId, status, rejectionReason = null) {
     const url = '{{ route("attendance.leave-management.update-status", ["id" => ":id"]) }}'.replace(':id', leaveRequestId);
-    
+
     // Build request body - only include rejection_reason if rejecting
     const requestBody = {
         status: status
@@ -655,7 +694,7 @@ function updateLeaveStatus(leaveRequestId, status) {
     if (status === 'rejected' && rejectionReason) {
         requestBody.rejection_reason = rejectionReason;
     }
-    
+
     fetch(url, {
         method: 'PUT',
         headers: {
@@ -672,9 +711,9 @@ function updateLeaveStatus(leaveRequestId, status) {
             const text = await response.text();
             throw new Error('Server returned non-JSON response. Status: ' + response.status);
         }
-        
+
         const data = await response.json();
-        
+
         // Check HTTP status code - handle validation errors specially
         if (!response.ok) {
             // For 422 validation errors, show detailed error messages
@@ -687,7 +726,7 @@ function updateLeaveStatus(leaveRequestId, status) {
             }
             throw new Error(data.error || data.message || 'Request failed with status ' + response.status);
         }
-        
+
         return data;
     })
     .then(data => {
@@ -711,9 +750,9 @@ function cancelLeaveRequest(leaveRequestId) {
     if (!confirm('Are you sure you want to cancel this leave request?')) {
         return;
     }
-    
+
     const url = '{{ route("attendance.leave-management.cancel", ["id" => ":id"]) }}'.replace(':id', leaveRequestId);
-    
+
     fetch(url, {
         method: 'DELETE',
         headers: {
@@ -743,20 +782,73 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('click', function(e) {
         const btn = e.target.closest('.time-action-btn');
         if (!btn) return;
-        
+
         const leaveId = btn.getAttribute('data-leave-id');
         const action = btn.getAttribute('data-action');
-        
+
         if (action === 'approve') {
-            updateLeaveStatus(leaveId, 'approved');
+            openApproveLeaveModal(leaveId);
         } else if (action === 'reject') {
-            updateLeaveStatus(leaveId, 'rejected');
+            openRejectLeaveModal(leaveId);
         } else if (action === 'cancel') {
             cancelLeaveRequest(leaveId);
         }
     });
     });
 </script>
+
+<!-- Approve Leave Request Modal -->
+<div id="approveLeaveModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden z-50 flex items-center justify-center px-4">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">Approve Leave Request</h3>
+            <button onclick="closeApproveLeaveModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="px-6 py-5">
+            <p class="text-sm text-gray-600">Are you sure you want to approve this leave request?</p>
+        </div>
+        <div class="flex justify-end space-x-3 px-6 py-4 border-t border-gray-200">
+            <button type="button" onclick="closeApproveLeaveModal()"
+                    class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                Cancel
+            </button>
+            <button type="button" onclick="confirmApproveLeave()"
+                    class="px-4 py-2 bg-green-600 border border-transparent rounded-lg text-white hover:bg-green-700 transition-colors">
+                <i class="fas fa-check mr-2"></i>Approve Request
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Leave Request Modal -->
+<div id="rejectLeaveModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden z-50 flex items-center justify-center px-4">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">Reject Leave Request</h3>
+            <button onclick="closeRejectLeaveModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="px-6 py-5">
+            <label for="rejectLeaveReason" class="block text-sm font-medium text-gray-700 mb-2">Reason for rejection</label>
+            <textarea id="rejectLeaveReason" rows="4"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      placeholder="Provide a reason for rejecting this leave request..."></textarea>
+        </div>
+        <div class="flex justify-end space-x-3 px-6 py-4 border-t border-gray-200">
+            <button type="button" onclick="closeRejectLeaveModal()"
+                    class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                Cancel
+            </button>
+            <button type="button" onclick="confirmRejectLeave()"
+                    class="px-4 py-2 bg-red-600 border border-transparent rounded-lg text-white hover:bg-red-700 transition-colors">
+                <i class="fas fa-times mr-2"></i>Reject Request
+            </button>
+        </div>
+    </div>
+</div>
 
 <!-- Set Leave Balance Modal -->
 <div id="setLeaveBalanceModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
@@ -768,11 +860,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
-            
+
             <form id="setLeaveBalanceForm" class="space-y-4">
                 @csrf
                 <input type="hidden" id="balanceYear" name="year" value="{{ now()->year }}">
-                
+
                 <div>
                     <label for="balanceEmployeeSelect" class="block text-sm font-medium text-gray-700 mb-2">Employee</label>
                     <select id="balanceEmployeeSelect" name="employee_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
@@ -784,7 +876,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </select>
                     <p class="mt-1 text-xs text-gray-500">Select "All Employees" to set leave balance for all employees at once</p>
                 </div>
-                
+
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Leave Types</label>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -803,10 +895,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         @foreach($leaveTypes as $type => $config)
                         <div class="border border-gray-200 rounded-lg p-3">
                             <label class="block text-sm font-medium text-gray-700 mb-1">{{ $config['label'] }}</label>
-                            <input type="number" 
-                                   name="{{ $type }}_days_total" 
+                            <input type="number"
+                                   name="{{ $type }}_days_total"
                                    id="{{ $type }}_days_total"
-                                   min="0" 
+                                   min="0"
                                    value="{{ $config['default'] }}"
                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                    placeholder="Days">
@@ -814,13 +906,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         @endforeach
                     </div>
                 </div>
-                
+
                 <div class="flex justify-end space-x-3 pt-4 border-t">
-                    <button type="button" onclick="closeSetLeaveBalanceModal()" 
+                    <button type="button" onclick="closeSetLeaveBalanceModal()"
                             class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
                         Cancel
                     </button>
-                    <button type="submit" 
+                    <button type="submit"
                             class="px-4 py-2 bg-blue-600 border border-transparent rounded-lg text-white hover:bg-blue-700 transition-colors">
                         <i class="fas fa-save mr-2"></i>Save Leave Balance
                     </button>
@@ -840,13 +932,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
-            
+
             <form id="editLeaveBalanceForm" class="space-y-4">
                 @csrf
                 <input type="hidden" id="editBalanceId" name="balance_id">
                 <input type="hidden" id="editBalanceEmployeeId" name="employee_id">
                 <input type="hidden" id="editBalanceYear" name="year">
-                
+
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Leave Types</label>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -865,23 +957,23 @@ document.addEventListener('DOMContentLoaded', function() {
                         @foreach($leaveTypes as $type => $config)
                         <div class="border border-gray-200 rounded-lg p-3">
                             <label class="block text-sm font-medium text-gray-700 mb-1">{{ $config['label'] }}</label>
-                            <input type="number" 
-                                   name="{{ $type }}_days_total" 
+                            <input type="number"
+                                   name="{{ $type }}_days_total"
                                    id="edit_{{ $type }}_days_total"
-                                   min="0" 
+                                   min="0"
                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                    placeholder="Days">
                         </div>
                         @endforeach
                     </div>
                 </div>
-                
+
                 <div class="flex justify-end space-x-3 pt-4 border-t">
-                    <button type="button" onclick="closeEditLeaveBalanceModal()" 
+                    <button type="button" onclick="closeEditLeaveBalanceModal()"
                             class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
                         Cancel
                     </button>
-                    <button type="submit" 
+                    <button type="submit"
                             class="px-4 py-2 bg-blue-600 border border-transparent rounded-lg text-white hover:bg-blue-700 transition-colors">
                         <i class="fas fa-save mr-2"></i>Update Leave Balance
                     </button>
@@ -914,7 +1006,7 @@ function openEditLeaveBalanceModal(employeeId) {
                 document.getElementById('editBalanceId').value = balance.id;
                 document.getElementById('editBalanceEmployeeId').value = balance.employee_id;
                 document.getElementById('editBalanceYear').value = balance.year;
-                
+
                 document.getElementById('edit_vacation_days_total').value = balance.vacation_days_total || 0;
                 document.getElementById('edit_sick_days_total').value = balance.sick_days_total || 0;
                 document.getElementById('edit_personal_days_total').value = balance.personal_days_total || 0;
@@ -923,7 +1015,7 @@ function openEditLeaveBalanceModal(employeeId) {
                 document.getElementById('edit_paternity_days_total').value = balance.paternity_days_total || 0;
                 document.getElementById('edit_bereavement_days_total').value = balance.bereavement_days_total || 0;
                 document.getElementById('edit_study_days_total').value = balance.study_days_total || 0;
-                
+
                 document.getElementById('editLeaveBalanceModal').classList.remove('hidden');
             } else {
                 showNotification('Leave balance not found', 'error');
@@ -941,17 +1033,17 @@ function closeEditLeaveBalanceModal() {
 
 document.getElementById('setLeaveBalanceForm').addEventListener('submit', async function(e) {
     e.preventDefault();
-    
+
     const formData = new FormData(this);
     const data = Object.fromEntries(formData);
-    
+
     // Check if "All Employees" is selected
     if (data.employee_id === 'all') {
         if (!confirm('Are you sure you want to set leave balance for ALL employees? This will create/update leave balances for every employee.')) {
             return;
         }
     }
-    
+
     const submitData = {
         employee_id: data.employee_id === 'all' ? 'all' : data.employee_id,
         year: parseInt(data.year),
@@ -964,7 +1056,7 @@ document.getElementById('setLeaveBalanceForm').addEventListener('submit', async 
         bereavement_days_total: parseInt(data.bereavement_days_total || 0),
         study_days_total: parseInt(data.study_days_total || 0),
     };
-    
+
     try {
         const response = await fetch('{{ route("attendance.leave-management.balance.store") }}', {
             method: 'POST',
@@ -974,9 +1066,9 @@ document.getElementById('setLeaveBalanceForm').addEventListener('submit', async 
             },
             body: JSON.stringify(submitData)
         });
-        
+
         const result = await response.json();
-        
+
         if (response.ok) {
             showNotification(result.message || 'Leave balance set successfully', 'success');
             closeSetLeaveBalanceModal();
@@ -994,10 +1086,10 @@ document.getElementById('setLeaveBalanceForm').addEventListener('submit', async 
 
 document.getElementById('editLeaveBalanceForm').addEventListener('submit', async function(e) {
     e.preventDefault();
-    
+
     const formData = new FormData(this);
     const data = Object.fromEntries(formData);
-    
+
     const submitData = {
         vacation_days_total: parseInt(data.vacation_days_total || 0),
         sick_days_total: parseInt(data.sick_days_total || 0),
@@ -1008,9 +1100,9 @@ document.getElementById('editLeaveBalanceForm').addEventListener('submit', async
         bereavement_days_total: parseInt(data.bereavement_days_total || 0),
         study_days_total: parseInt(data.study_days_total || 0),
     };
-    
+
     const balanceId = document.getElementById('editBalanceId').value;
-    
+
     try {
         const response = await fetch(`{{ route("attendance.leave-management.balance.update", ":id") }}`.replace(':id', balanceId), {
             method: 'PUT',
@@ -1020,9 +1112,9 @@ document.getElementById('editLeaveBalanceForm').addEventListener('submit', async
             },
             body: JSON.stringify(submitData)
         });
-        
+
         const result = await response.json();
-        
+
         if (response.ok) {
             showNotification(result.message || 'Leave balance updated successfully', 'success');
             closeEditLeaveBalanceModal();
@@ -1048,33 +1140,33 @@ document.getElementById('editLeaveBalanceForm').addEventListener('submit', async
         color: #111827 !important; /* text-gray-900 */
         background-color: #ffffff !important; /* bg-white */
     }
-    
+
     /* Ensure select options are visible */
     select option {
         color: #111827 !important;
         background-color: #ffffff !important;
     }
-    
+
     select option:checked {
         color: #111827 !important;
         background-color: #f3f4f6 !important;
     }
-    
+
     select option:hover {
         background-color: #e5e7eb !important;
         color: #111827 !important;
     }
-    
+
     /* Date input styling */
     input[type="date"] {
         color: #111827 !important;
         background-color: #ffffff !important;
     }
-    
+
     input[type="date"]::-webkit-calendar-picker-indicator {
         filter: invert(0);
     }
-    
+
     input[type="date"]::-webkit-datetime-edit-text,
     input[type="date"]::-webkit-datetime-edit-month-field,
     input[type="date"]::-webkit-datetime-edit-day-field,

@@ -48,7 +48,7 @@
                             </div>
                             <div>
                                 <h4 class="text-lg font-semibold text-gray-900">{{ $employee->full_name }}</h4>
-                                <p class="text-sm text-gray-600">{{ $employee->position ?? 'No position' }}</p>
+                                <p class="text-sm text-gray-600">{{ $employee->position?->name ?? 'No position' }}</p>
                                 <p class="text-sm text-gray-500">{{ $employee->department->name ?? 'No Department' }}</p>
                             </div>
                         </div>

@@ -71,7 +71,7 @@
             </div>
             <div class="info-row">
                 <div class="info-label">Position:</div>
-                <div class="info-value">{{ $employee->position ?? 'N/A' }}</div>
+                <div class="info-value">{{ $employee->position?->name ?? 'N/A' }}</div>
             </div>
             <div class="info-row">
                 <div class="info-label">Department:</div>

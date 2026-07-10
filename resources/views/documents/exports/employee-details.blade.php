@@ -151,7 +151,7 @@
         </div>
         <div>
             <h2 style="margin: 0 0 5px 0;">{{ $employee->full_name }}</h2>
-            <p style="margin: 0 0 5px 0; color: #4a5568;">{{ $employee->position }}</p>
+            <p style="margin: 0 0 5px 0; color: #4a5568;">{{ $employee->position?->name ?? 'N/A' }}</p>
             <p style="margin: 0; color: #718096;">{{ $employee->department->name ?? 'No Department' }}</p>
         </div>
     </div>

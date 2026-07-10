@@ -41,6 +41,8 @@ class Payroll extends Model
         'rest_day_premium_pay',
         'allowances',
         'bonuses',
+        'sick_leave_days',
+        'sick_leave_pay',
         'deductions',
         'sss', // MISSING FROM YOUR TABLE - ADD THIS
         'phic', // MISSING FROM YOUR TABLE - ADD THIS
@@ -82,6 +84,8 @@ class Payroll extends Model
         'rest_day_premium_pay' => 'decimal:2',
         'allowances' => 'decimal:2',
         'bonuses' => 'decimal:2',
+        'sick_leave_days' => 'integer',
+        'sick_leave_pay' => 'decimal:2',
         'deductions' => 'decimal:2',
         'sss' => 'decimal:2', // ADD THIS
         'phic' => 'decimal:2', // ADD THIS

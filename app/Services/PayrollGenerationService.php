@@ -6,6 +6,7 @@ use App\Models\Payroll;
 use App\Models\Employee;
 use App\Models\AttendanceRecord;
 use App\Models\EmployeeSchedule;
+use App\Models\LeaveRequest;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -1172,8 +1173,11 @@ private function calculateAllPayrollComponents(Employee $employee, $employeeReco
     // Calculate rest day premiums
     $restDayData = $this->calculateRestDayPremiumWithExcelRates($employee, $employeeRecords, $dailyRate);
     
+    // Calculate approved leave compensation for the payroll period
+    $leaveData = $this->calculateApprovedLeaveData($employee, $periodData);
+
     // Calculate allowances (incentive leave from Excel - 5 days)
-    $allowances = $this->calculateAllowances($employee, $dailyRate);
+    $allowances = $this->calculateAllowances($employee, $dailyRate, $leaveData);
     
     // Calculate statutory deductions (SSS, PHIC, HDMF)
     $statutoryDeductions = $this->calculateStatutoryDeductions($employee, $monthlyRate);
@@ -1223,8 +1227,10 @@ private function calculateAllPayrollComponents(Employee $employee, $employeeReco
         'night_differential_rate' => $hourlyRate * 0.10, // Excel: 10% of hourly rate
         'night_differential_pay' => $nightDiffData['total_pay'],
         'rest_day_premium_pay' => $restDayData['total_pay'],
-        'allowances' => $allowances,
+        'allowances' => $allowances['total'],
         'bonuses' => 0,
+        'sick_leave_days' => $leaveData['sick_leave_days'] ?? 0,
+        'sick_leave_pay' => $leaveData['sick_leave_pay'] ?? 0,
         'total_deductions' => $totalDeductions,
         'late_deductions' => $lateDeductions,
         'absent_deductions' => $absentDeductions,
@@ -1251,14 +1257,31 @@ private function calculateDaysWorkedFromRecords($employeeRecords): float
 {
     $totalHours = 0;
     
+    // Check if employee has ANY attendance records indicating presence
+    $hasAnyAttendance = collect($employeeRecords)->contains(function($record) {
+        return isset($record['attendance_status']) && in_array($record['attendance_status'], ['Present', 'Late', 'Half Day']);
+    });
+    
     foreach ($employeeRecords as $record) {
-        // Only count actual hours worked on working days
-        if ($record['schedule_status'] === 'Working' && 
-            $record['attendance_status'] === 'Present') {
-            
-            // Parse scheduled hours from the record
-            $hours = $this->parseFormattedHours($record['scheduled_hours'] ?? '0 hrs 0 mins');
-            $totalHours += $hours;
+        if (!$hasAnyAttendance) {
+            // If no attendance records at all, assume perfect attendance for working days
+            // Default to Mon-Sat as working days if schedule is 'Day Off' (assuming 6-day workweek)
+            $date = \Carbon\Carbon::parse($record['date']);
+            $isWorkingDay = $record['schedule_status'] === 'Working' || 
+                            ($record['schedule_status'] === 'Day Off' && $date->dayOfWeek !== \Carbon\Carbon::SUNDAY);
+                            
+            if ($isWorkingDay) {
+                $totalHours += 8;
+            }
+        } else {
+            // Only count actual hours worked on working days if they have attendance
+            if ($record['schedule_status'] === 'Working' && 
+                $record['attendance_status'] === 'Present') {
+                
+                // Parse scheduled hours from the record
+                $hours = $this->parseFormattedHours($record['scheduled_hours'] ?? '0 hrs 0 mins');
+                $totalHours += $hours;
+            }
         }
     }
     
@@ -1410,14 +1433,62 @@ private function calculateAbsenceDeductions($employeeRecords, $dailyRate): float
 /**
  * Calculate allowances (incentive leave)
  */
-private function calculateAllowances(Employee $employee, $employeeRecords): array
+private function calculateAllowances(Employee $employee, $dailyRate, array $leaveData = []): array
 {
     $incentiveLeaveDays = 5; // Default from Excel
-    $totalAllowance = $employee->daily_rate * $incentiveLeaveDays;
+    $incentiveLeavePay = $dailyRate * $incentiveLeaveDays;
+    $sickLeavePay = $leaveData['sick_leave_pay'] ?? 0;
+    $totalAllowance = $incentiveLeavePay + $sickLeavePay;
     
     return [
         'incentive_leave_days' => $incentiveLeaveDays,
+        'sick_leave_days' => $leaveData['sick_leave_days'] ?? 0,
+        'sick_leave_pay' => $sickLeavePay,
+        'incentive_leave_pay' => round($incentiveLeavePay, 2),
         'total' => round($totalAllowance, 2)
+    ];
+}
+
+/**
+ * Calculate approved sick leave pay for the payroll period.
+ */
+private function calculateApprovedLeaveData(Employee $employee, array $periodData): array
+{
+    $startDate = Carbon::parse($periodData['start_date'])->startOfDay();
+    $endDate = Carbon::parse($periodData['end_date'])->endOfDay();
+
+    $leaveRequests = LeaveRequest::where('employee_id', $employee->id)
+        ->where('status', 'approved')
+        ->where(function ($query) use ($startDate, $endDate) {
+            $query->whereBetween('start_date', [$startDate->toDateString(), $endDate->toDateString()])
+                ->orWhereBetween('end_date', [$startDate->toDateString(), $endDate->toDateString()])
+                ->orWhere(function ($subQuery) use ($startDate, $endDate) {
+                    $subQuery->where('start_date', '<=', $startDate->toDateString())
+                        ->where('end_date', '>=', $endDate->toDateString());
+                });
+        })
+        ->get();
+
+    $sickLeaveDays = 0;
+
+    foreach ($leaveRequests as $leaveRequest) {
+        if ($leaveRequest->leave_type !== 'sick') {
+            continue;
+        }
+
+        $overlapStart = max(Carbon::parse($leaveRequest->start_date), $startDate);
+        $overlapEnd = min(Carbon::parse($leaveRequest->end_date), $endDate);
+
+        if ($overlapStart->gt($overlapEnd)) {
+            continue;
+        }
+
+        $sickLeaveDays += $overlapStart->diffInDays($overlapEnd) + 1;
+    }
+
+    return [
+        'sick_leave_days' => $sickLeaveDays,
+        'sick_leave_pay' => round($sickLeaveDays * $employee->daily_rate, 2),
     ];
 }
 
@@ -1443,11 +1514,12 @@ private function calculateStatutoryDeductions(Employee $employee, $monthlyRate):
  */
 private function calculateGrossPayWithExcelFormula(
     $basicSalary,
-    $overtimeData,
-    $nightDiffData,
-    $holidayData,
-    $restDayData,
+    $overtimePay,
+    $nightDiffPay,
+    $holidayPay,
+    $restDayPay,
     $allowances,
+    $bonuses,
     $lateDeductions,
     $absentDeductions
 ): float {
@@ -1460,12 +1532,15 @@ private function calculateGrossPayWithExcelFormula(
     // J14, M14, O14, Q14, S14, U14, W14, Y14 = Various premiums and allowances
     // AC14 = Late deductions
     
+    $allowancesTotal = is_array($allowances) ? ($allowances['total'] ?? 0) : $allowances;
+    
     $grossPay = $basicSalary
-        + $allowances['total']  // Incentive leave
-        + $overtimeData['total_pay']
-        + $nightDiffData['total_pay']
-        + $holidayData['total_pay']
-        + $restDayData['total_pay']
+        + $allowancesTotal  // Incentive leave
+        + $overtimePay
+        + $nightDiffPay
+        + $holidayPay
+        + $restDayPay
+        + $bonuses
         - $lateDeductions
         - $absentDeductions;
     
@@ -1966,6 +2041,8 @@ private function generateFallbackPayslipHTML(Payroll $payroll, Employee $employe
         'rest_day_premium_pay' => $components['rest_day_premium_pay'],
         'allowances' => $components['allowances'],
         'bonuses' => $components['bonuses'],
+        'sick_leave_days' => $components['sick_leave_days'],
+        'sick_leave_pay' => $components['sick_leave_pay'],
         'deductions' => $components['late_deductions'] + $components['absent_deductions'],
         'tax_amount' => $components['tax_amount'],
         'gross_pay' => $components['gross_pay'],
@@ -2027,10 +2104,6 @@ private function calculatePayrollFromRecords(Employee $employee, $employeeRecord
             'pay_period_start' => $startDate->format('Y-m-d'),
             'pay_period_end' => $endDate->format('Y-m-d'),
             'basic_salary' => $components['basic_salary'],
-            'monthly_rate' => $components['monthly_rate'],
-            'semi_monthly_rate' => $components['semi_monthly_rate'],
-            'daily_rate' => $components['daily_rate'],
-            'hourly_rate' => $components['hourly_rate'],
             'holiday_basic_pay' => $components['holiday_basic_pay'] ?? 0,
             'holiday_premium' => $components['holiday_premium'] ?? 0,
             'special_holiday_premium' => $components['special_holiday_premium'] ?? 0,
@@ -2046,6 +2119,8 @@ private function calculatePayrollFromRecords(Employee $employee, $employeeRecord
             'rest_day_premium_pay' => $components['rest_day_premium_pay'],
             'allowances' => $components['allowances'],
             'bonuses' => $components['bonuses'],
+            'sick_leave_days' => $components['sick_leave_days'] ?? 0,
+            'sick_leave_pay' => $components['sick_leave_pay'] ?? 0,
             'deductions' => $components['total_deductions'],
             'sss' => $components['sss'],
             'phic' => $components['phic'],
