@@ -31,7 +31,7 @@
                 </div>
                 <div class="min-w-0 flex-1 space-y-2">
                     <h2 class="text-xl sm:text-2xl font-bold text-gray-900">{{ $employee->full_name }}</h2>
-                    <p class="text-base text-gray-600 font-medium">{{ $employee->position }}</p>
+                    <p class="text-base text-gray-600 font-medium">{{ $employee->position?->name }}</p>
                     <p class="text-sm text-gray-500">{{ $employee->department->name }}</p>
                 </div>
             </div>

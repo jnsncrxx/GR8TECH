@@ -194,7 +194,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label class="block text-sm font-medium text-gray-500">Position</label>
-                            <p class="mt-1 text-sm text-gray-900">{{ $employee->position }}</p>
+                            <p class="mt-1 text-sm text-gray-900">{{ $employee->position?->name }}</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-500">Department</label>
@@ -351,7 +351,7 @@
                         </span>
                     </div>
                     <h3 class="text-lg font-medium text-gray-900">{{ $employee->full_name }}</h3>
-                    <p class="text-sm text-gray-500">{{ $employee->position }}</p>
+                    <p class="text-sm text-gray-500">{{ $employee->position?->name }}</p>
                     <p class="text-sm text-gray-500">{{ $employee->department->name }}</p>
                 </div>
 

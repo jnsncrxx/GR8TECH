@@ -1257,14 +1257,31 @@ private function calculateDaysWorkedFromRecords($employeeRecords): float
 {
     $totalHours = 0;
     
+    // Check if employee has ANY attendance records indicating presence
+    $hasAnyAttendance = collect($employeeRecords)->contains(function($record) {
+        return isset($record['attendance_status']) && in_array($record['attendance_status'], ['Present', 'Late', 'Half Day']);
+    });
+    
     foreach ($employeeRecords as $record) {
-        // Only count actual hours worked on working days
-        if ($record['schedule_status'] === 'Working' && 
-            $record['attendance_status'] === 'Present') {
-            
-            // Parse scheduled hours from the record
-            $hours = $this->parseFormattedHours($record['scheduled_hours'] ?? '0 hrs 0 mins');
-            $totalHours += $hours;
+        if (!$hasAnyAttendance) {
+            // If no attendance records at all, assume perfect attendance for working days
+            // Default to Mon-Sat as working days if schedule is 'Day Off' (assuming 6-day workweek)
+            $date = \Carbon\Carbon::parse($record['date']);
+            $isWorkingDay = $record['schedule_status'] === 'Working' || 
+                            ($record['schedule_status'] === 'Day Off' && $date->dayOfWeek !== \Carbon\Carbon::SUNDAY);
+                            
+            if ($isWorkingDay) {
+                $totalHours += 8;
+            }
+        } else {
+            // Only count actual hours worked on working days if they have attendance
+            if ($record['schedule_status'] === 'Working' && 
+                $record['attendance_status'] === 'Present') {
+                
+                // Parse scheduled hours from the record
+                $hours = $this->parseFormattedHours($record['scheduled_hours'] ?? '0 hrs 0 mins');
+                $totalHours += $hours;
+            }
         }
     }
     

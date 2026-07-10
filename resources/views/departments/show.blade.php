@@ -118,7 +118,7 @@
                             </div>
                             <div class="min-w-0 flex-1">
                                 <p class="text-sm font-medium text-gray-900 truncate">{{ $employee->full_name }}</p>
-                                <p class="text-xs text-gray-500">{{ $employee->position }}</p>
+                                <p class="text-xs text-gray-500">{{ $employee->position?->name ?? 'N/A' }}</p>
                             </div>
                             <div class="flex-shrink-0">
                                 <a href="{{ route('employees.show', $employee) }}" class="text-blue-600 hover:text-blue-900">

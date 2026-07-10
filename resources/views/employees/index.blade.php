@@ -118,7 +118,7 @@
                         data-email="{{ strtolower($employee->account?->email ?? '') }}"
                         data-department="{{ $employee->department?->id ?? '' }}"
                         data-role="{{ $employee->account?->role ?? '' }}"
-                        data-position="{{ strtolower($employee->position) }}">
+                        data-position="{{ strtolower($employee->position?->name ?? '') }}">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
                                 <div class="flex-shrink-0 h-10 w-10">
@@ -146,7 +146,7 @@
                             <div class="text-sm text-gray-500">{{ $employee->department?->location ?? '' }}</div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">{{ $employee->position }}</div>
+                            <div class="text-sm text-gray-900">{{ $employee->position?->name }}</div>
                             <div class="text-sm text-gray-500">
                                 {{ $employee->hire_date->format('M d, Y') }}
                             </div>
@@ -204,7 +204,7 @@
                  data-email="{{ strtolower($employee->account?->email ?? '') }}"
                  data-department="{{ $employee->department?->id ?? '' }}"
                  data-role="{{ $employee->account?->role ?? '' }}"
-                 data-position="{{ strtolower($employee->position) }}">
+                 data-position="{{ strtolower($employee->position?->name ?? '') }}">
                 <div class="flex items-start justify-between">
                     <div class="flex items-center space-x-3">
                         <div class="flex-shrink-0 h-12 w-12">
@@ -241,7 +241,7 @@
                 <div class="mt-3 grid grid-cols-2 gap-4 text-sm">
                     <div>
                         <div class="text-gray-500">Position</div>
-                        <div class="font-medium text-gray-900">{{ $employee->position }}</div>
+                        <div class="font-medium text-gray-900">{{ $employee->position?->name }}</div>
                     </div>
                     <div>
                         <div class="text-gray-500">Salary</div>

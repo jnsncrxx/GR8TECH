@@ -224,7 +224,7 @@
                                         </div>
                                         <div class="ml-4">
                                             <div class="text-sm font-semibold text-gray-900">{{ $employee->full_name }}</div>
-                                            <div class="text-sm text-gray-600">{{ $employee->position }}</div>
+                                            <div class="text-sm text-gray-600">{{ $employee->position?->name ?? 'N/A' }}</div>
                                             <div class="text-xs text-gray-500">{{ $employee->department->name }}</div>
                                         </div>
                                     </div>

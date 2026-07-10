@@ -110,7 +110,7 @@
                         data-name="{{ strtolower($employee->full_name) }}"
                         data-email="{{ strtolower($employee->account?->email ?? '') }}"
                         data-role="{{ $employee->account?->role ?? '' }}"
-                        data-position="{{ strtolower($employee->position) }}"
+                        data-position="{{ strtolower($employee->position?->name ?? '') }}"
                         data-status="{{ $employee->account?->is_active ? 'active' : 'inactive' }}">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
@@ -132,7 +132,7 @@
                             </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">{{ $employee->position }}</div>
+                            <div class="text-sm text-gray-900">{{ $employee->position?->name ?? 'N/A' }}</div>
                             <div class="text-sm text-gray-500">{{ ucfirst($employee->account?->role ?? 'No role') }}</div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
@@ -189,7 +189,7 @@
                  data-name="{{ strtolower($employee->full_name) }}"
                  data-email="{{ strtolower($employee->account?->email ?? '') }}"
                  data-role="{{ $employee->account?->role ?? '' }}"
-                 data-position="{{ strtolower($employee->position) }}"
+                 data-position="{{ strtolower($employee->position?->name ?? '') }}"
                  data-status="{{ $employee->account?->is_active ? 'active' : 'inactive' }}">
                 <div class="flex items-start justify-between">
                     <div class="flex items-center space-x-3">
@@ -208,7 +208,7 @@
                                 {{ $employee->account?->email ?? 'No email' }}
                             </div>
                             <div class="text-sm text-gray-500">
-                                {{ $employee->position }}
+                                {{ $employee->position?->name ?? 'N/A' }}
                             </div>
                         </div>
                     </div>
