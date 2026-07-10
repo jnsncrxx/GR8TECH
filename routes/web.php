@@ -277,6 +277,18 @@ Route::get('/debug-current-payrolls', function() {
                 'timestamp' => $currentTime->timestamp
             ]);
         })->name('current-time');
+
+        // Add this inside the attendance route group or as a separate route
+        Route::get('/api/employee/{employeeId}/approved-leave-dates', [App\Http\Controllers\Web\LeaveController::class, 'getApprovedLeaveDates'])
+            ->name('api.employee.approved-leave-dates')
+            ->middleware('auth');
+                
+            // Add these routes inside the attendance group
+        Route::post('/leave-management/check-overlap', [App\Http\Controllers\Web\LeaveController::class, 'checkOverlap'])
+            ->name('leave-management.check-overlap');
+
+        Route::get('/api/employee/{employeeId}/approved-leave-dates', [App\Http\Controllers\Web\LeaveController::class, 'getApprovedLeaveDates'])
+            ->name('api.employee.approved-leave-dates');
         
         // General attendance routes
         Route::get('/daily', [App\Http\Controllers\Web\AttendanceController::class, 'daily'])->name('daily');
@@ -342,6 +354,7 @@ Route::get('/debug-current-payrolls', function() {
         Route::post('/leave-management/balance', [App\Http\Controllers\Web\LeaveController::class, 'storeBalance'])->name('leave-management.balance.store');
         Route::put('/leave-management/balance/{id}', [App\Http\Controllers\Web\LeaveController::class, 'updateBalance'])->name('leave-management.balance.update');
         Route::get('/leave-management/statistics', [App\Http\Controllers\Web\LeaveController::class, 'getStatistics'])->name('leave-management.statistics');
+        
         
         // Official Business routes
         Route::get('/official-business', [App\Http\Controllers\Web\OfficialBusinessController::class, 'index'])->name('official-business');

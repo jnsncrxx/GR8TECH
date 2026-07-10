@@ -127,6 +127,73 @@ class LeaveController extends Controller
         ]);
     }
 
+    /**
+     * Check for overlapping leave requests
+     */
+    private function getOverlappingLeaves($employeeId, $startDate, $endDate, $excludeLeaveId = null)
+    {
+        $query = LeaveRequest::where('employee_id', $employeeId)
+            ->whereIn('status', ['pending', 'approved'])
+            ->where(function ($query) use ($startDate, $endDate) {
+                $query->where(function ($q) use ($startDate, $endDate) {
+                    // New request starts within existing leave
+                    $q->where('start_date', '<=', $endDate)
+                      ->where('end_date', '>=', $startDate);
+                });
+            });
+
+        if ($excludeLeaveId) {
+            $query->where('id', '!=', $excludeLeaveId);
+        }
+
+        return $query->get();
+    }
+
+    /**
+     * Check if dates overlap with existing leaves
+     */
+    public function checkOverlap(Request $request)
+    {
+        $user = Auth::user();
+        $employeeId = $request->input('employee_id');
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $excludeId = $request->input('exclude_id');
+
+        // For employees, use their own ID
+        if ($user->role === 'employee' && !$employeeId) {
+            $employeeId = $user->employee?->id;
+        }
+
+        if (!$employeeId || !$startDate || !$endDate) {
+            return response()->json(['error' => 'Missing required parameters'], 400);
+        }
+
+        $overlappingLeaves = $this->getOverlappingLeaves($employeeId, $startDate, $endDate, $excludeId);
+
+        $overlaps = [];
+        foreach ($overlappingLeaves as $leave) {
+            $overlaps[] = [
+                'id' => $leave->id,
+                'leave_type' => $leave->leave_type,
+                'start_date' => $leave->start_date,
+                'end_date' => $leave->end_date,
+                'days_requested' => $leave->days_requested,
+                'status' => $leave->status,
+                'reason' => $leave->reason,
+            ];
+        }
+
+        return response()->json([
+            'has_overlap' => $overlaps->count() > 0,
+            'overlaps' => $overlaps,
+            'count' => $overlaps->count()
+        ]);
+    }
+
+    /**
+     * Store a new leave request with overlap validation
+     */
     public function store(Request $request)
     {
         $user = Auth::user();
@@ -138,6 +205,7 @@ class LeaveController extends Controller
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'reason' => ['required', 'string', 'max:500'],
             'employee_id' => ['required', 'exists:employees,id'],
+            'replace_leave_id' => ['nullable', 'exists:leave_requests,id'],
         ];
 
         if (!in_array($role, ['admin', 'hr'], true)) {
@@ -152,13 +220,66 @@ class LeaveController extends Controller
 
         $startDate = Carbon::parse($data['start_date']);
         $endDate = Carbon::parse($data['end_date']);
-        $daysRequested = $startDate->diffInDays($endDate) + 1;
+        
+        // Count working days (excluding Sundays)
+        $daysRequested = 0;
+        $current = clone $startDate;
+        while ($current <= $endDate) {
+            if ($current->dayOfWeek !== Carbon::SUNDAY) {
+                $daysRequested++;
+            }
+            $current->addDay();
+        }
+
+        // If no working days selected (only Sundays), return error
+        if ($daysRequested <= 0) {
+            return back()->with('error', 'Selected date range contains only Sundays. Please select valid working days.')
+                ->withInput();
+        }
 
         $employee = Employee::find($data['employee_id']);
         if (!$employee) {
             return back()->with('error', 'Employee not found.');
         }
 
+        // Check for overlapping leaves (pending or approved)
+        $overlappingLeaves = $this->getOverlappingLeaves(
+            $employee->id, 
+            $data['start_date'], 
+            $data['end_date'],
+            $data['replace_leave_id'] ?? null
+        );
+
+        // If there are overlapping leaves and no replacement specified
+        if ($overlappingLeaves->count() > 0 && empty($data['replace_leave_id'])) {
+            $overlapDetails = [];
+            foreach ($overlappingLeaves as $leave) {
+                $overlapDetails[] = [
+                    'type' => $leave->leave_type,
+                    'start' => $leave->start_date,
+                    'end' => $leave->end_date,
+                    'status' => $leave->status,
+                    'id' => $leave->id,
+                ];
+            }
+            
+            return back()
+                ->with('overlap_error', 'You have existing leave requests that overlap with these dates.')
+                ->with('overlap_details', json_encode($overlapDetails))
+                ->withInput();
+        }
+
+        // If replacement is specified, delete the old leave request
+        if (!empty($data['replace_leave_id'])) {
+            $oldLeave = LeaveRequest::find($data['replace_leave_id']);
+            if ($oldLeave && $oldLeave->employee_id == $employee->id && $oldLeave->status === 'pending') {
+                $oldLeave->delete();
+            } else {
+                return back()->with('error', 'Cannot replace this leave request. It may not exist or is not pending.');
+            }
+        }
+
+        // Check leave balance
         $leaveBalance = LeaveBalance::where('employee_id', $employee->id)
             ->where('year', Carbon::now()->year)
             ->first();
@@ -168,9 +289,11 @@ class LeaveController extends Controller
         }
 
         if ($leaveBalance && !$leaveBalance->hasEnoughBalance($data['leave_type'], $daysRequested)) {
-            return back()->with('error', 'Insufficient leave balance for the selected leave type and duration.');
+            return back()->with('error', 'Insufficient leave balance for the selected leave type and duration.')
+                ->withInput();
         }
 
+        // Create the leave request
         LeaveRequest::create([
             'employee_id' => $employee->id,
             'leave_type' => $data['leave_type'],
@@ -195,6 +318,33 @@ class LeaveController extends Controller
         $leaveRequest = LeaveRequest::find($id);
         if (!$leaveRequest) {
             return response()->json(['error' => 'Leave request not found'], 404);
+        }
+
+        // Check if there are overlapping approved leaves before approving
+        if ($request->status === 'approved') {
+            $overlappingLeaves = $this->getOverlappingLeaves(
+                $leaveRequest->employee_id,
+                $leaveRequest->start_date,
+                $leaveRequest->end_date,
+                $leaveRequest->id
+            );
+
+            // Filter out pending leaves (they can be replaced)
+            $approvedOverlaps = $overlappingLeaves->filter(function($leave) {
+                return $leave->status === 'approved';
+            });
+
+            if ($approvedOverlaps->count() > 0) {
+                $conflictDetails = [];
+                foreach ($approvedOverlaps as $leave) {
+                    $conflictDetails[] = "{$leave->leave_type} ({$leave->start_date} to {$leave->end_date})";
+                }
+                
+                return response()->json([
+                    'error' => 'Cannot approve. This leave overlaps with existing approved leaves: ' . implode(', ', $conflictDetails),
+                    'overlaps' => $approvedOverlaps->toArray()
+                ], 422);
+            }
         }
 
         $data = $request->validate([
@@ -292,7 +442,69 @@ class LeaveController extends Controller
             }
         }
 
-        return response()->json(['leave_balance' => $leaveBalance, 'available_days' => $availableDays]);
+        // Get pending and approved leave dates for the employee
+        $occupiedDates = [];
+        $pendingLeaves = LeaveRequest::where('employee_id', $employeeId)
+            ->whereIn('status', ['pending', 'approved'])
+            ->get();
+        
+        foreach ($pendingLeaves as $leave) {
+            $start = Carbon::parse($leave->start_date);
+            $end = Carbon::parse($leave->end_date);
+            while ($start <= $end) {
+                $occupiedDates[] = [
+                    'date' => $start->format('Y-m-d'),
+                    'leave_id' => $leave->id,
+                    'status' => $leave->status,
+                    'type' => $leave->leave_type,
+                ];
+                $start->addDay();
+            }
+        }
+
+        return response()->json([
+            'leave_balance' => $leaveBalance, 
+            'available_days' => $availableDays,
+            'occupied_dates' => $occupiedDates,
+        ]);
+    }
+
+    /**
+     * Get approved leave dates for an employee (API endpoint for calendar)
+     */
+    public function getApprovedLeaveDates(Request $request)
+    {
+        $employeeId = $request->query('employee_id');
+        $year = $request->query('year', Carbon::now()->year);
+
+        if (!$employeeId) {
+            return response()->json(['error' => 'Employee ID is required'], 400);
+        }
+
+        $approvedLeaves = LeaveRequest::where('employee_id', $employeeId)
+            ->whereIn('status', ['pending', 'approved'])
+            ->where(function($query) use ($year) {
+                $query->whereYear('start_date', $year)
+                      ->orWhereYear('end_date', $year);
+            })
+            ->get();
+
+        $dates = [];
+        foreach ($approvedLeaves as $leave) {
+            $start = Carbon::parse($leave->start_date);
+            $end = Carbon::parse($leave->end_date);
+            while ($start <= $end) {
+                $dates[] = [
+                    'date' => $start->format('Y-m-d'),
+                    'leave_id' => $leave->id,
+                    'status' => $leave->status,
+                    'type' => $leave->leave_type,
+                ];
+                $start->addDay();
+            }
+        }
+
+        return response()->json(['dates' => $dates]);
     }
 
     public function storeBalance(Request $request)
