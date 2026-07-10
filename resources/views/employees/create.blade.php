@@ -98,9 +98,14 @@
                         
                         <div>
                             <label for="position" class="block text-sm font-medium text-gray-700 mb-2">Position</label>
-                            <input type="text" name="position" id="position" value="{{ old('position') }}" required
+                            <input type="text" name="position" id="position" value="{{ old('position') }}" required list="positions-list"
                                 placeholder="Enter position name (e.g., Software Engineer)"
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('position') border-red-500 @enderror">
+                            <datalist id="positions-list">
+                                @foreach($positions as $position)
+                                    <option value="{{ $position->name }}">
+                                @endforeach
+                            </datalist>
                             @error('position')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
@@ -328,13 +333,13 @@
                         <div>
                             <label for="password" class="block text-sm font-medium text-gray-700 mb-2">Password</label>
                             <div class="relative">
-                                <input type="text" name="password" id="password" required readonly
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed @error('password') border-red-500 @enderror">
-                                <div class="absolute right-2 top-1/2 transform -translate-y-1/2">
-                                    <i class="fas fa-lock text-gray-400"></i>
-                                </div>
+                                <input type="password" name="password" id="password" required
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('password') border-red-500 @enderror">
+                                <button type="button" id="togglePassword" class="absolute right-3 top-1/2 transform -translate-y-1/2 focus:outline-none text-gray-400 hover:text-gray-600">
+                                    <i class="fas fa-eye" id="toggleIcon"></i>
+                                </button>
                             </div>
-                            <p class="mt-1 text-xs text-gray-500">Auto-generated: FirstName + LastName + HireDate (e.g., JohnSmith20230115)</p>
+                            <p class="mt-1 text-xs text-gray-500">Must be at least 8 characters</p>
                             @error('password')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
@@ -359,40 +364,24 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const firstNameInput = document.getElementById('first_name');
-    const lastNameInput = document.getElementById('last_name');
-    const hireDateInput = document.getElementById('hire_date');
+    const togglePassword = document.getElementById('togglePassword');
     const passwordInput = document.getElementById('password');
+    const toggleIcon = document.getElementById('toggleIcon');
 
-    function generatePassword() {
-        const firstName = firstNameInput.value.trim().replace(/\s+/g, '');
-        const lastName = lastNameInput.value.trim().replace(/\s+/g, '');
-        const hireDate = hireDateInput.value;
-
-        if (firstName && lastName && hireDate) {
-            // Format: FirstName + LastName + HireDate (YYYYMMDD) - no dashes, no spaces
-            const dateWithoutDashes = hireDate.replace(/-/g, '');
-            const generatedPassword = firstName + lastName + dateWithoutDashes;
-            passwordInput.value = generatedPassword;
-        } else {
-            // Clear password if not all fields are filled
-            passwordInput.value = '';
-        }
+    if (togglePassword && passwordInput) {
+        togglePassword.addEventListener('click', function() {
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+            
+            if (type === 'password') {
+                toggleIcon.classList.remove('fa-eye-slash');
+                toggleIcon.classList.add('fa-eye');
+            } else {
+                toggleIcon.classList.remove('fa-eye');
+                toggleIcon.classList.add('fa-eye-slash');
+            }
+        });
     }
-
-    // Auto-generate password whenever any field changes
-    function autoGeneratePassword() {
-        generatePassword();
-    }
-
-    // Auto-generate when fields change (real-time)
-    firstNameInput.addEventListener('input', autoGeneratePassword);
-    lastNameInput.addEventListener('input', autoGeneratePassword);
-    hireDateInput.addEventListener('change', autoGeneratePassword);
-
-    // Also generate on blur events for better UX
-    firstNameInput.addEventListener('blur', autoGeneratePassword);
-    lastNameInput.addEventListener('blur', autoGeneratePassword);
 });
 </script>
 @endsection

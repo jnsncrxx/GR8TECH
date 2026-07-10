@@ -57,8 +57,13 @@
                         
                         <div>
                             <label for="position" class="block text-sm font-medium text-gray-700 mb-2">Position</label>
-                            <input type="text" name="position" id="position" value="{{ old('position', $employee->position) }}" required
+                            <input type="text" name="position" id="position" value="{{ old('position', optional($employee->position)->name) }}" required list="positions-list"
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('position') border-red-500 @enderror">
+                            <datalist id="positions-list">
+                                @foreach($positions as $position)
+                                    <option value="{{ $position->name }}">
+                                @endforeach
+                            </datalist>
                             @error('position')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror

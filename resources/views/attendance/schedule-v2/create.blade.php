@@ -63,7 +63,7 @@
                                         </div>
                                         <div>
                                             <h3 class="text-lg font-medium text-gray-900">{{ $employee->full_name }}</h3>
-                                            <p class="text-sm text-gray-600">{{ $employee->position }} - {{ $employee->department->name }}</p>
+                                            <p class="text-sm text-gray-600">{{ $employee->position?->name ?? 'N/A' }} - {{ $employee->department->name }}</p>
                                             <p class="text-sm text-blue-600 font-medium">
                                                 <i class="fas fa-check-circle mr-1"></i>Creating schedule for this employee
                                             </p>

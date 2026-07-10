@@ -144,7 +144,7 @@
                                 <div class="text-sm text-gray-900">{{ $employee->department->name ?? 'N/A' }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ $employee->position }}</div>
+                                <div class="text-sm text-gray-900">{{ $employee->position?->name ?? 'N/A' }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 

@@ -107,6 +107,16 @@ class EmployeeController extends Controller
 
         $currentCompany = CompanyHelper::getCurrentCompany();
 
+        // Resolve position from string
+        $position = Position::firstOrCreate([
+            'name' => $request->position,
+            'company_id' => $currentCompany ? $currentCompany->id : null,
+        ], [
+            'code' => Str::upper(substr(Str::slug($request->position, ''), 0, 10)),
+            'department_id' => $request->department_id,
+            'is_active' => true,
+        ]);
+
         // Create employee
         $employeeData = [
             'employee_id' => $request->employee_id, // Will be auto-generated if null
@@ -114,7 +124,7 @@ class EmployeeController extends Controller
             'last_name' => $request->last_name,
             'phone' => $request->phone,
             'mobile_number' => $request->mobile_number,
-            'position' => $request->position,
+            'position_id' => $position->id,
             'department_id' => $request->department_id,
             'salary' => $request->salary,
             'hire_date' => $request->hire_date,
@@ -226,9 +236,15 @@ class EmployeeController extends Controller
         }
         $departments = $departments->get();
         
+        $positions = Position::query();
+        if ($currentCompany) {
+            $positions->forCompany($currentCompany->id);
+        }
+        $positions = $positions->active()->with('department')->orderBy('name')->get();
+        
         $employee->load('account');
         $user = Auth::user();
-        return view('employees.edit', compact('employee', 'departments', 'user'));
+        return view('employees.edit', compact('employee', 'departments', 'positions', 'user'));
     }
 
     /**
@@ -268,13 +284,25 @@ class EmployeeController extends Controller
             'role' => 'required|in:admin,hr,manager,employee',
         ]);
 
+        $currentCompany = CompanyHelper::getCurrentCompany();
+
+        // Resolve position from string
+        $position = Position::firstOrCreate([
+            'name' => $request->position,
+            'company_id' => $currentCompany ? $currentCompany->id : null,
+        ], [
+            'code' => Str::upper(substr(Str::slug($request->position, ''), 0, 10)),
+            'department_id' => $request->department_id,
+            'is_active' => true,
+        ]);
+
         // Update employee
         $employee->update([
             'first_name' => $request->first_name,
             'last_name' => $request->last_name,
             'phone' => $request->phone,
             'mobile_number' => $request->mobile_number,
-            'position' => $request->position,
+            'position_id' => $position->id,
             'department_id' => $request->department_id,
             'salary' => $request->salary,
             'hire_date' => $request->hire_date,

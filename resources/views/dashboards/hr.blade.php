@@ -384,7 +384,7 @@
                                         {{ $employee->department->name }}
                                     </span>
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $employee->position }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $employee->position?->name ?? 'N/A' }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ number_format($employee->salary, 2) }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $employee->hire_date->format('M d, Y') }}</td>
                             </tr>
@@ -404,7 +404,7 @@
                             <div class="min-w-0 flex-1">
                                 <div class="text-sm font-medium text-gray-900">{{ $employee->full_name }}</div>
                                 <div class="text-sm text-gray-500">{{ $employee->employee_id }}</div>
-                                <div class="text-sm text-gray-500">{{ $employee->position }}</div>
+                                <div class="text-sm text-gray-500">{{ $employee->position?->name ?? 'N/A' }}</div>
                             </div>
                             <div class="text-right">
                                 <div class="text-sm font-medium text-gray-900">₱{{ number_format($employee->salary, 2) }}</div>

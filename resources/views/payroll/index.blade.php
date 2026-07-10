@@ -573,7 +573,25 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                             <div class="flex items-center justify-center space-x-2">
                                 <!-- Eye icon: View Details -->
-                                <button onclick="openPayrollModal('{{ $payroll->id }}')" 
+                                @php
+                                    $modalData = [
+                                        'employee_name' => $payroll->employee->full_name ?? 'N/A',
+                                        'employee_code' => $payroll->employee->employee_id ?? 'N/A',
+                                        'department' => $payroll->employee->department->name ?? 'N/A',
+                                        'position' => $payroll->employee->position?->name ?? 'N/A',
+                                        'basic_salary' => $payroll->basic_salary,
+                                        'overtime_pay' => $payroll->overtime_pay,
+                                        'allowances' => $payroll->allowances,
+                                        'total_earnings' => $payroll->gross_pay ?? ($payroll->basic_salary + $payroll->overtime_pay + $payroll->allowances),
+                                        'sss' => $payroll->sss,
+                                        'phic' => $payroll->phic,
+                                        'pagibig' => $payroll->hdmf,
+                                        'tax' => $payroll->tax_amount,
+                                        'total_deductions' => $payroll->deductions,
+                                        'net_pay' => $payroll->net_pay
+                                    ];
+                                @endphp
+                                <button onclick="openPayrollModal('{{ $payroll->id }}', '{{ base64_encode(json_encode($modalData)) }}')" 
                                         class="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50" 
                                         title="View Details">
                                     <i class="fas fa-eye"></i>
@@ -701,7 +719,25 @@
                     </div>
                 </div>
                 <div class="flex justify-end space-x-2">
-                    <button onclick="openPayrollModal('{{ $payroll->id }}')" class="text-blue-600 hover:text-blue-900 transition-colors">
+                    @php
+                        $modalData = [
+                            'employee_name' => $payroll->employee->full_name ?? 'N/A',
+                            'employee_code' => $payroll->employee->employee_id ?? 'N/A',
+                            'department' => $payroll->employee->department->name ?? 'N/A',
+                            'position' => $payroll->employee->position?->name ?? 'N/A',
+                            'basic_salary' => $payroll->basic_salary,
+                            'overtime_pay' => $payroll->overtime_pay,
+                            'allowances' => $payroll->allowances,
+                            'total_earnings' => $payroll->gross_pay ?? ($payroll->basic_salary + $payroll->overtime_pay + $payroll->allowances),
+                            'sss' => $payroll->sss,
+                            'phic' => $payroll->phic,
+                            'pagibig' => $payroll->hdmf,
+                            'tax' => $payroll->tax_amount,
+                            'total_deductions' => $payroll->deductions,
+                            'net_pay' => $payroll->net_pay
+                        ];
+                    @endphp
+                    <button onclick="openPayrollModal('{{ $payroll->id }}', '{{ base64_encode(json_encode($modalData)) }}')" class="text-blue-600 hover:text-blue-900 transition-colors">
                         <i class="fas fa-eye mr-1"></i>View
                     </button>
                     @if($payroll->status === 'pending')
@@ -789,7 +825,25 @@
                             </div>
                         </div>
                         <div class="flex justify-end space-x-2">
-                            <button onclick="openPayrollModal('{{ $payroll->id }}')" class="text-blue-600 hover:text-blue-900 transition-colors">
+                            @php
+                                $modalData = [
+                                    'employee_name' => $payroll->employee->full_name ?? 'N/A',
+                                    'employee_code' => $payroll->employee->employee_id ?? 'N/A',
+                                    'department' => $payroll->employee->department->name ?? 'N/A',
+                                    'position' => $payroll->employee->position?->name ?? 'N/A',
+                                    'basic_salary' => $payroll->basic_salary,
+                                    'overtime_pay' => $payroll->overtime_pay,
+                                    'allowances' => $payroll->allowances,
+                                    'total_earnings' => $payroll->gross_pay ?? ($payroll->basic_salary + $payroll->overtime_pay + $payroll->allowances),
+                                    'sss' => $payroll->sss,
+                                    'phic' => $payroll->phic,
+                                    'pagibig' => $payroll->hdmf,
+                                    'tax' => $payroll->tax_amount,
+                                    'total_deductions' => $payroll->deductions,
+                                    'net_pay' => $payroll->net_pay
+                                ];
+                            @endphp
+                            <button onclick="openPayrollModal('{{ $payroll->id }}', '{{ base64_encode(json_encode($modalData)) }}')" class="text-blue-600 hover:text-blue-900 transition-colors">
                                 <i class="fas fa-eye mr-1"></i>View
                             </button>
                             @if($payroll->status === 'pending')
@@ -1226,19 +1280,19 @@ async function exportPayrollWithCalculations() {
                     <div class="grid grid-cols-2 gap-4 text-sm">
                         <div>
                             <span class="text-gray-500">Name:</span>
-                            <span class="ml-2 font-medium">John Smith</span>
+                            <span id="modal-emp-name" class="ml-2 font-medium"></span>
                         </div>
                         <div>
                             <span class="text-gray-500">Employee ID:</span>
-                            <span class="ml-2 font-medium">EMP-001</span>
+                            <span id="modal-emp-id" class="ml-2 font-medium"></span>
                         </div>
                         <div>
                             <span class="text-gray-500">Department:</span>
-                            <span class="ml-2 font-medium">IT Department</span>
+                            <span id="modal-emp-dept" class="ml-2 font-medium"></span>
                         </div>
                         <div>
                             <span class="text-gray-500">Position:</span>
-                            <span class="ml-2 font-medium">Software Developer</span>
+                            <span id="modal-emp-pos" class="ml-2 font-medium"></span>
                         </div>
                     </div>
                 </div>
@@ -1249,19 +1303,19 @@ async function exportPayrollWithCalculations() {
                     <div class="space-y-2 text-sm">
                         <div class="flex justify-between">
                             <span>Basic Salary</span>
-                            <span class="font-medium">₱25,000.00</span>
+                            <span id="modal-earn-basic" class="font-medium"></span>
                         </div>
                         <div class="flex justify-between">
                             <span>Overtime Pay</span>
-                            <span class="font-medium">₱3,500.00</span>
+                            <span id="modal-earn-ot" class="font-medium"></span>
                         </div>
                         <div class="flex justify-between">
                             <span>Allowances</span>
-                            <span class="font-medium">₱2,000.00</span>
+                            <span id="modal-earn-allow" class="font-medium"></span>
                         </div>
                         <div class="flex justify-between border-t pt-2 font-medium">
                             <span>Total Earnings</span>
-                            <span>₱30,500.00</span>
+                            <span id="modal-earn-total"></span>
                         </div>
                     </div>
                 </div>
@@ -1272,23 +1326,23 @@ async function exportPayrollWithCalculations() {
                     <div class="space-y-2 text-sm">
                         <div class="flex justify-between">
                             <span>SSS Contribution</span>
-                            <span class="font-medium">₱1,200.00</span>
+                            <span id="modal-ded-sss" class="font-medium"></span>
                         </div>
                         <div class="flex justify-between">
                             <span>PhilHealth</span>
-                            <span class="font-medium">₱800.00</span>
+                            <span id="modal-ded-phic" class="font-medium"></span>
                         </div>
                         <div class="flex justify-between">
                             <span>Pag-IBIG</span>
-                            <span class="font-medium">₱200.00</span>
+                            <span id="modal-ded-hdmf" class="font-medium"></span>
                         </div>
                         <div class="flex justify-between">
                             <span>Withholding Tax</span>
-                            <span class="font-medium">₱2,000.00</span>
+                            <span id="modal-ded-tax" class="font-medium"></span>
                         </div>
                         <div class="flex justify-between border-t pt-2 font-medium">
                             <span>Total Deductions</span>
-                            <span>₱4,200.00</span>
+                            <span id="modal-ded-total"></span>
                         </div>
                     </div>
                 </div>
@@ -1297,7 +1351,7 @@ async function exportPayrollWithCalculations() {
                 <div class="bg-blue-50 p-4 rounded-lg">
                     <div class="flex justify-between items-center">
                         <span class="text-lg font-medium text-gray-900">Net Pay</span>
-                        <span class="text-2xl font-bold text-blue-600">₱26,300.00</span>
+                        <span id="modal-net-pay" class="text-2xl font-bold text-blue-600"></span>
                     </div>
                 </div>
             </div>
@@ -2012,8 +2066,39 @@ function updateAllDateFields() {
 }
 
 // Modal Functions
-function openPayrollModal(payrollId) {
+function openPayrollModal(payrollId, dataStr) {
     document.getElementById('payrollModal').classList.remove('hidden');
+    
+    if (dataStr) {
+        try {
+            const data = JSON.parse(atob(dataStr));
+            
+            const formatMoney = (amount) => {
+                const val = parseFloat(amount || 0);
+                return '₱' + val.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            };
+
+            document.getElementById('modal-emp-name').textContent = data.employee_name;
+            document.getElementById('modal-emp-id').textContent = data.employee_code;
+            document.getElementById('modal-emp-dept').textContent = data.department;
+            document.getElementById('modal-emp-pos').textContent = data.position;
+            
+            document.getElementById('modal-earn-basic').textContent = formatMoney(data.basic_salary);
+            document.getElementById('modal-earn-ot').textContent = formatMoney(data.overtime_pay);
+            document.getElementById('modal-earn-allow').textContent = formatMoney(data.allowances);
+            document.getElementById('modal-earn-total').textContent = formatMoney(data.total_earnings);
+            
+            document.getElementById('modal-ded-sss').textContent = formatMoney(data.sss);
+            document.getElementById('modal-ded-phic').textContent = formatMoney(data.phic);
+            document.getElementById('modal-ded-hdmf').textContent = formatMoney(data.pagibig);
+            document.getElementById('modal-ded-tax').textContent = formatMoney(data.tax);
+            document.getElementById('modal-ded-total').textContent = formatMoney(data.total_deductions);
+            
+            document.getElementById('modal-net-pay').textContent = formatMoney(data.net_pay);
+        } catch(e) {
+            console.error('Error parsing payroll data:', e);
+        }
+    }
     
     // Set the download payslip link dynamically
     const downloadLink = document.getElementById('downloadPayslipLink');
