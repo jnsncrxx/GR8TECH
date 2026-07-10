@@ -176,18 +176,36 @@ class AttendanceRecord extends Model
     {
         $totalMinutes = 0;
         $entries = $this->timeEntries()->whereNotNull('time_out')->get();
-        
-        foreach ($entries as $entry) {
-            $timeIn = \Carbon\Carbon::parse($entry->time_in);
-            $timeOut = \Carbon\Carbon::parse($entry->time_out);
-            $totalMinutes += $timeIn->diffInMinutes($timeOut);
+
+        if ($entries->isNotEmpty()) {
+            foreach ($entries as $entry) {
+                $timeIn = \Carbon\Carbon::parse($entry->time_in);
+                $timeOut = \Carbon\Carbon::parse($entry->time_out);
+                $totalMinutes += $timeIn->diffInMinutes($timeOut);
+            }
+        } elseif ($this->time_in && $this->time_out) {
+            // Fallback for records created directly with time_in/time_out on the
+            // attendance_records row itself (e.g. the manual "Create Record" form,
+            // or an approved Official Business request) rather than through the
+            // clock-in/clock-out flow that populates the time_entries table.
+            // Without this, such records always summed to 0 minutes here even
+            // though total_hours had already been computed correctly at creation.
+            $timeIn = \Carbon\Carbon::parse($this->time_in);
+            $timeOut = \Carbon\Carbon::parse($this->time_out);
+            $totalMinutes = max(0, $timeIn->diffInMinutes($timeOut));
         }
 
         // Subtract break minutes
         $totalBreakMinutes = 0;
         $breaks = $this->breaks()->whereNotNull('break_end')->get();
-        foreach ($breaks as $break) {
-            $totalBreakMinutes += \Carbon\Carbon::parse($break->break_start)->diffInMinutes(\Carbon\Carbon::parse($break->break_end));
+
+        if ($breaks->isNotEmpty()) {
+            foreach ($breaks as $break) {
+                $totalBreakMinutes += \Carbon\Carbon::parse($break->break_start)->diffInMinutes(\Carbon\Carbon::parse($break->break_end));
+            }
+        } elseif ($this->break_start && $this->break_end) {
+            // Same fallback for the legacy break_start/break_end columns.
+            $totalBreakMinutes = \Carbon\Carbon::parse($this->break_start)->diffInMinutes(\Carbon\Carbon::parse($this->break_end));
         }
 
         $workingMinutes = max(0, $totalMinutes - $totalBreakMinutes);

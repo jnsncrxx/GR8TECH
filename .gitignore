@@ -57,3 +57,6 @@ Homestead.yaml
 # Project-specific
 /dtrexample
 TASKS-EJHAY.md
+/storage/framework/views/*
+!/storage/framework/views/.gitignore
+tmp_*.php

@@ -127,7 +127,54 @@
                 <div id="ob-notice" class="sm:col-span-2 hidden">
                     <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
                         <i class="fas fa-briefcase mr-1"></i>
-                        Official Business doesn't use clock times. Please provide the reason in the Notes field below.
+                        Official Business doesn't use regular clock times. Choose Full day or Partial day below.
+                    </div>
+                </div>
+
+                <!-- Official Business duration (mirrors the employee "Apply for Official Business" form) -->
+                <div id="ob-duration-section" class="sm:col-span-2 hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Duration <span class="text-red-500">*</span>
+                    </label>
+                    <div class="flex items-center gap-6">
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                            <input type="radio" name="is_full_day" id="ob_is_full_day" value="1" {{ old('is_full_day', '1') == '1' ? 'checked' : '' }} class="text-blue-600 focus:ring-blue-500">
+                            Full day
+                        </label>
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                            <input type="radio" name="is_full_day" id="ob_is_partial_day" value="0" {{ old('is_full_day') === '0' ? 'checked' : '' }} class="text-blue-600 focus:ring-blue-500">
+                            Partial day
+                        </label>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500">
+                        Full day credits the employee's scheduled shift hours. Partial day credits only the time range you select below.
+                    </p>
+                    @error('is_full_day')
+                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <!-- Official Business time range (partial day only) -->
+                <div id="ob-time-range-section" class="sm:col-span-2 hidden">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div>
+                            <label for="ob_start_time" class="block text-sm font-medium text-gray-700 mb-2">
+                                OB Start Time <span id="ob_start_time_required_indicator" class="text-red-500 hidden">*</span>
+                            </label>
+                            <input type="time" name="ob_start_time" id="ob_start_time" value="{{ old('ob_start_time') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('ob_start_time') border-red-500 @enderror" style="background-color: white !important; color: #111827 !important;">
+                            @error('ob_start_time')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                        <div>
+                            <label for="ob_end_time" class="block text-sm font-medium text-gray-700 mb-2">
+                                OB End Time <span id="ob_end_time_required_indicator" class="text-red-500 hidden">*</span>
+                            </label>
+                            <input type="time" name="ob_end_time" id="ob_end_time" value="{{ old('ob_end_time') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('ob_end_time') border-red-500 @enderror" style="background-color: white !important; color: #111827 !important;">
+                            @error('ob_end_time')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
                     </div>
                 </div>
 
@@ -171,7 +218,7 @@
                         <li>Break duration is automatically calculated if you provide both Time In and Time Out</li>
                         <li>Total hours will be calculated as: (Time Out - Time In) - Break Duration</li>
                         <li>You cannot add duplicate records for the same employee on the same date</li>
-                        <li>Official Business doesn't require Time In/Out — just select the status and explain the reason in Notes</li>
+                        <li>Official Business doesn't require regular Time In/Out — pick Full day (credits scheduled shift hours) or Partial day (credits the exact time range you enter), and explain the reason in Notes</li>
                     </ul>
                 </div>
             </div>
@@ -193,6 +240,33 @@ document.addEventListener('DOMContentLoaded', function() {
     const notesRequiredIndicator = document.getElementById('notes_required_indicator');
     const timeInRequiredIndicator = document.getElementById('time_in_required_indicator');
 
+    const obDurationSection = document.getElementById('ob-duration-section');
+    const obTimeRangeSection = document.getElementById('ob-time-range-section');
+    const obFullDayRadio = document.getElementById('ob_is_full_day');
+    const obPartialDayRadio = document.getElementById('ob_is_partial_day');
+    const obStartTimeInput = document.getElementById('ob_start_time');
+    const obEndTimeInput = document.getElementById('ob_end_time');
+    const obStartTimeRequiredIndicator = document.getElementById('ob_start_time_required_indicator');
+    const obEndTimeRequiredIndicator = document.getElementById('ob_end_time_required_indicator');
+
+    function toggleObDurationFields() {
+        const isPartialDay = obPartialDayRadio.checked;
+
+        if (isPartialDay) {
+            obTimeRangeSection.classList.remove('hidden');
+            obStartTimeInput.setAttribute('required', 'required');
+            obEndTimeInput.setAttribute('required', 'required');
+            obStartTimeRequiredIndicator.classList.remove('hidden');
+            obEndTimeRequiredIndicator.classList.remove('hidden');
+        } else {
+            obTimeRangeSection.classList.add('hidden');
+            obStartTimeInput.removeAttribute('required');
+            obEndTimeInput.removeAttribute('required');
+            obStartTimeRequiredIndicator.classList.add('hidden');
+            obEndTimeRequiredIndicator.classList.add('hidden');
+        }
+    }
+
     function toggleOfficialBusinessFields() {
         const isOfficialBusiness = statusSelect.value === 'official_business';
 
@@ -200,6 +274,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Hide clock-based fields; they don't apply to Official Business
             timeFieldsSection.classList.add('hidden');
             obNotice.classList.remove('hidden');
+            obDurationSection.classList.remove('hidden');
             timeInInput.removeAttribute('required');
             timeInRequiredIndicator.classList.add('hidden');
 
@@ -207,11 +282,18 @@ document.addEventListener('DOMContentLoaded', function() {
             notesTextarea.setAttribute('required', 'required');
             notesTextarea.placeholder = 'Reason for Official Business (required)...';
             notesRequiredIndicator.classList.remove('hidden');
+
+            toggleObDurationFields();
         } else {
             timeFieldsSection.classList.remove('hidden');
             obNotice.classList.add('hidden');
+            obDurationSection.classList.add('hidden');
+            obTimeRangeSection.classList.add('hidden');
             timeInInput.setAttribute('required', 'required');
             timeInRequiredIndicator.classList.remove('hidden');
+
+            obStartTimeInput.removeAttribute('required');
+            obEndTimeInput.removeAttribute('required');
 
             notesTextarea.removeAttribute('required');
             notesTextarea.placeholder = 'Optional notes about this attendance record...';
@@ -219,6 +301,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    obFullDayRadio.addEventListener('change', toggleObDurationFields);
+    obPartialDayRadio.addEventListener('change', toggleObDurationFields);
     statusSelect.addEventListener('change', toggleOfficialBusinessFields);
     // Run once on load in case of old() repopulated status (e.g. after a validation error)
     toggleOfficialBusinessFields();
