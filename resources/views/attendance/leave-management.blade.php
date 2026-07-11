@@ -278,7 +278,7 @@
                                         </button>
                                     @else
                                         <div class="flex justify-center">
-                                            <span class="inline-block w-10 h-px bg-gray-300 rounded-full"></span>
+                                            <span class="inline-block w-8 h-px bg-gray-300 rounded-full"></span>
                                         </div>
                                     @endif
                             </div>
@@ -385,7 +385,7 @@
                                 </button>
                             @else
                                 <div class="flex justify-center">
-                                    <span class="inline-block w-10 h-px bg-gray-300 rounded-full"></span>
+                                    <span class="inline-block w-8 h-px bg-gray-300 rounded-full"></span>
                                 </div>
                             @endif
                         </div>
@@ -515,12 +515,12 @@
                 $leaveTypes = [
                     'vacation' => ['label' => 'Vacation Leave', 'color' => 'blue'],
                     'sick' => ['label' => 'Sick Leave', 'color' => 'red'],
-                    'personal' => ['label' => 'Personal Leave', 'color' => 'green'],
+                    'personal' => ['label' => 'Personal Leave', 'color' => 'purple'],
                     'emergency' => ['label' => 'Emergency Leave', 'color' => 'yellow'],
                     'maternity' => ['label' => 'Maternity Leave', 'color' => 'pink'],
                     'paternity' => ['label' => 'Paternity Leave', 'color' => 'indigo'],
                     'bereavement' => ['label' => 'Bereavement Leave', 'color' => 'gray'],
-                    'study' => ['label' => 'Study Leave', 'color' => 'purple'],
+                    'study' => ['label' => 'Study Leave', 'color' => 'teal'],
                 ];
             @endphp
             @foreach($leaveTypes as $type => $config)
