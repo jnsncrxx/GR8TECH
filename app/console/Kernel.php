@@ -24,6 +24,9 @@ class Kernel extends ConsoleKernel
     {
         // Example placeholder — uncomment & modify to schedule payroll runs
         // $schedule->command('payroll:run --start=2025-11-01 --end=2025-11-15 --data=/path/to/data.json')->monthlyOn(1, '02:00');
+
+        // Sweep overdue Official Business requests and mark them expired
+        $schedule->command('ob:expire-overdue')->everyFifteenMinutes();
     }
 
     /**

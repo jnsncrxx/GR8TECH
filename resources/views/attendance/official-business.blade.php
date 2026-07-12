@@ -394,38 +394,31 @@
                     <label for="obDate" class="block text-sm font-medium text-gray-700 mb-2">Date</label>
                     <input type="date" id="obDate" name="date" required
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                           min="{{ now()->toDateString() }}" value="{{ old('date') }}">
+                           value="{{ old('date') }}">
+                    <p id="obCutoffWarning" class="mt-1 text-xs text-amber-600 hidden">
+                        <i class="fas fa-exclamation-triangle mr-1"></i>
+                        This date may be outside the current payroll cutoff period. You can still submit, but it may not be approvable.
+                    </p>
+                    <p class="mt-1 text-xs text-gray-400">Past dates (retroactive) and future dates (advance filing) are both allowed, within the current payroll cutoff.</p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="obStartTime" class="block text-sm font-medium text-gray-700 mb-2">Time In</label>
+                        <input type="time" id="obStartTime" name="ob_start_time" required
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
+                    </div>
+                    <div>
+                        <label for="obEndTime" class="block text-sm font-medium text-gray-700 mb-2">Time Out</label>
+                        <input type="time" id="obEndTime" name="ob_end_time" required
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
+                    </div>
                 </div>
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Duration</label>
-                    <div class="flex gap-4">
-                        <label class="inline-flex items-center text-sm text-gray-700">
-                            <input type="radio" name="is_full_day" value="1" checked
-                                   onchange="toggleObDuration(this)"
-                                   class="text-blue-600 focus:ring-blue-500 mr-2">
-                            Full day
-                        </label>
-                        <label class="inline-flex items-center text-sm text-gray-700">
-                            <input type="radio" name="is_full_day" value="0"
-                                   onchange="toggleObDuration(this)"
-                                   class="text-blue-600 focus:ring-blue-500 mr-2">
-                            Partial day
-                        </label>
-                    </div>
-                    <p class="mt-1 text-xs text-gray-400">Full day credits your scheduled shift hours. Partial day credits only the time you select below.</p>
-                </div>
-
-                <div id="obTimeFields" class="grid grid-cols-2 gap-4 hidden">
-                    <div>
-                        <label for="obStartTime" class="block text-sm font-medium text-gray-700 mb-2">Start Time</label>
-                        <input type="time" id="obStartTime" name="ob_start_time"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
-                    </div>
-                    <div>
-                        <label for="obEndTime" class="block text-sm font-medium text-gray-700 mb-2">End Time</label>
-                        <input type="time" id="obEndTime" name="ob_end_time"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
+                    <div id="obDuration" class="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-600">
+                        Select a Time In and Time Out
                     </div>
                 </div>
 
@@ -524,19 +517,63 @@
 @endif
 
 <script>
-function toggleObDuration(radio) {
-    const timeFields = document.getElementById('obTimeFields');
-    const startInput = document.getElementById('obStartTime');
-    const endInput = document.getElementById('obEndTime');
-    if (!timeFields) return;
-    const isPartial = radio.value === '0';
-    timeFields.classList.toggle('hidden', !isPartial);
-    if (startInput) startInput.required = isPartial;
-    if (endInput) endInput.required = isPartial;
-    if (!isPartial) {
-        if (startInput) startInput.value = '';
-        if (endInput) endInput.value = '';
+function updateObDuration() {
+    const durationEl = document.getElementById('obDuration');
+    const start = document.getElementById('obStartTime')?.value;
+    const end = document.getElementById('obEndTime')?.value;
+    if (!durationEl) return;
+
+    if (!start || !end) {
+        durationEl.textContent = 'Select a Time In and Time Out';
+        return;
     }
+
+    const [sh, sm] = start.split(':').map(Number);
+    const [eh, em] = end.split(':').map(Number);
+    const minutes = (eh * 60 + em) - (sh * 60 + sm);
+
+    if (minutes <= 0) {
+        durationEl.textContent = 'Time Out must be after Time In';
+        return;
+    }
+
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    durationEl.textContent = `${hours}h ${mins}m (${(minutes / 60).toFixed(2)} hrs)`;
+}
+
+// Lightweight client-side mirror of CutoffPeriodService's default 10th/25th
+// boundaries, purely to warn early. The server (via CutoffPeriodService) is
+// the actual source of truth and re-checks this on submit.
+function checkObCutoffWarning() {
+    const warningEl = document.getElementById('obCutoffWarning');
+    const dateInput = document.getElementById('obDate');
+    if (!warningEl || !dateInput || !dateInput.value) {
+        if (warningEl) warningEl.classList.add('hidden');
+        return;
+    }
+
+    const selected = new Date(dateInput.value + 'T00:00:00');
+    const cutoffDays = [10, 25];
+    const graceHours = 24;
+
+    // Find the end-of-period cutoff date on/after the selected date.
+    let periodEnd = null;
+    for (let offset = -1; offset <= 2 && !periodEnd; offset++) {
+        const candidateMonth = new Date(selected.getFullYear(), selected.getMonth() + offset, 1);
+        const lastDay = new Date(candidateMonth.getFullYear(), candidateMonth.getMonth() + 1, 0).getDate();
+        for (const day of cutoffDays) {
+            const candidate = new Date(candidateMonth.getFullYear(), candidateMonth.getMonth(), Math.min(day, lastDay), 23, 59, 59);
+            if (candidate >= selected && (!periodEnd || candidate < periodEnd)) {
+                periodEnd = candidate;
+            }
+        }
+    }
+
+    const deadline = new Date(periodEnd);
+    deadline.setHours(deadline.getHours() + graceHours);
+
+    warningEl.classList.toggle('hidden', new Date() <= deadline);
 }
 
 function openObModal() {
@@ -547,29 +584,29 @@ function openObModal() {
     modal.style.justifyContent = 'center';
     const form = document.getElementById('obForm');
     if (form) form.reset();
-    const timeFields = document.getElementById('obTimeFields');
-    if (timeFields) timeFields.classList.add('hidden');
-    const dateInput = document.getElementById('obDate');
-    if (dateInput) dateInput.min = new Date().toISOString().split('T')[0];
+    updateObDuration();
+    checkObCutoffWarning();
 }
 
 document.addEventListener('DOMContentLoaded', function () {
     const obForm = document.getElementById('obForm');
     if (!obForm) return;
+
+    document.getElementById('obStartTime')?.addEventListener('change', updateObDuration);
+    document.getElementById('obEndTime')?.addEventListener('change', updateObDuration);
+    document.getElementById('obDate')?.addEventListener('change', checkObCutoffWarning);
+
     obForm.addEventListener('submit', function (e) {
-        const isFullDay = obForm.querySelector('input[name="is_full_day"]:checked')?.value === '1';
-        if (!isFullDay) {
-            const start = document.getElementById('obStartTime')?.value;
-            const end = document.getElementById('obEndTime')?.value;
-            if (!start || !end) {
-                e.preventDefault();
-                alert('Please provide both a start and end time for a partial-day OB request.');
-                return;
-            }
-            if (start >= end) {
-                e.preventDefault();
-                alert('End time must be after start time.');
-            }
+        const start = document.getElementById('obStartTime')?.value;
+        const end = document.getElementById('obEndTime')?.value;
+        if (!start || !end) {
+            e.preventDefault();
+            alert('Please provide both a Time In and Time Out.');
+            return;
+        }
+        if (start >= end) {
+            e.preventDefault();
+            alert('Time Out must be after Time In.');
         }
     });
 });

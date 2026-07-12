@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasExpiryWindow;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,6 +11,7 @@ use Ramsey\Uuid\Uuid;
 class OfficialBusinessRequest extends Model
 {
     use HasUuids;
+    use HasExpiryWindow;
 
     protected $keyType = 'string';
     public $incrementing = false;
@@ -20,11 +22,13 @@ class OfficialBusinessRequest extends Model
     public const PENDING = 'pending';
     public const APPROVED = 'approved';
     public const REJECTED = 'rejected';
+    public const EXPIRED = 'expired';
 
     public const STATUSES = [
         self::PENDING,
         self::APPROVED,
         self::REJECTED,
+        self::EXPIRED,
     ];
 
     protected $fillable = [
@@ -36,8 +40,11 @@ class OfficialBusinessRequest extends Model
         'ob_start_time',
         'ob_end_time',
         'credited_hours',
+        'cutoff_period_key',
+        'expires_at',
         'reviewed_by',
         'reviewed_at',
+        'approved_by_role',
         'rejection_reason',
         'attendance_record_id',
         'created_by',
@@ -46,6 +53,7 @@ class OfficialBusinessRequest extends Model
     protected $casts = [
         'date' => 'date',
         'reviewed_at' => 'datetime',
+        'expires_at' => 'datetime',
         'is_full_day' => 'boolean',
         'ob_start_time' => 'datetime:H:i',
         'ob_end_time' => 'datetime:H:i',
@@ -99,57 +107,21 @@ class OfficialBusinessRequest extends Model
     }
 
     /**
-     * Compute the hours this request should credit toward attendance/payroll.
-     *
-     * - Partial day: exact duration between ob_start_time and ob_end_time.
-     * - Full day: falls back to the employee's scheduled shift length for
-     *   $this->date.
-     *
-     * NOTE: I don't have your WorkSchedule/Employee schedule model, so the
-     * full-day branch below is a best-effort guess based on the
-     * `$schedule->{$dayOfWeek . '_start'}` pattern referenced elsewhere in
-     * this codebase (e.g. isLate()). Replace getScheduledHoursFor() with
-     * whatever your actual schedule lookup looks like before relying on this
-     * for payroll. Until then this falls back to 8.0 if no schedule is found,
-     * which may NOT be correct for part-time/varied-shift employees.
+     * Hours this request credits toward attendance/payroll — always the
+     * literal duration between ob_start_time and ob_end_time. Per the
+     * finalized OB spec, Time In/Time Out are required on every request, so
+     * duration is always computable directly (no full-day fallback).
      */
     public function computeCreditedHours(): float
     {
-        if (!$this->is_full_day && $this->ob_start_time && $this->ob_end_time) {
-            $start = \Carbon\Carbon::parse($this->ob_start_time);
-            $end = \Carbon\Carbon::parse($this->ob_end_time);
-            return round(max(0, $start->diffInMinutes($end)) / 60, 2);
+        if (!$this->ob_start_time || !$this->ob_end_time) {
+            return 0.0;
         }
 
-        return $this->getScheduledHoursFor($this->date);
-    }
+        $start = \Carbon\Carbon::parse($this->ob_start_time);
+        $end = \Carbon\Carbon::parse($this->ob_end_time);
 
-    /**
-     * NOTE: placeholder — adjust to match your actual Employee/WorkSchedule
-     * relation and column names. Assumes something like:
-     *   $employee->schedule->{$dayOfWeek . '_start'} / '_end'
-     * per the pattern used in AttendanceRecord::isLate() elsewhere in this app.
-     */
-    protected function getScheduledHoursFor($date): float
-    {
-        $employee = $this->employee;
-        $schedule = $employee->schedule ?? null;
-
-        if ($schedule) {
-            $dayOfWeek = strtolower(\Carbon\Carbon::parse($date)->format('l')); // e.g. 'monday'
-            $startField = $dayOfWeek . '_start';
-            $endField = $dayOfWeek . '_end';
-
-            if (!empty($schedule->{$startField}) && !empty($schedule->{$endField})) {
-                $start = \Carbon\Carbon::parse($schedule->{$startField});
-                $end = \Carbon\Carbon::parse($schedule->{$endField});
-                return round(max(0, $start->diffInMinutes($end)) / 60, 2);
-            }
-        }
-
-        // Fallback only — flag this so it's easy to find and fix once the
-        // real schedule model is wired in.
-        return 8.0;
+        return round(max(0, $start->diffInMinutes($end)) / 60, 2);
     }
 
     public function isPending(): bool
@@ -167,6 +139,13 @@ class OfficialBusinessRequest extends Model
         return $this->status === self::REJECTED;
     }
 
+    public function isExpired(): bool
+    {
+        return $this->status === self::EXPIRED;
+    }
+
+    // isPastDeadline() and scopePastDeadline() now come from HasExpiryWindow.
+
     public function scopePending($query)
     {
         return $query->where('status', self::PENDING);
@@ -180,5 +159,10 @@ class OfficialBusinessRequest extends Model
     public function scopeRejected($query)
     {
         return $query->where('status', self::REJECTED);
+    }
+
+    public function scopeExpired($query)
+    {
+        return $query->where('status', self::EXPIRED);
     }
 }
