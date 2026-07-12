@@ -35,8 +35,22 @@
         </div>
     @endif
 
+    @if($isReviewer)
+        @if($reviewerRole === 'manager')
+            <div class="p-3 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-sm">
+                <i class="fas fa-circle-check mr-1"></i>
+                You're the primary approver. Pending requests are shown first below.
+            </div>
+        @else
+            <div class="p-3 rounded-lg bg-gray-50 text-gray-600 border border-gray-200 text-sm">
+                <i class="fas fa-circle-info mr-1"></i>
+                You're viewing as a backup approver ({{ ucfirst($reviewerRole ?? 'reviewer') }}). Managers are notified first for pending requests, but you can approve or reject any request here if needed.
+            </div>
+        @endif
+    @endif
+
     <!-- Official Business Summary -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
             <div class="flex items-center">
                 <div class="flex-shrink-0">
@@ -92,6 +106,20 @@
                 </div>
             </div>
         </div>
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-clock-rotate-left text-gray-500"></i>
+                    </div>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-500">Expired</p>
+                    <p class="text-lg font-semibold text-gray-900">{{ $summary['expired'] }}</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     @if($isReviewer)
@@ -127,6 +155,7 @@
                     <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }} style="color: #111827 !important;">Pending</option>
                     <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }} style="color: #111827 !important;">Approved</option>
                     <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }} style="color: #111827 !important;">Rejected</option>
+                    <option value="expired" {{ request('status') == 'expired' ? 'selected' : '' }} style="color: #111827 !important;">Expired</option>
                 </select>
             </div>
             <div class="flex items-end gap-3">
@@ -180,9 +209,10 @@
                                 'pending' => 'bg-yellow-100 text-yellow-800',
                                 'approved' => 'bg-green-100 text-green-800',
                                 'rejected' => 'bg-red-100 text-red-800',
+                                'expired' => 'bg-gray-200 text-gray-600',
                             ];
-                            $obStatus = $ob->isPending() ? 'pending' : ($ob->isApproved() ? 'approved' : 'rejected');
-                            $statusColor = $statusColors[$obStatus];
+                            $obStatus = $ob->status;
+                            $statusColor = $statusColors[$obStatus] ?? 'bg-gray-100 text-gray-600';
                             $initials = strtoupper(substr($ob->employee->first_name ?? '', 0, 1) . substr($ob->employee->last_name ?? '', 0, 1));
                             $reviewerName = trim(($ob->reviewer->employee->first_name ?? '') . ' ' . ($ob->reviewer->employee->last_name ?? ''));
                         @endphp
@@ -300,9 +330,10 @@
                             'pending' => 'bg-yellow-100 text-yellow-800',
                             'approved' => 'bg-green-100 text-green-800',
                             'rejected' => 'bg-red-100 text-red-800',
+                            'expired' => 'bg-gray-200 text-gray-600',
                         ];
-                        $obStatus = $ob->isPending() ? 'pending' : ($ob->isApproved() ? 'approved' : 'rejected');
-                        $statusColor = $statusColors[$obStatus];
+                        $obStatus = $ob->status;
+                        $statusColor = $statusColors[$obStatus] ?? 'bg-gray-100 text-gray-600';
                         $initials = strtoupper(substr($ob->employee->first_name ?? '', 0, 1) . substr($ob->employee->last_name ?? '', 0, 1));
                         $reviewerName = trim(($ob->reviewer->employee->first_name ?? '') . ' ' . ($ob->reviewer->employee->last_name ?? ''));
                     @endphp

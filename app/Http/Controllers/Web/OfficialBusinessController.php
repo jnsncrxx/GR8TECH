@@ -77,7 +77,21 @@ class OfficialBusinessController extends Controller
             }
         }
 
-        $obRequests = $query->orderBy('created_at', 'desc')->paginate(10)->withQueryString();
+        $reviewerRole = $isReviewer ? ($user->role ?? null) : null;
+
+        // Manager is the primary approver — surface pending requests first so
+        // their "needs action" queue isn't buried under already-reviewed ones.
+        // HR/Admin (backup) keep the plain chronological view since they're
+        // scanning everything, not just their own action items.
+        if ($reviewerRole === 'manager') {
+            $obRequests = $query
+                ->orderByRaw("CASE WHEN status = 'pending' THEN 0 ELSE 1 END")
+                ->orderBy('created_at', 'desc')
+                ->paginate(10)
+                ->withQueryString();
+        } else {
+            $obRequests = $query->orderBy('created_at', 'desc')->paginate(10)->withQueryString();
+        }
 
         // Lazy-expire anything past its grace deadline that the sweep hasn't
         // caught yet, so what the reviewer/employee sees is always accurate.
@@ -103,6 +117,7 @@ class OfficialBusinessController extends Controller
             'activeRoute' => 'attendance.official-business',
             'pageTitle' => 'Official Business',
             'isReviewer' => $isReviewer,
+            'reviewerRole' => $reviewerRole,
             'obRequests' => $obRequests,
             'summary' => $summary,
             'departments' => $departments,
@@ -220,10 +235,12 @@ class OfficialBusinessController extends Controller
                     ->with('error', 'An attendance record already exists for this employee on this date. Resolve it before approving.');
             }
 
-            // Credited hours: exact duration between ob_start_time/ob_end_time.
-            // See OfficialBusinessRequest::computeCreditedHours().
-            $creditedHours = $obRequest->computeCreditedHours();
-
+            // Create the attendance record first, then let AttendanceRecord compute
+            // its own hours the same way it would for any other record (see
+            // calculateTotalHours() / calculateRegularAndOvertimeHours()). This
+            // guarantees OB-derived records are categorized identically to regular
+            // attendance — including the 8-hour regular/overtime split — rather than
+            // duplicating that logic here and risking drift if it changes later.
             $attendanceRecord = AttendanceRecord::create([
                 'employee_id' => $obRequest->employee_id,
                 'date' => $obRequest->date,
@@ -233,10 +250,21 @@ class OfficialBusinessController extends Controller
                 'time_out' => $obRequest->ob_end_time,
                 'break_start' => null,
                 'break_end' => null,
-                'total_hours' => $creditedHours,
-                'regular_hours' => $creditedHours,
+                'total_hours' => 0,
+                'regular_hours' => 0,
                 'overtime_hours' => 0,
             ]);
+
+            $totalHours = $attendanceRecord->calculateTotalHours();
+            $hoursSplit = $attendanceRecord->calculateRegularAndOvertimeHours();
+
+            $attendanceRecord->update([
+                'total_hours' => $totalHours,
+                'regular_hours' => $hoursSplit['regular_hours'],
+                'overtime_hours' => $hoursSplit['overtime_hours'],
+            ]);
+
+            $creditedHours = $totalHours;
 
             $obRequest->update([
                 'status' => OfficialBusinessRequest::APPROVED,
