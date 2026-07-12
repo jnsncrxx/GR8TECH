@@ -8,6 +8,7 @@ use App\Models\AttendanceLog;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\OfficialBusinessRequest;
+use App\Services\CutoffPeriodService;
 use App\Services\DtrImportService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -17,6 +18,10 @@ use Illuminate\Support\Facades\Storage;
 
 class AttendanceController extends Controller
 {
+    public function __construct(private CutoffPeriodService $cutoffPeriods)
+    {
+    }
+
     /**
      * Display daily attendance records
      */
@@ -626,15 +631,21 @@ class AttendanceController extends Controller
             'break_start' => 'nullable|date_format:H:i',
             'break_end' => 'nullable|date_format:H:i|after:break_start',
             'notes' => 'nullable|string|max:500',
-            // Only relevant when status = official_business, mirrors the fields
-            // an employee fills in on the "Apply for Official Business" form.
-            'is_full_day' => 'required_if:status,official_business|in:0,1',
-            'ob_start_time' => 'nullable|required_if:is_full_day,0|date_format:H:i',
-            'ob_end_time' => 'nullable|required_if:is_full_day,0|date_format:H:i|after:ob_start_time',
         ]);
 
         $isOfficialBusiness = $validated['status'] === AttendanceRecord::OFFICIAL_BUSINESS;
-        $isFullDayOb = $isOfficialBusiness ? ($validated['is_full_day'] ?? '1') == '1' : true;
+
+        // Official Business always requires Time In/Time Out now — no full-day
+        // option, matching the employee-facing "Apply for Official Business"
+        // form (see OfficialBusinessController::store()). The base validation
+        // above exempts official_business from the generic time_in requirement
+        // (a holdover from when full-day OB needed no times), so enforce it
+        // explicitly here instead.
+        if ($isOfficialBusiness && (empty($validated['time_in']) || empty($validated['time_out']))) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Time In and Time Out are required for an Official Business record.');
+        }
 
         // Official Business requires a reason so it's clear why the employee was out
         if ($isOfficialBusiness && empty($validated['notes'])) {
@@ -643,11 +654,30 @@ class AttendanceController extends Controller
                 ->with('error', 'Please provide a reason/notes for Official Business.');
         }
 
-        // Partial-day Official Business needs a time range, same as the employee-facing form
-        if ($isOfficialBusiness && !$isFullDayOb && (empty($validated['ob_start_time']) || empty($validated['ob_end_time']))) {
-            return redirect()->back()
-                ->withInput()
-                ->with('error', 'Please provide a start and end time for a partial-day Official Business record.');
+        // Cutoff check: manual entries should respect the same payroll cutoff
+        // window as the employee-facing OB form (see
+        // OfficialBusinessController::store()), not bypass it silently.
+        // Admin/HR may still record a closed-period entry (backfills, disputes,
+        // outage recovery), but only with an explicit acknowledgment — never
+        // as a silent default — so there's always a visible trail of when this
+        // happened. Managers get the same hard block as employees would.
+        $isCutoffOpen = $this->cutoffPeriods->isOpenForAction($validated['date']);
+        $userRole = Auth::user()->role ?? null;
+        $canOverrideCutoff = in_array($userRole, ['admin', 'hr']);
+
+        if (!$isCutoffOpen) {
+            if (!$canOverrideCutoff) {
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', 'This date is not included in the current payroll cutoff period.');
+            }
+
+            if (!$request->boolean('override_cutoff')) {
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', 'This date falls outside the current payroll cutoff period. Check "Add anyway" below to confirm and resubmit.')
+                    ->with('cutoff_override_needed', true);
+            }
         }
 
         // Check existing attendance status for this employee on this date
@@ -669,43 +699,33 @@ class AttendanceController extends Controller
             'notes' => $validated['notes'] ?? null,
         ];
 
-        if ($isOfficialBusiness) {
-            // Reuse the exact same crediting logic used when an employee-submitted OB
-            // request gets approved (OfficialBusinessRequest::computeCreditedHours()),
-            // so a manually-added OB record and an approved OB request behave the
-            // same way: partial day credits the exact time range, full day credits
-            // the employee's scheduled shift length (falls back to 8.0 hrs).
-            $obForCredit = new OfficialBusinessRequest([
-                'employee_id' => $validated['employee_id'],
-                'date' => $validated['date'],
-                'is_full_day' => $isFullDayOb,
-                'ob_start_time' => $validated['ob_start_time'] ?? null,
-                'ob_end_time' => $validated['ob_end_time'] ?? null,
-            ]);
-            $creditedHours = $obForCredit->computeCreditedHours();
-
-            // Full day: no clock times, just like an OB request approval.
-            // Partial day: keep the actual OB time range on the record.
-            $payload['time_in'] = (!$isFullDayOb && $validated['ob_start_time'])
-                ? Carbon::parse($validated['date'] . ' ' . $validated['ob_start_time'])
-                : null;
-            $payload['time_out'] = (!$isFullDayOb && $validated['ob_end_time'])
-                ? Carbon::parse($validated['date'] . ' ' . $validated['ob_end_time'])
-                : null;
-            $payload['break_start'] = null;
-            $payload['break_end'] = null;
-            $payload['total_hours'] = $creditedHours;
-            $payload['regular_hours'] = $creditedHours;
-            $payload['overtime_hours'] = 0;
-        } else {
-            $payload['time_in'] = $validated['time_in'] ? Carbon::parse($validated['date'] . ' ' . $validated['time_in']) : null;
-            $payload['time_out'] = $validated['time_out'] ? Carbon::parse($validated['date'] . ' ' . $validated['time_out']) : null;
-            $payload['break_start'] = $validated['break_start'] ? Carbon::parse($validated['date'] . ' ' . $validated['break_start']) : null;
-            $payload['break_end'] = $validated['break_end'] ? Carbon::parse($validated['date'] . ' ' . $validated['break_end']) : null;
-        }
+        // Time In/Out/Break are populated identically regardless of status.
+        // Official Business is not a special case here — per the finalized
+        // spec, it's just a clock-based record like any other, so a break
+        // taken during an OB span (e.g. it happens to cross lunchtime) is
+        // handled the exact same way it would be for a regular attendance
+        // record. total_hours/regular_hours/overtime_hours are computed after
+        // the record is created via AttendanceRecord's own calculateTotalHours()
+        // / calculateRegularAndOvertimeHours() (see below) for every status,
+        // not just OB, so there's a single source of truth for this math
+        // instead of duplicating it here.
+        $payload['time_in'] = $validated['time_in'] ? Carbon::parse($validated['date'] . ' ' . $validated['time_in']) : null;
+        $payload['time_out'] = $validated['time_out'] ? Carbon::parse($validated['date'] . ' ' . $validated['time_out']) : null;
+        $payload['break_start'] = $validated['break_start'] ? Carbon::parse($validated['date'] . ' ' . $validated['break_start']) : null;
+        $payload['break_end'] = $validated['break_end'] ? Carbon::parse($validated['date'] . ' ' . $validated['break_end']) : null;
+        $payload['total_hours'] = 0;
+        $payload['regular_hours'] = 0;
+        $payload['overtime_hours'] = 0;
 
         if (Schema::hasColumn('attendance_records', 'created_by') && Auth::check()) {
             $payload['created_by'] = Auth::id();
+        }
+
+        // Audit trail for the cutoff override above, so a backfilled record
+        // outside the normal window is visibly flagged rather than
+        // indistinguishable from a normal in-window entry.
+        if (Schema::hasColumn('attendance_records', 'created_outside_cutoff')) {
+            $payload['created_outside_cutoff'] = !$isCutoffOpen;
         }
 
         try {
@@ -721,37 +741,41 @@ class AttendanceController extends Controller
                     'date' => $validated['date'],
                     'reason' => $validated['notes'],
                     'status' => OfficialBusinessRequest::APPROVED,
-                    'is_full_day' => $isFullDayOb,
-                    'ob_start_time' => $validated['ob_start_time'] ?? null,
-                    'ob_end_time' => $validated['ob_end_time'] ?? null,
-                    'credited_hours' => $creditedHours,
+                    'is_full_day' => false,
+                    'ob_start_time' => $validated['time_in'],
+                    'ob_end_time' => $validated['time_out'],
                     'reviewed_by' => Auth::id(),
                     'reviewed_at' => Carbon::now(),
+                    // Same reviewer-tracking as the employee-request approval
+                    // path (see OfficialBusinessController::updateStatus()) —
+                    // without this, a backfilled OB record would silently
+                    // break the reviewer-role reporting everywhere else.
+                    'approved_by_role' => Auth::user()->role ?? null,
                     'attendance_record_id' => $record->id,
                     'created_by' => Auth::id(),
+                    // credited_hours filled in right after, once total_hours is
+                    // computed below via the same canonical path every status uses.
                 ]);
             }
 
-            // For clock-based statuses, calculate hours from the time fields just saved
-            if (!$isOfficialBusiness && $record->time_in && $record->time_out) {
-                $timeIn = Carbon::parse($record->time_in);
-                $timeOut = Carbon::parse($record->time_out);
-                $totalMinutes = $timeIn->diffInMinutes($timeOut);
-
-                $breakMinutes = 0;
-                if ($record->break_start && $record->break_end) {
-                    $breakMinutes = Carbon::parse($record->break_start)->diffInMinutes(Carbon::parse($record->break_end));
-                }
-
-                $totalHours = round(max(0, $totalMinutes - $breakMinutes) / 60, 2);
-                $regularHours = min($totalHours, 8);
-                $overtimeHours = max(0, $totalHours - 8);
+            // Compute hours the same way for every status, via AttendanceRecord's
+            // own canonical methods — no separate manual calculation for
+            // non-OB statuses, so this can't drift out of sync with OB's math
+            // (e.g. if the break-subtraction logic ever changes).
+            if ($record->time_in && $record->time_out) {
+                $totalHours = $record->calculateTotalHours();
+                $hoursSplit = $record->calculateRegularAndOvertimeHours();
 
                 $record->update([
                     'total_hours' => $totalHours,
-                    'regular_hours' => $regularHours,
-                    'overtime_hours' => $overtimeHours,
+                    'regular_hours' => $hoursSplit['regular_hours'],
+                    'overtime_hours' => $hoursSplit['overtime_hours'],
                 ]);
+
+                if ($isOfficialBusiness) {
+                    OfficialBusinessRequest::where('attendance_record_id', $record->id)
+                        ->update(['credited_hours' => $totalHours]);
+                }
             }
 
             $statusLabel = ucwords(str_replace('_', ' ', $validated['status']));

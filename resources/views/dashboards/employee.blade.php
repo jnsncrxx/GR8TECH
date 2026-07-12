@@ -474,8 +474,8 @@
 
 <!-- Hidden data for JavaScript -->
 <div id="attendance-data"
-     data-today-attendance='{!! json_encode($todayAttendance) !!}'
-     data-recent-activity='{!! json_encode($recentActivity) !!}'
+     data-today-attendance='@json($todayAttendance)'
+     data-recent-activity='@json($recentActivity)'
      style="display: none;"></div>
 
 <script>
