@@ -79,7 +79,7 @@
         <!-- Leave Balance Info -->
         <div id="leaveBalanceContainer" class="bg-blue-50 border border-blue-200 rounded-lg p-4 {{ ($employee && $leaveBalance) ? '' : 'hidden' }}">
             <h3 class="text-sm font-medium text-blue-900 mb-3" id="balanceTitle">{{ in_array($user->role, ['admin', 'hr']) ? 'Employee Leave Balance' : 'Your Leave Balance' }}</h3>
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" id="balanceGrid">
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3" id="balanceGrid">
                 @if($employee && $leaveBalance)
                 <div>
                     <div class="text-xs text-blue-700">Vacation</div>
@@ -90,12 +90,8 @@
                     <div class="text-sm font-semibold text-blue-900" id="balance-sick">{{ $availableDays['sick'] ?? 0 }} days</div>
                 </div>
                 <div>
-                    <div class="text-xs text-blue-700">Personal</div>
-                    <div class="text-sm font-semibold text-blue-900" id="balance-personal">{{ $availableDays['personal'] ?? 0 }} days</div>
-                </div>
-                <div>
-                    <div class="text-xs text-blue-700">Emergency</div>
-                    <div class="text-sm font-semibold text-blue-900" id="balance-emergency">{{ $availableDays['emergency'] ?? 0 }} days</div>
+                    <div class="text-xs text-blue-700">SIL</div>
+                    <div class="text-sm font-semibold text-blue-900" id="balance-bereavement">{{ $availableDays['bereavement'] ?? 0 }} days</div>
                 </div>
                 @endif
             </div>
@@ -143,12 +139,11 @@
                                 <option value="">Select Leave Type</option>
                                 <option value="vacation" {{ old('leave_type') == 'vacation' ? 'selected' : '' }}>Vacation Leave</option>
                                 <option value="sick" {{ old('leave_type') == 'sick' ? 'selected' : '' }}>Sick Leave</option>
-                                <option value="personal" {{ old('leave_type') == 'personal' ? 'selected' : '' }}>Personal Leave</option>
+                                <option value="personal" {{ old('leave_type') == 'personal' ? 'selected' : '' }}>Personal Leave/Leave Without Pay</option>
                                 <option value="emergency" {{ old('leave_type') == 'emergency' ? 'selected' : '' }}>Emergency Leave</option>
                                 <option value="maternity" {{ old('leave_type') == 'maternity' ? 'selected' : '' }}>Maternity Leave</option>
                                 <option value="paternity" {{ old('leave_type') == 'paternity' ? 'selected' : '' }}>Paternity Leave</option>
-                                <option value="bereavement" {{ old('leave_type') == 'bereavement' ? 'selected' : '' }}>Bereavement Leave</option>
-                                <option value="study" {{ old('leave_type') == 'study' ? 'selected' : '' }}>Study Leave</option>
+                                <option value="bereavement" {{ old('leave_type') == 'bereavement' ? 'selected' : '' }}>SIL (Service Incentive Leave)</option>
                             </select>
                             @error('leave_type')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -215,6 +210,7 @@
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
+
                     </div>
                 </div>
 
@@ -565,13 +561,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const leaveTypeLabels = {
         'vacation': 'Vacation',
         'sick': 'Sick',
-        'personal': 'Personal',
+        'personal': 'Personal/LWOP',
         'emergency': 'Emergency',
         'maternity': 'Maternity',
         'paternity': 'Paternity',
-        'bereavement': 'Bereavement',
-        'study': 'Study'
+        'bereavement': 'SIL'
     };
+
+    // Leave types without an enforced balance cap
+    const uncappedLeaveTypes = ['personal', 'emergency'];
 
     // Check if a date is a Sunday
     function isSunday(date) {
@@ -814,8 +812,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const available = availableDays[leaveType];
         if (days > available) {
-            balanceWarning.classList.remove('hidden');
-            balanceInfo.textContent = `Available ${leaveTypeLabels[leaveType]} Leave: ${available} days. Requested: ${days} days.`;
+            if (uncappedLeaveTypes.includes(leaveType)) {
+                // Personal/Emergency leave are incremental with no fixed cap - inform, don't warn
+                balanceWarning.classList.remove('hidden');
+                balanceInfo.textContent = `${leaveTypeLabels[leaveType]} Leave has no fixed cap. Current allotted balance: ${available} days. Requested: ${days} days.`;
+            } else {
+                balanceWarning.classList.remove('hidden');
+                balanceInfo.textContent = `Available ${leaveTypeLabels[leaveType]} Leave: ${available} days. Requested: ${days} days.`;
+            }
         } else {
             balanceWarning.classList.add('hidden');
         }
@@ -912,7 +916,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateBalanceDisplay(days) {
         const balanceGrid = document.getElementById('balanceGrid');
         if (balanceGrid && Object.keys(days).length > 0) {
-            const types = ['vacation', 'sick', 'personal', 'emergency'];
+            const types = ['vacation', 'sick', 'personal', 'emergency', 'bereavement'];
             types.forEach(type => {
                 const el = document.getElementById(`balance-${type}`);
                 if (el) {
@@ -1006,8 +1010,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Check balance
-        if (shouldCheckBalance && leaveType && availableDays[leaveType]) {
+        // Check balance (personal & emergency leave are uncapped/incremental, so skip the block)
+        if (shouldCheckBalance && leaveType && !uncappedLeaveTypes.includes(leaveType) && availableDays[leaveType]) {
             const available = availableDays[leaveType];
             if (days > available) {
                 showValidationMessage(`Insufficient leave balance. Available: ${available} days, Requested: ${days} days.`, 'error');
@@ -1051,7 +1055,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const currentYear = document.getElementById('leave-request-data')?.getAttribute('data-current-year') || new Date().getFullYear();
             
             if (empId) {
-                balanceGrid.innerHTML = '<div class="col-span-4 text-center text-sm text-blue-700">Loading leave balance...</div>';
+                balanceGrid.innerHTML = '<div class="col-span-3 text-center text-sm text-blue-700">Loading leave balance...</div>';
                 leaveBalanceContainer.classList.remove('hidden');
                 
                 fetch(`/attendance/leave-management/balance?employee_id=${empId}&year=${currentYear}`)
@@ -1079,12 +1083,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <div class="text-sm font-semibold text-blue-900" id="balance-sick">${data.available_days.sick || 0} days</div>
                                 </div>
                                 <div>
-                                    <div class="text-xs text-blue-700">Personal</div>
-                                    <div class="text-sm font-semibold text-blue-900" id="balance-personal">${data.available_days.personal || 0} days</div>
-                                </div>
-                                <div>
-                                    <div class="text-xs text-blue-700">Emergency</div>
-                                    <div class="text-sm font-semibold text-blue-900" id="balance-emergency">${data.available_days.emergency || 0} days</div>
+                                    <div class="text-xs text-blue-700">SIL</div>
+                                    <div class="text-sm font-semibold text-blue-900" id="balance-bereavement">${data.available_days.bereavement || 0} days</div>
                                 </div>
                             `;
                             
@@ -1092,12 +1092,12 @@ document.addEventListener('DOMContentLoaded', function() {
                                 updateDateInfo();
                             }
                         } else {
-                            balanceGrid.innerHTML = '<div class="col-span-4 text-center text-sm text-red-600">No leave balance found for this employee.</div>';
+                            balanceGrid.innerHTML = '<div class="col-span-3 text-center text-sm text-red-600">No leave balance found for this employee.</div>';
                         }
                     })
                     .catch(error => {
                         console.error('Error loading leave balance:', error);
-                        balanceGrid.innerHTML = '<div class="col-span-4 text-center text-sm text-red-600">Error loading leave balance.</div>';
+                        balanceGrid.innerHTML = '<div class="col-span-3 text-center text-sm text-red-600">Error loading leave balance.</div>';
                     });
             } else {
                 leaveBalanceContainer.classList.add('hidden');
