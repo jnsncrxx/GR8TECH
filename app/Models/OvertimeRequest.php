@@ -13,6 +13,9 @@ class OvertimeRequest extends Model
     use HasUuids, HasExpiryWindow;
 
     const PENDING = 'pending';
+    const APPROVED = 'approved';
+    const REJECTED = 'rejected';
+    const CANCELED = 'canceled';
     const EXPIRED = 'expired';
 
     protected $keyType = 'string';
