@@ -132,12 +132,12 @@
                         </div>
 
                         <div class="grid grid-cols-2 gap-3">
-                            <button type="button" class="flex items-center justify-center rounded-xl border border-black/15 bg-white px-3 py-2.5 text-sm text-black transition-all duration-300 hover:border-[#2D9344] hover:text-[#2D9344] dark:border-slate-700/60 dark:bg-slate-800 dark:text-slate-100 dark:hover:text-[#2D9344]">
+                            <a href="{{ route('auth.google') }}" class="flex items-center justify-center rounded-xl border border-black/15 bg-white px-3 py-2.5 text-sm text-black transition-all duration-300 hover:border-[#2D9344] hover:text-[#2D9344] dark:border-slate-700/60 dark:bg-slate-800 dark:text-slate-100 dark:hover:text-[#2D9344]">
                                 <i class="fab fa-google mr-2 text-[#ED1C24] text-sm"></i>Google
-                            </button>
-                            <button type="button" class="flex items-center justify-center rounded-xl border border-black/15 bg-white px-3 py-2.5 text-sm text-black transition-all duration-300 hover:border-[#2D9344] hover:text-[#2D9344] dark:border-slate-700/60 dark:bg-slate-800 dark:text-slate-100 dark:hover:text-[#2D9344]">
+                            </a>
+                            <a href="{{ route('auth.microsoft') }}" class="flex items-center justify-center rounded-xl border border-black/15 bg-white px-3 py-2.5 text-sm text-black transition-all duration-300 hover:border-[#2D9344] hover:text-[#2D9344] dark:border-slate-700/60 dark:bg-slate-800 dark:text-slate-100 dark:hover:text-[#2D9344]">
                                 <i class="fab fa-microsoft mr-2 text-black text-sm dark:text-white"></i>Microsoft
-                            </button>
+                            </a>
                         </div>
                     </form>
                 </div>

@@ -104,6 +104,10 @@ if ($request->filled('start_date') && $request->filled('end_date')) {
             'p1.overtime_pay',
             'p1.allowances',
             'p1.deductions',
+            'p1.sss',
+            'p1.phic',
+            'p1.hdmf',
+            'p1.tax_amount',
             'p1.net_pay',
             'p1.gross_pay',
             'p1.created_at',
@@ -223,6 +227,10 @@ if ($request->filled('start_date') && $request->filled('end_date')) {
             'overtime_pay' => $item->overtime_pay,
             'allowances' => $item->allowances,
             'deductions' => $item->deductions,
+            'sss' => $item->sss ?? 0,
+            'phic' => $item->phic ?? 0,
+            'hdmf' => $item->hdmf ?? 0,
+            'tax_amount' => $item->tax_amount ?? 0,
             'net_pay' => $item->net_pay,
             'gross_pay' => $item->gross_pay,
             'created_at' => $item->created_at,
@@ -1104,6 +1112,8 @@ public function rejectPayroll(Request $request, $payrollId)
         // But first, let's check what status values are acceptable
         $status = 'canceled'; // Shorter than 'rejected'
         
+        $reason = $request->input('reason', 'Rejected by Admin/HR');
+        
         // Simple update using DB facade to avoid Eloquent issues
         DB::table('payrolls')
             ->where('id', $payrollId)
@@ -1111,7 +1121,7 @@ public function rejectPayroll(Request $request, $payrollId)
                 'status' => $status,
                 'rejected_at' => now(),
                 'rejected_by' => $user->id ?? null,
-                'rejection_reason' => 'Rejected by user',
+                'rejection_reason' => $reason,
                 'updated_at' => now()
             ]);
         

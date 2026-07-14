@@ -74,6 +74,17 @@ class OvertimeController extends Controller
                 $endTime->addDay();
             }
             
+            $overlapping = \App\Models\OvertimeRequest::where('employee_id', $user->employee_id)
+                ->whereIn('status', [\App\Models\OvertimeRequest::PENDING, \App\Models\OvertimeRequest::APPROVED])
+                ->where(function ($query) use ($startTime, $endTime) {
+                    $query->where('start_time', '<', $endTime)
+                          ->where('end_time', '>', $startTime);
+                })->exists();
+                
+            if ($overlapping) {
+                return response()->json(['error' => 'An overlapping overtime request already exists.'], 422);
+            }
+            
             $hours = $startTime->diffInMinutes($endTime) / 60;
             
             $overtime = \App\Models\OvertimeRequest::create([
@@ -84,7 +95,8 @@ class OvertimeController extends Controller
                 'hours' => round($hours, 2),
                 'rate_multiplier' => 1.25,
                 'reason' => $request->reason,
-                'status' => 'pending',
+                'status' => \App\Models\OvertimeRequest::PENDING,
+                'expires_at' => $endTime,
             ]);
             
             return response()->json([
@@ -103,6 +115,15 @@ class OvertimeController extends Controller
             $request->validate(['status' => 'required|in:approved,rejected']);
             
             $overtime = \App\Models\OvertimeRequest::findOrFail($id);
+            
+            if ($overtime->isExpired()) {
+                return response()->json(['error' => 'Cannot update an expired request.'], 403);
+            }
+            
+            if ($overtime->status !== \App\Models\OvertimeRequest::PENDING) {
+                return response()->json(['error' => 'Only pending requests can be updated.'], 403);
+            }
+            
             $overtime->update([
                 'status' => $request->status,
                 'approved_by' => Auth::id(),
