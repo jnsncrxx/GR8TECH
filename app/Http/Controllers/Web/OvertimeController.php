@@ -62,8 +62,15 @@ class OvertimeController extends Controller
                 'reason' => 'required|string',
             ]);
             
-            if ($request->start_time < '17:00') {
+            $startTimeStr = date('H:i', strtotime($request->start_time));
+            $endTimeStr = date('H:i', strtotime($request->end_time));
+            
+            if ($startTimeStr < '17:00') {
                 return response()->json(['error' => 'Overtime must start at or after 5:00 PM.'], 422);
+            }
+            
+            if ($endTimeStr < $startTimeStr && $endTimeStr !== '00:00') {
+                return response()->json(['error' => 'End time must be after start time or exactly 12:00 AM.'], 422);
             }
             
             $user = Auth::user();
