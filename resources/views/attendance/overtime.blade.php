@@ -445,12 +445,12 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label for="startTime" class="block text-sm font-medium text-gray-700 mb-2">Start Time</label>
-                        <input type="time" id="startTime" name="start_time" required 
+                        <input type="time" id="startTime" name="start_time" required min="17:00" value="17:00"
                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
                     </div>
                     <div>
                         <label for="endTime" class="block text-sm font-medium text-gray-700 mb-2">End Time</label>
-                        <input type="time" id="endTime" name="end_time" required 
+                        <input type="time" id="endTime" name="end_time" required min="17:00"
                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
                     </div>
                 </div>
@@ -606,6 +606,11 @@ async function submitOvertimeRequest(event) {
     const data = Object.fromEntries(formData);
     
     // Validate times
+    if (data.start_time < '17:00') {
+        showError('Overtime must start at or after 5:00 PM');
+        return;
+    }
+    
     if (data.start_time >= data.end_time) {
         showError('End time must be after start time');
         return;

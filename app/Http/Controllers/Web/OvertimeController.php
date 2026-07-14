@@ -62,6 +62,10 @@ class OvertimeController extends Controller
                 'reason' => 'required|string',
             ]);
             
+            if ($request->start_time < '17:00') {
+                return response()->json(['error' => 'Overtime must start at or after 5:00 PM.'], 422);
+            }
+            
             $user = Auth::user();
             if (!$user->employee_id) {
                 return response()->json(['error' => 'No associated employee record found.'], 400);
@@ -74,15 +78,13 @@ class OvertimeController extends Controller
                 $endTime->addDay();
             }
             
-            $overlapping = \App\Models\OvertimeRequest::where('employee_id', $user->employee_id)
+            $existingRequest = \App\Models\OvertimeRequest::where('employee_id', $user->employee_id)
                 ->whereIn('status', [\App\Models\OvertimeRequest::PENDING, \App\Models\OvertimeRequest::APPROVED])
-                ->where(function ($query) use ($startTime, $endTime) {
-                    $query->where('start_time', '<', $endTime)
-                          ->where('end_time', '>', $startTime);
-                })->exists();
+                ->whereDate('date', $request->date)
+                ->exists();
                 
-            if ($overlapping) {
-                return response()->json(['error' => 'An overlapping overtime request already exists.'], 422);
+            if ($existingRequest) {
+                return response()->json(['error' => 'You already have a pending or approved overtime request for this date. Please choose another day.'], 422);
             }
             
             $hours = $startTime->diffInMinutes($endTime) / 60;
@@ -116,7 +118,7 @@ class OvertimeController extends Controller
             
             $overtime = \App\Models\OvertimeRequest::findOrFail($id);
             
-            if ($overtime->isExpired()) {
+            if ($overtime->isPastDeadline()) {
                 return response()->json(['error' => 'Cannot update an expired request.'], 403);
             }
             
