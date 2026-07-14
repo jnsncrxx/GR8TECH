@@ -445,18 +445,10 @@
                     </button>
                     <div id="filterDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                         <div class="p-2">
-                            <label class="flex items-center px-2 py-1 hover:bg-gray-100 rounded cursor-pointer">
-                                <input type="checkbox" class="rounded text-blue-600">
-                                <span class="ml-2 text-sm">Pending</span>
-                            </label>
-                            <label class="flex items-center px-2 py-1 hover:bg-gray-100 rounded cursor-pointer">
-                                <input type="checkbox" class="rounded text-blue-600">
-                                <span class="ml-2 text-sm">Approved</span>
-                            </label>
-                            <label class="flex items-center px-2 py-1 hover:bg-gray-100 rounded cursor-pointer">
-                                <input type="checkbox" class="rounded text-blue-600">
-                                <span class="ml-2 text-sm">Paid</span>
-                            </label>
+                            <button onclick="applyStatusFilter('all')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ !request('status') || request('status') == 'all' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">All Statuses</button>
+                            <button onclick="applyStatusFilter('pending')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('status') == 'pending' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Pending</button>
+                            <button onclick="applyStatusFilter('approved')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('status') == 'approved' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Approved</button>
+                            <button onclick="applyStatusFilter('paid')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('status') == 'paid' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Paid</button>
                         </div>
                     </div>
                 </div>
@@ -468,10 +460,10 @@
                     </button>
                     <div id="sortDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                         <div class="p-2">
-                            <button class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm">Name (A-Z)</button>
-                            <button class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm">Name (Z-A)</button>
-                            <button class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm">Net Pay (High-Low)</button>
-                            <button class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm">Net Pay (Low-High)</button>
+                            <button onclick="applySortFilter('name_asc')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('sort') == 'name_asc' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Name (A-Z)</button>
+                            <button onclick="applySortFilter('name_desc')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('sort') == 'name_desc' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Name (Z-A)</button>
+                            <button onclick="applySortFilter('net_pay_high_low')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('sort') == 'net_pay_high_low' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Net Pay (High-Low)</button>
+                            <button onclick="applySortFilter('net_pay_low_high')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('sort') == 'net_pay_low_high' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Net Pay (Low-High)</button>
                         </div>
                     </div>
                 </div>
@@ -587,7 +579,7 @@
                                         'phic' => $payroll->phic,
                                         'pagibig' => $payroll->hdmf,
                                         'tax' => $payroll->tax_amount,
-                                        'total_deductions' => $payroll->deductions,
+                                        'total_deductions' => $payroll->total_deductions,
                                         'net_pay' => $payroll->net_pay
                                     ];
                                 @endphp
@@ -733,7 +725,7 @@
                             'phic' => $payroll->phic,
                             'pagibig' => $payroll->hdmf,
                             'tax' => $payroll->tax_amount,
-                            'total_deductions' => $payroll->deductions,
+                            'total_deductions' => $payroll->total_deductions,
                             'net_pay' => $payroll->net_pay
                         ];
                     @endphp
@@ -839,7 +831,7 @@
                                     'phic' => $payroll->phic,
                                     'pagibig' => $payroll->hdmf,
                                     'tax' => $payroll->tax_amount,
-                                    'total_deductions' => $payroll->deductions,
+                                    'total_deductions' => $payroll->total_deductions,
                                     'net_pay' => $payroll->net_pay
                                 ];
                             @endphp
@@ -2739,28 +2731,7 @@ function generateEmployeeCardHTML(employee) {
     `;
 }
 
-function sortBy(field) {
-    let url = new URL(window.location.href);
-    
-    // Remove page parameter
-    url.searchParams.delete('page');
-    
-    // Set sort parameter
-    url.searchParams.set('sort', field);
-    
-    // If clicking same field, toggle order
-    const currentSort = url.searchParams.get('sort');
-    const currentOrder = url.searchParams.get('order');
-    
-    if (currentSort === field && currentOrder === 'desc') {
-        url.searchParams.set('order', 'asc');
-    } else {
-        url.searchParams.set('order', 'desc');
-    }
-    
-    window.location.href = url.toString();
-    document.getElementById('sortDropdown').classList.add('hidden');
-}
+
 
 function changeEmployeePage(direction) {
     // If employees not loaded, try to initialize first
@@ -2886,53 +2857,22 @@ function toggleSortDropdown() {
     filterDropdown.classList.add('hidden');
 }
 
-function applyFilters() {
-    const status = document.getElementById('filterStatus').value;
-    const department = document.getElementById('filterDepartment').value;
-    
+function applyStatusFilter(status) {
     let url = new URL(window.location.href);
-    
-    if (status) {
-        url.searchParams.set('status', status);
-    } else {
+    if (status === 'all') {
         url.searchParams.delete('status');
-    }
-    
-    if (department) {
-        url.searchParams.set('department', department);
     } else {
-        url.searchParams.delete('department');
+        url.searchParams.set('status', status);
     }
-    
-    url.searchParams.delete('page');
-    
-    window.location.href = url.toString();
-}
-
-function clearFilters() {
-    let url = new URL(window.location.href);
-    url.searchParams.delete('status');
-    url.searchParams.delete('department');
     url.searchParams.delete('page');
     window.location.href = url.toString();
 }
 
-function sortBy(field) {
+function applySortFilter(field) {
     let url = new URL(window.location.href);
-    const currentSort = url.searchParams.get('sort');
-    const currentOrder = url.searchParams.get('order');
-    
-    if (currentSort === field) {
-        url.searchParams.set('order', currentOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-        url.searchParams.set('sort', field);
-        url.searchParams.set('order', 'asc');
-    }
-    
+    url.searchParams.set('sort', field);
     url.searchParams.delete('page');
-    
     window.location.href = url.toString();
-    document.getElementById('sortDropdown').classList.add('hidden');
 }
 
 // Add this function to update all date fields

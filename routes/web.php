@@ -25,6 +25,14 @@ Route::middleware('guest')->group(function () {
     Route::get('/', [AuthController::class, 'showLogin'])->name('login');
     // Add 'log.login' middleware to the login POST route
     Route::post('/login', [AuthController::class, 'login'])->name('login.post');
+    
+    // Google Auth Routes
+    Route::get('/auth/google', [\App\Http\Controllers\Web\GoogleAuthController::class, 'redirectToGoogle'])->name('auth.google');
+    Route::get('/auth/google/callback', [\App\Http\Controllers\Web\GoogleAuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
+
+    // Microsoft Auth Routes
+    Route::get('/auth/microsoft', [\App\Http\Controllers\Web\MicrosoftAuthController::class, 'redirectToMicrosoft'])->name('auth.microsoft');
+    Route::get('/auth/microsoft/callback', [\App\Http\Controllers\Web\MicrosoftAuthController::class, 'handleMicrosoftCallback'])->name('auth.microsoft.callback');
     Route::get('/notifications/login-logs', [App\Http\Controllers\NotificationController::class, 'getLoginLogs'])
         ->name('notifications.login-logs');
     
