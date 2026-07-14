@@ -1162,7 +1162,7 @@ private function calculateAllPayrollComponents(Employee $employee, $employeeReco
     $basicSalary = $daysWorked * $dailyRate;
     
     // Calculate overtime with Excel multipliers
-    $overtimeData = $this->calculateOvertimeWithExcelRates($employeeRecords, $hourlyRate);
+    $overtimeData = $this->calculateOvertimeWithExcelRates($employee, $periodData, $hourlyRate);
     
     // Calculate night differential with Excel formula (10% of hourly rate)
     $nightDiffData = $this->calculateNightDifferentialWithExcelRates($employeeRecords, $hourlyRate);
@@ -1290,35 +1290,28 @@ private function calculateDaysWorkedFromRecords($employeeRecords): float
 }
 
 /**
- * Calculate overtime with exact Excel multipliers
+ * Calculate overtime with Excel multipliers
  */
-private function calculateOvertimeWithExcelRates($employeeRecords, $hourlyRate): array
+private function calculateOvertimeWithExcelRates(Employee $employee, array $periodData, $hourlyRate): array
 {
     $totalHours = 0;
     $totalPay = 0;
     
-    foreach ($employeeRecords as $record) {
-        // Regular OT: hours × 1.25 × hourly rate
-        if ($record['overtime'] > 0) {
-            $totalHours += $record['overtime'];
-            $totalPay += $record['overtime'] * $hourlyRate * 1.25;
-        }
+    $approvedRequests = \App\Models\OvertimeRequest::where('employee_id', $employee->employee_id)
+        ->where('status', \App\Models\OvertimeRequest::APPROVED)
+        ->whereBetween('date', [$periodData['start_date'], $periodData['end_date']])
+        ->get();
         
-        // LH OT: hours × 2.0 × 1.3 × hourly rate (Excel: =H17*200%*1.3*N17)
-        if (isset($record['lh_overtime']) && $record['lh_overtime'] > 0) {
-            $totalHours += $record['lh_overtime'];
-            $totalPay += $record['lh_overtime'] * $hourlyRate * 2.0 * 1.3;
-        }
+    foreach ($approvedRequests as $request) {
+        $hours = $request->hours;
+        $multiplier = $request->rate_multiplier ?? 1.25;
         
-        // SH OT: hours × 1.3 × hourly rate (Excel: =H14*P14*1.3)
-        if (isset($record['sh_overtime']) && $record['sh_overtime'] > 0) {
-            $totalHours += $record['sh_overtime'];
-            $totalPay += $record['sh_overtime'] * $hourlyRate * 1.3;
-        }
+        $totalHours += $hours;
+        $totalPay += $hours * $hourlyRate * $multiplier;
     }
-    
+
     return [
-        'total_hours' => $totalHours,
+        'total_hours' => round($totalHours, 2),
         'total_pay' => round($totalPay, 2)
     ];
 }
