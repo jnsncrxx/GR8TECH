@@ -191,6 +191,10 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Reason
                         </th>
+
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            OB Hours
+                        </th>
                         <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Status
                         </th>
@@ -242,6 +246,20 @@
                                 @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
+                                @if($obStatus === 'approved')
+                                    <div class="text-sm font-semibold text-green-700">
+                                        {{ number_format((float) ($ob->credited_hours ?? 0), 2) }} hrs
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        {{ \Carbon\Carbon::parse($ob->ob_start_time)->format('h:i A') }}
+                                        -
+                                        {{ \Carbon\Carbon::parse($ob->ob_end_time)->format('h:i A') }}
+                                    </div>
+                                @else
+                                    <span class="text-sm text-gray-400">—</span>
+                                @endif
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
                                 <span class="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium {{ $statusColor }} min-w-[80px]">
                                     {{ ucfirst($obStatus) }}
                                 </span>
@@ -276,7 +294,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-6 py-4 text-center">
+                            <td colspan="7" class="px-6 py-4 text-center">
                                 <div class="flex flex-col items-center justify-center py-8">
                                     <i class="fas fa-briefcase text-gray-400 text-4xl mb-4"></i>
                                     <p class="text-gray-500 text-lg font-medium mb-2">No official business requests found</p>
@@ -353,16 +371,39 @@
                                 {{ ucfirst($obStatus) }}
                             </span>
                         </div>
-                        <div class="grid grid-cols-2 gap-4 text-sm mb-3">
-                            <div>
-                                <div class="text-gray-500">Date</div>
-                                <div class="font-medium">{{ $ob->date->format('M d, Y') }}</div>
-                            </div>
-                            <div>
-                                <div class="text-gray-500">Reviewed By</div>
-                                <div class="font-medium">{{ $reviewerName !== '' ? $reviewerName : '—' }}</div>
-                            </div>
-                        </div>
+<div class="grid grid-cols-2 gap-4 text-sm mb-3">
+    <div>
+        <div class="text-gray-500">Date</div>
+        <div class="font-medium">
+            {{ $ob->date->format('M d, Y') }}
+        </div>
+    </div>
+
+    <div>
+        <div class="text-gray-500">Reviewed By</div>
+        <div class="font-medium">
+            {{ $reviewerName !== '' ? $reviewerName : '—' }}
+        </div>
+    </div>
+
+    <div>
+        <div class="text-gray-500">OB Hours</div>
+
+        @if($obStatus === 'approved')
+            <div class="font-semibold text-green-700">
+                {{ number_format((float) ($ob->credited_hours ?? 0), 2) }} hrs
+            </div>
+
+            <div class="text-xs text-gray-500">
+                {{ \Carbon\Carbon::parse($ob->ob_start_time)->format('h:i A') }}
+                -
+                {{ \Carbon\Carbon::parse($ob->ob_end_time)->format('h:i A') }}
+            </div>
+        @else
+            <div class="font-medium text-gray-400">—</div>
+        @endif
+    </div>
+</div>
                         <div class="text-sm mb-3">
                             <div class="text-gray-500">Reason</div>
                             <div class="font-medium">{{ \Illuminate\Support\Str::limit($ob->reason, 50) }}</div>

@@ -2,13 +2,11 @@
 
 namespace App\Models;
 
-use App\Models\AttendanceLog;
-use App\Models\EmployeeBreak;
-use App\Models\TimeEntry;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Ramsey\Uuid\Uuid;
 
 class AttendanceRecord extends Model
@@ -16,10 +14,11 @@ class AttendanceRecord extends Model
     use HasUuids;
 
     protected $keyType = 'string';
+
     public $incrementing = false;
 
     /**
-     * Attendance status constants
+     * Attendance status constants.
      */
     public const PRESENT = 'present';
     public const ABSENT = 'absent';
@@ -32,7 +31,7 @@ class AttendanceRecord extends Model
     public const ERROR = 'error';
 
     /**
-     * All valid attendance statuses supported by the module.
+     * All valid attendance statuses.
      */
     public const STATUSES = [
         self::PRESENT,
@@ -95,42 +94,63 @@ class AttendanceRecord extends Model
         return ['id'];
     }
 
+    /**
+     * Employee relationship.
+     */
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
     }
 
+    /**
+     * Attendance logs relationship.
+     */
     public function logs(): HasMany
     {
         return $this->hasMany(AttendanceLog::class);
     }
 
+    /**
+     * Employee breaks relationship.
+     */
     public function breaks(): HasMany
     {
         return $this->hasMany(EmployeeBreak::class);
     }
 
     /**
-     * Multiple time entries per day relationship
+     * Multiple time entries per attendance day.
      */
     public function timeEntries(): HasMany
     {
-        return $this->hasMany(TimeEntry::class)->orderBy('time_in');
+        return $this->hasMany(TimeEntry::class)
+            ->orderBy('time_in');
     }
 
     /**
-     * Get the currently active time entry (clocked in but not out)
+     * Get currently active time entry.
      */
     public function getActiveTimeEntry()
     {
-        $activeEntry = $this->timeEntries()->whereNull('time_out')->first();
+        $activeEntry = $this->timeEntries()
+            ->whereNull('time_out')
+            ->first();
 
-        // Fallback: If no active TimeEntry exists but the main record has an active time_in
-        if (!$activeEntry && $this->time_in && !$this->time_out) {
+        /*
+         * Legacy attendance fallback.
+         *
+         * If the main attendance record contains time_in
+         * without time_out, create a matching TimeEntry.
+         */
+        if (
+            !$activeEntry
+            && $this->time_in
+            && !$this->time_out
+        ) {
             $activeEntry = TimeEntry::create([
                 'attendance_record_id' => $this->id,
                 'time_in' => $this->time_in,
-                'entry_type' => 'regular'
+                'entry_type' => 'regular',
             ]);
         }
 
@@ -138,202 +158,320 @@ class AttendanceRecord extends Model
     }
 
     /**
-     * Check if there's an active time entry
+     * Determine whether an active time entry exists.
      */
     public function hasActiveTimeEntry(): bool
     {
-        return $this->timeEntries()->whereNull('time_out')->exists() || ($this->time_in && !$this->time_out);
+        return $this->timeEntries()
+            ->whereNull('time_out')
+            ->exists()
+            || ($this->time_in && !$this->time_out);
     }
 
     /**
-     * Get the total hours from all completed time entries
+     * Get completed TimeEntry hours.
      */
     public function getTotalHoursFromEntries(): float
     {
-        return (float) $this->timeEntries()->whereNotNull('time_out')->sum('hours_worked');
+        return round(
+            (float) $this->timeEntries()
+                ->whereNotNull('time_out')
+                ->sum('hours_worked'),
+            2
+        );
     }
 
     /**
-     * Get the first time entry of the day (earliest time_in)
+     * Get first time entry.
      */
     public function getFirstTimeEntry()
     {
-        return $this->timeEntries()->orderBy('time_in', 'asc')->first();
+        return $this->timeEntries()
+            ->orderBy('time_in', 'asc')
+            ->first();
     }
 
     /**
-     * Get the last time entry of the day (latest time_out or latest time_in if no time_out)
+     * Get last time entry.
      */
     public function getLastTimeEntry()
     {
-        return $this->timeEntries()->orderBy('time_in', 'desc')->first();
+        return $this->timeEntries()
+            ->orderBy('time_in', 'desc')
+            ->first();
     }
 
     /**
-     * Calculate total hours worked from all time entries
+     * Calculate total worked hours.
+     *
+     * Priority:
+     * 1. Completed TimeEntry records.
+     * 2. attendance_records.time_in/time_out fallback.
+     *
+     * This fallback fixes Official Business and manually
+     * created attendance records returning 0.00 hours.
      */
     public function calculateTotalHours(): float
     {
         $totalMinutes = 0;
-        $entries = $this->timeEntries()->whereNotNull('time_out')->get();
 
+        $entries = $this->timeEntries()
+            ->whereNotNull('time_out')
+            ->get();
+
+        /*
+         * MULTI-TIME ENTRY ATTENDANCE
+         */
         if ($entries->isNotEmpty()) {
             foreach ($entries as $entry) {
-                $timeIn = \Carbon\Carbon::parse($entry->time_in);
-                $timeOut = \Carbon\Carbon::parse($entry->time_out);
-                $totalMinutes += $timeIn->diffInMinutes($timeOut);
+                $timeIn = Carbon::parse($entry->time_in);
+                $timeOut = Carbon::parse($entry->time_out);
+
+                if ($timeOut->gt($timeIn)) {
+                    $totalMinutes += $timeIn->diffInMinutes($timeOut);
+                }
             }
-        } elseif ($this->time_in && $this->time_out) {
-            // Fallback for records created directly with time_in/time_out on the
-            // attendance_records row itself (e.g. the manual "Create Record" form,
-            // or an approved Official Business request) rather than through the
-            // clock-in/clock-out flow that populates the time_entries table.
-            // Without this, such records always summed to 0 minutes here even
-            // though total_hours had already been computed correctly at creation.
-            $timeIn = \Carbon\Carbon::parse($this->time_in);
-            $timeOut = \Carbon\Carbon::parse($this->time_out);
-            $totalMinutes = max(0, $timeIn->diffInMinutes($timeOut));
         }
 
-        // Subtract break minutes
-        $totalBreakMinutes = 0;
-        $breaks = $this->breaks()->whereNotNull('break_end')->get();
+        /*
+         * DIRECT ATTENDANCE / OFFICIAL BUSINESS FALLBACK
+         *
+         * Approved OB records may not contain TimeEntry
+         * records. Use the attendance row time fields.
+         */
+        elseif ($this->time_in && $this->time_out) {
+            $timeIn = Carbon::parse($this->time_in);
+            $timeOut = Carbon::parse($this->time_out);
 
-        if ($breaks->isNotEmpty()) {
-            foreach ($breaks as $break) {
-                $totalBreakMinutes += \Carbon\Carbon::parse($break->break_start)->diffInMinutes(\Carbon\Carbon::parse($break->break_end));
+            if ($timeOut->gt($timeIn)) {
+                $totalMinutes = $timeIn->diffInMinutes($timeOut);
             }
-        } elseif ($this->break_start && $this->break_end) {
-            // Same fallback for the legacy break_start/break_end columns.
-            $totalBreakMinutes = \Carbon\Carbon::parse($this->break_start)->diffInMinutes(\Carbon\Carbon::parse($this->break_end));
         }
 
-        $workingMinutes = max(0, $totalMinutes - $totalBreakMinutes);
+        /*
+         * Subtract completed breaks.
+         */
+        $totalBreakMinutes = $this->getCompletedBreakMinutes();
+
+        $workingMinutes = max(
+            0,
+            $totalMinutes - $totalBreakMinutes
+        );
+
         return round($workingMinutes / 60, 2);
     }
 
     /**
-     * Calculate total hours from all time entries (new multi-entry system)
+     * Calculate total hours from TimeEntry records.
      */
     public function calculateTotalHoursFromEntries(): float
     {
-        $totalHours = 0;
+        $totalMinutes = 0;
 
         foreach ($this->timeEntries as $entry) {
-            if ($entry->time_out) {
-                // Completed entry - use calculated hours
-                $totalHours += $entry->hours_worked > 0 ? $entry->hours_worked : $entry->calculateHoursWorked();
+            if (!$entry->time_out) {
+                continue;
             }
-            // Active entries (no time_out) are not counted until clocked out
+
+            $timeIn = Carbon::parse($entry->time_in);
+            $timeOut = Carbon::parse($entry->time_out);
+
+            if ($timeOut->gt($timeIn)) {
+                $totalMinutes += $timeIn->diffInMinutes($timeOut);
+            }
         }
 
-        // Subtract break time
-        $breakHours = $this->getTotalBreakMinutes() / 60;
-        $totalHours = max(0, $totalHours - $breakHours);
+        $workingMinutes = max(
+            0,
+            $totalMinutes - $this->getTotalBreakMinutes()
+        );
 
-        return round($totalHours, 2);
+        return round($workingMinutes / 60, 2);
     }
 
     /**
-     * Get total break minutes from all breaks
+     * Get completed break minutes.
+     *
+     * Active breaks are intentionally excluded from final
+     * worked-hour calculations.
      */
-    public function getTotalBreakMinutes(): int
+    private function getCompletedBreakMinutes(): int
     {
-        // Use breaks relationship if available
-        if ($this->relationLoaded('breaks')) {
-            return $this->breaks->sum(function ($break) {
-                if ($break->break_end) {
-                    return $break->break_duration_minutes ?? $break->break_start->diffInMinutes($break->break_end);
+        $totalMinutes = 0;
+
+        $breaks = $this->breaks()
+            ->whereNotNull('break_end')
+            ->get();
+
+        if ($breaks->isNotEmpty()) {
+            foreach ($breaks as $break) {
+                $breakStart = Carbon::parse($break->break_start);
+                $breakEnd = Carbon::parse($break->break_end);
+
+                if ($breakEnd->gt($breakStart)) {
+                    $totalMinutes += $breakStart
+                        ->diffInMinutes($breakEnd);
                 }
-                // If break is still active, calculate up to now
-                return $break->break_start->diffInMinutes(now());
-            });
+            }
+
+            return $totalMinutes;
         }
 
-        // Fallback to old break_start/break_end fields for backward compatibility
+        /*
+         * Legacy break column fallback.
+         */
         if ($this->break_start && $this->break_end) {
-            return $this->break_end->diffInMinutes($this->break_start);
-        }
+            $breakStart = Carbon::parse($this->break_start);
+            $breakEnd = Carbon::parse($this->break_end);
 
-        // Check if there's an active break
-        if ($this->break_start && !$this->break_end) {
-            return $this->break_start->diffInMinutes(now());
+            if ($breakEnd->gt($breakStart)) {
+                return $breakStart->diffInMinutes($breakEnd);
+            }
         }
 
         return 0;
     }
 
     /**
-     * Get total break hours
+     * Get total break minutes.
+     *
+     * Includes active breaks.
+     */
+    public function getTotalBreakMinutes(): int
+    {
+        $totalMinutes = 0;
+
+        $breaks = $this->breaks()->get();
+
+        if ($breaks->isNotEmpty()) {
+            foreach ($breaks as $break) {
+                $breakStart = Carbon::parse($break->break_start);
+
+                $breakEnd = $break->break_end
+                    ? Carbon::parse($break->break_end)
+                    : now();
+
+                if ($breakEnd->gt($breakStart)) {
+                    $totalMinutes += $breakStart
+                        ->diffInMinutes($breakEnd);
+                }
+            }
+
+            return $totalMinutes;
+        }
+
+        /*
+         * Legacy break columns.
+         */
+        if ($this->break_start) {
+            $breakStart = Carbon::parse($this->break_start);
+
+            $breakEnd = $this->break_end
+                ? Carbon::parse($this->break_end)
+                : now();
+
+            if ($breakEnd->gt($breakStart)) {
+                return $breakStart->diffInMinutes($breakEnd);
+            }
+        }
+
+        return 0;
+    }
+
+    /**
+     * Get total break hours.
      */
     public function getTotalBreakHours(): float
     {
-        return round($this->getTotalBreakMinutes() / 60, 2);
+        return round(
+            $this->getTotalBreakMinutes() / 60,
+            2
+        );
     }
 
     /**
-     * Check if total break exceeds 1.5 hours (90 minutes)
+     * Check whether break exceeds 90 minutes.
      */
     public function isOverBreak(): bool
     {
-        return $this->getTotalBreakMinutes() > 90; // 1.5 hours = 90 minutes
+        return $this->getTotalBreakMinutes() > 90;
     }
 
     /**
-     * Get over break minutes (how many minutes over 1.5 hours)
+     * Get break minutes exceeding 90 minutes.
      */
     public function getOverBreakMinutes(): int
     {
-        $totalMinutes = $this->getTotalBreakMinutes();
-        return max(0, $totalMinutes - 90);
+        return max(
+            0,
+            $this->getTotalBreakMinutes() - 90
+        );
     }
 
     /**
-     * Calculate regular and overtime hours
+     * Calculate regular and overtime hours.
      */
     public function calculateRegularAndOvertimeHours(): array
     {
         $totalHours = $this->calculateTotalHours();
-        $regularHours = min($totalHours, 8); // 8 hours regular
-        $overtimeHours = max(0, $totalHours - 8);
 
         return [
-            'regular_hours' => $regularHours,
-            'overtime_hours' => $overtimeHours,
+            'regular_hours' => min($totalHours, 8),
+            'overtime_hours' => max(0, $totalHours - 8),
         ];
     }
 
     /**
-     * Check if employee is late
+     * Determine whether employee is late.
      */
     public function isLate(): bool
     {
+        /*
+         * Official Business must not be considered late.
+         */
+        if ($this->isOfficialBusiness()) {
+            return false;
+        }
+
         if (!$this->time_in) {
             return false;
         }
 
-        // Get employee's work schedule for this date
-        $schedule = $this->employee->getWorkScheduleForDate($this->date);
+        $schedule = $this->employee
+            ?->getWorkScheduleForDate($this->date);
+
         if (!$schedule) {
             return false;
         }
 
-        $dayOfWeek = strtolower($this->date->format('l'));
-        $expectedStartTime = $schedule->{$dayOfWeek . '_start'};
-        
+        $dayOfWeek = strtolower(
+            $this->date->format('l')
+        );
+
+        $expectedStartTime =
+            $schedule->{$dayOfWeek . '_start'};
+
         if (!$expectedStartTime) {
             return false;
         }
 
-        $gracePeriod = 15; // 15 minutes grace period
-        $expectedTime = \Carbon\Carbon::parse($this->date->format('Y-m-d') . ' ' . $expectedStartTime);
-        $actualTime = $this->time_in;
+        $expectedTime = Carbon::parse(
+            $this->date->format('Y-m-d')
+            . ' '
+            . $expectedStartTime
+        );
 
-        return $actualTime->gt($expectedTime->addMinutes($gracePeriod));
+        /*
+         * 15-minute grace period.
+         */
+        $expectedTime->addMinutes(15);
+
+        return Carbon::parse($this->time_in)
+            ->gt($expectedTime);
     }
 
     /**
-     * Check if this record is marked as Official Business
+     * Check whether this is an Official Business record.
      */
     public function isOfficialBusiness(): bool
     {
@@ -341,87 +479,59 @@ class AttendanceRecord extends Model
     }
 
     /**
-     * Get status based on attendance data
+     * Calculate attendance status.
      */
     public function getCalculatedStatus(): string
     {
+        /*
+         * IMPORTANT:
+         * Preserve approved Official Business status.
+         *
+         * OB must not become present, late, or half-day.
+         */
+        if ($this->isOfficialBusiness()) {
+            return self::OFFICIAL_BUSINESS;
+        }
+
         if (!$this->time_in && !$this->time_out) {
-            return 'absent';
+            return self::ABSENT;
         }
 
         if ($this->time_in && !$this->time_out) {
-            return 'present'; // Currently working
+            return self::PRESENT;
         }
 
         if ($this->time_in && $this->time_out) {
             $totalHours = $this->calculateTotalHours();
+
             if ($totalHours < 4) {
-                return 'half_day';
+                return self::HALF_DAY;
             }
-            return $this->isLate() ? 'late' : 'present';
+
+            return $this->isLate()
+                ? self::LATE
+                : self::PRESENT;
         }
 
-        return 'absent';
+        return self::ABSENT;
     }
 
     /**
-     * Check if this attendance record is a night shift (10pm-6am)
+     * Determine whether attendance overlaps night shift.
+     *
+     * Night period:
+     * 10:00 PM to 6:00 AM.
      */
     public function isNightShift(): bool
     {
-        if (!$this->time_in || !$this->time_out) {
-            return false;
-        }
-
-        $timeIn = \Carbon\Carbon::parse($this->time_in);
-        $timeOut = \Carbon\Carbon::parse($this->time_out);
-        
-        // Night shift period: 10:00 PM (22:00) to 6:00 AM (06:00)
-        $nightStart = 22; // 10 PM
-        $nightEnd = 6;    // 6 AM
-        
-        // Convert times to minutes for easier calculation
-        $timeInMinutes = $timeIn->hour * 60 + $timeIn->minute;
-        $timeOutMinutes = $timeOut->hour * 60 + $timeOut->minute;
-        
-        // Determine if work spans across midnight
-        $spansMidnight = $timeOutMinutes < $timeInMinutes;
-        
-        if ($spansMidnight) {
-            // Work spans across midnight (e.g., 10 PM to 2 AM)
-            $midnightMinutes = 24 * 60; // 1440 minutes
-            
-            // Check if time_in is in night period (10 PM to midnight)
-            if ($timeInMinutes >= $nightStart * 60) {
-                return true;
-            }
-            
-            // Check if time_out is in night period (midnight to 6 AM)
-            if ($timeOutMinutes <= $nightEnd * 60) {
-                return true;
-            }
-        } else {
-            // Work within the same day
-            $nightStartMinutes = $nightStart * 60; // 10 PM = 1320 minutes
-            $nightEndMinutes = $nightEnd * 60;     // 6 AM = 360 minutes
-            $midnightMinutes = 24 * 60;            // 1440 minutes
-            
-            // Check if work overlaps with evening night period (10 PM to midnight)
-            if ($timeInMinutes >= $nightStartMinutes && $timeInMinutes < $midnightMinutes) {
-                return true;
-            }
-            
-            // Check if work overlaps with early morning night period (midnight to 6 AM)
-            if ($timeInMinutes < $nightEndMinutes && $timeOutMinutes > $timeInMinutes) {
-                return true;
-            }
-        }
-        
-        return false;
+        return $this->calculateNightShiftHours() > 0;
     }
 
     /**
-     * Calculate night shift hours (10pm-6am)
+     * Calculate night shift hours.
+     *
+     * Night period:
+     * 10:00 PM to 6:00 AM.
      */
     public function calculateNightShiftHours(): float
     {
@@ -429,55 +539,99 @@ class AttendanceRecord extends Model
             return 0;
         }
 
-        $timeIn = \Carbon\Carbon::parse($this->time_in);
-        $timeOut = \Carbon\Carbon::parse($this->time_out);
-        
-        // Night shift period: 10:00 PM (22:00) to 6:00 AM (06:00)
-        $nightStart = 22; // 10 PM
-        $nightEnd = 6;    // 6 AM
-        
-        $nightShiftHours = 0;
-        
-        // Convert times to minutes for easier calculation
-        $timeInMinutes = $timeIn->hour * 60 + $timeIn->minute;
-        $timeOutMinutes = $timeOut->hour * 60 + $timeOut->minute;
-        
-        // Determine if work spans across midnight
-        $spansMidnight = $timeOutMinutes < $timeInMinutes;
-        
-        if ($spansMidnight) {
-            // Work spans across midnight (e.g., 10 PM to 2 AM)
-            $midnightMinutes = 24 * 60; // 1440 minutes
-            
-            // Check if time_in is in night period (10 PM to midnight)
-            if ($timeInMinutes >= $nightStart * 60) {
-                $nightShiftHours += ($midnightMinutes - $timeInMinutes) / 60;
-            }
-            
-            // Check if time_out is in night period (midnight to 6 AM)
-            if ($timeOutMinutes <= $nightEnd * 60) {
-                $nightShiftHours += $timeOutMinutes / 60;
-            }
-        } else {
-            // Work within the same day
-            $nightStartMinutes = $nightStart * 60; // 10 PM = 1320 minutes
-            $nightEndMinutes = $nightEnd * 60;     // 6 AM = 360 minutes
-            $midnightMinutes = 24 * 60;            // 1440 minutes
-            
-            // Check if work overlaps with evening night period (10 PM to midnight)
-            if ($timeInMinutes >= $nightStartMinutes && $timeInMinutes < $midnightMinutes) {
-                $eveningEnd = min($timeOutMinutes, $midnightMinutes);
-                $nightShiftHours += ($eveningEnd - $timeInMinutes) / 60;
-            }
-            
-            // Check if work overlaps with early morning night period (midnight to 6 AM)
-            if ($timeInMinutes <= $nightEndMinutes && $timeOutMinutes > 0) {
-                $morningStart = max($timeInMinutes, 0);
-                $morningEnd = min($timeOutMinutes, $nightEndMinutes);
-                $nightShiftHours += ($morningEnd - $morningStart) / 60;
-            }
+        $timeIn = Carbon::parse($this->time_in);
+        $timeOut = Carbon::parse($this->time_out);
+
+        /*
+         * Protect against invalid attendance periods.
+         */
+        if ($timeOut->lte($timeIn)) {
+            return 0;
         }
-        
-        return round($nightShiftHours, 2);
+
+        $totalNightMinutes = 0;
+
+        /*
+         * Check each calendar date touched by attendance.
+         */
+        $currentDate = $timeIn
+            ->copy()
+            ->startOfDay();
+
+        $lastDate = $timeOut
+            ->copy()
+            ->startOfDay();
+
+        while ($currentDate->lte($lastDate)) {
+            /*
+             * Evening night period:
+             * 10 PM until midnight.
+             */
+            $eveningStart = $currentDate
+                ->copy()
+                ->setTime(22, 0);
+
+            $eveningEnd = $currentDate
+                ->copy()
+                ->addDay()
+                ->startOfDay();
+
+            $totalNightMinutes += $this->calculateOverlapMinutes(
+                $timeIn,
+                $timeOut,
+                $eveningStart,
+                $eveningEnd
+            );
+
+            /*
+             * Morning night period:
+             * Midnight until 6 AM.
+             */
+            $morningStart = $currentDate
+                ->copy()
+                ->startOfDay();
+
+            $morningEnd = $currentDate
+                ->copy()
+                ->setTime(6, 0);
+
+            $totalNightMinutes += $this->calculateOverlapMinutes(
+                $timeIn,
+                $timeOut,
+                $morningStart,
+                $morningEnd
+            );
+
+            $currentDate->addDay();
+        }
+
+        return round(
+            $totalNightMinutes / 60,
+            2
+        );
+    }
+
+    /**
+     * Calculate overlap between two date/time ranges.
+     */
+    private function calculateOverlapMinutes(
+        Carbon $rangeStart,
+        Carbon $rangeEnd,
+        Carbon $periodStart,
+        Carbon $periodEnd
+    ): int {
+        $start = $rangeStart->gt($periodStart)
+            ? $rangeStart->copy()
+            : $periodStart->copy();
+
+        $end = $rangeEnd->lt($periodEnd)
+            ? $rangeEnd->copy()
+            : $periodEnd->copy();
+
+        if ($end->lte($start)) {
+            return 0;
+        }
+
+        return $start->diffInMinutes($end);
     }
 }
