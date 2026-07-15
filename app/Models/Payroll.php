@@ -229,8 +229,7 @@ class Payroll extends Model
     {
         $deductions = (float) ($this->deductions ?? 0);
         $tax = (float) ($this->tax_amount ?? 0);
-        $statutory = $this->total_statutory_deductions;
         
-        return $deductions + $tax + $statutory;
+        return $deductions + $tax;
     }
 }

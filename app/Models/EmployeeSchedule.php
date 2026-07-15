@@ -22,12 +22,15 @@ class EmployeeSchedule extends Model
         'time_in',
         'time_out',
         'status',
+        'schedule_type',
+        'required_hours',
         'notes',
         'created_by',
     ];
 
     protected $casts = [
         'date' => 'date',
+        'required_hours' => 'decimal:2',
     ];
 
     protected static function boot()
@@ -91,7 +94,7 @@ class EmployeeSchedule extends Model
      */
     public function getStatusColorAttribute(): string
     {
-        return match($this->status) {
+        return match ($this->status) {
             'Working' => 'green',
             'Day Off' => 'gray',
             'Leave' => 'yellow',
@@ -115,6 +118,17 @@ class EmployeeSchedule extends Model
     public function isForDate(Carbon $date): bool
     {
         return $this->date->isSameDay($date);
+    }
+
+    // check schedule type
+    public function isFlexible(): bool
+    {
+        return $this->schedule_type === 'flexible';
+    }
+
+    public function isFixed(): bool
+    {
+        return $this->schedule_type !== 'flexible';
     }
 
     /**
@@ -166,6 +180,6 @@ class EmployeeSchedule extends Model
     public function scopeForMonth($query, $year, $month)
     {
         return $query->whereYear('date', $year)
-                    ->whereMonth('date', $month);
+            ->whereMonth('date', $month);
     }
 }

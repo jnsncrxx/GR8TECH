@@ -3,6 +3,13 @@
 @section('title', 'Official Business')
 
 @section('content')
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<style>
+    /* Clean up Flatpickr background to match inputs */
+    .flatpickr-input[readonly] {
+        background-color: #fff;
+    }
+</style>
 <div class="space-y-6">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -588,6 +595,17 @@
 </div>
 @endif
 
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    flatpickr("#obDate", {
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "F j, Y",
+        disableMobile: "true"
+    });
+});
+</script>
 <script>
 function updateObDuration() {
     const durationEl = document.getElementById('obDuration');

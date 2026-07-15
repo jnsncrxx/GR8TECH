@@ -21,7 +21,21 @@ class LeaveController extends Controller
         'maternity',
         'paternity',
         'bereavement',
-        'study',
+    ];
+
+    /**
+     * Leave types whose `_days_total` can be bulk set/edited via the
+     * "Set/Edit Leave Balance" form. Excludes:
+     *   - personal, emergency: incremental types (see
+     *     LeaveRequest::UNCAPPED_LEAVE_TYPES) with no enforced cap, so
+     *     there's no total to set.
+     *   - maternity, paternity: not managed through this bulk form; they
+     *     stay at their column default / are set another way.
+     */
+    protected array $balanceSettableTypes = [
+        'vacation',
+        'sick',
+        'bereavement',
     ];
 
     public function index(Request $request)
@@ -37,6 +51,7 @@ class LeaveController extends Controller
             'pending' => (clone $summaryQuery)->where('status', 'pending')->count(),
             'approved' => (clone $summaryQuery)->where('status', 'approved')->count(),
             'rejected' => (clone $summaryQuery)->where('status', 'rejected')->count(),
+            'expired' => (clone $summaryQuery)->where('status', 'expired')->count(),
         ];
 
         $employees = Employee::with('department')->get();
@@ -50,7 +65,7 @@ class LeaveController extends Controller
             'summary' => $summary,
             'leaveRequests' => $leaveRequests,
             'employees' => $employees,
-            'statusList' => ['pending', 'approved', 'rejected', 'cancelled'],
+            'statusList' => ['pending', 'approved', 'rejected', 'cancelled', 'expired'],
             'hasEmployeesWithoutBalances' => $hasEmployeesWithoutBalances,
         ]);
     }
@@ -77,7 +92,7 @@ class LeaveController extends Controller
             foreach ($leaveRequests as $request) {
                 fputcsv($handle, [
                     $request->employee->full_name ?? 'N/A',
-                    ucfirst(str_replace('_', ' ', $request->leave_type)),
+                    LeaveRequest::labelFor($request->leave_type),
                     $request->start_date,
                     $request->end_date,
                     $request->days_requested,
@@ -125,6 +140,26 @@ class LeaveController extends Controller
             'leaveBalance' => $leaveBalance,
             'availableDays' => $availableDays,
         ]);
+    }
+
+    /**
+     * Grace deadline for a newly-filed leave request, after which a pending
+     * request is eligible for the `ob:expire-overdue` sweep to flip it to
+     * "expired" (see HasExpiryWindow / expirable_requests.php).
+     *
+     * Reuses the same CutoffPeriodService already relied on for Official
+     * Business requests, so both request types expire under one consistent
+     * cutoff/grace-period policy. If that service isn't bound (e.g. this
+     * file is used in a project that hasn't wired it up yet), falls back to
+     * no expiry rather than breaking leave filing.
+     */
+    private function graceDeadlineFor($startDate): ?Carbon
+    {
+        if (class_exists(\App\Services\CutoffPeriodService::class)) {
+            return app(\App\Services\CutoffPeriodService::class)->graceDeadlineFor($startDate);
+        }
+
+        return null;
     }
 
     /**
@@ -302,6 +337,7 @@ class LeaveController extends Controller
             'days_requested' => $daysRequested,
             'reason' => $data['reason'],
             'status' => 'pending',
+            'expires_at' => $this->graceDeadlineFor($startDate),
         ]);
 
         return redirect()->route('attendance.leave-management')
@@ -318,6 +354,10 @@ class LeaveController extends Controller
         $leaveRequest = LeaveRequest::find($id);
         if (!$leaveRequest) {
             return response()->json(['error' => 'Leave request not found'], 404);
+        }
+
+        if ($leaveRequest->status === LeaveRequest::EXPIRED || $leaveRequest->isPastDeadline()) {
+            return response()->json(['error' => 'This leave request has expired and can no longer be approved or rejected.'], 422);
         }
 
         // Check if there are overlapping approved leaves before approving
@@ -517,7 +557,7 @@ class LeaveController extends Controller
         $data = $request->validate(array_merge([
             'employee_id' => ['required', 'string'],
             'year' => ['required', 'integer'],
-        ], array_combine(array_map(fn($type) => "{$type}_days_total", $this->leaveTypes), array_fill(0, count($this->leaveTypes), ['required', 'integer', 'min:0']))));
+        ], array_combine(array_map(fn($type) => "{$type}_days_total", $this->balanceSettableTypes), array_fill(0, count($this->balanceSettableTypes), ['required', 'integer', 'min:0']))));
 
         $employeeIds = [];
         if ($data['employee_id'] === 'all') {
@@ -532,8 +572,14 @@ class LeaveController extends Controller
                 'year' => $data['year'],
             ]);
 
+            foreach ($this->balanceSettableTypes as $type) {
+                $balance->{"{$type}_days_total"} = $data["{$type}_days_total"];
+            }
+
+            // Non-settable types (personal, emergency, maternity, paternity)
+            // are left untouched so new rows fall back to their column
+            // defaults instead of being zeroed out here.
             foreach ($this->leaveTypes as $type) {
-                $balance->{"{$type}_days_total"} = $data["{$type}_days_total"] ?? 0;
                 $balance->{"{$type}_days_used"} = $balance->{"{$type}_days_used"} ?? 0;
             }
 
@@ -555,9 +601,9 @@ class LeaveController extends Controller
             return response()->json(['error' => 'Leave balance record not found'], 404);
         }
 
-        $data = $request->validate(array_combine(array_map(fn($type) => "{$type}_days_total", $this->leaveTypes), array_fill(0, count($this->leaveTypes), ['required', 'integer', 'min:0'])));
+        $data = $request->validate(array_combine(array_map(fn($type) => "{$type}_days_total", $this->balanceSettableTypes), array_fill(0, count($this->balanceSettableTypes), ['required', 'integer', 'min:0'])));
 
-        foreach ($this->leaveTypes as $type) {
+        foreach ($this->balanceSettableTypes as $type) {
             $balance->{"{$type}_days_total"} = $data["{$type}_days_total"];
         }
 
@@ -581,6 +627,7 @@ class LeaveController extends Controller
             'approved' => (clone $query)->where('status', 'approved')->count(),
             'rejected' => (clone $query)->where('status', 'rejected')->count(),
             'cancelled' => (clone $query)->where('status', 'cancelled')->count(),
+            'expired' => (clone $query)->where('status', 'expired')->count(),
         ]);
     }
 
