@@ -303,33 +303,121 @@ class AttendanceRecord extends Model
         ];
     }
 
-    /**
-     * Check if employee is late
-     */
+    // Standard company schedule: 8am-5pm with 1hr lunch, 15 min grace period
+    private const DEFAULT_SHIFT_START = '08:00';
+    private const DEFAULT_SHIFT_END = '17:00';
+    private const DEFAULT_BREAK_MINUTES = 60;
+    private const GRACE_PERIOD_MINUTES = 15;
+
+    // Get the schedule for this date, only if it's a working day
+    private function getWorkingSchedule(): ?EmployeeSchedule
+    {
+        $schedule = $this->employee->getScheduleForDate($this->date);
+
+        if (!$schedule || $schedule->status !== 'Working') {
+            return null;
+        }
+
+        return $schedule;
+    }
+
+    // Expected hours for the day (shift span minus lunch break)
+    // Expected hours for the day - required_hours if flexible, shift span minus break if fixed
+    public function getExpectedHours(): ?float
+    {
+        $schedule = $this->getWorkingSchedule();
+        if (!$schedule) {
+            return null;
+        }
+
+        if ($schedule->isFlexible()) {
+            return (float) $schedule->required_hours;
+        }
+
+        $start = \Carbon\Carbon::parse($this->date->format('Y-m-d') . ' ' . ($schedule->time_in ?? self::DEFAULT_SHIFT_START));
+        $end = \Carbon\Carbon::parse($this->date->format('Y-m-d') . ' ' . ($schedule->time_out ?? self::DEFAULT_SHIFT_END));
+
+        $spanMinutes = abs($end->diffInMinutes($start));
+        $workingMinutes = max(0, $spanMinutes - self::DEFAULT_BREAK_MINUTES);
+
+        return round($workingMinutes / 60, 2);
+    }
+
+    // Check if employee is late (past grace period). Flexible schedules have no fixed
+    // start time so this doesn't apply to them.
     public function isLate(): bool
     {
         if (!$this->time_in) {
             return false;
         }
 
-        // Get employee's work schedule for this date
-        $schedule = $this->employee->getWorkScheduleForDate($this->date);
+        $schedule = $this->getWorkingSchedule();
+        if (!$schedule || $schedule->isFlexible()) {
+            return false;
+        }
+
+        $expectedStartTime = $schedule->time_in ?? self::DEFAULT_SHIFT_START;
+        $expectedTime = \Carbon\Carbon::parse($this->date->format('Y-m-d') . ' ' . $expectedStartTime);
+
+        return $this->time_in->gt($expectedTime->addMinutes(self::GRACE_PERIOD_MINUTES));
+    }
+
+    // How many minutes late, past the grace period
+    public function getLateMinutes(): int
+    {
+        if (!$this->isLate()) {
+            return 0;
+        }
+
+        $schedule = $this->getWorkingSchedule();
+        $expectedStartTime = $schedule->time_in ?? self::DEFAULT_SHIFT_START;
+        $expectedTime = \Carbon\Carbon::parse($this->date->format('Y-m-d') . ' ' . $expectedStartTime)
+            ->addMinutes(self::GRACE_PERIOD_MINUTES);
+
+        return max(0, abs($this->time_in->diffInMinutes($expectedTime)));
+    }
+
+    // Check if employee left before their scheduled end time. Doesn't apply to flexible schedules.
+    public function isUndertime(): bool
+    {
+        if (!$this->time_out) {
+            return false;
+        }
+
+        $schedule = $this->getWorkingSchedule();
+        if (!$schedule || $schedule->isFlexible()) {
+            return false;
+        }
+
+        $expectedEndTime = $schedule->time_out ?? self::DEFAULT_SHIFT_END;
+        $expectedTime = \Carbon\Carbon::parse($this->date->format('Y-m-d') . ' ' . $expectedEndTime);
+
+        return $this->time_out->lt($expectedTime);
+    }
+
+    // Fixed schedule: late or undertime = incomplete day.
+    // Flexible schedule: incomplete if actual hours worked is less than required_hours.
+    public function isIncompleteDay(): bool
+    {
+        if (!$this->time_in) {
+            return false;
+        }
+
+        $schedule = $this->getWorkingSchedule();
         if (!$schedule) {
             return false;
         }
 
-        $dayOfWeek = strtolower($this->date->format('l'));
-        $expectedStartTime = $schedule->{$dayOfWeek . '_start'};
-        
-        if (!$expectedStartTime) {
-            return false;
+        if ($schedule->isFlexible()) {
+            $expectedHours = $this->getExpectedHours();
+            if ($expectedHours === null || $expectedHours <= 0) {
+                return false;
+            }
+
+            return $this->calculateTotalHours() < $expectedHours;
         }
 
-        $gracePeriod = 15; // 15 minutes grace period
-        $expectedTime = \Carbon\Carbon::parse($this->date->format('Y-m-d') . ' ' . $expectedStartTime);
-        $actualTime = $this->time_in;
-
-        return $actualTime->gt($expectedTime->addMinutes($gracePeriod));
+        return $this->isLate() || $this->isUndertime();
     }
 
     /**
@@ -375,27 +463,27 @@ class AttendanceRecord extends Model
 
         $timeIn = \Carbon\Carbon::parse($this->time_in);
         $timeOut = \Carbon\Carbon::parse($this->time_out);
-        
+
         // Night shift period: 10:00 PM (22:00) to 6:00 AM (06:00)
         $nightStart = 22; // 10 PM
         $nightEnd = 6;    // 6 AM
-        
+
         // Convert times to minutes for easier calculation
         $timeInMinutes = $timeIn->hour * 60 + $timeIn->minute;
         $timeOutMinutes = $timeOut->hour * 60 + $timeOut->minute;
-        
+
         // Determine if work spans across midnight
         $spansMidnight = $timeOutMinutes < $timeInMinutes;
-        
+
         if ($spansMidnight) {
             // Work spans across midnight (e.g., 10 PM to 2 AM)
             $midnightMinutes = 24 * 60; // 1440 minutes
-            
+
             // Check if time_in is in night period (10 PM to midnight)
             if ($timeInMinutes >= $nightStart * 60) {
                 return true;
             }
-            
+
             // Check if time_out is in night period (midnight to 6 AM)
             if ($timeOutMinutes <= $nightEnd * 60) {
                 return true;
@@ -405,18 +493,18 @@ class AttendanceRecord extends Model
             $nightStartMinutes = $nightStart * 60; // 10 PM = 1320 minutes
             $nightEndMinutes = $nightEnd * 60;     // 6 AM = 360 minutes
             $midnightMinutes = 24 * 60;            // 1440 minutes
-            
+
             // Check if work overlaps with evening night period (10 PM to midnight)
             if ($timeInMinutes >= $nightStartMinutes && $timeInMinutes < $midnightMinutes) {
                 return true;
             }
-            
+
             // Check if work overlaps with early morning night period (midnight to 6 AM)
             if ($timeInMinutes < $nightEndMinutes && $timeOutMinutes > $timeInMinutes) {
                 return true;
             }
         }
-        
+
         return false;
     }
 
@@ -431,29 +519,29 @@ class AttendanceRecord extends Model
 
         $timeIn = \Carbon\Carbon::parse($this->time_in);
         $timeOut = \Carbon\Carbon::parse($this->time_out);
-        
+
         // Night shift period: 10:00 PM (22:00) to 6:00 AM (06:00)
         $nightStart = 22; // 10 PM
         $nightEnd = 6;    // 6 AM
-        
+
         $nightShiftHours = 0;
-        
+
         // Convert times to minutes for easier calculation
         $timeInMinutes = $timeIn->hour * 60 + $timeIn->minute;
         $timeOutMinutes = $timeOut->hour * 60 + $timeOut->minute;
-        
+
         // Determine if work spans across midnight
         $spansMidnight = $timeOutMinutes < $timeInMinutes;
-        
+
         if ($spansMidnight) {
             // Work spans across midnight (e.g., 10 PM to 2 AM)
             $midnightMinutes = 24 * 60; // 1440 minutes
-            
+
             // Check if time_in is in night period (10 PM to midnight)
             if ($timeInMinutes >= $nightStart * 60) {
                 $nightShiftHours += ($midnightMinutes - $timeInMinutes) / 60;
             }
-            
+
             // Check if time_out is in night period (midnight to 6 AM)
             if ($timeOutMinutes <= $nightEnd * 60) {
                 $nightShiftHours += $timeOutMinutes / 60;
@@ -463,13 +551,13 @@ class AttendanceRecord extends Model
             $nightStartMinutes = $nightStart * 60; // 10 PM = 1320 minutes
             $nightEndMinutes = $nightEnd * 60;     // 6 AM = 360 minutes
             $midnightMinutes = 24 * 60;            // 1440 minutes
-            
+
             // Check if work overlaps with evening night period (10 PM to midnight)
             if ($timeInMinutes >= $nightStartMinutes && $timeInMinutes < $midnightMinutes) {
                 $eveningEnd = min($timeOutMinutes, $midnightMinutes);
                 $nightShiftHours += ($eveningEnd - $timeInMinutes) / 60;
             }
-            
+
             // Check if work overlaps with early morning night period (midnight to 6 AM)
             if ($timeInMinutes <= $nightEndMinutes && $timeOutMinutes > 0) {
                 $morningStart = max($timeInMinutes, 0);
@@ -477,7 +565,7 @@ class AttendanceRecord extends Model
                 $nightShiftHours += ($morningEnd - $morningStart) / 60;
             }
         }
-        
+
         return round($nightShiftHours, 2);
     }
 }
