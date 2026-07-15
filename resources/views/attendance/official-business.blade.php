@@ -3,6 +3,13 @@
 @section('title', 'Official Business')
 
 @section('content')
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<style>
+    /* Clean up Flatpickr background to match inputs */
+    .flatpickr-input[readonly] {
+        background-color: #fff;
+    }
+</style>
 <div class="space-y-6">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -14,9 +21,37 @@
                 <p class="mt-1 text-sm text-gray-600">Submit and track your Official Business requests</p>
             @endif
         </div>
-        <div class="mt-4 sm:mt-0 flex space-x-3">
+        <div class="mt-4 sm:mt-0 flex flex-wrap gap-3">
+            <div class="relative" x-data="{ open: false }">
+                <button type="button" @click="open = !open"
+                        class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                    <i class="fas fa-download mr-2"></i>
+                    Export Report
+                    <i class="fas fa-chevron-down ml-2 text-xs"></i>
+                </button>
+
+                <div x-show="open" @click.away="open = false" x-transition
+                     class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                    <div class="py-1">
+                        <a href="{{ route('attendance.official-business.export', ['format' => 'pdf']) . '?' . http_build_query(request()->query()) }}"
+                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                            <i class="fas fa-file-pdf mr-2 text-red-500"></i>Export as PDF
+                        </a>
+                        <a href="{{ route('attendance.official-business.export', ['format' => 'csv']) . '?' . http_build_query(request()->query()) }}"
+                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                            <i class="fas fa-file-csv mr-2 text-green-500"></i>Export as CSV
+                        </a>
+                        <a href="{{ route('attendance.official-business.export', ['format' => 'xls']) . '?' . http_build_query(request()->query()) }}"
+                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                            <i class="fas fa-file-excel mr-2 text-green-600"></i>Export as Excel
+                        </a>
+                    </div>
+                </div>
+            </div>
+
             @unless($isReviewer)
-            <button id="applyObBtn" onclick="openObModal()" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+            <button id="applyObBtn" onclick="openObModal()"
+                    class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
                 <i class="fas fa-plus mr-2"></i>
                 Apply for Official Business
             </button>
@@ -192,6 +227,9 @@
                             Reason
                         </th>
                         <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            OB Hours
+                        </th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Status
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -234,49 +272,71 @@
                                 <div class="text-sm text-gray-900">{{ $ob->date->format('M d, Y') }}</div>
                             </td>
                             <td class="px-6 py-4">
-                                <div class="text-sm text-gray-900 max-w-xs truncate" title="{{ $ob->reason }}">{{ \Illuminate\Support\Str::limit($ob->reason, 30) }}</div>
-                                @if($obStatus === 'rejected' && $ob->rejection_reason)
-                                    <div class="text-xs text-red-600 mt-1 max-w-xs truncate" title="{{ $ob->rejection_reason }}">
-                                        Admin Reason: {{ $ob->rejection_reason }}
+                                <div class="text-sm text-gray-900 max-w-xs truncate" title="{{ $ob->reason }}">
+                                    {{ \Illuminate\Support\Str::limit($ob->reason, 30) }}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                @if($ob->ob_start_time && $ob->ob_end_time)
+                                    <div class="text-sm font-semibold {{ $obStatus === 'approved' ? 'text-green-700' : 'text-gray-700' }}">
+                                        {{ number_format((float) ($ob->credited_hours ?? $ob->computeCreditedHours()), 2) }} hrs
                                     </div>
+                                    <div class="text-xs text-gray-500">
+                                        {{ \Carbon\Carbon::parse($ob->ob_start_time)->format('h:i A') }}
+                                        -
+                                        {{ \Carbon\Carbon::parse($ob->ob_end_time)->format('h:i A') }}
+                                    </div>
+                                @else
+                                    <span class="text-gray-400">—</span>
                                 @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
                                 <span class="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium {{ $statusColor }} min-w-[80px]">
                                     {{ ucfirst($obStatus) }}
                                 </span>
+                                @if($obStatus === 'rejected' && $ob->rejection_reason)
+                                    <div class="text-xs text-red-600 mt-1 max-w-[220px] mx-auto" title="{{ $ob->rejection_reason }}">
+                                        <span class="font-medium">Admin Reason:</span>
+                                        {{ \Illuminate\Support\Str::limit($ob->rejection_reason, 40) }}
+                                    </div>
+                                @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">{{ $reviewerName !== '' ? $reviewerName : '—' }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
-                                <div class="flex space-x-2 justify-center">
-                                    @if($ob->isPending())
-                                        @if($isReviewer)
-                                            <button onclick="approveOb('{{ $ob->id }}')" class="text-green-600 hover:text-green-900 transition-colors" title="Approve">
-                                                <i class="fas fa-check"></i>
+                                <div class="flex justify-center items-center space-x-2">
+                                    @if($ob->isPending() && $isReviewer)
+                                        <button onclick="approveOb('{{ $ob->id }}')"
+                                                class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors"
+                                                title="Approve">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                        <button onclick="rejectOb('{{ $ob->id }}')"
+                                                class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors"
+                                                title="Reject">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    @elseif($ob->isPending() && !$isReviewer)
+                                        <form method="POST" action="{{ route('attendance.official-business.cancel', $ob->id) }}"
+                                              onsubmit="return confirm('Cancel this OB request?');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit"
+                                                    class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors"
+                                                    title="Cancel">
+                                                <i class="fas fa-ban"></i>
                                             </button>
-                                            <button onclick="rejectOb('{{ $ob->id }}')" class="text-red-600 hover:text-red-900 transition-colors" title="Reject">
-                                                <i class="fas fa-times"></i>
-                                            </button>
-                                        @else
-                                            <form method="POST" action="{{ route('attendance.official-business.cancel', $ob->id) }}" onsubmit="return confirm('Cancel this OB request?');">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="text-gray-500 hover:text-gray-900 transition-colors" title="Cancel">
-                                                    <i class="fas fa-ban"></i>
-                                                </button>
-                                            </form>
-                                        @endif
+                                        </form>
                                     @else
-                                        <span class="text-gray-400">—</span>
+                                        <span class="inline-block w-8 h-px bg-gray-300 rounded-full"></span>
                                     @endif
                                 </div>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-6 py-4 text-center">
+                            <td colspan="7" class="px-6 py-4 text-center">
                                 <div class="flex flex-col items-center justify-center py-8">
                                     <i class="fas fa-briefcase text-gray-400 text-4xl mb-4"></i>
                                     <p class="text-gray-500 text-lg font-medium mb-2">No official business requests found</p>
@@ -348,15 +408,37 @@
                                     <div class="text-sm text-gray-500">{{ $ob->employee->department->name ?? 'N/A' }}</div>
                                 </div>
                             </div>
-                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $statusColor }}">
-                                <div class="w-1.5 h-1.5 rounded-full mr-1 {{ str_replace('text-', 'bg-', $statusColor) }}"></div>
-                                {{ ucfirst($obStatus) }}
-                            </span>
+                            <div class="text-right">
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $statusColor }}">
+                                    {{ ucfirst($obStatus) }}
+                                </span>
+                                @if($obStatus === 'rejected' && $ob->rejection_reason)
+                                    <div class="text-xs text-red-600 mt-1 max-w-[180px]">
+                                        <span class="font-medium">Admin Reason:</span>
+                                        {{ \Illuminate\Support\Str::limit($ob->rejection_reason, 35) }}
+                                    </div>
+                                @endif
+                            </div>
                         </div>
                         <div class="grid grid-cols-2 gap-4 text-sm mb-3">
                             <div>
                                 <div class="text-gray-500">Date</div>
                                 <div class="font-medium">{{ $ob->date->format('M d, Y') }}</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-500">OB Hours</div>
+                                @if($ob->ob_start_time && $ob->ob_end_time)
+                                    <div class="font-semibold {{ $obStatus === 'approved' ? 'text-green-700' : 'text-gray-900' }}">
+                                        {{ number_format((float) ($ob->credited_hours ?? $ob->computeCreditedHours()), 2) }} hrs
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        {{ \Carbon\Carbon::parse($ob->ob_start_time)->format('h:i A') }}
+                                        -
+                                        {{ \Carbon\Carbon::parse($ob->ob_end_time)->format('h:i A') }}
+                                    </div>
+                                @else
+                                    <div class="font-medium">—</div>
+                                @endif
                             </div>
                             <div>
                                 <div class="text-gray-500">Reviewed By</div>
@@ -366,27 +448,29 @@
                         <div class="text-sm mb-3">
                             <div class="text-gray-500">Reason</div>
                             <div class="font-medium">{{ \Illuminate\Support\Str::limit($ob->reason, 50) }}</div>
-                            @if($obStatus === 'rejected' && $ob->rejection_reason)
-                                <div class="text-xs text-red-600 mt-1">
-                                    Admin Reason: {{ $ob->rejection_reason }}
-                                </div>
-                            @endif
                         </div>
                         @if($ob->isPending())
-                        <div class="flex justify-end space-x-2">
+                        <div class="flex justify-end items-center space-x-2">
                             @if($isReviewer)
-                                <button onclick="approveOb('{{ $ob->id }}')" class="text-green-600 hover:text-green-900 transition-colors">
-                                    <i class="fas fa-check mr-1"></i>Approve
+                                <button onclick="approveOb('{{ $ob->id }}')"
+                                        class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
+                                        title="Approve">
+                                    <i class="fas fa-check"></i>
                                 </button>
-                                <button onclick="rejectOb('{{ $ob->id }}')" class="text-red-600 hover:text-red-900 transition-colors">
-                                    <i class="fas fa-times mr-1"></i>Reject
+                                <button onclick="rejectOb('{{ $ob->id }}')"
+                                        class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                                        title="Reject">
+                                    <i class="fas fa-times"></i>
                                 </button>
                             @else
-                                <form method="POST" action="{{ route('attendance.official-business.cancel', $ob->id) }}" onsubmit="return confirm('Cancel this OB request?');">
+                                <form method="POST" action="{{ route('attendance.official-business.cancel', $ob->id) }}"
+                                      onsubmit="return confirm('Cancel this OB request?');">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="text-gray-500 hover:text-gray-900 transition-colors">
-                                        <i class="fas fa-ban mr-1"></i>Cancel
+                                    <button type="submit"
+                                            class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors"
+                                            title="Cancel">
+                                        <i class="fas fa-ban"></i>
                                     </button>
                                 </form>
                             @endif
@@ -547,6 +631,17 @@
 </div>
 @endif
 
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    flatpickr("#obDate", {
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "F j, Y",
+        disableMobile: "true"
+    });
+});
+</script>
 <script>
 function updateObDuration() {
     const durationEl = document.getElementById('obDuration');

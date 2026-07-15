@@ -126,6 +126,108 @@ class OfficialBusinessController extends Controller
     }
 
     /**
+     * Export Official Business requests.
+     *
+     * CSV is used as the transport format for CSV, XLS, and PDF menu options
+     * until dedicated PDF/Excel renderers are added.
+     */
+    public function exportOfficialBusiness(Request $request, string $format)
+    {
+        $allowedFormats = ['pdf', 'csv', 'xls'];
+
+        if (!in_array($format, $allowedFormats, true)) {
+            return back()->with('error', 'Unsupported export format.');
+        }
+
+        $query = OfficialBusinessRequest::with(['employee.department', 'reviewer.employee']);
+
+        if (!$this->isReviewer()) {
+            $query->where('employee_id', $this->currentEmployeeId());
+        } else {
+            if ($request->filled('department_id')) {
+                $departmentId = $request->query('department_id');
+
+                $query->whereHas('employee', function ($employeeQuery) use ($departmentId) {
+                    $employeeQuery->where('department_id', $departmentId);
+                });
+            }
+
+            if ($request->filled('employee_id')) {
+                $query->where('employee_id', $request->query('employee_id'));
+            }
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->query('status'));
+        }
+
+        if ($request->filled('date')) {
+            $query->whereDate('date', $request->query('date'));
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('date', '>=', $request->query('date_from'));
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('date', '<=', $request->query('date_to'));
+        }
+
+        $requests = $query->orderBy('created_at', 'desc')->get();
+        $fileName = 'official-business-' . now()->format('YmdHis') . '.csv';
+
+        return response()->streamDownload(function () use ($requests) {
+            $handle = fopen('php://output', 'w');
+
+            fputcsv($handle, [
+                'Employee',
+                'Department',
+                'Date',
+                'Reason',
+                'OB Hours',
+                'Time In',
+                'Time Out',
+                'Status',
+                'Reviewed By',
+                'Admin Reason',
+            ]);
+
+            foreach ($requests as $obRequest) {
+                $reviewerName = trim(
+                    ($obRequest->reviewer->employee->first_name ?? '') . ' ' .
+                    ($obRequest->reviewer->employee->last_name ?? '')
+                );
+
+                fputcsv($handle, [
+                    $obRequest->employee->full_name ?? 'N/A',
+                    $obRequest->employee->department->name ?? 'N/A',
+                    $obRequest->date?->format('Y-m-d') ?? '',
+                    $obRequest->reason,
+                    number_format(
+                        (float) ($obRequest->credited_hours ?? $obRequest->computeCreditedHours()),
+                        2,
+                        '.',
+                        ''
+                    ),
+                    $obRequest->ob_start_time
+                        ? Carbon::parse($obRequest->ob_start_time)->format('h:i A')
+                        : '',
+                    $obRequest->ob_end_time
+                        ? Carbon::parse($obRequest->ob_end_time)->format('h:i A')
+                        : '',
+                    ucfirst($obRequest->status),
+                    $reviewerName,
+                    $obRequest->rejection_reason ?? '',
+                ]);
+            }
+
+            fclose($handle);
+        }, $fileName, [
+            'Content-Type' => 'text/csv',
+        ]);
+    }
+
+    /**
      * Employee submits a new OB request. Does NOT touch attendance_records yet.
      *
      * OB is a manual time-in/time-out replacement, not a leave — Time In and

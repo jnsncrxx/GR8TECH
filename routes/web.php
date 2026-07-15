@@ -25,6 +25,14 @@ Route::middleware('guest')->group(function () {
     Route::get('/', [AuthController::class, 'showLogin'])->name('login');
     // Add 'log.login' middleware to the login POST route
     Route::post('/login', [AuthController::class, 'login'])->name('login.post');
+    
+    // Google Auth Routes
+    Route::get('/auth/google', [\App\Http\Controllers\Web\GoogleAuthController::class, 'redirectToGoogle'])->name('auth.google');
+    Route::get('/auth/google/callback', [\App\Http\Controllers\Web\GoogleAuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
+
+    // Microsoft Auth Routes
+    Route::get('/auth/microsoft', [\App\Http\Controllers\Web\MicrosoftAuthController::class, 'redirectToMicrosoft'])->name('auth.microsoft');
+    Route::get('/auth/microsoft/callback', [\App\Http\Controllers\Web\MicrosoftAuthController::class, 'handleMicrosoftCallback'])->name('auth.microsoft.callback');
     Route::get('/notifications/login-logs', [App\Http\Controllers\NotificationController::class, 'getLoginLogs'])
         ->name('notifications.login-logs');
     
@@ -277,6 +285,18 @@ Route::get('/debug-current-payrolls', function() {
                 'timestamp' => $currentTime->timestamp
             ]);
         })->name('current-time');
+
+        // Add this inside the attendance route group or as a separate route
+        Route::get('/api/employee/{employeeId}/approved-leave-dates', [App\Http\Controllers\Web\LeaveController::class, 'getApprovedLeaveDates'])
+            ->name('api.employee.approved-leave-dates')
+            ->middleware('auth');
+                
+            // Add these routes inside the attendance group
+        Route::post('/leave-management/check-overlap', [App\Http\Controllers\Web\LeaveController::class, 'checkOverlap'])
+            ->name('leave-management.check-overlap');
+
+        Route::get('/api/employee/{employeeId}/approved-leave-dates', [App\Http\Controllers\Web\LeaveController::class, 'getApprovedLeaveDates'])
+            ->name('api.employee.approved-leave-dates');
         
         // General attendance routes
         Route::get('/daily', [App\Http\Controllers\Web\AttendanceController::class, 'daily'])->name('daily');
@@ -343,8 +363,10 @@ Route::get('/debug-current-payrolls', function() {
         Route::put('/leave-management/balance/{id}', [App\Http\Controllers\Web\LeaveController::class, 'updateBalance'])->name('leave-management.balance.update');
         Route::get('/leave-management/statistics', [App\Http\Controllers\Web\LeaveController::class, 'getStatistics'])->name('leave-management.statistics');
         
+        
         // Official Business routes
         Route::get('/official-business', [App\Http\Controllers\Web\OfficialBusinessController::class, 'index'])->name('official-business');
+        Route::get('/official-business/export/{format}', [App\Http\Controllers\Web\OfficialBusinessController::class, 'exportOfficialBusiness'])->name('official-business.export');
         Route::post('/official-business', [App\Http\Controllers\Web\OfficialBusinessController::class, 'store'])->name('official-business.store');
         Route::delete('/official-business/{id}/cancel', [App\Http\Controllers\Web\OfficialBusinessController::class, 'cancel'])->name('official-business.cancel');
         Route::get('/official-business/statistics', [App\Http\Controllers\Web\OfficialBusinessController::class, 'getStatistics'])->name('official-business.statistics');
