@@ -73,10 +73,19 @@ class LeaveBalance extends Model
     }
 
     /**
-     * Check if employee has enough leave balance
+     * Check if employee has enough leave balance.
+     *
+     * Personal and Emergency leave are incremental: employees can keep
+     * filing them past their nominal allotment, so no cap is enforced here.
+     * Usage still accumulates via incrementUsedDays()/days_used for
+     * reporting, it just never blocks a new request.
      */
     public function hasEnoughBalance(string $leaveType, int $daysRequested): bool
     {
+        if (in_array($leaveType, \App\Models\LeaveRequest::UNCAPPED_LEAVE_TYPES, true)) {
+            return true;
+        }
+
         return $this->getRemainingDays($leaveType) >= $daysRequested;
     }
 

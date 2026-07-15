@@ -34,64 +34,7 @@ class PayrollController extends Controller
         $currentCompany = CompanyHelper::getCurrentCompany();
         $user = Auth::user();
 
-        $query = Payroll::query();
-
-        // Get payrolls based on date filters without restricting to MAX(id)
-
-        if (!$request->filled('start_date') || !$request->filled('end_date')) {
-            $request->merge([
-                'start_date' => now()->startOfMonth()->format('Y-m-d'),
-                'end_date' => now()->endOfMonth()->format('Y-m-d')
-            ]);
-        }
-
-        // Filter by company
-        if ($currentCompany) {
-            $query->whereHas('employee', function ($q) use ($currentCompany) {
-                $q->where('company_id', $currentCompany->id);
-            });
-        }
-
-        // Restrict to employee's own payrolls if user is an employee
-        if ($user && $user->role === 'employee' && $user->employee) {
-            $query->where('employee_id', $user->employee->id);
-        }
-
-        // FLEXIBLE Date filtering
-        if ($request->filled('start_date') && $request->filled('end_date')) {
-            // Convert to Carbon for proper comparison
-            $startDate = Carbon::parse($request->start_date)->startOfDay();
-            $endDate = Carbon::parse($request->end_date)->endOfDay();
-
-            // Log for debugging
-            Log::info('Payroll filter - Searching for period:', [
-                'selected_start' => $startDate->format('Y-m-d'),
-                'selected_end' => $endDate->format('Y-m-d'),
-                'search_criteria' => 'Looking for payrolls that overlap with selected period'
-            ]);
-
-            // BROADER SEARCH: Find any payroll that overlaps with selected period
-            $query->where(function ($q) use ($startDate, $endDate) {
-                // Payroll period starts within selected range
-                $q->whereBetween('pay_period_start', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
-                    // OR payroll period ends within selected range
-                    ->orWhereBetween('pay_period_end', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
-                    // OR selected range falls completely within a payroll period
-                    ->orWhere(function ($subQ) use ($startDate, $endDate) {
-                        $subQ->where('pay_period_start', '<=', $startDate->format('Y-m-d'))
-                            ->where('pay_period_end', '>=', $endDate->format('Y-m-d'));
-                    });
-            });
-        }
-
-        // Status filtering
-        if ($request->has('status') && $request->status != 'all') {
-            $query->where('status', $request->status);
-        }
-
-        // Load relationships
-        $query->with(['employee', 'employee.department']);
-
+        // Get payrolls with deduplication: only the latest payroll per employee per pay period
         // Use window function to get the latest payroll per employee per period
         $latestPayrollsSubquery = DB::table('payrolls as p1')
             ->select(
@@ -127,6 +70,15 @@ class PayrollController extends Controller
         // Restrict to employee's own payrolls if user is an employee
         if ($user && $user->role === 'employee' && $user->employee) {
             $query->where('latest_payrolls.employee_id', $user->employee->id);
+        }
+
+        // Default to the current month if no date filter was given, so this
+        // page never silently lists every payroll ever created.
+        if (!$request->filled('start_date') || !$request->filled('end_date')) {
+            $request->merge([
+                'start_date' => now()->startOfMonth()->format('Y-m-d'),
+                'end_date' => now()->endOfMonth()->format('Y-m-d'),
+            ]);
         }
 
         // Date filtering - FIXED: Use table alias
@@ -1103,7 +1055,7 @@ class PayrollController extends Controller
                     'status' => $status,
                     'rejected_at' => now(),
                     'rejected_by' => $user->id ?? null,
-                    'rejection_reason' => 'Rejected by user',
+                    'rejection_reason' => $request->input('reason', 'Rejected by user'),
                     'updated_at' => now()
                 ]);
 

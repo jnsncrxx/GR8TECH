@@ -17,5 +17,8 @@
 return [
     'models' => [
         \App\Models\OfficialBusinessRequest::class,
+        \App\Models\OvertimeRequest::class,
+        \App\Models\LeaveRequest::class,
+
     ],
 ];

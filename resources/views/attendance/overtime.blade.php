@@ -3,6 +3,13 @@
 @section('title', 'Overtime Management')
 
 @section('content')
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<style>
+    /* Clean up Flatpickr background to match inputs */
+    .flatpickr-input[readonly] {
+        background-color: #fff;
+    }
+</style>
 <div class="space-y-6">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -211,18 +218,23 @@
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     @forelse($overtimeRequests as $request)
-                        @php
-                            $initials = strtoupper(substr($request->employee->first_name, 0, 1) . substr($request->employee->last_name, 0, 1));
-                            $hourlyRate = $request->employee->hourly_rate ?? 0;
-                            $amount = $request->hours * $request->rate_multiplier * $hourlyRate;
-                            
-                            $statusColors = [
-                                'pending' => 'bg-yellow-100 text-yellow-800',
-                                'approved' => 'bg-green-100 text-green-800',
-                                'rejected' => 'bg-red-100 text-red-800'
-                            ];
-                            $statusColor = $statusColors[$request->status] ?? 'bg-gray-100 text-gray-800';
-                        @endphp
+                          @php
+                              $initials = strtoupper(substr($request->employee->first_name, 0, 1) . substr($request->employee->last_name, 0, 1));
+                              $hourlyRate = $request->employee->hourly_rate ?? 0;
+                              $amount = $request->hours * $request->rate_multiplier * $hourlyRate;
+                              
+                              $displayStatus = method_exists($request, 'isPastDeadline') && $request->isPastDeadline() 
+                                    ? \App\Models\OvertimeRequest::EXPIRED 
+                                    : $request->status;
+
+                              $statusColors = [
+                                  'pending' => 'bg-yellow-100 text-yellow-800',
+                                  'approved' => 'bg-green-100 text-green-800',
+                                  'rejected' => 'bg-red-100 text-red-800',
+                                  'expired' => 'bg-gray-100 text-gray-600'
+                              ];
+                              $statusColor = $statusColors[$displayStatus] ?? 'bg-gray-100 text-gray-800';
+                          @endphp
                         <tr class="hover:bg-gray-50 transition-colors">
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="flex items-center">
@@ -241,7 +253,8 @@
                                 <div class="text-sm text-gray-900">{{ \Carbon\Carbon::parse($request->date)->format('M d, Y') }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ \App\Helpers\TimezoneHelper::formatHours($request->hours) }}</div>
+                                <div class="text-sm font-medium text-gray-900">{{ \App\Helpers\TimezoneHelper::formatHours($request->hours) }}</div>
+                                <div class="text-xs text-gray-500 mt-0.5">{{ \Carbon\Carbon::parse($request->start_time)->format('h:i A') }} - {{ \Carbon\Carbon::parse($request->end_time)->format('h:i A') }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">{{ $request->rate_multiplier }}x</div>
@@ -250,21 +263,21 @@
                                 <div class="text-sm font-medium text-gray-900">₱{{ number_format($amount, 2) }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900" title="{{ $request->reason }}">{{ \Illuminate\Support\Str::limit($request->reason, 30) }}</div>
+                                <div class="text-sm text-gray-900 whitespace-normal break-words min-w-[150px] max-w-xs">{{ $request->reason }}</div>
                                 @if($request->status === 'rejected' && $request->rejection_reason)
-                                <div class="text-xs text-red-600 mt-1" title="{{ $request->rejection_reason }}">
-                                    <span class="font-medium">Admin Reason:</span> {{ \Illuminate\Support\Str::limit($request->rejection_reason, 30) }}
+                                <div class="text-xs text-red-600 mt-1 whitespace-normal break-words min-w-[150px] max-w-xs">
+                                    <span class="font-medium">{{ ucfirst($request->approver->role ?? 'Admin') }} Reason:</span> {{ $request->rejection_reason }}
                                 </div>
                                 @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
                                 <span class="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium {{ $statusColor }} min-w-[80px]">
-                                    {{ ucfirst($request->status) }}
+                                    {{ ucfirst($displayStatus) }}
                                 </span>
                             </td>
                             @if(in_array($user->role, ['admin', 'hr', 'manager']))
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
-                                @if($request->status === 'pending')
+                                @if($displayStatus === 'pending')
                                 <div class="flex space-x-2 justify-center">
                                     <button onclick="approveOvertime('{{ $request->id }}')" class="text-green-600 hover:text-green-900 transition-colors" title="Approve">
                                         <i class="fas fa-check"></i>
@@ -335,12 +348,17 @@
                         $hourlyRate = $request->employee->hourly_rate ?? 0;
                         $amount = $request->hours * $request->rate_multiplier * $hourlyRate;
                         
+                        $displayStatus = method_exists($request, 'isPastDeadline') && $request->isPastDeadline() 
+                              ? \App\Models\OvertimeRequest::EXPIRED 
+                              : $request->status;
+
                         $statusColors = [
                             'pending' => 'bg-yellow-100 text-yellow-800',
                             'approved' => 'bg-green-100 text-green-800',
-                            'rejected' => 'bg-red-100 text-red-800'
+                            'rejected' => 'bg-red-100 text-red-800',
+                            'expired' => 'bg-gray-100 text-gray-600'
                         ];
-                        $statusColor = $statusColors[$request->status] ?? 'bg-gray-100 text-gray-800';
+                        $statusColor = $statusColors[$displayStatus] ?? 'bg-gray-100 text-gray-800';
                     @endphp
                     <div class="border border-gray-200 rounded-lg p-4">
                         <div class="flex items-center justify-between mb-3">
@@ -354,7 +372,7 @@
                                 </div>
                             </div>
                             <span class="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium {{ $statusColor }} min-w-[80px]">
-                                {{ ucfirst($request->status) }}
+                                {{ ucfirst($displayStatus) }}
                             </span>
                         </div>
                         <div class="grid grid-cols-2 gap-4 text-sm mb-3">
@@ -365,6 +383,7 @@
                             <div>
                                 <div class="text-gray-500">Overtime Hours</div>
                                 <div class="font-medium">{{ \App\Helpers\TimezoneHelper::formatHours($request->hours) }}</div>
+                                <div class="text-xs text-gray-400">{{ \Carbon\Carbon::parse($request->start_time)->format('h:i A') }} - {{ \Carbon\Carbon::parse($request->end_time)->format('h:i A') }}</div>
                             </div>
                             <div>
                                 <div class="text-gray-500">Rate</div>
@@ -377,15 +396,15 @@
                         </div>
                         <div class="text-sm mb-3">
                             <div class="text-gray-500">Reason</div>
-                            <div class="font-medium">{{ \Illuminate\Support\Str::limit($request->reason, 50) }}</div>
+                            <div class="font-medium whitespace-normal break-words">{{ $request->reason }}</div>
                         </div>
                         @if($request->status === 'rejected' && $request->rejection_reason)
                         <div class="text-sm mb-3">
-                            <div class="text-red-500 font-medium">Admin Reason</div>
-                            <div class="font-medium text-red-600">{{ \Illuminate\Support\Str::limit($request->rejection_reason, 50) }}</div>
+                            <div class="text-red-500 font-medium">{{ ucfirst($request->approver->role ?? 'Admin') }} Reason</div>
+                            <div class="font-medium text-red-600 whitespace-normal break-words">{{ $request->rejection_reason }}</div>
                         </div>
                         @endif
-                        @if(in_array($user->role, ['admin', 'hr', 'manager']) && $request->status === 'pending')
+                        @if(in_array($user->role, ['admin', 'hr', 'manager']) && $displayStatus === 'pending')
                         <div class="flex justify-end space-x-2">
                             <button onclick="approveOvertime('{{ $request->id }}')" class="text-green-600 hover:text-green-900 transition-colors">
                                 <i class="fas fa-check mr-1"></i>Approve
@@ -433,8 +452,8 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label for="startTime" class="block text-sm font-medium text-gray-700 mb-2">Start Time</label>
-                        <input type="time" id="startTime" name="start_time" required 
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
+                        <input type="time" id="startTime" name="start_time" required value="17:00" readonly
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed focus:ring-0 focus:border-gray-300">
                     </div>
                     <div>
                         <label for="endTime" class="block text-sm font-medium text-gray-700 mb-2">End Time</label>
@@ -530,6 +549,25 @@
 </div>
 @endif
 
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    flatpickr("#overtimeDate", {
+        minDate: "today",
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "F j, Y",
+        disableMobile: "true"
+    });
+    
+    flatpickr("#dateFrom", {
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "F j, Y",
+        disableMobile: "true"
+    });
+});
+</script>
 <script>
 console.log('Overtime page JavaScript loaded successfully');
 
@@ -594,8 +632,13 @@ async function submitOvertimeRequest(event) {
     const data = Object.fromEntries(formData);
     
     // Validate times
-    if (data.start_time >= data.end_time) {
-        showError('End time must be after start time');
+    if (data.start_time < '17:00') {
+        showError('Overtime must start at or after 5:00 PM');
+        return;
+    }
+    
+    if (data.start_time === data.end_time) {
+        showError('Start time and end time cannot be the same');
         return;
     }
     

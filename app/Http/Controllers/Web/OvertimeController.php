@@ -62,6 +62,17 @@ class OvertimeController extends Controller
                 'reason' => 'required|string',
             ]);
             
+            $startTimeStr = date('H:i', strtotime($request->start_time));
+            $endTimeStr = date('H:i', strtotime($request->end_time));
+            
+            if ($startTimeStr < '17:00') {
+                return response()->json(['error' => 'Overtime must start at or after 5:00 PM.'], 422);
+            }
+            
+            if ($endTimeStr < $startTimeStr && $endTimeStr !== '00:00') {
+                return response()->json(['error' => 'End time must be after start time or exactly 12:00 AM.'], 422);
+            }
+            
             $user = Auth::user();
             if (!$user->employee_id) {
                 return response()->json(['error' => 'No associated employee record found.'], 400);
@@ -74,6 +85,15 @@ class OvertimeController extends Controller
                 $endTime->addDay();
             }
             
+            $existingRequest = \App\Models\OvertimeRequest::where('employee_id', $user->employee_id)
+                ->whereIn('status', [\App\Models\OvertimeRequest::PENDING, \App\Models\OvertimeRequest::APPROVED])
+                ->whereDate('date', $request->date)
+                ->exists();
+                
+            if ($existingRequest) {
+                return response()->json(['error' => 'You already have a pending or approved overtime request for this date. Please choose another day.'], 422);
+            }
+            
             $hours = $startTime->diffInMinutes($endTime) / 60;
             
             $overtime = \App\Models\OvertimeRequest::create([
@@ -84,7 +104,8 @@ class OvertimeController extends Controller
                 'hours' => round($hours, 2),
                 'rate_multiplier' => 1.25,
                 'reason' => $request->reason,
-                'status' => 'pending',
+                'status' => \App\Models\OvertimeRequest::PENDING,
+                'expires_at' => $endTime,
             ]);
             
             return response()->json([
@@ -103,6 +124,15 @@ class OvertimeController extends Controller
             $request->validate(['status' => 'required|in:approved,rejected']);
             
             $overtime = \App\Models\OvertimeRequest::findOrFail($id);
+            
+            if ($overtime->isPastDeadline()) {
+                return response()->json(['error' => 'Cannot update an expired request.'], 403);
+            }
+            
+            if ($overtime->status !== \App\Models\OvertimeRequest::PENDING) {
+                return response()->json(['error' => 'Only pending requests can be updated.'], 403);
+            }
+            
             $overtime->update([
                 'status' => $request->status,
                 'approved_by' => Auth::id(),
