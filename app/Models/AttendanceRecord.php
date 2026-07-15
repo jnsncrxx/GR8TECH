@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use App\Models\AttendanceLog;
 use App\Models\EmployeeBreak;
 use App\Models\TimeEntry;
@@ -347,19 +348,27 @@ class AttendanceRecord extends Model
     // start time so this doesn't apply to them.
     public function isLate(): bool
     {
+        if ($this->hasNonWorkingStatus()) {
+            return false;
+        }
+
         if (!$this->time_in) {
             return false;
         }
 
         $schedule = $this->getWorkingSchedule();
+
         if (!$schedule || $schedule->isFlexible()) {
             return false;
         }
 
         $expectedStartTime = $schedule->time_in ?? self::DEFAULT_SHIFT_START;
-        $expectedTime = \Carbon\Carbon::parse($this->date->format('Y-m-d') . ' ' . $expectedStartTime);
 
-        return $this->time_in->gt($expectedTime->addMinutes(self::GRACE_PERIOD_MINUTES));
+        $expectedTime = Carbon::parse(
+            $this->date->format('Y-m-d') . ' ' . $expectedStartTime
+        )->addMinutes(self::GRACE_PERIOD_MINUTES);
+
+        return $this->time_in->gt($expectedTime);
     }
 
     // How many minutes late, past the grace period
@@ -380,17 +389,25 @@ class AttendanceRecord extends Model
     // Check if employee left before their scheduled end time. Doesn't apply to flexible schedules.
     public function isUndertime(): bool
     {
+        if ($this->hasNonWorkingStatus()) {
+            return false;
+        }
+
         if (!$this->time_out) {
             return false;
         }
 
         $schedule = $this->getWorkingSchedule();
+
         if (!$schedule || $schedule->isFlexible()) {
             return false;
         }
 
         $expectedEndTime = $schedule->time_out ?? self::DEFAULT_SHIFT_END;
-        $expectedTime = \Carbon\Carbon::parse($this->date->format('Y-m-d') . ' ' . $expectedEndTime);
+
+        $expectedTime = Carbon::parse(
+            $this->date->format('Y-m-d') . ' ' . $expectedEndTime
+        );
 
         return $this->time_out->lt($expectedTime);
     }
@@ -399,17 +416,23 @@ class AttendanceRecord extends Model
     // Flexible schedule: incomplete if actual hours worked is less than required_hours.
     public function isIncompleteDay(): bool
     {
+        if ($this->hasNonWorkingStatus()) {
+            return false;
+        }
+
         if (!$this->time_in) {
             return false;
         }
 
         $schedule = $this->getWorkingSchedule();
+
         if (!$schedule) {
             return false;
         }
 
         if ($schedule->isFlexible()) {
             $expectedHours = $this->getExpectedHours();
+
             if ($expectedHours === null || $expectedHours <= 0) {
                 return false;
             }
@@ -418,6 +441,21 @@ class AttendanceRecord extends Model
         }
 
         return $this->isLate() || $this->isUndertime();
+    }
+
+    /**
+     * Determine whether this record should be excluded from
+     * late, undertime, and incomplete-day calculations.
+     */
+    private function hasNonWorkingStatus(): bool
+    {
+        return in_array($this->status, [
+            self::OFFICIAL_BUSINESS,
+            self::ON_LEAVE,
+            self::HOLIDAY,
+            self::DAY_OFF,
+            self::ERROR,
+        ], true);
     }
 
     /**
@@ -433,23 +471,31 @@ class AttendanceRecord extends Model
      */
     public function getCalculatedStatus(): string
     {
+        if ($this->hasNonWorkingStatus()) {
+            return $this->status;
+        }
+
         if (!$this->time_in && !$this->time_out) {
-            return 'absent';
+            return self::ABSENT;
         }
 
         if ($this->time_in && !$this->time_out) {
-            return 'present'; // Currently working
+            return self::PRESENT;
         }
 
         if ($this->time_in && $this->time_out) {
             $totalHours = $this->calculateTotalHours();
+
             if ($totalHours < 4) {
-                return 'half_day';
+                return self::HALF_DAY;
             }
-            return $this->isLate() ? 'late' : 'present';
+
+            return $this->isLate()
+                ? self::LATE
+                : self::PRESENT;
         }
 
-        return 'absent';
+        return self::ABSENT;
     }
 
     /**
