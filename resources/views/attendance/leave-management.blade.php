@@ -34,6 +34,11 @@
                     </div>
                 </div>
             </div>
+            @if(in_array($user->role, ['admin', 'hr', 'manager']) && ($hasEmployeesWithoutBalances ?? true))
+            <button onclick="openSetLeaveBalanceModal()" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium" title="Set Leave Balance">
+                <i class="fas fa-calendar-plus mr-2"></i><span class="hidden sm:inline">Set Leave Balance</span><span class="sm:hidden">Set Balance</span>
+            </button>
+            @endif
             @if($user->role === 'employee')
             <a href="{{ route('attendance.leave-management.create') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
                 <i class="fas fa-plus mr-2"></i>
@@ -44,31 +49,17 @@
     </div>
 
     <!-- Leave Summary -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
             <div class="flex items-center">
                 <div class="flex-shrink-0">
-                    <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-calendar-alt text-blue-600"></i>
+                    <div class="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-calendar-alt text-indigo-600"></i>
                     </div>
                 </div>
                 <div class="ml-3">
                     <p class="text-sm font-medium text-gray-500">Total Requests</p>
                     <p class="text-lg font-semibold text-gray-900">{{ $summary['total'] ?? 0 }}</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-            <div class="flex items-center">
-                <div class="flex-shrink-0">
-                    <div class="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-hourglass-half text-yellow-600"></i>
-                    </div>
-                </div>
-                <div class="ml-3">
-                    <p class="text-sm font-medium text-gray-500">Pending</p>
-                    <p class="text-lg font-semibold text-gray-900">{{ $summary['pending'] ?? 0 }}</p>
                 </div>
             </div>
         </div>
@@ -90,6 +81,20 @@
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
             <div class="flex items-center">
                 <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-hourglass-half text-yellow-600"></i>
+                    </div>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-500">Pending</p>
+                    <p class="text-lg font-semibold text-gray-900">{{ $summary['pending'] ?? 0 }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
                     <div class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
                         <i class="fas fa-times-circle text-red-600"></i>
                     </div>
@@ -100,6 +105,20 @@
                 </div>
             </div>
         </div>
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-history text-gray-500"></i>
+                    </div>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-500">Expired</p>
+                    <p class="text-lg font-semibold text-gray-900">{{ $summary['expired'] ?? 0 }}</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Filters -->
@@ -107,12 +126,25 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             @if($user->role !== 'employee')
             <div>
+                <label for="department" class="block text-sm font-medium text-gray-700 mb-2">Department</label>
+                <select id="department" name="department_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
+                    <option value="">All Departments</option>
+                    @if(isset($departments))
+                        @foreach($departments as $dept)
+                            <option value="{{ $dept->id }}" {{ request('department_id') == $dept->id ? 'selected' : '' }}>
+                                {{ $dept->name }}
+                            </option>
+                        @endforeach
+                    @endif
+                </select>
+            </div>
+            <div>
                 <label for="employee" class="block text-sm font-medium text-gray-700 mb-2">Employee</label>
                 <select id="employee" name="employee_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
                     <option value="">All Employees</option>
                     @if(isset($employees) && $employees->count() > 0)
                         @foreach($employees as $emp)
-                            <option value="{{ $emp->id }}" {{ request('employee_id') == $emp->id ? 'selected' : '' }}>
+                            <option value="{{ $emp->id }}" data-department-id="{{ $emp->department_id }}" {{ request('employee_id') == $emp->id ? 'selected' : '' }}>
                                 {{ $emp->full_name }} - {{ $emp->department->name ?? 'No Department' }}
                             </option>
                         @endforeach
@@ -126,12 +158,11 @@
                     <option value="">All Types</option>
                     <option value="vacation" {{ request('leave_type') == 'vacation' ? 'selected' : '' }}>Vacation Leave</option>
                     <option value="sick" {{ request('leave_type') == 'sick' ? 'selected' : '' }}>Sick Leave</option>
-                    <option value="personal" {{ request('leave_type') == 'personal' ? 'selected' : '' }}>Personal Leave</option>
+                    <option value="personal" {{ request('leave_type') == 'personal' ? 'selected' : '' }}>Personal Leave/Leave Without Pay</option>
                     <option value="emergency" {{ request('leave_type') == 'emergency' ? 'selected' : '' }}>Emergency Leave</option>
                     <option value="maternity" {{ request('leave_type') == 'maternity' ? 'selected' : '' }}>Maternity Leave</option>
                     <option value="paternity" {{ request('leave_type') == 'paternity' ? 'selected' : '' }}>Paternity Leave</option>
-                    <option value="bereavement" {{ request('leave_type') == 'bereavement' ? 'selected' : '' }}>Bereavement Leave</option>
-                    <option value="study" {{ request('leave_type') == 'study' ? 'selected' : '' }}>Study Leave</option>
+                    <option value="bereavement" {{ request('leave_type') == 'bereavement' ? 'selected' : '' }}>SIL (Service Incentive Leave)</option>
                 </select>
             </div>
             <div>
@@ -142,22 +173,22 @@
                     <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Approved</option>
                     <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }}>Rejected</option>
                     <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+                    <option value="expired" {{ request('status') == 'expired' ? 'selected' : '' }}>Expired</option>
                 </select>
             </div>
             <div>
                 <label for="dateFrom" class="block text-sm font-medium text-gray-700 mb-2">From Date</label>
                 <input type="date" id="dateFrom" name="date_from" value="{{ request('date_from') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
             </div>
+            <div>
+                <label for="dateTo" class="block text-sm font-medium text-gray-700 mb-2">To Date</label>
+                <input type="date" id="dateTo" name="date_to" value="{{ request('date_to') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
+            </div>
         </div>
-        <div class="mt-4 flex flex-col sm:flex-row gap-3 sm:items-end">
+        <div class="mt-4 flex justify-end">
             <button onclick="applyFilters()" class="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
                 <i class="fas fa-search mr-2"></i>Apply Filters
             </button>
-            @if(in_array($user->role, ['admin', 'hr', 'manager']) && ($hasEmployeesWithoutBalances ?? true))
-            <button onclick="openSetLeaveBalanceModal()" class="w-full sm:w-auto px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium" title="Set Leave Balance">
-                <i class="fas fa-calendar-plus mr-2"></i><span class="hidden sm:inline">Set Leave Balance</span><span class="sm:hidden">Set Balance</span>
-            </button>
-            @endif
         </div>
     </div>
 
@@ -208,7 +239,8 @@
                                 'pending' => 'bg-yellow-100 text-yellow-800',
                                 'approved' => 'bg-green-100 text-green-800',
                                 'rejected' => 'bg-red-100 text-red-800',
-                                'cancelled' => 'bg-gray-100 text-gray-800'
+                                'cancelled' => 'bg-gray-100 text-gray-800',
+                                'expired' => 'bg-gray-200 text-gray-600'
                             ];
                             $leaveTypeColors = [
                                 'vacation' => 'bg-blue-100 text-blue-800',
@@ -237,7 +269,7 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $leaveTypeColors[$leaveRequest->leave_type] ?? 'bg-gray-100 text-gray-800' }}">
-                                    {{ ucfirst(str_replace('_', ' ', $leaveRequest->leave_type)) }} Leave
+                                    {{ \App\Models\LeaveRequest::labelFor($leaveRequest->leave_type) }}
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
@@ -251,9 +283,6 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">{{ Str::limit($leaveRequest->reason, 30) }}</div>
-                                @if($leaveRequest->status == 'rejected' && $leaveRequest->rejection_reason)
-                                    <div class="text-xs text-red-600 mt-0.5"><span class="font-medium">Admin Reason:</span> {{ Str::limit($leaveRequest->rejection_reason, 30) }}</div>
-                                @endif
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $statusColors[$leaveRequest->status] ?? 'bg-gray-100 text-gray-800' }}">
@@ -262,10 +291,13 @@
                                     @endif
                                     {{ ucfirst($leaveRequest->status) }}
                             </span>
+                                @if($leaveRequest->status == 'rejected' && $leaveRequest->rejection_reason)
+                                    <div class="text-xs text-red-600 mt-1 max-w-[200px]"><span class="font-medium">Admin Reason:</span> {{ Str::limit($leaveRequest->rejection_reason, 30) }}</div>
+                                @endif
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                             <div class="flex justify-center items-center space-x-2">
-                                    @if(in_array($user->role, ['admin', 'hr']) && $leaveRequest->status == 'pending')
+                                    @if(in_array($user->role, ['admin', 'hr', 'manager']) && $leaveRequest->status == 'pending')
                                         <button data-leave-id="{{ $leaveRequest->id }}" data-action="approve" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors" title="Approve">
                                             <i class="fas fa-check"></i>
                                         </button>
@@ -278,7 +310,7 @@
                                         </button>
                                     @else
                                         <div class="flex justify-center">
-                                            <span class="inline-block w-10 h-px bg-gray-300 rounded-full"></span>
+                                            <span class="inline-block w-8 h-px bg-gray-300 rounded-full"></span>
                                         </div>
                                     @endif
                             </div>
@@ -310,7 +342,8 @@
                             'pending' => 'bg-yellow-100 text-yellow-800',
                             'approved' => 'bg-green-100 text-green-800',
                             'rejected' => 'bg-red-100 text-red-800',
-                            'cancelled' => 'bg-gray-100 text-gray-800'
+                            'cancelled' => 'bg-gray-100 text-gray-800',
+                            'expired' => 'bg-gray-200 text-gray-600'
                         ];
                         $leaveTypeColors = [
                             'vacation' => 'bg-blue-100 text-blue-800',
@@ -334,16 +367,21 @@
                                     <div class="text-sm text-gray-500">{{ $employee->department->name ?? 'No Department' }}</div>
                                 </div>
                             </div>
-                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $statusColors[$leaveRequest->status] ?? 'bg-gray-100 text-gray-800' }}">
-                                @if($leaveRequest->status == 'pending' || $leaveRequest->status == 'approved')
-                                    <div class="w-1.5 h-1.5 rounded-full mr-1 {{ $leaveRequest->status == 'pending' ? 'bg-yellow-400' : 'bg-green-400' }}"></div>
+                            <div class="text-right">
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $statusColors[$leaveRequest->status] ?? 'bg-gray-100 text-gray-800' }}">
+                                    @if($leaveRequest->status == 'pending' || $leaveRequest->status == 'approved')
+                                        <div class="w-1.5 h-1.5 rounded-full mr-1 {{ $leaveRequest->status == 'pending' ? 'bg-yellow-400' : 'bg-green-400' }}"></div>
+                                    @endif
+                                    {{ ucfirst($leaveRequest->status) }}
+                                </span>
+                                @if($leaveRequest->status == 'rejected' && $leaveRequest->rejection_reason)
+                                    <div class="text-xs text-red-600 mt-1 max-w-[140px]"><span class="font-medium">Admin Reason:</span> {{ Str::limit($leaveRequest->rejection_reason, 50) }}</div>
                                 @endif
-                                {{ ucfirst($leaveRequest->status) }}
-                            </span>
+                            </div>
                     </div>
                     <div class="mb-3">
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $leaveTypeColors[$leaveRequest->leave_type] ?? 'bg-gray-100 text-gray-800' }}">
-                                {{ ucfirst(str_replace('_', ' ', $leaveRequest->leave_type)) }} Leave
+                                {{ \App\Models\LeaveRequest::labelFor($leaveRequest->leave_type) }}
                         </span>
                     </div>
                     <div class="grid grid-cols-2 gap-4 text-sm mb-3">
@@ -361,18 +399,15 @@
                         </div>
                         <div>
                             <div class="text-gray-500">Type</div>
-                                <div class="font-medium">{{ ucfirst(str_replace('_', ' ', $leaveRequest->leave_type)) }}</div>
+                                <div class="font-medium">{{ \App\Models\LeaveRequest::labelFor($leaveRequest->leave_type) }}</div>
                             </div>
                     </div>
                     <div class="text-sm mb-3">
                         <div class="text-gray-500">Reason</div>
                             <div class="font-medium">{{ Str::limit($leaveRequest->reason, 50) }}</div>
-                            @if($leaveRequest->status == 'rejected' && $leaveRequest->rejection_reason)
-                                <div class="text-xs text-red-600 mt-0.5"><span class="font-medium">Admin Reason:</span> {{ Str::limit($leaveRequest->rejection_reason, 50) }}</div>
-                            @endif
                     </div>
                     <div class="flex justify-center space-x-2">
-                            @if(in_array($user->role, ['admin', 'hr']) && $leaveRequest->status == 'pending')
+                            @if(in_array($user->role, ['admin', 'hr', 'manager']) && $leaveRequest->status == 'pending')
                                 <button data-leave-id="{{ $leaveRequest->id }}" data-action="approve" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors" title="Approve">
                                     <i class="fas fa-check"></i>
                                 </button>
@@ -385,7 +420,7 @@
                                 </button>
                             @else
                                 <div class="flex justify-center">
-                                    <span class="inline-block w-10 h-px bg-gray-300 rounded-full"></span>
+                                    <span class="inline-block w-8 h-px bg-gray-300 rounded-full"></span>
                                 </div>
                             @endif
                         </div>
@@ -503,11 +538,6 @@
                     - {{ $selectedEmployee->full_name }}
                 @endif
             </h3>
-            @if(in_array($user->role, ['admin', 'hr', 'manager']) && $selectedEmployeeBalance)
-            <button onclick="openEditLeaveBalanceModal('{{ $selectedEmployee->id }}')" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
-                <i class="fas fa-edit mr-2"></i>Edit Balance
-            </button>
-            @endif
         </div>
         @if($selectedEmployeeBalance)
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -515,13 +545,20 @@
                 $leaveTypes = [
                     'vacation' => ['label' => 'Vacation Leave', 'color' => 'blue'],
                     'sick' => ['label' => 'Sick Leave', 'color' => 'red'],
-                    'personal' => ['label' => 'Personal Leave', 'color' => 'green'],
+                    'personal' => ['label' => 'Personal Leave/Leave Without Pay', 'color' => 'purple'],
                     'emergency' => ['label' => 'Emergency Leave', 'color' => 'yellow'],
                     'maternity' => ['label' => 'Maternity Leave', 'color' => 'pink'],
                     'paternity' => ['label' => 'Paternity Leave', 'color' => 'indigo'],
-                    'bereavement' => ['label' => 'Bereavement Leave', 'color' => 'gray'],
-                    'study' => ['label' => 'Study Leave', 'color' => 'purple'],
+                    'bereavement' => ['label' => 'SIL (Service Incentive Leave)', 'color' => 'gray'],
                 ];
+                // Personal and Emergency leave are incremental: usage keeps
+                // accruing but no total cap blocks new requests, so they get
+                // a simple usage count instead of a capped progress bar.
+                $incrementalTypes = \App\Models\LeaveRequest::UNCAPPED_LEAVE_TYPES;
+                // SIL is a standard statutory entitlement, so always surface
+                // it (even at 0/unset) rather than hiding it like the
+                // optional maternity/paternity cards.
+                $alwaysVisibleTypes = array_merge($incrementalTypes, ['bereavement']);
             @endphp
             @foreach($leaveTypes as $type => $config)
                 @php
@@ -543,13 +580,19 @@
                         'purple' => 'bg-purple-600',
                     ];
                     $barColor = $colorClasses[$config['color']] ?? 'bg-blue-600';
+                    $isIncremental = in_array($type, $incrementalTypes, true);
                 @endphp
-                @if($total > 0)
+                @if($total > 0 || in_array($type, $alwaysVisibleTypes, true))
             <div class="border border-gray-200 rounded-lg p-4">
                 <div class="flex items-center justify-between mb-2">
                         <h4 class="font-medium text-gray-900">{{ $config['label'] }}</h4>
-                        <span class="text-sm text-gray-500">{{ $total }} days</span>
+                        <span class="text-sm text-gray-500">{{ $isIncremental ? 'Incremental' : $total . ' days' }}</span>
                 </div>
+                @if($isIncremental)
+                <div class="text-xs text-gray-500 mt-1">
+                    <span class="font-medium">{{ $used }}</span> days used &mdash; no cap enforced
+                </div>
+                @else
                 <div class="w-full bg-gray-200 rounded-full h-2">
                     <div class="{{ $barColor }} h-2 rounded-full transition-all" style="--width: {{ $widthPercentage }}%; width: var(--width)"></div>
                 </div>
@@ -557,6 +600,7 @@
                     <span class="font-medium">{{ $used }}</span> days used,
                     <span class="font-medium text-green-600">{{ $remaining }}</span> remaining
                 </div>
+                @endif
                 </div>
                 @endif
             @endforeach
@@ -884,13 +928,12 @@ document.addEventListener('DOMContentLoaded', function() {
                             $leaveTypes = [
                                 'vacation' => ['label' => 'Vacation Leave', 'default' => 15],
                                 'sick' => ['label' => 'Sick Leave', 'default' => 10],
-                                'personal' => ['label' => 'Personal Leave', 'default' => 5],
-                                'emergency' => ['label' => 'Emergency Leave', 'default' => 3],
-                                'maternity' => ['label' => 'Maternity Leave', 'default' => 0],
-                                'paternity' => ['label' => 'Paternity Leave', 'default' => 0],
-                                'bereavement' => ['label' => 'Bereavement Leave', 'default' => 0],
-                                'study' => ['label' => 'Study Leave', 'default' => 0],
+                                'bereavement' => ['label' => 'SIL (Service Incentive Leave)', 'default' => 0],
                             ];
+                            // Personal and Emergency are excluded here: they're incremental
+                            // (see LeaveRequest::UNCAPPED_LEAVE_TYPES) with no cap to set.
+                            // Maternity and Paternity are excluded here: not managed through
+                            // this bulk form, only settable another way.
                         @endphp
                         @foreach($leaveTypes as $type => $config)
                         <div class="border border-gray-200 rounded-lg p-3">
@@ -946,13 +989,12 @@ document.addEventListener('DOMContentLoaded', function() {
                             $leaveTypes = [
                                 'vacation' => ['label' => 'Vacation Leave'],
                                 'sick' => ['label' => 'Sick Leave'],
-                                'personal' => ['label' => 'Personal Leave'],
-                                'emergency' => ['label' => 'Emergency Leave'],
-                                'maternity' => ['label' => 'Maternity Leave'],
-                                'paternity' => ['label' => 'Paternity Leave'],
-                                'bereavement' => ['label' => 'Bereavement Leave'],
-                                'study' => ['label' => 'Study Leave'],
+                                'bereavement' => ['label' => 'SIL (Service Incentive Leave)'],
                             ];
+                            // Personal and Emergency are excluded here: they're incremental
+                            // (see LeaveRequest::UNCAPPED_LEAVE_TYPES) with no cap to set.
+                            // Maternity and Paternity are excluded here: not managed through
+                            // this bulk form, only settable another way.
                         @endphp
                         @foreach($leaveTypes as $type => $config)
                         <div class="border border-gray-200 rounded-lg p-3">
@@ -1009,12 +1051,7 @@ function openEditLeaveBalanceModal(employeeId) {
 
                 document.getElementById('edit_vacation_days_total').value = balance.vacation_days_total || 0;
                 document.getElementById('edit_sick_days_total').value = balance.sick_days_total || 0;
-                document.getElementById('edit_personal_days_total').value = balance.personal_days_total || 0;
-                document.getElementById('edit_emergency_days_total').value = balance.emergency_days_total || 0;
-                document.getElementById('edit_maternity_days_total').value = balance.maternity_days_total || 0;
-                document.getElementById('edit_paternity_days_total').value = balance.paternity_days_total || 0;
                 document.getElementById('edit_bereavement_days_total').value = balance.bereavement_days_total || 0;
-                document.getElementById('edit_study_days_total').value = balance.study_days_total || 0;
 
                 document.getElementById('editLeaveBalanceModal').classList.remove('hidden');
             } else {
@@ -1049,12 +1086,7 @@ document.getElementById('setLeaveBalanceForm').addEventListener('submit', async 
         year: parseInt(data.year),
         vacation_days_total: parseInt(data.vacation_days_total || 0),
         sick_days_total: parseInt(data.sick_days_total || 0),
-        personal_days_total: parseInt(data.personal_days_total || 0),
-        emergency_days_total: parseInt(data.emergency_days_total || 0),
-        maternity_days_total: parseInt(data.maternity_days_total || 0),
-        paternity_days_total: parseInt(data.paternity_days_total || 0),
         bereavement_days_total: parseInt(data.bereavement_days_total || 0),
-        study_days_total: parseInt(data.study_days_total || 0),
     };
 
     try {
@@ -1093,12 +1125,7 @@ document.getElementById('editLeaveBalanceForm').addEventListener('submit', async
     const submitData = {
         vacation_days_total: parseInt(data.vacation_days_total || 0),
         sick_days_total: parseInt(data.sick_days_total || 0),
-        personal_days_total: parseInt(data.personal_days_total || 0),
-        emergency_days_total: parseInt(data.emergency_days_total || 0),
-        maternity_days_total: parseInt(data.maternity_days_total || 0),
-        paternity_days_total: parseInt(data.paternity_days_total || 0),
         bereavement_days_total: parseInt(data.bereavement_days_total || 0),
-        study_days_total: parseInt(data.study_days_total || 0),
     };
 
     const balanceId = document.getElementById('editBalanceId').value;

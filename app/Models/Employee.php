@@ -273,9 +273,19 @@ class Employee extends Model
             ->where('effective_date', '<=', $date)
             ->where(function ($query) use ($date) {
                 $query->whereNull('end_date')
-                      ->orWhere('end_date', '>=', $date);
+                    ->orWhere('end_date', '>=', $date);
             })
             ->orderBy('effective_date', 'desc')
+            ->first();
+    }
+
+    // Get employee's schedule for a specific date
+    public function getScheduleForDate($date)
+    {
+        $dateStr = $date instanceof \Carbon\Carbon ? $date->format('Y-m-d') : $date;
+
+        return $this->schedules()
+            ->where('date', $dateStr)
             ->first();
     }
 
@@ -315,9 +325,8 @@ class Employee extends Model
         return $this->account()->exists();
     }
 
-        public function documents()
+    public function documents()
     {
         return $this->hasMany(Document::class);
     }
-
 }

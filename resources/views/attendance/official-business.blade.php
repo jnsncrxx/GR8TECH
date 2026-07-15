@@ -343,6 +343,7 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Reason
                         </th>
+
                         <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             OB Hours
                         </th>
@@ -537,6 +538,7 @@
                                 @endif
                             </div>
                         </div>
+
                         <div class="grid grid-cols-2 gap-4 text-sm mb-3">
                             <div>
                                 <div class="text-gray-500">Date</div>
@@ -562,6 +564,7 @@
                                 <div class="font-medium">{{ $reviewerName !== '' ? $reviewerName : '—' }}</div>
                             </div>
                         </div>
+
                         <div class="text-sm mb-3">
                             <div class="text-gray-500">Reason</div>
                             <div class="font-medium">{{ \Illuminate\Support\Str::limit($ob->reason, 50) }}</div>

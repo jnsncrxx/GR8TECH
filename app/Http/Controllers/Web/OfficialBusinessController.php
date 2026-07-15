@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Http\Controllers\Concerns\CalculatesAttendanceWithOfficialBusiness;
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceRecord;
 use App\Models\Department;
@@ -11,46 +12,85 @@ use App\Services\CutoffPeriodService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class OfficialBusinessController extends Controller
 {
-    public function __construct(private CutoffPeriodService $cutoffPeriods)
-    {
-    }
+    use CalculatesAttendanceWithOfficialBusiness;
+
+    public function __construct(
+        private CutoffPeriodService $cutoffPeriods
+    ) {}
 
     /**
-     * Which users can approve/reject OB requests.
-     * Matches the role:admin,hr,manager middleware used elsewhere in web.php.
+     * Check if the logged-in user can review OB requests.
      */
     private function isReviewer(): bool
     {
         $user = Auth::user();
-        return $user && in_array($user->role ?? null, ['admin', 'hr', 'manager']);
+
+        return $user
+            && in_array(
+                $user->role ?? null,
+                ['admin', 'hr', 'manager'],
+                true
+            );
     }
 
     /**
-     * Resolve the employee_id tied to the logged-in account.
-     * NOTE: adjust if the relation from User -> Employee is named differently.
+     * Get the current employee ID.
      */
-    private function currentEmployeeId()
+    private function currentEmployeeId(): ?string
     {
         $user = Auth::user();
-        return $user->employee->id ?? $user->employee_id ?? null;
+
+        if (!$user) {
+            return null;
+        }
+
+        return $user->employee?->id
+            ?? $user->employee_id
+            ?? null;
     }
 
     /**
-     * Flip a pending request to 'expired' if it's past its grace deadline but
-     * hasn't been swept yet by the Phase 3 scheduled command. Called lazily on
-     * read/update paths so the UI never shows a stale "pending" for a request
-     * that's actually no longer actionable, even between cron runs.
+     * Expire a request if its deadline has passed.
      */
-    private function expireIfPastDeadline(OfficialBusinessRequest $obRequest): OfficialBusinessRequest
-    {
-        if ($obRequest->isPastDeadline()) {
-            $obRequest->update(['status' => OfficialBusinessRequest::EXPIRED]);
+    private function expireIfPastDeadline(
+        OfficialBusinessRequest $obRequest
+    ): OfficialBusinessRequest {
+        if (
+            $obRequest->isPending()
+            && $obRequest->isPastDeadline()
+        ) {
+            $obRequest->update([
+                'status' => OfficialBusinessRequest::EXPIRED,
+            ]);
+
+            $obRequest->refresh();
         }
 
         return $obRequest;
+    }
+
+    /**
+    /**
+     * Expire pending requests for an employee.
+     */
+    private function expirePendingRequestsForEmployee(
+        string $employeeId
+    ): void {
+        OfficialBusinessRequest::query()
+            ->where('employee_id', $employeeId)
+            ->where(
+                'status',
+                OfficialBusinessRequest::PENDING
+            )
+            ->get()
+            ->each(
+                fn (OfficialBusinessRequest $obRequest) =>
+                    $this->expireIfPastDeadline($obRequest)
+            );
     }
 
     /**
@@ -106,6 +146,11 @@ class OfficialBusinessController extends Controller
     {
         $user = Auth::user();
         $isReviewer = $this->isReviewer();
+        $employeeId = $this->currentEmployeeId();
+
+        if (!$isReviewer && $employeeId) {
+            $this->expirePendingRequestsForEmployee($employeeId);
+        }
 
         $query = $this->applyFilters(
             OfficialBusinessRequest::with(['employee.department', 'reviewer.employee']),
@@ -148,7 +193,10 @@ class OfficialBusinessController extends Controller
         ];
 
         $departments = Department::orderBy('name')->get();
-        $employees = Employee::orderBy('first_name')->get();
+        $employees = Employee::with('department')
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
 
         return view('attendance.official-business', [
             'user' => $user,
@@ -244,198 +292,487 @@ class OfficialBusinessController extends Controller
      * Time Out are always required (no full-day/partial-day toggle). Both past
      * (retroactive) and future (advance) dates are allowed, subject to the
      * date's cutoff period still being open for action.
+
      */
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'date' => 'required|date',
-            'reason' => 'required|string|max:500',
-            'ob_start_time' => 'required|date_format:H:i',
-            'ob_end_time' => 'required|date_format:H:i|after:ob_start_time',
+            'date' => [
+                'required',
+                'date',
+            ],
+
+            'reason' => [
+                'required',
+                'string',
+                'max:500',
+
+                function ($attribute, $value, $fail) {
+                    if (trim((string) $value) === '') {
+                        $fail(
+                            'Remarks field is required.'
+                        );
+                    }
+                },
+            ],
+
+            'ob_start_time' => [
+                'required',
+                'date_format:H:i',
+            ],
+
+            'ob_end_time' => [
+                'required',
+                'date_format:H:i',
+                'after:ob_start_time',
+            ],
         ]);
 
         $employeeId = $this->currentEmployeeId();
 
         if (!$employeeId) {
-            return redirect()->back()->withInput()
-                ->with('error', 'No employee profile is linked to this account.');
+            return back()
+                ->withInput()
+                ->with(
+                    'error',
+                    'No employee profile is linked to this account.'
+                );
         }
 
-        // Cutoff check: the date's period must still be open (its grace
-        // deadline — cutoff end + grace hours — hasn't passed). This applies
-        // uniformly to retroactive and advance filing.
-        if (!$this->cutoffPeriods->isOpenForAction($validated['date'])) {
-            return redirect()->back()->withInput()
-                ->with('error', 'This date is not included in the current payroll cutoff period.');
+        $obDate = $this->normalizeDate(
+            $validated['date']
+        );
+
+        if (
+            !$this->cutoffPeriods
+                ->isOpenForAction($obDate)
+        ) {
+            return back()
+                ->withInput()
+                ->with(
+                    'error',
+                    'This date is not included in the current payroll cutoff period.'
+                );
         }
 
-        $duplicateRequest = OfficialBusinessRequest::where('employee_id', $employeeId)
-            ->where('date', $validated['date'])
-            ->whereIn('status', [OfficialBusinessRequest::PENDING, OfficialBusinessRequest::APPROVED])
-            ->exists();
+        $this->expirePendingRequestsForEmployee(
+            $employeeId
+        );
 
-        if ($duplicateRequest) {
-            return redirect()->back()->withInput()
-                ->with('error', 'You already have a pending or approved OB request for this date.');
+        $startTime = $this->normalizeTime(
+            $validated['ob_start_time']
+        );
+
+        $endTime = $this->normalizeTime(
+            $validated['ob_end_time']
+        );
+
+        $newInterval = $this->createInterval(
+            $obDate,
+            $startTime,
+            $endTime
+        );
+
+        $existingRequests =
+            OfficialBusinessRequest::query()
+                ->where(
+                    'employee_id',
+                    $employeeId
+                )
+                ->whereDate(
+                    'date',
+                    $obDate
+                )
+                ->whereIn('status', [
+                    OfficialBusinessRequest::PENDING,
+                    OfficialBusinessRequest::APPROVED,
+                ])
+                ->whereNotNull('ob_start_time')
+                ->whereNotNull('ob_end_time')
+                ->get();
+
+        $overlappingRequest =
+            $existingRequests->contains(
+                function (
+                    OfficialBusinessRequest $existing
+                ) use (
+                    $obDate,
+                    $newInterval
+                ): bool {
+                    $existingInterval =
+                        $this->createInterval(
+                            $obDate,
+                            $existing->ob_start_time,
+                            $existing->ob_end_time
+                        );
+
+                    return
+                        $newInterval['start']->lt(
+                            $existingInterval['end']
+                        )
+                        &&
+                        $newInterval['end']->gt(
+                            $existingInterval['start']
+                        );
+                }
+            );
+
+        if ($overlappingRequest) {
+            return back()
+                ->withInput()
+                ->with(
+                    'error',
+                    'This Official Business request overlaps with an existing pending or approved OB request.'
+                );
         }
 
-        $existingAttendance = AttendanceRecord::where('employee_id', $employeeId)
-            ->where('date', $validated['date'])
-            ->exists();
-
-        if ($existingAttendance) {
-            return redirect()->back()->withInput()
-                ->with('error', 'An attendance record already exists for this date.');
-        }
-
-        $period = $this->cutoffPeriods->periodFor($validated['date']);
+        $period = $this->cutoffPeriods
+            ->periodFor($obDate);
 
         OfficialBusinessRequest::create([
             'employee_id' => $employeeId,
-            'date' => $validated['date'],
-            'reason' => $validated['reason'],
-            'status' => OfficialBusinessRequest::PENDING,
+
+            'date' => $obDate,
+
+            'reason' => trim(
+                $validated['reason']
+            ),
+
+            'status' =>
+                OfficialBusinessRequest::PENDING,
+
             'is_full_day' => false,
-            'ob_start_time' => $validated['ob_start_time'],
-            'ob_end_time' => $validated['ob_end_time'],
-            'cutoff_period_key' => $period['key'],
-            'expires_at' => $this->cutoffPeriods->graceDeadlineFor($validated['date']),
+
+            'ob_start_time' => $startTime,
+
+            'ob_end_time' => $endTime,
+
+            'cutoff_period_key' =>
+                $period['key'],
+
+            'expires_at' =>
+                $this->cutoffPeriods
+                    ->graceDeadlineFor($obDate),
+
             'created_by' => Auth::id(),
         ]);
 
-        return redirect()->route('attendance.official-business')
-            ->with('success', 'Official Business request submitted. Waiting for approval.');
+        return redirect()
+            ->route(
+                'attendance.official-business'
+            )
+            ->with(
+                'success',
+                'Official Business request submitted. Waiting for approval.'
+            );
     }
 
     /**
-     * Admin/HR/manager approves or rejects a pending request.
-     * Approval creates the actual AttendanceRecord (OFFICIAL_BUSINESS status).
-     * Manager is the primary approver, HR/Admin is secondary/backup — both can
-     * act on any pending request; approved_by_role just records who did.
+     * Approve or reject an OB request.
      */
-    public function updateStatus(Request $request, $id)
-    {
+    public function updateStatus(
+        Request $request,
+        $id
+    ) {
         if (!$this->isReviewer()) {
-            abort(403, 'You are not authorized to review Official Business requests.');
+            abort(
+                403,
+                'You are not authorized to review Official Business requests.'
+            );
         }
 
         $validated = $request->validate([
-            'status' => 'required|in:approved,rejected',
-            'rejection_reason' => 'nullable|required_if:status,rejected|string|max:500',
+            'status' => [
+                'required',
+                'in:approved,rejected',
+            ],
+
+            'rejection_reason' => [
+                'nullable',
+                'required_if:status,rejected',
+                'string',
+                'max:500',
+            ],
         ]);
 
-        $obRequest = OfficialBusinessRequest::findOrFail($id);
-        $this->expireIfPastDeadline($obRequest);
+        $obRequest =
+            OfficialBusinessRequest::findOrFail($id);
+
+        $this->expireIfPastDeadline(
+            $obRequest
+        );
 
         if ($obRequest->isExpired()) {
-            return redirect()->back()->with('error', 'This request expired before it was reviewed and can no longer be actioned.');
+            return back()->with(
+                'error',
+                'This request expired before it was reviewed.'
+            );
         }
 
         if (!$obRequest->isPending()) {
-            return redirect()->back()->with('error', 'This request has already been reviewed.');
+            return back()->with(
+                'error',
+                'This request has already been reviewed.'
+            );
         }
 
         $reviewerRole = Auth::user()->role ?? null;
 
-        if ($validated['status'] === 'approved') {
-            $existingAttendance = AttendanceRecord::where('employee_id', $obRequest->employee_id)
-                ->where('date', $obRequest->date)
-                ->first();
+        if (
+            $validated['status']
+            === OfficialBusinessRequest::APPROVED
+        ) {
+            DB::transaction(
+                function () use (
+                    $obRequest,
+                    $reviewerRole
+                ) {
+                    $date = $this->normalizeDate(
+                        $obRequest->date
+                    );
 
-            if ($existingAttendance) {
-                return redirect()->back()
-                    ->with('error', 'An attendance record already exists for this employee on this date. Resolve it before approving.');
-            }
+                    $obInterval = $this->createInterval(
+                        $date,
+                        $obRequest->ob_start_time,
+                        $obRequest->ob_end_time
+                    );
 
-            // Create the attendance record first, then let AttendanceRecord compute
-            // its own hours the same way it would for any other record (see
-            // calculateTotalHours() / calculateRegularAndOvertimeHours()). This
-            // guarantees OB-derived records are categorized identically to regular
-            // attendance — including the 8-hour regular/overtime split — rather than
-            // duplicating that logic here and risking drift if it changes later.
-            $attendanceRecord = AttendanceRecord::create([
-                'employee_id' => $obRequest->employee_id,
-                'date' => $obRequest->date,
-                'status' => AttendanceRecord::OFFICIAL_BUSINESS,
-                'notes' => $obRequest->reason,
-                'time_in' => $obRequest->ob_start_time,
-                'time_out' => $obRequest->ob_end_time,
-                'break_start' => null,
-                'break_end' => null,
-                'total_hours' => 0,
-                'regular_hours' => 0,
-                'overtime_hours' => 0,
-            ]);
+                    $obMinutes = (int) $obInterval['start']
+                        ->diffInMinutes(
+                            $obInterval['end']
+                        );
 
-            $totalHours = $attendanceRecord->calculateTotalHours();
-            $hoursSplit = $attendanceRecord->calculateRegularAndOvertimeHours();
+                    $obHours = round(
+                        $obMinutes / 60,
+                        2
+                    );
 
-            $attendanceRecord->update([
-                'total_hours' => $totalHours,
-                'regular_hours' => $hoursSplit['regular_hours'],
-                'overtime_hours' => $hoursSplit['overtime_hours'],
-            ]);
+                    $attendanceRecord =
+                        AttendanceRecord::query()
+                            ->where(
+                                'employee_id',
+                                $obRequest->employee_id
+                            )
+                            ->whereDate(
+                                'date',
+                                $date
+                            )
+                            ->first();
 
-            $creditedHours = $totalHours;
+                    if (!$attendanceRecord) {
+                        $attendanceRecord =
+                            AttendanceRecord::create([
+                                'employee_id' =>
+                                    $obRequest->employee_id,
 
-            $obRequest->update([
-                'status' => OfficialBusinessRequest::APPROVED,
-                'reviewed_by' => Auth::id(),
-                'reviewed_at' => Carbon::now(),
-                'approved_by_role' => $reviewerRole,
-                'attendance_record_id' => $attendanceRecord->id,
-                'credited_hours' => $creditedHours,
-            ]);
+                                'date' => $date,
 
-            return redirect()->back()->with('success', 'OB request approved and attendance record created.');
+                                'status' =>
+                                    AttendanceRecord::OFFICIAL_BUSINESS,
+
+                                'notes' =>
+                                    'Approved OB: '
+                                    . $obRequest->reason
+                                    . ' ('
+                                    . number_format(
+                                        $obHours,
+                                        2
+                                    )
+                                    . ' hrs)',
+
+                                'time_in' => null,
+
+                                'time_out' => null,
+
+                                'break_start' => null,
+
+                                'break_end' => null,
+
+                                'total_hours' => 0,
+
+                                'regular_hours' => 0,
+
+                                'overtime_hours' => 0,
+                            ]);
+                    } else {
+                        $notes = $attendanceRecord->notes
+                            ? $attendanceRecord->notes
+                                . PHP_EOL
+                            : '';
+
+                        $notes .=
+                            'Approved OB: '
+                            . $obRequest->reason
+                            . ' ('
+                            . number_format(
+                                $obHours,
+                                2
+                            )
+                            . ' hrs)';
+
+                        $attendanceRecord->update([
+                            'notes' => trim($notes),
+                        ]);
+                    }
+
+                    /*
+                     * Approve first because recalculation reads
+                     * all APPROVED OB requests.
+                     */
+                    $obRequest->update([
+                        'status' =>
+                            OfficialBusinessRequest::APPROVED,
+
+                        'reviewed_by' =>
+                            Auth::id(),
+
+                        'reviewed_at' =>
+                            Carbon::now(
+                                $this->timezone()
+                            ),
+
+                        'approved_by_role' =>
+                            $reviewerRole,
+
+                        'attendance_record_id' =>
+                            $attendanceRecord->id,
+
+                        'credited_hours' =>
+                            $obHours,
+
+                        'rejection_reason' =>
+                            null,
+                    ]);
+
+                    $this
+                        ->recalculateAttendanceWithOfficialBusiness(
+                            $attendanceRecord
+                        );
+                }
+            );
+
+            return back()->with(
+                'success',
+                'OB request approved. Attendance hours were recalculated.'
+            );
         }
 
         $obRequest->update([
-            'status' => OfficialBusinessRequest::REJECTED,
-            'reviewed_by' => Auth::id(),
-            'reviewed_at' => Carbon::now(),
-            'approved_by_role' => $reviewerRole,
-            'rejection_reason' => $validated['rejection_reason'],
+            'status' =>
+                OfficialBusinessRequest::REJECTED,
+
+            'reviewed_by' =>
+                Auth::id(),
+
+            'reviewed_at' =>
+                Carbon::now($this->timezone()),
+
+            'approved_by_role' =>
+                $reviewerRole,
+
+            'rejection_reason' => trim(
+                $validated['rejection_reason']
+            ),
         ]);
 
-        return redirect()->back()->with('success', 'OB request rejected.');
+        return back()->with(
+            'success',
+            'OB request rejected.'
+        );
     }
 
     /**
-     * Employee cancels their own pending request (reviewers can also cancel any pending request).
+     * Cancel a pending OB request.
      */
-    public function cancel(Request $request, $id)
-    {
-        $obRequest = OfficialBusinessRequest::findOrFail($id);
-        $ownsRequest = $obRequest->employee_id === $this->currentEmployeeId();
+    public function cancel(
+        Request $request,
+        $id
+    ) {
+        $obRequest =
+            OfficialBusinessRequest::findOrFail($id);
 
-        if (!$ownsRequest && !$this->isReviewer()) {
-            abort(403, 'You are not authorized to cancel this request.');
+        $this->expireIfPastDeadline(
+            $obRequest
+        );
+
+        $ownsRequest =
+            $obRequest->employee_id
+            === $this->currentEmployeeId();
+
+        if (
+            !$ownsRequest
+            && !$this->isReviewer()
+        ) {
+            abort(
+                403,
+                'You are not authorized to cancel this request.'
+            );
         }
 
         if (!$obRequest->isPending()) {
-            return redirect()->back()->with('error', 'Only pending requests can be cancelled.');
+            return back()->with(
+                'error',
+                'Only pending requests can be cancelled.'
+            );
         }
 
         $obRequest->delete();
 
-        return redirect()->back()->with('success', 'OB request cancelled.');
+        return back()->with(
+            'success',
+            'OB request cancelled.'
+        );
     }
 
-    public function getStatistics(Request $request)
-    {
+    /**
+     * Return OB statistics.
+     */
+    public function getStatistics(
+        Request $request
+    ) {
         $isReviewer = $this->isReviewer();
+
+        $employeeId = $this->currentEmployeeId();
+
+        if (
+            !$isReviewer
+            && $employeeId
+        ) {
+            $this->expirePendingRequestsForEmployee(
+                $employeeId
+            );
+        }
 
         $query = $isReviewer
             ? OfficialBusinessRequest::query()
-            : OfficialBusinessRequest::where('employee_id', $this->currentEmployeeId());
+            : OfficialBusinessRequest::where(
+                'employee_id',
+                $employeeId
+            );
 
         return response()->json([
-            'total' => (clone $query)->count(),
-            'pending' => (clone $query)->pending()->count(),
-            'approved' => (clone $query)->approved()->count(),
-            'rejected' => (clone $query)->rejected()->count(),
-            'expired' => (clone $query)->expired()->count(),
+            'total' =>
+                (clone $query)->count(),
+
+            'pending' =>
+                (clone $query)
+                    ->pending()
+                    ->count(),
+
+            'approved' =>
+                (clone $query)
+                    ->approved()
+                    ->count(),
+
+            'rejected' =>
+                (clone $query)
+                    ->rejected()
+                    ->count(),
+
+            'expired' =>
+                (clone $query)
+                    ->expired()
+                    ->count(),
         ]);
     }
 }

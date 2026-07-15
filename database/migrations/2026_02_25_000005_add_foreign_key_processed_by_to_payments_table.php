@@ -12,11 +12,13 @@ return new class extends Migration
     {
         // Use raw SQL to check and drop the foreign key if it exists (MySQL only)
         if (Schema::hasColumn('payments', 'processed_by')) {
-            $fkName = null;
-            $result = DB::select("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'payments' AND COLUMN_NAME = 'processed_by' AND CONSTRAINT_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME IS NOT NULL");
-            if (!empty($result)) {
-                $fkName = $result[0]->CONSTRAINT_NAME;
-                DB::statement("ALTER TABLE payments DROP FOREIGN KEY `$fkName`");
+            if (DB::getDriverName() === 'mysql') {
+                $fkName = null;
+                $result = DB::select("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'payments' AND COLUMN_NAME = 'processed_by' AND CONSTRAINT_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME IS NOT NULL");
+                if (!empty($result)) {
+                    $fkName = $result[0]->CONSTRAINT_NAME;
+                    DB::statement("ALTER TABLE payments DROP FOREIGN KEY `$fkName`");
+                }
             }
             Schema::table('payments', function (Blueprint $table) {
                 $table->foreign('processed_by')
@@ -27,9 +29,9 @@ return new class extends Migration
         }
     }
 
-    public function down()
+   public function down()
     {
-        if (Schema::hasColumn('payments', 'processed_by')) {
+        if (Schema::hasColumn('payments', 'processed_by') && DB::getDriverName() === 'mysql') {
             $fkName = null;
             $result = DB::select("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'payments' AND COLUMN_NAME = 'processed_by' AND CONSTRAINT_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME IS NOT NULL");
             if (!empty($result)) {
