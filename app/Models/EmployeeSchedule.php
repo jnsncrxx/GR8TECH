@@ -140,10 +140,22 @@ class EmployeeSchedule extends Model
             return 0;
         }
 
-        $start = Carbon::parse($this->date->format('Y-m-d') . ' ' . $this->time_in);
-        $end = Carbon::parse($this->date->format('Y-m-d') . ' ' . $this->time_out);
+        // Normalize date and time separately, then construct once, so a
+        // time value that already carries a date (e.g. a full datetime
+        // string or Carbon) can never produce "Y-m-d Y-m-d H:i:s".
+        $date = $this->date->format('Y-m-d');
 
-        return round($end->diffInMinutes($start) / 60, 2);
+        $start = Carbon::createFromFormat(
+            'Y-m-d H:i:s',
+            $date . ' ' . Carbon::parse($this->time_in)->format('H:i:s')
+        );
+
+        $end = Carbon::createFromFormat(
+            'Y-m-d H:i:s',
+            $date . ' ' . Carbon::parse($this->time_out)->format('H:i:s')
+        );
+
+        return round($start->diffInMinutes($end, true) / 60, 2);
     }
 
     /**

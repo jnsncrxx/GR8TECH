@@ -49,8 +49,8 @@ class AddRejectionColumnsToPayrollsTable extends Migration
             }
         });
         
-        // Modify status column separately
-        if (Schema::hasColumn('payrolls', 'status')) {
+        // Modify status column separately (MySQL-only syntax; skip on SQLite/others)
+        if (Schema::hasColumn('payrolls', 'status') && DB::getDriverName() === 'mysql') {
             DB::statement("ALTER TABLE payrolls MODIFY status VARCHAR(50) DEFAULT 'pending'");
         }
     }
@@ -65,8 +65,8 @@ class AddRejectionColumnsToPayrollsTable extends Migration
             $table->dropColumn(['rejected_at', 'rejected_by', 'rejection_reason']);
         });
         
-        // Revert status column
-        if (Schema::hasColumn('payrolls', 'status')) {
+        // Revert status column (MySQL-only syntax; skip on SQLite/others)
+        if (Schema::hasColumn('payrolls', 'status') && DB::getDriverName() === 'mysql') {
             DB::statement("ALTER TABLE payrolls MODIFY status VARCHAR(20) DEFAULT 'pending'");
         }
     }

@@ -2,253 +2,525 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Http\Controllers\Concerns\CalculatesAttendanceWithOfficialBusiness;
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceRecord;
 use App\Models\EmployeeBreak;
+use App\Models\OfficialBusinessRequest;
 use App\Models\TimeEntry;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class TimeInOutController extends Controller
 {
+    use CalculatesAttendanceWithOfficialBusiness;
+
+    /**
+     * Display Time In / Time Out page.
+     */
     public function index(Request $request)
     {
-        return view('attendance.time-in-out', ['user' => Auth::user()]);
+        $user = Auth::user();
+        $employee = $user?->employee;
+
+        $todayAttendance = null;
+        $recentActivity = collect();
+
+        if ($employee) {
+            $todayAttendance = AttendanceRecord::where(
+                'employee_id',
+                $employee->id
+            )
+                ->whereDate(
+                    'date',
+                    Carbon::today()->toDateString()
+                )
+                ->with([
+                    'timeEntries',
+                    'breaks',
+                ])
+                ->first();
+
+            $recentActivity = AttendanceRecord::where(
+                'employee_id',
+                $employee->id
+            )
+                ->with([
+                    'timeEntries',
+                    'breaks',
+                ])
+                ->orderByDesc('date')
+                ->orderByDesc('created_at')
+                ->limit(10)
+                ->get();
+        }
+
+        return view('attendance.time-in-out', [
+            'user' => $user,
+            'todayAttendance' => $todayAttendance,
+            'recentActivity' => $recentActivity,
+            'activeRoute' => 'attendance.time-in-out',
+        ]);
     }
 
+    /**
+     * Time In.
+     */
     public function timeIn(Request $request)
     {
         try {
             $user = Auth::user();
-            $employee = $user->employee;
+            $employee = $user?->employee;
 
             if (!$employee) {
-                return response()->json(['error' => 'Employee record not found'], 404);
+                return response()->json([
+                    'error' => 'Employee record not found',
+                ], 404);
             }
 
             $today = Carbon::today();
-            
-            // Get or create today's attendance record
-            $attendanceRecord = AttendanceRecord::firstOrCreate(
-                ['employee_id' => $employee->id, 'date' => $today],
-                ['status' => 'present']
-            );
+            $now = Carbon::now();
 
-            // Check if already has an active session
+            $attendanceRecord =
+                AttendanceRecord::firstOrCreate(
+                    [
+                        'employee_id' => $employee->id,
+                        'date' => $today->toDateString(),
+                    ],
+                    [
+                        'status' => 'present',
+                        'total_hours' => 0,
+                        'regular_hours' => 0,
+                        'overtime_hours' => 0,
+                    ]
+                );
+
             if ($attendanceRecord->hasActiveTimeEntry()) {
-                return response()->json(['error' => 'You are already clocked in'], 400);
+                return response()->json([
+                    'error' =>
+                        'You are already clocked in',
+                ], 400);
             }
 
-            // Record the time in via TimeEntry
-            $now = Carbon::now();
-            
             TimeEntry::create([
-                'attendance_record_id' => $attendanceRecord->id,
+                'attendance_record_id' =>
+                    $attendanceRecord->id,
+
                 'time_in' => $now,
-                'entry_type' => 'regular'
+
+                'entry_type' => 'regular',
             ]);
 
-            // Update main record's first time_in if not set
+            /*
+             * Store the first actual Time In.
+             */
             if (!$attendanceRecord->time_in) {
                 $attendanceRecord->time_in = $now;
-                $attendanceRecord->save();
             }
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Successfully clocked in at ' . $now->format('g:i A'),
-                'time_in' => $now->toIso8601String(),
-                'status' => 'clocked_in'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'An error occurred: ' . $e->getMessage()], 500);
-        }
-    }
-
-    public function timeOut(Request $request)
-    {
-        try {
-            $user = Auth::user();
-            $employee = $user->employee;
-
-            if (!$employee) {
-                return response()->json(['error' => 'Employee record not found'], 404);
+            /*
+             * OB-created attendance becomes present
+             * once actual attendance starts.
+             */
+            if (
+                $attendanceRecord->status
+                === AttendanceRecord::OFFICIAL_BUSINESS
+            ) {
+                $attendanceRecord->status = 'present';
             }
 
-            $today = Carbon::today();
+            /*
+             * Clear previous latest time out because
+             * there is now an active session.
+             */
+            $attendanceRecord->time_out = null;
 
-            // Get today's attendance record
-            $attendanceRecord = AttendanceRecord::where('employee_id', $employee->id)
-                ->where('date', $today->toDateString())
-                ->first();
-
-            if (!$attendanceRecord) {
-                return response()->json(['error' => 'No clock in record found for today'], 400);
-            }
-
-            // Get active time entry
-            $activeEntry = $attendanceRecord->getActiveTimeEntry();
-
-            if (!$activeEntry) {
-                return response()->json(['error' => 'No active clock-in session found'], 400);
-            }
-
-            // Record the time out
-            $now = Carbon::now();
-            $activeEntry->time_out = $now;
-            $activeEntry->save(); // This triggers calculation of hours_worked in TimeEntry model
-
-            // Update main attendance record
-            $attendanceRecord->time_out = $now; // Store latest timeout
-            $attendanceRecord->total_hours = $attendanceRecord->calculateTotalHours();
-            $attendanceRecord->status = 'completed';
             $attendanceRecord->save();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Successfully clocked out at ' . $now->format('g:i A'),
-                'time_out' => $now->toIso8601String(),
-                'total_hours' => $attendanceRecord->total_hours,
-                'status' => 'clocked_out'
+
+                'message' =>
+                    'Successfully clocked in at '
+                    . $now->format('g:i A'),
+
+                'time_in' =>
+                    $now->toIso8601String(),
+
+                'status' => 'clocked_in',
             ]);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'An error occurred: ' . $e->getMessage()], 500);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'error' =>
+                    'An error occurred: '
+                    . $e->getMessage(),
+            ], 500);
         }
     }
 
-    public function breakStart(Request $request)
+    /**
+     * Time Out.
+     */
+    public function timeOut(Request $request)
     {
         try {
             $user = Auth::user();
-            $employee = $user->employee;
+            $employee = $user?->employee;
 
             if (!$employee) {
-                return response()->json(['error' => 'Employee record not found'], 404);
+                return response()->json([
+                    'error' => 'Employee record not found',
+                ], 404);
             }
 
             $today = Carbon::today();
 
-            // Get today's attendance record
-            $attendanceRecord = AttendanceRecord::where('employee_id', $employee->id)
-                ->where('date', $today->toDateString())
-                ->first();
+            $attendanceRecord =
+                AttendanceRecord::where(
+                    'employee_id',
+                    $employee->id
+                )
+                    ->whereDate(
+                        'date',
+                        $today->toDateString()
+                    )
+                    ->first();
 
-            if (!$attendanceRecord || !$attendanceRecord->hasActiveTimeEntry()) {
-                return response()->json(['error' => 'You must be clocked in to start a break'], 400);
+            if (!$attendanceRecord) {
+                return response()->json([
+                    'error' =>
+                        'No clock in record found for today',
+                ], 400);
             }
 
-            // Check if already on break
-            $activeBreak = EmployeeBreak::where('attendance_record_id', $attendanceRecord->id)
+            $activeEntry =
+                $attendanceRecord->getActiveTimeEntry();
+
+            if (!$activeEntry) {
+                return response()->json([
+                    'error' =>
+                        'No active clock-in session found',
+                ], 400);
+            }
+
+            /*
+             * Do not allow Time Out while on break.
+             */
+            $activeBreak = EmployeeBreak::where(
+                'attendance_record_id',
+                $attendanceRecord->id
+            )
                 ->whereNull('break_end')
                 ->first();
 
             if ($activeBreak) {
-                return response()->json(['error' => 'You are already on break'], 400);
+                return response()->json([
+                    'error' =>
+                        'Please end your active break before timing out.',
+                ], 400);
             }
 
-            // Check break count (max 2 per day)
-            $breakCount = EmployeeBreak::where('attendance_record_id', $attendanceRecord->id)
-                ->whereNotNull('break_end')
+            $now = Carbon::now();
+
+            DB::transaction(function () use (
+                $activeEntry,
+                $attendanceRecord,
+                $now
+            ) {
+                /*
+                 * Complete active work interval.
+                 */
+                $activeEntry->update([
+                    'time_out' => $now,
+                ]);
+
+                /*
+                 * Store latest Time Out.
+                 */
+                $attendanceRecord->update([
+                    'time_out' => $now,
+                    'status' => 'completed',
+                ]);
+
+                /*
+                 * Critical:
+                 *
+                 * Recalculate actual work + approved OB.
+                 *
+                 * Do not call calculateTotalHours() here
+                 * because that may overwrite OB credit.
+                 */
+                $this
+                    ->recalculateAttendanceWithOfficialBusiness(
+                        $attendanceRecord
+                    );
+            });
+
+            $attendanceRecord->refresh();
+
+            return response()->json([
+                'success' => true,
+
+                'message' =>
+                    'Successfully clocked out at '
+                    . $now->format('g:i A'),
+
+                'time_out' =>
+                    $now->toIso8601String(),
+
+                'total_hours' =>
+                    $attendanceRecord->total_hours,
+
+                'regular_hours' =>
+                    $attendanceRecord->regular_hours,
+
+                'overtime_hours' =>
+                    $attendanceRecord->overtime_hours,
+
+                'status' => 'clocked_out',
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'error' =>
+                    'An error occurred: '
+                    . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Start Break.
+     */
+    public function breakStart(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            $employee = $user?->employee;
+
+            if (!$employee) {
+                return response()->json([
+                    'error' => 'Employee record not found',
+                ], 404);
+            }
+
+            $today = Carbon::today();
+
+            $attendanceRecord =
+                AttendanceRecord::where(
+                    'employee_id',
+                    $employee->id
+                )
+                    ->whereDate(
+                        'date',
+                        $today->toDateString()
+                    )
+                    ->first();
+
+            if (
+                !$attendanceRecord
+                || !$attendanceRecord->hasActiveTimeEntry()
+            ) {
+                return response()->json([
+                    'error' =>
+                        'You must be clocked in to start a break',
+                ], 400);
+            }
+
+            $activeBreak = EmployeeBreak::where(
+                'attendance_record_id',
+                $attendanceRecord->id
+            )
+                ->whereNull('break_end')
+                ->first();
+
+            if ($activeBreak) {
+                return response()->json([
+                    'error' =>
+                        'You are already on break',
+                ], 400);
+            }
+
+            $breakCount = EmployeeBreak::where(
+                'attendance_record_id',
+                $attendanceRecord->id
+            )
                 ->count();
 
             if ($breakCount >= 2) {
-                return response()->json(['error' => 'Maximum of 2 breaks per day allowed'], 400);
+                return response()->json([
+                    'error' =>
+                        'Maximum of 2 breaks per day allowed',
+                ], 400);
             }
 
-            // Record break start
             $now = Carbon::now();
-            $break = EmployeeBreak::create([
-                'attendance_record_id' => $attendanceRecord->id,
+
+            EmployeeBreak::create([
+                'attendance_record_id' =>
+                    $attendanceRecord->id,
+
                 'break_start' => $now,
             ]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Break started at ' . $now->format('g:i A'),
-                'break_start' => $now->toIso8601String(),
-                'status' => 'on_break'
+
+                'message' =>
+                    'Break started at '
+                    . $now->format('g:i A'),
+
+                'break_start' =>
+                    $now->toIso8601String(),
+
+                'status' => 'on_break',
             ]);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'An error occurred: ' . $e->getMessage()], 500);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'error' =>
+                    'An error occurred: '
+                    . $e->getMessage(),
+            ], 500);
         }
     }
 
+    /**
+     * End Break.
+     */
     public function breakEnd(Request $request)
     {
         try {
             $user = Auth::user();
-            $employee = $user->employee;
+            $employee = $user?->employee;
 
             if (!$employee) {
-                return response()->json(['error' => 'Employee record not found'], 404);
+                return response()->json([
+                    'error' => 'Employee record not found',
+                ], 404);
             }
 
             $today = Carbon::today();
 
-            // Get today's attendance record
-            $attendanceRecord = AttendanceRecord::where('employee_id', $employee->id)
-                ->where('date', $today->toDateString())
-                ->first();
+            $attendanceRecord =
+                AttendanceRecord::where(
+                    'employee_id',
+                    $employee->id
+                )
+                    ->whereDate(
+                        'date',
+                        $today->toDateString()
+                    )
+                    ->first();
 
-            if (!$attendanceRecord || !$attendanceRecord->hasActiveTimeEntry()) {
-                return response()->json(['error' => 'You must be clocked in to end a break'], 400);
+            if (
+                !$attendanceRecord
+                || !$attendanceRecord->hasActiveTimeEntry()
+            ) {
+                return response()->json([
+                    'error' =>
+                        'You must be clocked in to end a break',
+                ], 400);
             }
 
-            // Get active break
-            $activeBreak = EmployeeBreak::where('attendance_record_id', $attendanceRecord->id)
+            $activeBreak = EmployeeBreak::where(
+                'attendance_record_id',
+                $attendanceRecord->id
+            )
                 ->whereNull('break_end')
                 ->first();
 
             if (!$activeBreak) {
-                return response()->json(['error' => 'You are not on break'], 400);
+                return response()->json([
+                    'error' =>
+                        'You are not on break',
+                ], 400);
             }
 
-            // Record break end
             $now = Carbon::now();
-            $activeBreak->break_end = $now;
-            $activeBreak->break_duration_minutes = $activeBreak->break_start->diffInMinutes($now);
-            $activeBreak->save();
 
-            // Check if over break limit (more than 2 hours)
-            $isOverBreak = $activeBreak->break_duration_minutes > 120;
-            $overBreakMinutes = max(0, $activeBreak->break_duration_minutes - 120);
+            $breakDurationMinutes = Carbon::parse(
+                $activeBreak->break_start
+            )->diffInMinutes($now);
+
+            $activeBreak->update([
+                'break_end' => $now,
+
+                'break_duration_minutes' =>
+                    $breakDurationMinutes,
+            ]);
+
+            $isOverBreak =
+                $breakDurationMinutes > 120;
+
+            $overBreakMinutes = max(
+                0,
+                $breakDurationMinutes - 120
+            );
 
             return response()->json([
                 'success' => true,
-                'message' => 'Break ended at ' . $now->format('g:i A'),
-                'break_end' => $now->toIso8601String(),
-                'break_duration_minutes' => $activeBreak->break_duration_minutes,
-                'is_over_break' => $isOverBreak,
-                'over_break_minutes' => $overBreakMinutes,
-                'status' => 'working'
+
+                'message' =>
+                    'Break ended at '
+                    . $now->format('g:i A'),
+
+                'break_end' =>
+                    $now->toIso8601String(),
+
+                'break_duration_minutes' =>
+                    $breakDurationMinutes,
+
+                'is_over_break' =>
+                    $isOverBreak,
+
+                'over_break_minutes' =>
+                    $overBreakMinutes,
+
+                'status' => 'working',
             ]);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'An error occurred: ' . $e->getMessage()], 500);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'error' =>
+                    'An error occurred: '
+                    . $e->getMessage(),
+            ], 500);
         }
     }
 
+    /**
+     * Get current attendance status.
+     */
     public function getStatus(Request $request)
     {
         try {
             $user = Auth::user();
-            $employee = $user->employee;
+            $employee = $user?->employee;
 
             if (!$employee) {
-                return response()->json(['error' => 'Employee record not found'], 404);
+                return response()->json([
+                    'error' => 'Employee record not found',
+                ], 404);
             }
 
             $today = Carbon::today();
 
-            // Get today's attendance record
-            $attendanceRecord = AttendanceRecord::where('employee_id', $employee->id)
-                ->where('date', $today->toDateString())
-                ->first();
+            $attendanceRecord =
+                AttendanceRecord::where(
+                    'employee_id',
+                    $employee->id
+                )
+                    ->whereDate(
+                        'date',
+                        $today->toDateString()
+                    )
+                    ->first();
 
             $status = [
                 'employee_id' => $employee->id,
                 'has_clocked_in' => false,
                 'has_clocked_out' => false,
+                'is_currently_clocked_in' => false,
                 'is_on_break' => false,
                 'time_in' => null,
                 'time_out' => null,
@@ -258,68 +530,161 @@ class TimeInOutController extends Controller
                 'breaks' => [],
                 'break_count' => 0,
                 'total_hours' => 0,
+                'regular_hours' => 0,
+                'overtime_hours' => 0,
                 'can_time_in' => true,
                 'can_time_out' => false,
                 'can_break_start' => false,
                 'can_break_end' => false,
                 'status' => 'offline',
+                'attendance_record' => null,
             ];
 
-            if ($attendanceRecord) {
-                $status['has_clocked_in'] = (bool) $attendanceRecord->time_in;
-                $status['has_clocked_out'] = (bool) $attendanceRecord->time_out;
-                $status['is_currently_clocked_in'] = $attendanceRecord->hasActiveTimeEntry();
-                $status['time_in'] = $attendanceRecord->time_in?->toIso8601String();
-                $status['time_out'] = $attendanceRecord->time_out?->toIso8601String();
-                $status['total_hours'] = $attendanceRecord->total_hours;
-                $status['attendance_record'] = $attendanceRecord;
-                
-                $status['can_time_in'] = !$attendanceRecord->hasActiveTimeEntry();
-                $status['can_time_out'] = $attendanceRecord->hasActiveTimeEntry();
+            if (!$attendanceRecord) {
+                return response()->json($status);
+            }
 
-                // Check breaks
-                $breaks = $attendanceRecord->breaks()->get();
-                $status['breaks'] = $breaks->map(function ($break) {
+            /*
+             * Ensure totals include approved OB.
+             */
+            $this
+                ->recalculateAttendanceWithOfficialBusiness(
+                    $attendanceRecord
+                );
+
+            $attendanceRecord->refresh();
+
+            $isClockedIn =
+                $attendanceRecord->hasActiveTimeEntry();
+
+            $status['has_clocked_in'] =
+                (bool) $attendanceRecord->time_in;
+
+            $status['has_clocked_out'] =
+                (bool) $attendanceRecord->time_out;
+
+            $status['is_currently_clocked_in'] =
+                $isClockedIn;
+
+            $status['time_in'] =
+                $attendanceRecord->time_in
+                    ? Carbon::parse(
+                        $attendanceRecord->time_in
+                    )->toIso8601String()
+                    : null;
+
+            $status['time_out'] =
+                $attendanceRecord->time_out
+                    ? Carbon::parse(
+                        $attendanceRecord->time_out
+                    )->toIso8601String()
+                    : null;
+
+            $status['total_hours'] =
+                $attendanceRecord->total_hours;
+
+            $status['regular_hours'] =
+                $attendanceRecord->regular_hours;
+
+            $status['overtime_hours'] =
+                $attendanceRecord->overtime_hours;
+
+            $status['attendance_record'] =
+                $attendanceRecord;
+
+            $breaks = $attendanceRecord
+                ->breaks()
+                ->orderBy('break_start')
+                ->get();
+
+            $status['breaks'] = $breaks
+                ->map(function ($break) {
                     return [
                         'id' => $break->id,
-                        'break_start' => $break->break_start->toIso8601String(),
-                        'break_end' => $break->break_end?->toIso8601String(),
-                        'break_duration_minutes' => $break->break_duration_minutes,
-                        'is_active' => !$break->break_end,
+
+                        'break_start' =>
+                            Carbon::parse(
+                                $break->break_start
+                            )->toIso8601String(),
+
+                        'break_end' =>
+                            $break->break_end
+                                ? Carbon::parse(
+                                    $break->break_end
+                                )->toIso8601String()
+                                : null,
+
+                        'break_duration_minutes' =>
+                            $break
+                                ->break_duration_minutes,
+
+                        'is_active' =>
+                            !$break->break_end,
                     ];
-                })->toArray();
+                })
+                ->values()
+                ->toArray();
 
-                $status['break_count'] = $breaks->count();
+            $status['break_count'] =
+                $breaks->count();
 
-                // Check for active break
-                $activeBreak = $breaks->firstWhere('break_end', null);
-                if ($activeBreak) {
-                    $status['is_on_break'] = true;
-                    $status['active_break'] = [
-                        'id' => $activeBreak->id,
-                        'break_start' => $activeBreak->break_start->toIso8601String(),
-                    ];
-                    $status['can_break_end'] = true;
-                }
+            $activeBreak = $breaks->first(
+                fn ($break) => !$break->break_end
+            );
 
-                // Determine if can clock in/out
-                if ($attendanceRecord->time_in && !$attendanceRecord->time_out) {
-                    // Clocked in but not out
-                    $status['can_time_in'] = false;
-                    $status['can_time_out'] = true;
-                    $status['can_break_start'] = !$status['is_on_break'];
-                    $status['status'] = $status['is_on_break'] ? 'on_break' : 'working';
-                } elseif ($attendanceRecord->time_out) {
-                    // Already clocked out
-                    $status['can_time_in'] = true;
-                    $status['can_time_out'] = false;
-                    $status['status'] = 'completed';
-                }
+            if ($activeBreak) {
+                $status['is_on_break'] = true;
+
+                $status['break_start'] =
+                    Carbon::parse(
+                        $activeBreak->break_start
+                    )->toIso8601String();
+
+                $status['active_break'] = [
+                    'id' => $activeBreak->id,
+
+                    'break_start' =>
+                        Carbon::parse(
+                            $activeBreak->break_start
+                        )->toIso8601String(),
+                ];
+            }
+
+            if ($isClockedIn) {
+                $status['can_time_in'] = false;
+
+                $status['can_time_out'] =
+                    !$status['is_on_break'];
+
+                $status['can_break_start'] =
+                    !$status['is_on_break'];
+
+                $status['can_break_end'] =
+                    $status['is_on_break'];
+
+                $status['status'] =
+                    $status['is_on_break']
+                        ? 'on_break'
+                        : 'working';
+            } else {
+                $status['can_time_in'] = true;
+                $status['can_time_out'] = false;
+                $status['can_break_start'] = false;
+                $status['can_break_end'] = false;
+
+                $status['status'] =
+                    $attendanceRecord->time_out
+                        ? 'completed'
+                        : 'offline';
             }
 
             return response()->json($status);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'An error occurred: ' . $e->getMessage()], 500);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'error' =>
+                    'An error occurred: '
+                    . $e->getMessage(),
+            ], 500);
         }
     }
 }
