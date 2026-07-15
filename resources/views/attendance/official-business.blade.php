@@ -157,52 +157,169 @@
         </div>
     </div>
 
-    @if($isReviewer)
     <!-- Filters -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-        <form method="GET" action="{{ route('attendance.official-business') }}" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-                <label for="employee" class="block text-sm font-medium text-gray-700 mb-2">Employee</label>
-                <select id="employee" name="employee_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
-                    <option value="" style="color: #111827 !important;">All Employees</option>
-                    @foreach($employees as $employee)
-                        <option value="{{ $employee->id }}" {{ request('employee_id') == $employee->id ? 'selected' : '' }} style="color: #111827 !important;">
-                            {{ $employee->first_name }} {{ $employee->last_name }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <label for="department" class="block text-sm font-medium text-gray-700 mb-2">Department</label>
-                <select id="department" name="department_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
-                    <option value="" style="color: #111827 !important;">All Departments</option>
-                    @foreach($departments as $department)
-                        <option value="{{ $department->id }}" {{ request('department_id') == $department->id ? 'selected' : '' }} style="color: #111827 !important;">
-                            {{ $department->name }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <label for="status" class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                <select id="status" name="status" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
-                    <option value="" style="color: #111827 !important;">All Status</option>
-                    <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }} style="color: #111827 !important;">Pending</option>
-                    <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }} style="color: #111827 !important;">Approved</option>
-                    <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }} style="color: #111827 !important;">Rejected</option>
-                    <option value="expired" {{ request('status') == 'expired' ? 'selected' : '' }} style="color: #111827 !important;">Expired</option>
-                </select>
-            </div>
-            <div class="flex items-end gap-3">
-                <button type="submit" class="w-full px-10 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                    <i class="fas fa-search mr-2"></i>Apply
-                </button>
-                <a href="{{ route('attendance.official-business') }}" class="w-full px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-center">
-                    <i class="fas fa-times mr-2"></i>Clear Filters
+        <form method="GET"
+              action="{{ route('attendance.official-business') }}"
+              class="space-y-4">
+
+            @if($isReviewer)
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div>
+                        <label for="department_id" class="block text-sm font-medium text-gray-700 mb-2">
+                            Department
+                        </label>
+                        <select id="department_id"
+                                name="department_id"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">All Departments</option>
+                            @foreach($departments as $department)
+                                <option value="{{ $department->id }}"
+                                        {{ request('department_id') == $department->id ? 'selected' : '' }}>
+                                    {{ $department->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="employee_id" class="block text-sm font-medium text-gray-700 mb-2">
+                            Employee
+                        </label>
+                        <select id="employee_id"
+                                name="employee_id"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">All Employees</option>
+                            @foreach($employees as $employee)
+                                <option value="{{ $employee->id }}"
+                                        data-department-id="{{ $employee->department_id }}"
+                                        {{ request('employee_id') == $employee->id ? 'selected' : '' }}>
+                                    {{ $employee->full_name }}
+                                    @if($employee->department)
+                                        - {{ $employee->department->name }}
+                                    @endif
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="status" class="block text-sm font-medium text-gray-700 mb-2">
+                            Status
+                        </label>
+                        <select id="status"
+                                name="status"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">All Statuses</option>
+                            <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Pending</option>
+                            <option value="approved" {{ request('status') === 'approved' ? 'selected' : '' }}>Approved</option>
+                            <option value="rejected" {{ request('status') === 'rejected' ? 'selected' : '' }}>Rejected</option>
+                            <option value="expired" {{ request('status') === 'expired' ? 'selected' : '' }}>Expired</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="date_from" class="block text-sm font-medium text-gray-700 mb-2">
+                            From Date
+                        </label>
+                        <input type="date"
+                               id="date_from"
+                               name="date_from"
+                               value="{{ request('date_from') }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+
+                    <div>
+                        <label for="date_to" class="block text-sm font-medium text-gray-700 mb-2">
+                            To Date
+                        </label>
+                        <input type="date"
+                               id="date_to"
+                               name="date_to"
+                               value="{{ request('date_to') }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                </div>
+            @else
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label for="status" class="block text-sm font-medium text-gray-700 mb-2">
+                            Status
+                        </label>
+                        <select id="status"
+                                name="status"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">All Statuses</option>
+                            <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Pending</option>
+                            <option value="approved" {{ request('status') === 'approved' ? 'selected' : '' }}>Approved</option>
+                            <option value="rejected" {{ request('status') === 'rejected' ? 'selected' : '' }}>Rejected</option>
+                            <option value="expired" {{ request('status') === 'expired' ? 'selected' : '' }}>Expired</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="date" class="block text-sm font-medium text-gray-700 mb-2">
+                            Date
+                        </label>
+                        <input type="date"
+                               id="date"
+                               name="date"
+                               value="{{ request('date') }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                </div>
+            @endif
+
+            <div class="flex flex-col sm:flex-row sm:justify-end gap-3">
+                <a href="{{ route('attendance.official-business') }}"
+                   class="inline-flex items-center justify-center px-6 py-2 border border-gray-300 text-gray-700 rounded-lg bg-white hover:bg-gray-50 transition-colors">
+                    <i class="fas fa-times mr-2"></i>
+                    Clear Filters
                 </a>
+
+                <button type="submit"
+                        class="inline-flex items-center justify-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+                    <i class="fas fa-search mr-2"></i>
+                    Apply Filters
+                </button>
             </div>
         </form>
     </div>
+
+    @if($isReviewer)
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const departmentSelect = document.getElementById('department_id');
+                const employeeSelect = document.getElementById('employee_id');
+
+                if (!departmentSelect || !employeeSelect) {
+                    return;
+                }
+
+                const filterEmployees = () => {
+                    const selectedDepartment = departmentSelect.value;
+
+                    Array.from(employeeSelect.options).forEach((option, index) => {
+                        if (index === 0) {
+                            option.hidden = false;
+                            return;
+                        }
+
+                        option.hidden = selectedDepartment !== ''
+                            && option.dataset.departmentId !== selectedDepartment;
+                    });
+
+                    const selectedEmployee = employeeSelect.options[employeeSelect.selectedIndex];
+
+                    if (selectedEmployee && selectedEmployee.hidden) {
+                        employeeSelect.value = '';
+                    }
+                };
+
+                departmentSelect.addEventListener('change', filterEmployees);
+                filterEmployees();
+            });
+        </script>
     @endif
 
     <!-- Official Business Records -->

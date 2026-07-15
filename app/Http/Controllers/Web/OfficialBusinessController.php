@@ -53,29 +53,65 @@ class OfficialBusinessController extends Controller
         return $obRequest;
     }
 
+    /**
+     * Apply role-based Official Business filters.
+     *
+     * Reviewers may filter by department, employee, status, and date range.
+     * Employees may filter only their own requests by status and exact date.
+     */
+    private function applyFilters($query, Request $request, bool $isReviewer)
+    {
+        if (!$isReviewer) {
+            $query->where('employee_id', $this->currentEmployeeId());
+
+            if ($request->filled('status')) {
+                $query->where('status', $request->query('status'));
+            }
+
+            if ($request->filled('date')) {
+                $query->whereDate('date', $request->query('date'));
+            }
+
+            return $query;
+        }
+
+        if ($request->filled('department_id')) {
+            $departmentId = $request->query('department_id');
+
+            $query->whereHas('employee', function ($employeeQuery) use ($departmentId) {
+                $employeeQuery->where('department_id', $departmentId);
+            });
+        }
+
+        if ($request->filled('employee_id')) {
+            $query->where('employee_id', $request->query('employee_id'));
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->query('status'));
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('date', '>=', $request->query('date_from'));
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('date', '<=', $request->query('date_to'));
+        }
+
+        return $query;
+    }
+
     public function index(Request $request)
     {
         $user = Auth::user();
         $isReviewer = $this->isReviewer();
 
-        $query = OfficialBusinessRequest::with(['employee.department', 'reviewer.employee']);
-
-        if (!$isReviewer) {
-            $query->where('employee_id', $this->currentEmployeeId());
-        } else {
-            if ($request->filled('status')) {
-                $query->where('status', $request->query('status'));
-            }
-            if ($request->filled('employee_id')) {
-                $query->where('employee_id', $request->query('employee_id'));
-            }
-            if ($request->filled('department_id')) {
-                $departmentId = $request->query('department_id');
-                $query->whereHas('employee', function ($q) use ($departmentId) {
-                    $q->where('department_id', $departmentId);
-                });
-            }
-        }
+        $query = $this->applyFilters(
+            OfficialBusinessRequest::with(['employee.department', 'reviewer.employee']),
+            $request,
+            $isReviewer
+        );
 
         $reviewerRole = $isReviewer ? ($user->role ?? null) : null;
 
@@ -97,9 +133,11 @@ class OfficialBusinessController extends Controller
         // caught yet, so what the reviewer/employee sees is always accurate.
         $obRequests->getCollection()->each(fn ($obRequest) => $this->expireIfPastDeadline($obRequest));
 
-        $summaryBase = $isReviewer
-            ? OfficialBusinessRequest::query()
-            : OfficialBusinessRequest::where('employee_id', $this->currentEmployeeId());
+        $summaryBase = $this->applyFilters(
+            OfficialBusinessRequest::query(),
+            $request,
+            $isReviewer
+        );
 
         $summary = [
             'total' => (clone $summaryBase)->count(),
@@ -139,39 +177,11 @@ class OfficialBusinessController extends Controller
             return back()->with('error', 'Unsupported export format.');
         }
 
-        $query = OfficialBusinessRequest::with(['employee.department', 'reviewer.employee']);
-
-        if (!$this->isReviewer()) {
-            $query->where('employee_id', $this->currentEmployeeId());
-        } else {
-            if ($request->filled('department_id')) {
-                $departmentId = $request->query('department_id');
-
-                $query->whereHas('employee', function ($employeeQuery) use ($departmentId) {
-                    $employeeQuery->where('department_id', $departmentId);
-                });
-            }
-
-            if ($request->filled('employee_id')) {
-                $query->where('employee_id', $request->query('employee_id'));
-            }
-        }
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->query('status'));
-        }
-
-        if ($request->filled('date')) {
-            $query->whereDate('date', $request->query('date'));
-        }
-
-        if ($request->filled('date_from')) {
-            $query->whereDate('date', '>=', $request->query('date_from'));
-        }
-
-        if ($request->filled('date_to')) {
-            $query->whereDate('date', '<=', $request->query('date_to'));
-        }
+        $query = $this->applyFilters(
+            OfficialBusinessRequest::with(['employee.department', 'reviewer.employee']),
+            $request,
+            $this->isReviewer()
+        );
 
         $requests = $query->orderBy('created_at', 'desc')->get();
         $fileName = 'official-business-' . now()->format('YmdHis') . '.csv';
