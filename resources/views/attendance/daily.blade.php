@@ -146,6 +146,11 @@
                     @forelse($employees as $employee)
                         @php
                             $attendance = $attendanceRecords->get($employee->id);
+                            $officialBusiness = $attendance
+                                ? ($officialBusinessByAttendanceId[$attendance->id] ?? null)
+                                : null;
+                            $isOfficialBusiness = $attendance?->status === 'official_business'
+                                && $officialBusiness;
                             $initials = strtoupper(substr($employee->first_name, 0, 1) . substr($employee->last_name, 0, 1));
                         @endphp
                         <tr class="hover:bg-gray-50 transition-colors">
@@ -167,10 +172,10 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">
-                                    @if($attendance && $attendance->time_in)
+                                    @if($isOfficialBusiness && $officialBusiness->ob_start_time)
+                                        {{ \Carbon\Carbon::parse($officialBusiness->ob_start_time)->format('g:i A') }}
+                                    @elseif($attendance && $attendance->time_in)
                                         {{ \Carbon\Carbon::parse($attendance->time_in)->format('g:i A') }}
-                                    @elseif($attendance && !$attendance->time_in)
-                                        <span class="text-gray-400">-</span>
                                     @else
                                         <span class="text-gray-400">-</span>
                                     @endif
@@ -178,7 +183,9 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">
-                                    @if($attendance && $attendance->time_out)
+                                    @if($isOfficialBusiness && $officialBusiness->ob_end_time)
+                                        {{ \Carbon\Carbon::parse($officialBusiness->ob_end_time)->format('g:i A') }}
+                                    @elseif($attendance && $attendance->time_out)
                                         {{ \Carbon\Carbon::parse($attendance->time_out)->format('g:i A') }}
                                     @elseif($attendance && $attendance->time_in && !$attendance->time_out)
                                         @php
@@ -200,7 +207,9 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">
-                                    @if($attendance && $attendance->time_in && $attendance->time_out)
+                                    @if($isOfficialBusiness)
+                                        {{ number_format((float) $attendance->total_hours, 2) }} hrs
+                                    @elseif($attendance && $attendance->time_in && $attendance->time_out)
                                         @php
                                             // Load breaks relationship if not already loaded
                                             if (!$attendance->relationLoaded('breaks')) {
@@ -234,6 +243,7 @@
                                             'late' => 'bg-yellow-100 text-yellow-800',
                                             'half_day' => 'bg-blue-100 text-blue-800',
                                             'on_leave' => 'bg-indigo-100 text-indigo-800',
+                                            'official_business' => 'bg-sky-100 text-sky-800',
                                         ];
                                         $statusColor = $statusColors[$attendance->status] ?? 'bg-gray-100 text-gray-800';
                                         $statusText = ucfirst(str_replace('_', ' ', $attendance->status));
@@ -292,6 +302,11 @@
                 @forelse($employees as $employee)
                     @php
                         $attendance = $attendanceRecords->get($employee->id);
+                        $officialBusiness = $attendance
+                            ? ($officialBusinessByAttendanceId[$attendance->id] ?? null)
+                            : null;
+                        $isOfficialBusiness = $attendance?->status === 'official_business'
+                            && $officialBusiness;
                         $initials = strtoupper(substr($employee->first_name, 0, 1) . substr($employee->last_name, 0, 1));
                     @endphp
                     <div class="border border-gray-200 rounded-lg p-4">
@@ -311,7 +326,8 @@
                                         'present' => 'bg-green-100 text-green-800',
                                         'absent' => 'bg-red-100 text-red-800',
                                         'late' => 'bg-yellow-100 text-yellow-800',
-                                        'half_day' => 'bg-blue-100 text-blue-800'
+                                        'half_day' => 'bg-blue-100 text-blue-800',
+                                        'official_business' => 'bg-sky-100 text-sky-800'
                                     ];
                                     $statusColor = $statusColors[$attendance->status] ?? 'bg-gray-100 text-gray-800';
                                 @endphp
@@ -330,7 +346,9 @@
                             <div>
                                 <div class="text-gray-500">Time In</div>
                                 <div class="font-medium">
-                                    @if($attendance && $attendance->time_in)
+                                    @if($isOfficialBusiness && $officialBusiness->ob_start_time)
+                                        {{ \Carbon\Carbon::parse($officialBusiness->ob_start_time)->format('g:i A') }}
+                                    @elseif($attendance && $attendance->time_in)
                                         {{ \Carbon\Carbon::parse($attendance->time_in)->format('g:i A') }}
                                     @else
                                         <span class="text-gray-400">-</span>
@@ -340,7 +358,9 @@
                             <div>
                                 <div class="text-gray-500">Time Out</div>
                                 <div class="font-medium">
-                                    @if($attendance && $attendance->time_out)
+                                    @if($isOfficialBusiness && $officialBusiness->ob_end_time)
+                                        {{ \Carbon\Carbon::parse($officialBusiness->ob_end_time)->format('g:i A') }}
+                                    @elseif($attendance && $attendance->time_out)
                                         {{ \Carbon\Carbon::parse($attendance->time_out)->format('g:i A') }}
                                     @else
                                         <span class="text-gray-400">-</span>
@@ -350,7 +370,9 @@
                             <div>
                                 <div class="text-gray-500">Total Hours</div>
                                 <div class="font-medium">
-                                    @if($attendance && $attendance->time_in && $attendance->time_out)
+                                    @if($isOfficialBusiness)
+                                        {{ number_format((float) $attendance->total_hours, 2) }} hrs
+                                    @elseif($attendance && $attendance->time_in && $attendance->time_out)
                                         @php
                                             // Load breaks relationship if not already loaded
                                             if (!$attendance->relationLoaded('breaks')) {

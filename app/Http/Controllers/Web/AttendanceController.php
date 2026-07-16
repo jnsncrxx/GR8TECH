@@ -39,6 +39,15 @@ class AttendanceController extends Controller
             ->get()
             ->keyBy('employee_id');
 
+        // Load approved OB details linked to attendance records so the daily
+        // table can display OB Time In, Time Out, and credited hours.
+        $officialBusinessByAttendanceId = OfficialBusinessRequest::query()
+            ->whereDate('date', $date->format('Y-m-d'))
+            ->where('status', OfficialBusinessRequest::APPROVED)
+            ->whereNotNull('attendance_record_id')
+            ->get()
+            ->keyBy('attendance_record_id');
+
         // Calculate summary statistics
         // Get total count globally rather than just from the paginator's current page
         $total = Employee::count();
@@ -60,6 +69,7 @@ class AttendanceController extends Controller
             'date' => $date,
             'employees' => $employees,
             'attendanceRecords' => $attendanceRecords,
+            'officialBusinessByAttendanceId' => $officialBusinessByAttendanceId,
             'summary' => $summary,
         ]);
     }
