@@ -389,9 +389,59 @@ trait CalculatesAttendanceWithOfficialBusiness
             );
 
             if (
-                $interval['end']->gt(
+                !$interval['end']->gt(
                     $interval['start']
                 )
+            ) {
+                continue;
+            }
+
+            $lunchStart = Carbon::parse(
+                $date . ' 12:00:00',
+                $this->timezone()
+            );
+
+            $lunchEnd = Carbon::parse(
+                $date . ' 13:00:00',
+                $this->timezone()
+            );
+
+            /*
+             * Preserve the interval portions before and after lunch.
+             * This makes 08:00-17:00 contribute 8 credited hours.
+             */
+            if ($interval['start']->lt($lunchStart)) {
+                $beforeLunchEnd = $interval['end']->lt($lunchStart)
+                    ? $interval['end']->copy()
+                    : $lunchStart->copy();
+
+                if ($beforeLunchEnd->gt($interval['start'])) {
+                    $intervals[] = [
+                        'start' => $interval['start']->copy(),
+                        'end' => $beforeLunchEnd,
+                    ];
+                }
+            }
+
+            if ($interval['end']->gt($lunchEnd)) {
+                $afterLunchStart = $interval['start']->gt($lunchEnd)
+                    ? $interval['start']->copy()
+                    : $lunchEnd->copy();
+
+                if ($interval['end']->gt($afterLunchStart)) {
+                    $intervals[] = [
+                        'start' => $afterLunchStart,
+                        'end' => $interval['end']->copy(),
+                    ];
+                }
+            }
+
+            /*
+             * No lunch overlap: keep the original interval.
+             */
+            if (
+                $interval['end']->lte($lunchStart)
+                || $interval['start']->gte($lunchEnd)
             ) {
                 $intervals[] = $interval;
             }

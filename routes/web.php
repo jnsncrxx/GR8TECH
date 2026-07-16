@@ -366,6 +366,7 @@ Route::get('/debug-current-payrolls', function() {
         
         // Official Business routes
         Route::get('/official-business', [App\Http\Controllers\Web\OfficialBusinessController::class, 'index'])->name('official-business');
+        Route::get('/official-business/export/{format}', [App\Http\Controllers\Web\OfficialBusinessController::class, 'exportOfficialBusiness'])->name('official-business.export');
         Route::post('/official-business', [App\Http\Controllers\Web\OfficialBusinessController::class, 'store'])->name('official-business.store');
         Route::delete('/official-business/{id}/cancel', [App\Http\Controllers\Web\OfficialBusinessController::class, 'cancel'])->name('official-business.cancel');
         Route::get('/official-business/statistics', [App\Http\Controllers\Web\OfficialBusinessController::class, 'getStatistics'])->name('official-business.statistics');

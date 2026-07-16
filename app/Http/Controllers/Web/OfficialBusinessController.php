@@ -8,7 +8,10 @@ use App\Models\AttendanceRecord;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\OfficialBusinessRequest;
+use App\Exports\OfficialBusinessExport;
 use App\Services\CutoffPeriodService;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Maatwebsite\Excel\Facades\Excel;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -93,182 +96,208 @@ class OfficialBusinessController extends Controller
     }
 
     /**
-     * Display OB requests.
+     * Apply role-based Official Business filters.
+     *
+     * Reviewers may filter by department, employee, status, and date range.
+     * Employees may filter only their own requests by status and exact date.
      */
-    public function index(Request $request)
+    private function applyFilters($query, Request $request, bool $isReviewer)
     {
-        $user = Auth::user();
+        if (!$isReviewer) {
+            $query->where('employee_id', $this->currentEmployeeId());
 
-        $isReviewer = $this->isReviewer();
+            if ($request->filled('status')) {
+                $query->where('status', $request->query('status'));
+            }
 
-        $employeeId = $this->currentEmployeeId();
+            if ($request->filled('date')) {
+                $query->whereDate('date', $request->query('date'));
+            }
 
-        if (
-            !$isReviewer
-            && $employeeId
-        ) {
-            $this->expirePendingRequestsForEmployee(
-                $employeeId
-            );
+            return $query;
         }
 
-        $query = OfficialBusinessRequest::with([
-            'employee.department',
-            'reviewer.employee',
-        ]);
+        if ($request->filled('department_id')) {
+            $departmentId = $request->query('department_id');
 
-        if (!$isReviewer) {
-            $query->where(
-                'employee_id',
-                $employeeId
-            );
+            $query->whereHas('employee', function ($employeeQuery) use ($departmentId) {
+                $employeeQuery->where('department_id', $departmentId);
+            });
+        }
+
+        if ($request->filled('employee_id')) {
+            $query->where('employee_id', $request->query('employee_id'));
         }
 
         if ($request->filled('status')) {
-            $query->where(
-                'status',
-                $request->query('status')
-            );
+            $query->where('status', $request->query('status'));
         }
 
-        if (
+        if ($request->filled('date_from')) {
+            $query->whereDate('date', '>=', $request->query('date_from'));
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('date', '<=', $request->query('date_to'));
+        }
+
+        return $query;
+    }
+
+    public function index(Request $request)
+    {
+        $user = Auth::user();
+        $isReviewer = $this->isReviewer();
+        $employeeId = $this->currentEmployeeId();
+
+        if (!$isReviewer && $employeeId) {
+            $this->expirePendingRequestsForEmployee($employeeId);
+        }
+
+        $query = $this->applyFilters(
+            OfficialBusinessRequest::with(['employee.department', 'reviewer.employee']),
+            $request,
             $isReviewer
-            && $request->filled('employee_id')
-        ) {
-            $query->where(
-                'employee_id',
-                $request->query('employee_id')
-            );
-        }
+        );
 
-        if (
-            $isReviewer
-            && $request->filled('department_id')
-        ) {
-            $departmentId = $request->query(
-                'department_id'
-            );
+        $reviewerRole = $isReviewer ? ($user->role ?? null) : null;
 
-            $query->whereHas(
-                'employee',
-                fn ($employeeQuery) =>
-                    $employeeQuery->where(
-                        'department_id',
-                        $departmentId
-                    )
-            );
-        }
-
-        if (
-            $isReviewer
-            && $request->filled('date_from')
-        ) {
-            $query->whereDate(
-                'date',
-                '>=',
-                $request->query('date_from')
-            );
-        }
-
-        if (
-            $isReviewer
-            && $request->filled('date_to')
-        ) {
-            $query->whereDate(
-                'date',
-                '<=',
-                $request->query('date_to')
-            );
-        }
-
-        $reviewerRole = $isReviewer
-            ? ($user->role ?? null)
-            : null;
-
+        // Manager is the primary approver — surface pending requests first so
+        // their "needs action" queue isn't buried under already-reviewed ones.
+        // HR/Admin (backup) keep the plain chronological view since they're
+        // scanning everything, not just their own action items.
         if ($reviewerRole === 'manager') {
-            $query->orderByRaw(
-                "CASE
-                    WHEN status = 'pending' THEN 0
-                    ELSE 1
-                END"
-            );
+            $obRequests = $query
+                ->orderByRaw("CASE WHEN status = 'pending' THEN 0 ELSE 1 END")
+                ->orderBy('created_at', 'desc')
+                ->paginate(10)
+                ->withQueryString();
+        } else {
+            $obRequests = $query->orderBy('created_at', 'desc')->paginate(10)->withQueryString();
         }
 
-        $obRequests = $query
-            ->latest('created_at')
-            ->paginate(10)
-            ->withQueryString();
+        // Lazy-expire anything past its grace deadline that the sweep hasn't
+        // caught yet, so what the reviewer/employee sees is always accurate.
+        $obRequests->getCollection()->each(fn ($obRequest) => $this->expireIfPastDeadline($obRequest));
 
-        $obRequests
-            ->getCollection()
-            ->each(
-                fn (OfficialBusinessRequest $obRequest) =>
-                    $this->expireIfPastDeadline($obRequest)
-            );
-
-        $summaryBase = $isReviewer
-            ? OfficialBusinessRequest::query()
-            : OfficialBusinessRequest::where(
-                'employee_id',
-                $employeeId
-            );
+        $summaryBase = $this->applyFilters(
+            OfficialBusinessRequest::query(),
+            $request,
+            $isReviewer
+        );
 
         $summary = [
             'total' => (clone $summaryBase)->count(),
-
-            'pending' => (clone $summaryBase)
-                ->pending()
-                ->count(),
-
-            'approved' => (clone $summaryBase)
-                ->approved()
-                ->count(),
-
-            'rejected' => (clone $summaryBase)
-                ->rejected()
-                ->count(),
-
-            'expired' => (clone $summaryBase)
-                ->expired()
-                ->count(),
+            'pending' => (clone $summaryBase)->pending()->count(),
+            'approved' => (clone $summaryBase)->approved()->count(),
+            'rejected' => (clone $summaryBase)->rejected()->count(),
+            'expired' => (clone $summaryBase)->expired()->count(),
         ];
 
-        return view(
-            'attendance.official-business',
-            [
-                'user' => $user,
+        $departments = Department::orderBy('name')->get();
+        $employees = Employee::with('department')
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
 
-                'activeRoute' =>
-                    'attendance.official-business',
+        $calendarRequests = collect();
 
-                'pageTitle' =>
-                    'Official Business',
+        if (!$isReviewer && $employeeId) {
+            $calendarRequests = OfficialBusinessRequest::query()
+                ->where('employee_id', $employeeId)
+                ->whereIn('status', [
+                    OfficialBusinessRequest::PENDING,
+                    OfficialBusinessRequest::APPROVED,
+                ])
+                ->orderBy('date')
+                ->get(['date', 'status'])
+                ->map(fn (OfficialBusinessRequest $obRequest) => [
+                    'date' => $obRequest->date->format('Y-m-d'),
+                    'status' => $obRequest->status,
+                ])
+                ->values();
+        }
 
-                'isReviewer' =>
-                    $isReviewer,
+        return view('attendance.official-business', [
+            'user' => $user,
+            'activeRoute' => 'attendance.official-business',
+            'pageTitle' => 'Official Business',
+            'isReviewer' => $isReviewer,
+            'reviewerRole' => $reviewerRole,
+            'obRequests' => $obRequests,
+            'summary' => $summary,
+            'departments' => $departments,
+            'employees' => $employees,
+            'calendarRequests' => $calendarRequests,
+        ]);
+    }
 
-                'reviewerRole' =>
-                    $reviewerRole,
+    /**
+     * Export Official Business requests.
+     *
+     * CSV is used as the transport format for CSV, XLS, and PDF menu options
+     * until dedicated PDF/Excel renderers are added.
+     */
+    public function exportOfficialBusiness(Request $request, string $format)
+    {
+        $format = strtolower($format);
 
-                'obRequests' =>
-                    $obRequests,
+        if (!in_array($format, ['pdf', 'csv', 'xlsx', 'xls'], true)) {
+            return back()->with('error', 'Unsupported export format.');
+        }
 
-                'summary' =>
-                    $summary,
+        $query = $this->applyFilters(
+            OfficialBusinessRequest::with([
+                'employee.department',
+                'reviewer.employee',
+            ]),
+            $request,
+            $this->isReviewer()
+        );
 
-                'departments' =>
-                    Department::orderBy('name')->get(),
+        $requests = $query
+            ->orderBy('created_at', 'desc')
+            ->get();
 
-                'employees' =>
-                    Employee::orderBy('first_name')
-                        ->orderBy('last_name')
-                        ->get(),
-            ]
+        $timestamp = now()->format('Ymd_His');
+
+        if ($format === 'pdf') {
+            return Pdf::loadView(
+                'attendance.exports.official-business-pdf',
+                [
+                    'requests' => $requests,
+                    'generatedAt' => now(),
+                    'filters' => $request->query(),
+                ]
+            )->setPaper('a4', 'landscape')
+                ->download("official-business_{$timestamp}.pdf");
+        }
+
+        $export = new OfficialBusinessExport($requests);
+
+        if ($format === 'csv') {
+            return Excel::download(
+                $export,
+                "official-business_{$timestamp}.csv",
+                \Maatwebsite\Excel\Excel::CSV
+            );
+        }
+
+        return Excel::download(
+            $export,
+            "official-business_{$timestamp}.xlsx",
+            \Maatwebsite\Excel\Excel::XLSX
         );
     }
 
     /**
-     * Submit an OB request.
+     * Employee submits a new OB request. Does NOT touch attendance_records yet.
+     *
+     * OB is a manual time-in/time-out replacement, not a leave — Time In and
+     * Time Out are always required (no full-day/partial-day toggle). Both past
+     * (retroactive) and future (advance) dates are allowed, subject to the
+     * date's cutoff period still being open for action.
+
      */
     public function store(Request $request)
     {
@@ -513,15 +542,8 @@ class OfficialBusinessController extends Controller
                         $obRequest->ob_end_time
                     );
 
-                    $obMinutes = (int) $obInterval['start']
-                        ->diffInMinutes(
-                            $obInterval['end']
-                        );
-
-                    $obHours = round(
-                        $obMinutes / 60,
-                        2
-                    );
+                    $obHours =
+                        $obRequest->computeCreditedHours();
 
                     $attendanceRecord =
                         AttendanceRecord::query()

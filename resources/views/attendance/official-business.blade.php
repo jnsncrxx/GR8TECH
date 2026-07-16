@@ -5,9 +5,99 @@
 @section('content')
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <style>
-    /* Clean up Flatpickr background to match inputs */
     .flatpickr-input[readonly] {
-        background-color: #fff;
+        background-color: #ffffff;
+        color: #111827;
+    }
+
+    /* Match the Leave Management Flatpickr design. */
+    .flatpickr-calendar {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        width: 320px !important;
+        padding: 0.5rem;
+    }
+
+    .flatpickr-months {
+        background: transparent;
+        padding: 0.5rem 0.25rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .flatpickr-month {
+        color: #111827;
+        height: 40px;
+    }
+
+    .flatpickr-current-month {
+        color: #111827;
+        font-weight: 600;
+        font-size: 1rem;
+        padding-top: 0.25rem;
+    }
+
+    .flatpickr-weekdays {
+        background: transparent;
+        padding: 0.25rem 0;
+    }
+
+    .flatpickr-weekday {
+        color: #6b7280;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        letter-spacing: 0.05em;
+    }
+
+    .flatpickr-day {
+        color: #111827;
+        border-radius: 0.375rem;
+        font-weight: 500;
+        font-size: 0.875rem;
+        height: 38px;
+        line-height: 38px;
+        margin: 2px;
+        max-width: 38px;
+        width: 38px;
+        transition: all 0.15s ease;
+    }
+
+    .flatpickr-day:hover {
+        background: #f3f4f6;
+        border-color: #d1d5db;
+    }
+
+    .flatpickr-day.selected {
+        background: #2563eb;
+        border-color: #2563eb;
+        color: #ffffff;
+        font-weight: 600;
+    }
+
+    .flatpickr-day.today {
+        border-color: #2563eb;
+        font-weight: 600;
+        background: transparent;
+    }
+
+    .flatpickr-day.occupied-pending {
+        background: #fff6d4 !important;
+        color: #92400e !important;
+        border-color: #f7b441 !important;
+        font-weight: 600;
+        cursor: not-allowed !important;
+    }
+
+    .flatpickr-day.occupied-approved {
+        background: #fecaca !important;
+        color: #991b1b !important;
+        border-color: #ef4444 !important;
+        text-decoration: line-through;
+        opacity: 0.85;
+        cursor: not-allowed !important;
     }
 </style>
 <div class="space-y-6">
@@ -21,9 +111,37 @@
                 <p class="mt-1 text-sm text-gray-600">Submit and track your Official Business requests</p>
             @endif
         </div>
-        <div class="mt-4 sm:mt-0 flex space-x-3">
+        <div class="mt-4 sm:mt-0 flex flex-wrap gap-3">
+            <div class="relative" x-data="{ open: false }">
+                <button type="button" @click="open = !open"
+                        class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                    <i class="fas fa-download mr-2"></i>
+                    Export Report
+                    <i class="fas fa-chevron-down ml-2 text-xs"></i>
+                </button>
+
+                <div x-show="open" @click.away="open = false" x-transition
+                     class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                    <div class="py-1">
+                        <a href="{{ route('attendance.official-business.export', ['format' => 'pdf']) . '?' . http_build_query(request()->query()) }}"
+                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                            <i class="fas fa-file-pdf mr-2 text-red-500"></i>Export as PDF
+                        </a>
+                        <a href="{{ route('attendance.official-business.export', ['format' => 'csv']) . '?' . http_build_query(request()->query()) }}"
+                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                            <i class="fas fa-file-csv mr-2 text-green-500"></i>Export as CSV
+                        </a>
+                        <a href="{{ route('attendance.official-business.export', ['format' => 'xls']) . '?' . http_build_query(request()->query()) }}"
+                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                            <i class="fas fa-file-excel mr-2 text-green-600"></i>Export as Excel
+                        </a>
+                    </div>
+                </div>
+            </div>
+
             @unless($isReviewer)
-            <button id="applyObBtn" onclick="openObModal()" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+            <button id="applyObBtn" onclick="openObModal()"
+                    class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
                 <i class="fas fa-plus mr-2"></i>
                 Apply for Official Business
             </button>
@@ -129,52 +247,169 @@
         </div>
     </div>
 
-    @if($isReviewer)
     <!-- Filters -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-        <form method="GET" action="{{ route('attendance.official-business') }}" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-                <label for="employee" class="block text-sm font-medium text-gray-700 mb-2">Employee</label>
-                <select id="employee" name="employee_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
-                    <option value="" style="color: #111827 !important;">All Employees</option>
-                    @foreach($employees as $employee)
-                        <option value="{{ $employee->id }}" {{ request('employee_id') == $employee->id ? 'selected' : '' }} style="color: #111827 !important;">
-                            {{ $employee->first_name }} {{ $employee->last_name }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <label for="department" class="block text-sm font-medium text-gray-700 mb-2">Department</label>
-                <select id="department" name="department_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
-                    <option value="" style="color: #111827 !important;">All Departments</option>
-                    @foreach($departments as $department)
-                        <option value="{{ $department->id }}" {{ request('department_id') == $department->id ? 'selected' : '' }} style="color: #111827 !important;">
-                            {{ $department->name }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <label for="status" class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                <select id="status" name="status" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
-                    <option value="" style="color: #111827 !important;">All Status</option>
-                    <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }} style="color: #111827 !important;">Pending</option>
-                    <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }} style="color: #111827 !important;">Approved</option>
-                    <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }} style="color: #111827 !important;">Rejected</option>
-                    <option value="expired" {{ request('status') == 'expired' ? 'selected' : '' }} style="color: #111827 !important;">Expired</option>
-                </select>
-            </div>
-            <div class="flex items-end gap-3">
-                <button type="submit" class="w-full px-10 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                    <i class="fas fa-search mr-2"></i>Apply
-                </button>
-                <a href="{{ route('attendance.official-business') }}" class="w-full px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-center">
-                    <i class="fas fa-times mr-2"></i>Clear Filters
+        <form method="GET"
+              action="{{ route('attendance.official-business') }}"
+              class="space-y-4">
+
+            @if($isReviewer)
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div>
+                        <label for="department_id" class="block text-sm font-medium text-gray-700 mb-2">
+                            Department
+                        </label>
+                        <select id="department_id"
+                                name="department_id"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">All Departments</option>
+                            @foreach($departments as $department)
+                                <option value="{{ $department->id }}"
+                                        {{ request('department_id') == $department->id ? 'selected' : '' }}>
+                                    {{ $department->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="employee_id" class="block text-sm font-medium text-gray-700 mb-2">
+                            Employee
+                        </label>
+                        <select id="employee_id"
+                                name="employee_id"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">All Employees</option>
+                            @foreach($employees as $employee)
+                                <option value="{{ $employee->id }}"
+                                        data-department-id="{{ $employee->department_id }}"
+                                        {{ request('employee_id') == $employee->id ? 'selected' : '' }}>
+                                    {{ $employee->full_name }}
+                                    @if($employee->department)
+                                        - {{ $employee->department->name }}
+                                    @endif
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="status" class="block text-sm font-medium text-gray-700 mb-2">
+                            Status
+                        </label>
+                        <select id="status"
+                                name="status"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">All Statuses</option>
+                            <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Pending</option>
+                            <option value="approved" {{ request('status') === 'approved' ? 'selected' : '' }}>Approved</option>
+                            <option value="rejected" {{ request('status') === 'rejected' ? 'selected' : '' }}>Rejected</option>
+                            <option value="expired" {{ request('status') === 'expired' ? 'selected' : '' }}>Expired</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="date_from" class="block text-sm font-medium text-gray-700 mb-2">
+                            From Date
+                        </label>
+                        <input type="date"
+                               id="date_from"
+                               name="date_from"
+                               value="{{ request('date_from') }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+
+                    <div>
+                        <label for="date_to" class="block text-sm font-medium text-gray-700 mb-2">
+                            To Date
+                        </label>
+                        <input type="date"
+                               id="date_to"
+                               name="date_to"
+                               value="{{ request('date_to') }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                </div>
+            @else
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label for="status" class="block text-sm font-medium text-gray-700 mb-2">
+                            Status
+                        </label>
+                        <select id="status"
+                                name="status"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">All Statuses</option>
+                            <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Pending</option>
+                            <option value="approved" {{ request('status') === 'approved' ? 'selected' : '' }}>Approved</option>
+                            <option value="rejected" {{ request('status') === 'rejected' ? 'selected' : '' }}>Rejected</option>
+                            <option value="expired" {{ request('status') === 'expired' ? 'selected' : '' }}>Expired</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="date" class="block text-sm font-medium text-gray-700 mb-2">
+                            Date
+                        </label>
+                        <input type="date"
+                               id="date"
+                               name="date"
+                               value="{{ request('date') }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                </div>
+            @endif
+
+            <div class="flex flex-col sm:flex-row sm:justify-end gap-3">
+                <a href="{{ route('attendance.official-business') }}"
+                   class="inline-flex items-center justify-center px-6 py-2 border border-gray-300 text-gray-700 rounded-lg bg-white hover:bg-gray-50 transition-colors">
+                    <i class="fas fa-times mr-2"></i>
+                    Clear Filters
                 </a>
+
+                <button type="submit"
+                        class="inline-flex items-center justify-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+                    <i class="fas fa-search mr-2"></i>
+                    Apply Filters
+                </button>
             </div>
         </form>
     </div>
+
+    @if($isReviewer)
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const departmentSelect = document.getElementById('department_id');
+                const employeeSelect = document.getElementById('employee_id');
+
+                if (!departmentSelect || !employeeSelect) {
+                    return;
+                }
+
+                const filterEmployees = () => {
+                    const selectedDepartment = departmentSelect.value;
+
+                    Array.from(employeeSelect.options).forEach((option, index) => {
+                        if (index === 0) {
+                            option.hidden = false;
+                            return;
+                        }
+
+                        option.hidden = selectedDepartment !== ''
+                            && option.dataset.departmentId !== selectedDepartment;
+                    });
+
+                    const selectedEmployee = employeeSelect.options[employeeSelect.selectedIndex];
+
+                    if (selectedEmployee && selectedEmployee.hidden) {
+                        employeeSelect.value = '';
+                    }
+                };
+
+                departmentSelect.addEventListener('change', filterEmployees);
+                filterEmployees();
+            });
+        </script>
     @endif
 
     <!-- Official Business Records -->
@@ -245,17 +480,14 @@
                                 <div class="text-sm text-gray-900">{{ $ob->date->format('M d, Y') }}</div>
                             </td>
                             <td class="px-6 py-4">
-                                <div class="text-sm text-gray-900 max-w-xs truncate" title="{{ $ob->reason }}">{{ \Illuminate\Support\Str::limit($ob->reason, 30) }}</div>
-                                @if($obStatus === 'rejected' && $ob->rejection_reason)
-                                    <div class="text-xs text-red-600 mt-1 max-w-xs truncate" title="{{ $ob->rejection_reason }}">
-                                        Admin Reason: {{ $ob->rejection_reason }}
-                                    </div>
-                                @endif
+                                <div class="text-sm text-gray-900 max-w-xs truncate" title="{{ $ob->reason }}">
+                                    {{ \Illuminate\Support\Str::limit($ob->reason, 30) }}
+                                </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
-                                @if($obStatus === 'approved')
-                                    <div class="text-sm font-semibold text-green-700">
-                                        {{ number_format((float) ($ob->credited_hours ?? 0), 2) }} hrs
+                                @if($ob->ob_start_time && $ob->ob_end_time)
+                                    <div class="text-sm font-semibold {{ $obStatus === 'approved' ? 'text-green-700' : 'text-gray-700' }}">
+                                        {{ number_format((float) ($ob->credited_hours ?? $ob->computeCreditedHours()), 2) }} hrs
                                     </div>
                                     <div class="text-xs text-gray-500">
                                         {{ \Carbon\Carbon::parse($ob->ob_start_time)->format('h:i A') }}
@@ -263,38 +495,49 @@
                                         {{ \Carbon\Carbon::parse($ob->ob_end_time)->format('h:i A') }}
                                     </div>
                                 @else
-                                    <span class="text-sm text-gray-400">—</span>
+                                    <span class="text-gray-400">—</span>
                                 @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
                                 <span class="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium {{ $statusColor }} min-w-[80px]">
                                     {{ ucfirst($obStatus) }}
                                 </span>
+                                @if($obStatus === 'rejected' && $ob->rejection_reason)
+                                    <div class="text-xs text-red-600 mt-1 max-w-[220px] mx-auto" title="{{ $ob->rejection_reason }}">
+                                        <span class="font-medium">Admin Reason:</span>
+                                        {{ \Illuminate\Support\Str::limit($ob->rejection_reason, 40) }}
+                                    </div>
+                                @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">{{ $reviewerName !== '' ? $reviewerName : '—' }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
-                                <div class="flex space-x-2 justify-center">
-                                    @if($ob->isPending())
-                                        @if($isReviewer)
-                                            <button onclick="approveOb('{{ $ob->id }}')" class="text-green-600 hover:text-green-900 transition-colors" title="Approve">
-                                                <i class="fas fa-check"></i>
+                                <div class="flex justify-center items-center space-x-2">
+                                    @if($ob->isPending() && $isReviewer)
+                                        <button onclick="approveOb('{{ $ob->id }}')"
+                                                class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors"
+                                                title="Approve">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                        <button onclick="rejectOb('{{ $ob->id }}')"
+                                                class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors"
+                                                title="Reject">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    @elseif($ob->isPending() && !$isReviewer)
+                                        <form method="POST" action="{{ route('attendance.official-business.cancel', $ob->id) }}"
+                                              onsubmit="return confirm('Cancel this OB request?');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit"
+                                                    class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors"
+                                                    title="Cancel">
+                                                <i class="fas fa-ban"></i>
                                             </button>
-                                            <button onclick="rejectOb('{{ $ob->id }}')" class="text-red-600 hover:text-red-900 transition-colors" title="Reject">
-                                                <i class="fas fa-times"></i>
-                                            </button>
-                                        @else
-                                            <form method="POST" action="{{ route('attendance.official-business.cancel', $ob->id) }}" onsubmit="return confirm('Cancel this OB request?');">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="text-gray-500 hover:text-gray-900 transition-colors" title="Cancel">
-                                                    <i class="fas fa-ban"></i>
-                                                </button>
-                                            </form>
-                                        @endif
+                                        </form>
                                     @else
-                                        <span class="text-gray-400">—</span>
+                                        <span class="inline-block w-8 h-px bg-gray-300 rounded-full"></span>
                                     @endif
                                 </div>
                             </td>
@@ -373,68 +616,71 @@
                                     <div class="text-sm text-gray-500">{{ $ob->employee->department->name ?? 'N/A' }}</div>
                                 </div>
                             </div>
-                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $statusColor }}">
-                                <div class="w-1.5 h-1.5 rounded-full mr-1 {{ str_replace('text-', 'bg-', $statusColor) }}"></div>
-                                {{ ucfirst($obStatus) }}
-                            </span>
+                            <div class="text-right">
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $statusColor }}">
+                                    {{ ucfirst($obStatus) }}
+                                </span>
+                                @if($obStatus === 'rejected' && $ob->rejection_reason)
+                                    <div class="text-xs text-red-600 mt-1 max-w-[180px]">
+                                        <span class="font-medium">Admin Reason:</span>
+                                        {{ \Illuminate\Support\Str::limit($ob->rejection_reason, 35) }}
+                                    </div>
+                                @endif
+                            </div>
                         </div>
-<div class="grid grid-cols-2 gap-4 text-sm mb-3">
-    <div>
-        <div class="text-gray-500">Date</div>
-        <div class="font-medium">
-            {{ $ob->date->format('M d, Y') }}
-        </div>
-    </div>
 
-    <div>
-        <div class="text-gray-500">Reviewed By</div>
-        <div class="font-medium">
-            {{ $reviewerName !== '' ? $reviewerName : '—' }}
-        </div>
-    </div>
+                        <div class="grid grid-cols-2 gap-4 text-sm mb-3">
+                            <div>
+                                <div class="text-gray-500">Date</div>
+                                <div class="font-medium">{{ $ob->date->format('M d, Y') }}</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-500">OB Hours</div>
+                                @if($ob->ob_start_time && $ob->ob_end_time)
+                                    <div class="font-semibold {{ $obStatus === 'approved' ? 'text-green-700' : 'text-gray-900' }}">
+                                        {{ number_format((float) ($ob->credited_hours ?? $ob->computeCreditedHours()), 2) }} hrs
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        {{ \Carbon\Carbon::parse($ob->ob_start_time)->format('h:i A') }}
+                                        -
+                                        {{ \Carbon\Carbon::parse($ob->ob_end_time)->format('h:i A') }}
+                                    </div>
+                                @else
+                                    <div class="font-medium">—</div>
+                                @endif
+                            </div>
+                            <div>
+                                <div class="text-gray-500">Reviewed By</div>
+                                <div class="font-medium">{{ $reviewerName !== '' ? $reviewerName : '—' }}</div>
+                            </div>
+                        </div>
 
-    <div>
-        <div class="text-gray-500">OB Hours</div>
-
-        @if($obStatus === 'approved')
-            <div class="font-semibold text-green-700">
-                {{ number_format((float) ($ob->credited_hours ?? 0), 2) }} hrs
-            </div>
-
-            <div class="text-xs text-gray-500">
-                {{ \Carbon\Carbon::parse($ob->ob_start_time)->format('h:i A') }}
-                -
-                {{ \Carbon\Carbon::parse($ob->ob_end_time)->format('h:i A') }}
-            </div>
-        @else
-            <div class="font-medium text-gray-400">—</div>
-        @endif
-    </div>
-</div>
                         <div class="text-sm mb-3">
                             <div class="text-gray-500">Reason</div>
                             <div class="font-medium">{{ \Illuminate\Support\Str::limit($ob->reason, 50) }}</div>
-                            @if($obStatus === 'rejected' && $ob->rejection_reason)
-                                <div class="text-xs text-red-600 mt-1">
-                                    Admin Reason: {{ $ob->rejection_reason }}
-                                </div>
-                            @endif
                         </div>
                         @if($ob->isPending())
-                        <div class="flex justify-end space-x-2">
+                        <div class="flex justify-end items-center space-x-2">
                             @if($isReviewer)
-                                <button onclick="approveOb('{{ $ob->id }}')" class="text-green-600 hover:text-green-900 transition-colors">
-                                    <i class="fas fa-check mr-1"></i>Approve
+                                <button onclick="approveOb('{{ $ob->id }}')"
+                                        class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
+                                        title="Approve">
+                                    <i class="fas fa-check"></i>
                                 </button>
-                                <button onclick="rejectOb('{{ $ob->id }}')" class="text-red-600 hover:text-red-900 transition-colors">
-                                    <i class="fas fa-times mr-1"></i>Reject
+                                <button onclick="rejectOb('{{ $ob->id }}')"
+                                        class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                                        title="Reject">
+                                    <i class="fas fa-times"></i>
                                 </button>
                             @else
-                                <form method="POST" action="{{ route('attendance.official-business.cancel', $ob->id) }}" onsubmit="return confirm('Cancel this OB request?');">
+                                <form method="POST" action="{{ route('attendance.official-business.cancel', $ob->id) }}"
+                                      onsubmit="return confirm('Cancel this OB request?');">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="text-gray-500 hover:text-gray-900 transition-colors">
-                                        <i class="fas fa-ban mr-1"></i>Cancel
+                                    <button type="submit"
+                                            class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors"
+                                            title="Cancel">
+                                        <i class="fas fa-ban"></i>
                                     </button>
                                 </form>
                             @endif
@@ -474,11 +720,32 @@
                     <input type="date" id="obDate" name="date" required
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                            value="{{ old('date') }}">
-                    <p id="obCutoffWarning" class="mt-1 text-xs text-amber-600 hidden">
-                        <i class="fas fa-exclamation-triangle mr-1"></i>
-                        This date may be outside the current payroll cutoff period. You can still submit, but it may not be approvable.
-                    </p>
-                    <p class="mt-1 text-xs text-gray-400">Past dates (retroactive) and future dates (advance filing) are both allowed, within the current payroll cutoff.</p>
+                    <div class="mt-2 flex flex-wrap gap-3 text-xs text-gray-600">
+                        <span class="inline-flex items-center">
+                            <span class="w-3 h-3 rounded-sm bg-yellow-200 border border-yellow-500 mr-1.5"></span>
+                            Pending request
+                        </span>
+                        <span class="inline-flex items-center">
+                            <span class="w-3 h-3 rounded-sm bg-red-200 border border-red-500 mr-1.5"></span>
+                            Approved request
+                        </span>
+                    </div>
+                    <div id="obCutoffWarning"
+                         class="hidden mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                        <div class="flex items-start">
+                            <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5 mr-2"></i>
+                            <div>
+                                <p class="text-sm font-semibold text-amber-800">
+                                    Outside Payroll Cutoff
+                                </p>
+                                <p class="mt-1 text-xs leading-5 text-amber-700">
+                                    The selected date is outside the current payroll cutoff period.
+                                    Retroactive and advance requests are allowed only while their
+                                    payroll cutoff is still open.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
@@ -499,6 +766,10 @@
                     <div id="obDuration" class="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-600">
                         Select a Time In and Time Out
                     </div>
+                    <p id="obTimeError" class="hidden mt-1 text-xs text-red-600">
+                        <i class="fas fa-exclamation-circle mr-1"></i>
+                        Time Out must be after Time In.
+                    </p>
                 </div>
 
                 <div>
@@ -597,39 +868,105 @@
 
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    flatpickr("#obDate", {
-        dateFormat: "Y-m-d",
+const obOccupiedDates = @json($calendarRequests ?? []);
+
+function obDateKey(date) {
+    return flatpickr.formatDate(date, 'Y-m-d');
+}
+
+function getOccupiedOb(date) {
+    const key = typeof date === 'string' ? date : obDateKey(date);
+
+    return obOccupiedDates.find(item => item.date === key) ?? null;
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    const obDateInput = document.getElementById('obDate');
+
+    if (!obDateInput) {
+        return;
+    }
+
+    window.obDatePicker = flatpickr(obDateInput, {
+        dateFormat: 'Y-m-d',
         altInput: true,
-        altFormat: "F j, Y",
-        disableMobile: "true"
+        altFormat: 'F j, Y',
+        disableMobile: true,
+        disable: [
+            function (date) {
+                return getOccupiedOb(date) !== null;
+            }
+        ],
+        onDayCreate: function (_dObj, _dStr, _instance, dayElem) {
+            const occupied = getOccupiedOb(dayElem.dateObj);
+
+            if (!occupied) {
+                return;
+            }
+
+            if (occupied.status === 'pending') {
+                dayElem.classList.add('occupied-pending');
+                dayElem.title = 'Pending Official Business request';
+            }
+
+            if (occupied.status === 'approved') {
+                dayElem.classList.add('occupied-approved');
+                dayElem.title = 'Approved Official Business request';
+            }
+        },
+        onChange: function () {
+            checkObCutoffWarning();
+        }
     });
 });
 </script>
 <script>
 function updateObDuration() {
     const durationEl = document.getElementById('obDuration');
-    const start = document.getElementById('obStartTime')?.value;
-    const end = document.getElementById('obEndTime')?.value;
-    if (!durationEl) return;
+    const errorEl = document.getElementById('obTimeError');
+    const startInput = document.getElementById('obStartTime');
+    const endInput = document.getElementById('obEndTime');
+    const start = startInput?.value;
+    const end = endInput?.value;
+
+    if (!durationEl || !errorEl) {
+        return false;
+    }
+
+    errorEl.classList.add('hidden');
+    startInput?.classList.remove('border-red-500');
+    endInput?.classList.remove('border-red-500');
 
     if (!start || !end) {
         durationEl.textContent = 'Select a Time In and Time Out';
-        return;
+        durationEl.classList.remove('text-red-600');
+        return false;
     }
 
-    const [sh, sm] = start.split(':').map(Number);
-    const [eh, em] = end.split(':').map(Number);
-    const minutes = (eh * 60 + em) - (sh * 60 + sm);
+    const [startHour, startMinute] = start.split(':').map(Number);
+    const [endHour, endMinute] = end.split(':').map(Number);
+    const minutes = (endHour * 60 + endMinute)
+        - (startHour * 60 + startMinute);
 
     if (minutes <= 0) {
-        durationEl.textContent = 'Time Out must be after Time In';
-        return;
+        durationEl.textContent = 'Invalid time range';
+        durationEl.classList.add('text-red-600');
+        errorEl.classList.remove('hidden');
+        startInput?.classList.add('border-red-500');
+        endInput?.classList.add('border-red-500');
+
+        return false;
     }
 
     const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    durationEl.textContent = `${hours}h ${mins}m (${(minutes / 60).toFixed(2)} hrs)`;
+    const remainingMinutes = minutes % 60;
+
+    durationEl.textContent =
+        `${hours}h ${remainingMinutes}m (${(minutes / 60).toFixed(2)} hrs)`;
+
+    durationEl.classList.remove('text-red-600');
+
+    return true;
 }
 
 // Lightweight client-side mirror of CutoffPeriodService's default 10th/25th
@@ -638,32 +975,60 @@ function updateObDuration() {
 function checkObCutoffWarning() {
     const warningEl = document.getElementById('obCutoffWarning');
     const dateInput = document.getElementById('obDate');
-    if (!warningEl || !dateInput || !dateInput.value) {
-        if (warningEl) warningEl.classList.add('hidden');
+
+    if (!warningEl || !dateInput?.value) {
+        warningEl?.classList.add('hidden');
         return;
     }
 
-    const selected = new Date(dateInput.value + 'T00:00:00');
+    const selected = new Date(`${dateInput.value}T00:00:00`);
     const cutoffDays = [10, 25];
     const graceHours = 24;
-
-    // Find the end-of-period cutoff date on/after the selected date.
     let periodEnd = null;
-    for (let offset = -1; offset <= 2 && !periodEnd; offset++) {
-        const candidateMonth = new Date(selected.getFullYear(), selected.getMonth() + offset, 1);
-        const lastDay = new Date(candidateMonth.getFullYear(), candidateMonth.getMonth() + 1, 0).getDate();
-        for (const day of cutoffDays) {
-            const candidate = new Date(candidateMonth.getFullYear(), candidateMonth.getMonth(), Math.min(day, lastDay), 23, 59, 59);
-            if (candidate >= selected && (!periodEnd || candidate < periodEnd)) {
+
+    // Mirror the server cutoff calendar only for early UI feedback.
+    for (let offset = -1; offset <= 2; offset++) {
+        const candidateMonth = new Date(
+            selected.getFullYear(),
+            selected.getMonth() + offset,
+            1
+        );
+
+        const lastDay = new Date(
+            candidateMonth.getFullYear(),
+            candidateMonth.getMonth() + 1,
+            0
+        ).getDate();
+
+        for (const cutoffDay of cutoffDays) {
+            const candidate = new Date(
+                candidateMonth.getFullYear(),
+                candidateMonth.getMonth(),
+                Math.min(cutoffDay, lastDay),
+                23,
+                59,
+                59
+            );
+
+            if (
+                candidate >= selected
+                && (!periodEnd || candidate < periodEnd)
+            ) {
                 periodEnd = candidate;
             }
         }
     }
 
+    if (!periodEnd) {
+        warningEl.classList.remove('hidden');
+        return;
+    }
+
     const deadline = new Date(periodEnd);
     deadline.setHours(deadline.getHours() + graceHours);
 
-    warningEl.classList.toggle('hidden', new Date() <= deadline);
+    const isOutsideCutoff = new Date() > deadline;
+    warningEl.classList.toggle('hidden', !isOutsideCutoff);
 }
 
 function openObModal() {
@@ -674,6 +1039,7 @@ function openObModal() {
     modal.style.justifyContent = 'center';
     const form = document.getElementById('obForm');
     if (form) form.reset();
+    if (window.obDatePicker) window.obDatePicker.clear();
     updateObDuration();
     checkObCutoffWarning();
 }
@@ -687,16 +1053,8 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('obDate')?.addEventListener('change', checkObCutoffWarning);
 
     obForm.addEventListener('submit', function (e) {
-        const start = document.getElementById('obStartTime')?.value;
-        const end = document.getElementById('obEndTime')?.value;
-        if (!start || !end) {
+        if (!updateObDuration()) {
             e.preventDefault();
-            alert('Please provide both a Time In and Time Out.');
-            return;
-        }
-        if (start >= end) {
-            e.preventDefault();
-            alert('Time Out must be after Time In.');
         }
     });
 });
