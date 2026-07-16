@@ -132,6 +132,55 @@ class OfficialBusinessAttendanceTest extends TestCase
         $this->assertEqualsWithDelta($overtime, (float) $record->overtime_hours, 0.001, 'overtime_hours');
     }
 
+    public function test_compute_credited_hours_deducts_lunch_overlap(): void
+    {
+        $employee = $this->makeEmployee();
+
+        $fullDay = $this->makeOb($employee, '08:00', '17:00');
+        $this->assertEqualsWithDelta(
+            8.0,
+            $fullDay->computeCreditedHours(),
+            0.001
+        );
+
+        $halfDay = $this->makeOb($employee, '08:00', '12:00');
+        $this->assertEqualsWithDelta(
+            4.0,
+            $halfDay->computeCreditedHours(),
+            0.001
+        );
+
+        $afternoon = $this->makeOb($employee, '13:00', '17:00');
+        $this->assertEqualsWithDelta(
+            4.0,
+            $afternoon->computeCreditedHours(),
+            0.001
+        );
+
+        $partialLunch = $this->makeOb($employee, '11:30', '12:30');
+        $this->assertEqualsWithDelta(
+            0.5,
+            $partialLunch->computeCreditedHours(),
+            0.001
+        );
+    }
+
+    public function test_ob_only_full_day_deducts_standard_lunch(): void
+    {
+        $employee = $this->makeEmployee();
+
+        $attendance = $this->makeAttendance(
+            $employee,
+            AttendanceRecord::OFFICIAL_BUSINESS
+        );
+
+        $this->makeOb($employee, '08:00', '17:00');
+
+        $this->calculator()->recalc($attendance);
+
+        $this->assertHours($attendance, 8.0, 8.0, 0.0);
+    }
+
     // ---------------------------------------------------------------------
     // Attendance recalculation matrix
     // ---------------------------------------------------------------------

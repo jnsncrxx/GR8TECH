@@ -107,10 +107,10 @@ class OfficialBusinessRequest extends Model
     }
 
     /**
-     * Hours this request credits toward attendance/payroll — always the
-     * literal duration between ob_start_time and ob_end_time. Per the
-     * finalized OB spec, Time In/Time Out are required on every request, so
-     * duration is always computable directly (no full-day fallback).
+     * Calculate credited Official Business hours.
+     *
+     * Only the portion overlapping the standard 12:00 PM–1:00 PM lunch
+     * period is deducted. Requests that do not cross lunch are unchanged.
      */
     public function computeCreditedHours(): float
     {
@@ -118,10 +118,42 @@ class OfficialBusinessRequest extends Model
             return 0.0;
         }
 
-        $start = \Carbon\Carbon::parse($this->ob_start_time);
-        $end = \Carbon\Carbon::parse($this->ob_end_time);
+        $date = $this->date?->format('Y-m-d')
+            ?? now()->format('Y-m-d');
 
-        return round(max(0, $start->diffInMinutes($end)) / 60, 2);
+        $start = \Carbon\Carbon::parse(
+            $date . ' ' . \Carbon\Carbon::parse($this->ob_start_time)->format('H:i:s')
+        );
+
+        $end = \Carbon\Carbon::parse(
+            $date . ' ' . \Carbon\Carbon::parse($this->ob_end_time)->format('H:i:s')
+        );
+
+        if ($end->lte($start)) {
+            return 0.0;
+        }
+
+        $totalMinutes = (int) $start->diffInMinutes($end);
+
+        $lunchStart = \Carbon\Carbon::parse($date . ' 12:00:00');
+        $lunchEnd = \Carbon\Carbon::parse($date . ' 13:00:00');
+
+        $overlapStart = $start->gt($lunchStart)
+            ? $start->copy()
+            : $lunchStart;
+
+        $overlapEnd = $end->lt($lunchEnd)
+            ? $end->copy()
+            : $lunchEnd;
+
+        $lunchMinutes = $overlapEnd->gt($overlapStart)
+            ? (int) $overlapStart->diffInMinutes($overlapEnd)
+            : 0;
+
+        return round(
+            max(0, $totalMinutes - $lunchMinutes) / 60,
+            2
+        );
     }
 
     public function isPending(): bool

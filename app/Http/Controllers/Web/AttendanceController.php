@@ -773,8 +773,24 @@ class AttendanceController extends Controller
                 ]);
 
                 if ($isOfficialBusiness) {
-                    OfficialBusinessRequest::where('attendance_record_id', $record->id)
-                        ->update(['credited_hours' => $totalHours]);
+                    $obRequest = OfficialBusinessRequest::where(
+                        'attendance_record_id',
+                        $record->id
+                    )->first();
+
+                    $creditedHours = $obRequest
+                        ? $obRequest->computeCreditedHours()
+                        : $totalHours;
+
+                    $record->update([
+                        'total_hours' => $creditedHours,
+                        'regular_hours' => min(8, $creditedHours),
+                        'overtime_hours' => 0,
+                    ]);
+
+                    $obRequest?->update([
+                        'credited_hours' => $creditedHours,
+                    ]);
                 }
             }
 

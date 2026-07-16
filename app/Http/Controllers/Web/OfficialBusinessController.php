@@ -8,7 +8,10 @@ use App\Models\AttendanceRecord;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\OfficialBusinessRequest;
+use App\Exports\OfficialBusinessExport;
 use App\Services\CutoffPeriodService;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Maatwebsite\Excel\Facades\Excel;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -73,7 +76,6 @@ class OfficialBusinessController extends Controller
         return $obRequest;
     }
 
-    /**
     /**
      * Expire pending requests for an employee.
      */
@@ -198,6 +200,24 @@ class OfficialBusinessController extends Controller
             ->orderBy('last_name')
             ->get();
 
+        $calendarRequests = collect();
+
+        if (!$isReviewer && $employeeId) {
+            $calendarRequests = OfficialBusinessRequest::query()
+                ->where('employee_id', $employeeId)
+                ->whereIn('status', [
+                    OfficialBusinessRequest::PENDING,
+                    OfficialBusinessRequest::APPROVED,
+                ])
+                ->orderBy('date')
+                ->get(['date', 'status'])
+                ->map(fn (OfficialBusinessRequest $obRequest) => [
+                    'date' => $obRequest->date->format('Y-m-d'),
+                    'status' => $obRequest->status,
+                ])
+                ->values();
+        }
+
         return view('attendance.official-business', [
             'user' => $user,
             'activeRoute' => 'attendance.official-business',
@@ -208,6 +228,7 @@ class OfficialBusinessController extends Controller
             'summary' => $summary,
             'departments' => $departments,
             'employees' => $employees,
+            'calendarRequests' => $calendarRequests,
         ]);
     }
 
@@ -219,70 +240,54 @@ class OfficialBusinessController extends Controller
      */
     public function exportOfficialBusiness(Request $request, string $format)
     {
-        $allowedFormats = ['pdf', 'csv', 'xls'];
+        $format = strtolower($format);
 
-        if (!in_array($format, $allowedFormats, true)) {
+        if (!in_array($format, ['pdf', 'csv', 'xlsx', 'xls'], true)) {
             return back()->with('error', 'Unsupported export format.');
         }
 
         $query = $this->applyFilters(
-            OfficialBusinessRequest::with(['employee.department', 'reviewer.employee']),
+            OfficialBusinessRequest::with([
+                'employee.department',
+                'reviewer.employee',
+            ]),
             $request,
             $this->isReviewer()
         );
 
-        $requests = $query->orderBy('created_at', 'desc')->get();
-        $fileName = 'official-business-' . now()->format('YmdHis') . '.csv';
+        $requests = $query
+            ->orderBy('created_at', 'desc')
+            ->get();
 
-        return response()->streamDownload(function () use ($requests) {
-            $handle = fopen('php://output', 'w');
+        $timestamp = now()->format('Ymd_His');
 
-            fputcsv($handle, [
-                'Employee',
-                'Department',
-                'Date',
-                'Reason',
-                'OB Hours',
-                'Time In',
-                'Time Out',
-                'Status',
-                'Reviewed By',
-                'Admin Reason',
-            ]);
+        if ($format === 'pdf') {
+            return Pdf::loadView(
+                'attendance.exports.official-business-pdf',
+                [
+                    'requests' => $requests,
+                    'generatedAt' => now(),
+                    'filters' => $request->query(),
+                ]
+            )->setPaper('a4', 'landscape')
+                ->download("official-business_{$timestamp}.pdf");
+        }
 
-            foreach ($requests as $obRequest) {
-                $reviewerName = trim(
-                    ($obRequest->reviewer->employee->first_name ?? '') . ' ' .
-                    ($obRequest->reviewer->employee->last_name ?? '')
-                );
+        $export = new OfficialBusinessExport($requests);
 
-                fputcsv($handle, [
-                    $obRequest->employee->full_name ?? 'N/A',
-                    $obRequest->employee->department->name ?? 'N/A',
-                    $obRequest->date?->format('Y-m-d') ?? '',
-                    $obRequest->reason,
-                    number_format(
-                        (float) ($obRequest->credited_hours ?? $obRequest->computeCreditedHours()),
-                        2,
-                        '.',
-                        ''
-                    ),
-                    $obRequest->ob_start_time
-                        ? Carbon::parse($obRequest->ob_start_time)->format('h:i A')
-                        : '',
-                    $obRequest->ob_end_time
-                        ? Carbon::parse($obRequest->ob_end_time)->format('h:i A')
-                        : '',
-                    ucfirst($obRequest->status),
-                    $reviewerName,
-                    $obRequest->rejection_reason ?? '',
-                ]);
-            }
+        if ($format === 'csv') {
+            return Excel::download(
+                $export,
+                "official-business_{$timestamp}.csv",
+                \Maatwebsite\Excel\Excel::CSV
+            );
+        }
 
-            fclose($handle);
-        }, $fileName, [
-            'Content-Type' => 'text/csv',
-        ]);
+        return Excel::download(
+            $export,
+            "official-business_{$timestamp}.xlsx",
+            \Maatwebsite\Excel\Excel::XLSX
+        );
     }
 
     /**
@@ -537,15 +542,8 @@ class OfficialBusinessController extends Controller
                         $obRequest->ob_end_time
                     );
 
-                    $obMinutes = (int) $obInterval['start']
-                        ->diffInMinutes(
-                            $obInterval['end']
-                        );
-
-                    $obHours = round(
-                        $obMinutes / 60,
-                        2
-                    );
+                    $obHours =
+                        $obRequest->computeCreditedHours();
 
                     $attendanceRecord =
                         AttendanceRecord::query()

@@ -5,9 +5,99 @@
 @section('content')
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <style>
-    /* Clean up Flatpickr background to match inputs */
     .flatpickr-input[readonly] {
-        background-color: #fff;
+        background-color: #ffffff;
+        color: #111827;
+    }
+
+    /* Match the Leave Management Flatpickr design. */
+    .flatpickr-calendar {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        width: 320px !important;
+        padding: 0.5rem;
+    }
+
+    .flatpickr-months {
+        background: transparent;
+        padding: 0.5rem 0.25rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .flatpickr-month {
+        color: #111827;
+        height: 40px;
+    }
+
+    .flatpickr-current-month {
+        color: #111827;
+        font-weight: 600;
+        font-size: 1rem;
+        padding-top: 0.25rem;
+    }
+
+    .flatpickr-weekdays {
+        background: transparent;
+        padding: 0.25rem 0;
+    }
+
+    .flatpickr-weekday {
+        color: #6b7280;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        letter-spacing: 0.05em;
+    }
+
+    .flatpickr-day {
+        color: #111827;
+        border-radius: 0.375rem;
+        font-weight: 500;
+        font-size: 0.875rem;
+        height: 38px;
+        line-height: 38px;
+        margin: 2px;
+        max-width: 38px;
+        width: 38px;
+        transition: all 0.15s ease;
+    }
+
+    .flatpickr-day:hover {
+        background: #f3f4f6;
+        border-color: #d1d5db;
+    }
+
+    .flatpickr-day.selected {
+        background: #2563eb;
+        border-color: #2563eb;
+        color: #ffffff;
+        font-weight: 600;
+    }
+
+    .flatpickr-day.today {
+        border-color: #2563eb;
+        font-weight: 600;
+        background: transparent;
+    }
+
+    .flatpickr-day.occupied-pending {
+        background: #fff6d4 !important;
+        color: #92400e !important;
+        border-color: #f7b441 !important;
+        font-weight: 600;
+        cursor: not-allowed !important;
+    }
+
+    .flatpickr-day.occupied-approved {
+        background: #fecaca !important;
+        color: #991b1b !important;
+        border-color: #ef4444 !important;
+        text-decoration: line-through;
+        opacity: 0.85;
+        cursor: not-allowed !important;
     }
 </style>
 <div class="space-y-6">
@@ -630,11 +720,32 @@
                     <input type="date" id="obDate" name="date" required
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                            value="{{ old('date') }}">
-                    <p id="obCutoffWarning" class="mt-1 text-xs text-amber-600 hidden">
-                        <i class="fas fa-exclamation-triangle mr-1"></i>
-                        This date may be outside the current payroll cutoff period. You can still submit, but it may not be approvable.
-                    </p>
-                    <p class="mt-1 text-xs text-gray-400">Past dates (retroactive) and future dates (advance filing) are both allowed, within the current payroll cutoff.</p>
+                    <div class="mt-2 flex flex-wrap gap-3 text-xs text-gray-600">
+                        <span class="inline-flex items-center">
+                            <span class="w-3 h-3 rounded-sm bg-yellow-200 border border-yellow-500 mr-1.5"></span>
+                            Pending request
+                        </span>
+                        <span class="inline-flex items-center">
+                            <span class="w-3 h-3 rounded-sm bg-red-200 border border-red-500 mr-1.5"></span>
+                            Approved request
+                        </span>
+                    </div>
+                    <div id="obCutoffWarning"
+                         class="hidden mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                        <div class="flex items-start">
+                            <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5 mr-2"></i>
+                            <div>
+                                <p class="text-sm font-semibold text-amber-800">
+                                    Outside Payroll Cutoff
+                                </p>
+                                <p class="mt-1 text-xs leading-5 text-amber-700">
+                                    The selected date is outside the current payroll cutoff period.
+                                    Retroactive and advance requests are allowed only while their
+                                    payroll cutoff is still open.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
@@ -655,6 +766,10 @@
                     <div id="obDuration" class="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-600">
                         Select a Time In and Time Out
                     </div>
+                    <p id="obTimeError" class="hidden mt-1 text-xs text-red-600">
+                        <i class="fas fa-exclamation-circle mr-1"></i>
+                        Time Out must be after Time In.
+                    </p>
                 </div>
 
                 <div>
@@ -753,39 +868,105 @@
 
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    flatpickr("#obDate", {
-        dateFormat: "Y-m-d",
+const obOccupiedDates = @json($calendarRequests ?? []);
+
+function obDateKey(date) {
+    return flatpickr.formatDate(date, 'Y-m-d');
+}
+
+function getOccupiedOb(date) {
+    const key = typeof date === 'string' ? date : obDateKey(date);
+
+    return obOccupiedDates.find(item => item.date === key) ?? null;
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    const obDateInput = document.getElementById('obDate');
+
+    if (!obDateInput) {
+        return;
+    }
+
+    window.obDatePicker = flatpickr(obDateInput, {
+        dateFormat: 'Y-m-d',
         altInput: true,
-        altFormat: "F j, Y",
-        disableMobile: "true"
+        altFormat: 'F j, Y',
+        disableMobile: true,
+        disable: [
+            function (date) {
+                return getOccupiedOb(date) !== null;
+            }
+        ],
+        onDayCreate: function (_dObj, _dStr, _instance, dayElem) {
+            const occupied = getOccupiedOb(dayElem.dateObj);
+
+            if (!occupied) {
+                return;
+            }
+
+            if (occupied.status === 'pending') {
+                dayElem.classList.add('occupied-pending');
+                dayElem.title = 'Pending Official Business request';
+            }
+
+            if (occupied.status === 'approved') {
+                dayElem.classList.add('occupied-approved');
+                dayElem.title = 'Approved Official Business request';
+            }
+        },
+        onChange: function () {
+            checkObCutoffWarning();
+        }
     });
 });
 </script>
 <script>
 function updateObDuration() {
     const durationEl = document.getElementById('obDuration');
-    const start = document.getElementById('obStartTime')?.value;
-    const end = document.getElementById('obEndTime')?.value;
-    if (!durationEl) return;
+    const errorEl = document.getElementById('obTimeError');
+    const startInput = document.getElementById('obStartTime');
+    const endInput = document.getElementById('obEndTime');
+    const start = startInput?.value;
+    const end = endInput?.value;
+
+    if (!durationEl || !errorEl) {
+        return false;
+    }
+
+    errorEl.classList.add('hidden');
+    startInput?.classList.remove('border-red-500');
+    endInput?.classList.remove('border-red-500');
 
     if (!start || !end) {
         durationEl.textContent = 'Select a Time In and Time Out';
-        return;
+        durationEl.classList.remove('text-red-600');
+        return false;
     }
 
-    const [sh, sm] = start.split(':').map(Number);
-    const [eh, em] = end.split(':').map(Number);
-    const minutes = (eh * 60 + em) - (sh * 60 + sm);
+    const [startHour, startMinute] = start.split(':').map(Number);
+    const [endHour, endMinute] = end.split(':').map(Number);
+    const minutes = (endHour * 60 + endMinute)
+        - (startHour * 60 + startMinute);
 
     if (minutes <= 0) {
-        durationEl.textContent = 'Time Out must be after Time In';
-        return;
+        durationEl.textContent = 'Invalid time range';
+        durationEl.classList.add('text-red-600');
+        errorEl.classList.remove('hidden');
+        startInput?.classList.add('border-red-500');
+        endInput?.classList.add('border-red-500');
+
+        return false;
     }
 
     const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    durationEl.textContent = `${hours}h ${mins}m (${(minutes / 60).toFixed(2)} hrs)`;
+    const remainingMinutes = minutes % 60;
+
+    durationEl.textContent =
+        `${hours}h ${remainingMinutes}m (${(minutes / 60).toFixed(2)} hrs)`;
+
+    durationEl.classList.remove('text-red-600');
+
+    return true;
 }
 
 // Lightweight client-side mirror of CutoffPeriodService's default 10th/25th
@@ -794,32 +975,60 @@ function updateObDuration() {
 function checkObCutoffWarning() {
     const warningEl = document.getElementById('obCutoffWarning');
     const dateInput = document.getElementById('obDate');
-    if (!warningEl || !dateInput || !dateInput.value) {
-        if (warningEl) warningEl.classList.add('hidden');
+
+    if (!warningEl || !dateInput?.value) {
+        warningEl?.classList.add('hidden');
         return;
     }
 
-    const selected = new Date(dateInput.value + 'T00:00:00');
+    const selected = new Date(`${dateInput.value}T00:00:00`);
     const cutoffDays = [10, 25];
     const graceHours = 24;
-
-    // Find the end-of-period cutoff date on/after the selected date.
     let periodEnd = null;
-    for (let offset = -1; offset <= 2 && !periodEnd; offset++) {
-        const candidateMonth = new Date(selected.getFullYear(), selected.getMonth() + offset, 1);
-        const lastDay = new Date(candidateMonth.getFullYear(), candidateMonth.getMonth() + 1, 0).getDate();
-        for (const day of cutoffDays) {
-            const candidate = new Date(candidateMonth.getFullYear(), candidateMonth.getMonth(), Math.min(day, lastDay), 23, 59, 59);
-            if (candidate >= selected && (!periodEnd || candidate < periodEnd)) {
+
+    // Mirror the server cutoff calendar only for early UI feedback.
+    for (let offset = -1; offset <= 2; offset++) {
+        const candidateMonth = new Date(
+            selected.getFullYear(),
+            selected.getMonth() + offset,
+            1
+        );
+
+        const lastDay = new Date(
+            candidateMonth.getFullYear(),
+            candidateMonth.getMonth() + 1,
+            0
+        ).getDate();
+
+        for (const cutoffDay of cutoffDays) {
+            const candidate = new Date(
+                candidateMonth.getFullYear(),
+                candidateMonth.getMonth(),
+                Math.min(cutoffDay, lastDay),
+                23,
+                59,
+                59
+            );
+
+            if (
+                candidate >= selected
+                && (!periodEnd || candidate < periodEnd)
+            ) {
                 periodEnd = candidate;
             }
         }
     }
 
+    if (!periodEnd) {
+        warningEl.classList.remove('hidden');
+        return;
+    }
+
     const deadline = new Date(periodEnd);
     deadline.setHours(deadline.getHours() + graceHours);
 
-    warningEl.classList.toggle('hidden', new Date() <= deadline);
+    const isOutsideCutoff = new Date() > deadline;
+    warningEl.classList.toggle('hidden', !isOutsideCutoff);
 }
 
 function openObModal() {
@@ -830,6 +1039,7 @@ function openObModal() {
     modal.style.justifyContent = 'center';
     const form = document.getElementById('obForm');
     if (form) form.reset();
+    if (window.obDatePicker) window.obDatePicker.clear();
     updateObDuration();
     checkObCutoffWarning();
 }
@@ -843,16 +1053,8 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('obDate')?.addEventListener('change', checkObCutoffWarning);
 
     obForm.addEventListener('submit', function (e) {
-        const start = document.getElementById('obStartTime')?.value;
-        const end = document.getElementById('obEndTime')?.value;
-        if (!start || !end) {
+        if (!updateObDuration()) {
             e.preventDefault();
-            alert('Please provide both a Time In and Time Out.');
-            return;
-        }
-        if (start >= end) {
-            e.preventDefault();
-            alert('Time Out must be after Time In.');
         }
     });
 });
