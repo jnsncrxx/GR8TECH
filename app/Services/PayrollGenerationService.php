@@ -26,7 +26,7 @@ class PayrollGenerationService
      * @param array|null $employeeIds Optional array of employee IDs to process
      * @return array Preview payroll data
      */
-    public function generatePayrollPreview(array $periodData, array $comprehensiveData, ?array $employeeIds = null): array
+    public function generatePayrollPreview(array $periodData, array $comprehensiveData, ?array $employeeIds = null, ?string $payrollTemplateId = null): array
     {
         $generatedPayrolls = [];
 
@@ -45,7 +45,7 @@ class PayrollGenerationService
             }
 
             try {
-                $payrollData = $this->calculatePayrollPreviewFromRecords($employee, $employeeRecords, $periodData);
+                $payrollData = $this->calculatePayrollPreviewFromRecords($employee, $employeeRecords, $periodData, $payrollTemplateId);
                 if ($payrollData) {
                     $generatedPayrolls[] = $payrollData;
                 }
@@ -66,7 +66,7 @@ class PayrollGenerationService
      * @return array Created Payroll models
      * @throws \Exception
      */
-    public function generatePayrollFromComprehensiveData(array $periodData, array $comprehensiveData, ?array $employeeIds = null): array
+    public function generatePayrollFromComprehensiveData(array $periodData, array $comprehensiveData, ?array $employeeIds = null, ?string $payrollTemplateId = null): array
     {
         try {
             DB::beginTransaction();
@@ -88,7 +88,7 @@ class PayrollGenerationService
                 }
 
                 try {
-                    $payroll = $this->calculatePayrollFromRecords($employee, $employeeRecords, $periodData);
+                    $payroll = $this->calculatePayrollFromRecords($employee, $employeeRecords, $periodData, $payrollTemplateId);
                     if ($payroll) {
                         $generatedPayrolls[] = $payroll;
                     }
@@ -1144,13 +1144,25 @@ class PayrollGenerationService
     /**
      * Calculate all payroll components with exact Excel formulas
      */
-    private function calculateAllPayrollComponents(Employee $employee, $employeeRecords, array $periodData): array
+    private function calculateAllPayrollComponents(Employee $employee, $employeeRecords, array $periodData, ?string $payrollTemplateId = null): array
     {
-        // Get rates from employee or calculate them
-        $monthlyRate = $employee->salary ?? 0;
+        // 1. Resolve Template Priority
+        $template = null;
+        if ($payrollTemplateId) {
+            $template = \App\Models\PayrollTemplate::find($payrollTemplateId);
+        }
+        if (!$template && $employee->payroll_template_id) {
+            $template = $employee->payrollTemplate;
+        }
+        if (!$template && $employee->position && $employee->position->payroll_template_id) {
+            $template = $employee->position->payrollTemplate;
+        }
+
+        // Get rates from template or employee/calculate them
+        $monthlyRate = ($template && $template->monthly_rate !== null) ? $template->monthly_rate : ($employee->salary ?? 0);
         $semiMonthlyRate = $monthlyRate / 2;
-        $dailyRate = $employee->daily_rate ?? ($monthlyRate * 12 / 313); // Excel formula: =E16*12/313
-        $hourlyRate = $dailyRate / 8; // Excel formula: =+G16/8
+        $dailyRate = ($template && $template->daily_rate !== null) ? $template->daily_rate : ($employee->daily_rate ?? ($monthlyRate * 12 / 313));
+        $hourlyRate = ($template && $template->hourly_rate !== null) ? $template->hourly_rate : ($dailyRate / 8);
 
         // Calculate basic working days and hours
         $daysWorked = $this->calculateDaysWorkedFromRecords($employeeRecords);
@@ -1173,9 +1185,17 @@ class PayrollGenerationService
 
         // Calculate allowances (incentive leave from Excel - 5 days)
         $allowances = $this->calculateAllowances($employee, $dailyRate, $leaveData);
+        if ($template && $template->allowances !== null) {
+            $allowances['total'] = $template->allowances;
+        }
 
         // Calculate statutory deductions (SSS, PHIC, HDMF)
         $statutoryDeductions = $this->calculateStatutoryDeductions($employee, $monthlyRate);
+        if ($template) {
+            if ($template->sss !== null) $statutoryDeductions['sss'] = $template->sss;
+            if ($template->phic !== null) $statutoryDeductions['phic'] = $template->phic;
+            if ($template->hdmf !== null) $statutoryDeductions['hdmf'] = $template->hdmf;
+        }
 
         // Calculate late/undertime deductions
         $lateDeductions = $this->calculateLateUndertimeDeductions($employeeRecords, $hourlyRate);
@@ -1188,6 +1208,10 @@ class PayrollGenerationService
             $statutoryDeductions['sss'] +
             $statutoryDeductions['phic'] +
             $statutoryDeductions['hdmf'];
+
+        if ($template && $template->deductions !== null) {
+            $totalDeductions += $template->deductions;
+        }
 
         // Calculate gross pay using Excel formula pattern
         $grossPay = $this->calculateGrossPayWithExcelFormula(
@@ -2036,13 +2060,13 @@ class PayrollGenerationService
      * @param array $periodData
      * @return array|null
      */
-    private function calculatePayrollPreviewFromRecords(Employee $employee, $employeeRecords, array $periodData): ?array
+    private function calculatePayrollPreviewFromRecords(Employee $employee, $employeeRecords, array $periodData, ?string $payrollTemplateId = null): ?array
     {
         $startDate = Carbon::parse($periodData['start_date']);
         $endDate = Carbon::parse($periodData['end_date']);
 
         // Calculate all payroll components with Excel formulas
-        $components = $this->calculateAllPayrollComponents($employee, $employeeRecords, $periodData);
+        $components = $this->calculateAllPayrollComponents($employee, $employeeRecords, $periodData, $payrollTemplateId);
 
         // Return preview data array (not saved to database)
         return [
@@ -2085,24 +2109,24 @@ class PayrollGenerationService
      * @param array $periodData
      * @return Payroll|null
      */
-    private function calculatePayrollFromRecords(Employee $employee, $employeeRecords, array $periodData): ?Payroll
+    private function calculatePayrollFromRecords(Employee $employee, $employeeRecords, array $periodData, ?string $payrollTemplateId = null): ?Payroll
     {
         $startDate = Carbon::parse($periodData['start_date']);
         $endDate = Carbon::parse($periodData['end_date']);
 
-        // Check if payroll already exists
+        // Check if payroll already exists and is locked
         $existingPayroll = Payroll::where('employee_id', $employee->id)
             ->where('pay_period_start', $startDate->format('Y-m-d'))
             ->where('pay_period_end', $endDate->format('Y-m-d'))
             ->first();
 
-        if ($existingPayroll) {
-            Log::info("Payroll already exists for employee {$employee->id}");
+        if ($existingPayroll && in_array($existingPayroll->status, ['approved', 'paid'])) {
+            Log::info("Payroll already exists and is locked for employee {$employee->id}");
             return null;
         }
 
         // Calculate all payroll components with Excel formulas
-        $components = $this->calculateAllPayrollComponents($employee, $employeeRecords, $periodData);
+        $components = $this->calculateAllPayrollComponents($employee, $employeeRecords, $periodData, $payrollTemplateId);
 
         Log::info('calculateAllPayrollComponents called', [
             'employee_id' => $employee->id,
@@ -2120,12 +2144,15 @@ class PayrollGenerationService
             'net_pay' => $components['net_pay']
         ]);
 
-        // Create payroll record with ALL required fields
+        // Create or update payroll record with ALL required fields
         try {
-            $payroll = Payroll::create([
-                'employee_id' => $employee->id,
-                'pay_period_start' => $startDate->format('Y-m-d'),
-                'pay_period_end' => $endDate->format('Y-m-d'),
+            $payroll = Payroll::updateOrCreate(
+                [
+                    'employee_id' => $employee->id,
+                    'pay_period_start' => $startDate->format('Y-m-d'),
+                    'pay_period_end' => $endDate->format('Y-m-d'),
+                ],
+                [
                 'basic_salary' => $components['basic_salary'],
                 'holiday_basic_pay' => $components['holiday_basic_pay'] ?? 0,
                 'holiday_premium' => $components['holiday_premium'] ?? 0,
@@ -2151,7 +2178,7 @@ class PayrollGenerationService
                 'tax_amount' => $components['tax_amount'],
                 'gross_pay' => $components['gross_pay'],
                 'net_pay' => $components['net_pay'],
-                'status' => 'pending',
+                'status' => $existingPayroll ? $existingPayroll->status : 'pending',
             ]);
 
             Log::info("Generated payroll for employee {$employee->id}: Net Pay: {$components['net_pay']}");

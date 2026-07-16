@@ -15,6 +15,7 @@
             @csrf
             <input type="hidden" name="start_date" id="generateStartDate" value="">
             <input type="hidden" name="end_date" id="generateEndDate" value="">
+            <input type="hidden" name="payroll_template_id" id="generateTemplateId" value="">
             <button type="button" onclick="generatePayroll()" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
                 <i class="fas fa-plus mr-2"></i>
                 Generate Payroll
@@ -163,6 +164,7 @@
                         <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
                         <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Approved</option>
                         <option value="paid" {{ request('status') == 'paid' ? 'selected' : '' }}>Paid</option>
+                        <option value="canceled" {{ request('status') == 'canceled' ? 'selected' : '' }}>Canceled</option>
                     </select>
                 </div>
                 
@@ -412,7 +414,7 @@
             </div>
         </div>
         
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div class="text-center p-4 bg-gray-50 rounded-lg">
                 <div class="text-2xl font-bold text-gray-900">{{ $summary['pending_count'] }}</div>
                 <div class="text-sm text-gray-600">Pending Review</div>
@@ -424,6 +426,10 @@
             <div class="text-center p-4 bg-gray-50 rounded-lg">
                 <div class="text-2xl font-bold text-gray-900">{{ $summary['paid_count'] }}</div>
                 <div class="text-sm text-gray-600">Paid</div>
+            </div>
+            <div class="text-center p-4 bg-gray-50 rounded-lg">
+                <div class="text-2xl font-bold text-gray-900">{{ $summary['canceled_count'] }}</div>
+                <div class="text-sm text-gray-600">Canceled</div>
             </div>
         </div>
     </div>
@@ -449,6 +455,7 @@
                             <button onclick="applyStatusFilter('pending')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('status') == 'pending' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Pending</button>
                             <button onclick="applyStatusFilter('approved')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('status') == 'approved' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Approved</button>
                             <button onclick="applyStatusFilter('paid')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('status') == 'paid' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Paid</button>
+                            <button onclick="applyStatusFilter('canceled')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('status') == 'canceled' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Canceled</button>
                         </div>
                     </div>
                 </div>
@@ -1040,7 +1047,21 @@
                 <i class="fas fa-file-invoice-dollar text-blue-600 text-xl"></i>
             </div>
             <h3 class="text-lg font-medium text-gray-900 text-center mb-2">Generate Payroll</h3>
-            <p class="text-sm text-gray-500 text-center mb-6">Are you sure you want to generate payroll for the selected period? This action will calculate salaries, deductions, and net pay for all eligible employees based on their attendance.</p>
+            <p class="text-sm text-gray-500 text-center mb-4">Are you sure you want to generate payroll for the selected period? This action will calculate salaries, deductions, and net pay for all eligible employees based on their attendance.</p>
+            
+            <div class="mb-6">
+                <label for="modalPayrollTemplate" class="block text-sm font-medium text-gray-700 mb-1">Override Payroll Template (Optional)</label>
+                <select id="modalPayrollTemplate" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                    <option value="">System Default / Employee's Assigned Template</option>
+                    @if(isset($payrollTemplates))
+                        @foreach($payrollTemplates as $template)
+                            <option value="{{ $template->id }}">{{ $template->name }}</option>
+                        @endforeach
+                    @endif
+                </select>
+                <p class="mt-1 text-xs text-gray-500">If selected, this will force all generated payrolls to use this specific template.</p>
+            </div>
+            
             <div class="flex justify-end space-x-3">
                 <button type="button" onclick="closeGeneratePayrollModal()" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
                     Cancel
@@ -1147,6 +1168,8 @@ window.closeGeneratePayrollModal = function() {
 
 window.confirmGeneratePayroll = function() {
     document.getElementById('generatePayrollConfirmModal').style.display = 'none';
+    const selectedTemplate = document.getElementById('modalPayrollTemplate').value;
+    document.getElementById('generateTemplateId').value = selectedTemplate;
     document.getElementById('generatePayrollForm').submit();
 };
 
