@@ -78,6 +78,8 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
     Route::resource('positions', App\Http\Controllers\PositionController::class);
     
     // Payroll routes
+    Route::resource('payroll-templates', App\Http\Controllers\Web\PayrollTemplateController::class);
+    Route::post('payroll-templates/{id}/restore', [App\Http\Controllers\Web\PayrollTemplateController::class, 'restore'])->name('payroll-templates.restore');
     Route::resource('payrolls', PayrollController::class);
     Route::post('/payrolls/{payroll}/process', [PayrollController::class, 'process'])->name('payrolls.process');
     Route::get('/payrolls/reports/summary', [PayrollController::class, 'summary'])->name('payrolls.summary');

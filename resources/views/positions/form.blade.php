@@ -80,6 +80,25 @@
                         />
                         
                         <div class="sm:col-span-2">
+                            <label for="payroll_template_id" class="block text-sm font-medium text-gray-700 mb-2">Payroll Template (Optional)</label>
+                            <select name="payroll_template_id" id="payroll_template_id"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('payroll_template_id') border-red-500 @enderror">
+                                <option value="">System Default (No Template)</option>
+                                @if(isset($payrollTemplates))
+                                    @foreach($payrollTemplates as $template)
+                                        <option value="{{ $template->id }}" {{ old('payroll_template_id', isset($position) ? $position->payroll_template_id : '') == $template->id ? 'selected' : '' }}>
+                                            {{ $template->name }}
+                                        </option>
+                                    @endforeach
+                                @endif
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500">Serves as a fallback if the employee has no assigned template.</p>
+                            @error('payroll_template_id')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                        
+                        <div class="sm:col-span-2">
                             <div class="flex items-center">
                                 <input type="checkbox" 
                                        class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" 
