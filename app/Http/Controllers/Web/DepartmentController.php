@@ -12,14 +12,14 @@ class DepartmentController extends Controller
     public function index()
     {
         $currentCompany = CompanyHelper::getCurrentCompany();
-        
-        $query = Department::withCount('employees');
-        
+
+        $query = Department::withCount('employees')->with('supervisor')->active();
+
         // Filter by current company if set
         if ($currentCompany) {
             $query->forCompany($currentCompany->id);
         }
-        
+
         $departments = $query->when(request('search'), function ($query) {
                 $query->where('name', 'like', '%' . request('search') . '%');
             })
@@ -44,12 +44,12 @@ class DepartmentController extends Controller
         ]);
 
         $currentCompany = CompanyHelper::getCurrentCompany();
-        
+
         $departmentData = $request->all();
         if ($currentCompany) {
             $departmentData['company_id'] = $currentCompany->id;
         }
-        
+
         Department::create($departmentData);
 
         return redirect()->route('departments.index')
@@ -58,7 +58,7 @@ class DepartmentController extends Controller
 
     public function show(Department $department)
     {
-        $department->load('employees');
+        $department->load(['employees.position', 'supervisor']);
         $user = auth()->user();
         return view('departments.show', compact('department', 'user'));
     }
@@ -85,23 +85,54 @@ class DepartmentController extends Controller
 
     public function destroy(Department $department)
     {
-        $department->delete();
+        $department->archived_at = \Illuminate\Support\Carbon::now();
+        $department->save();
 
         return redirect()->route('departments.index')
-            ->with('success', 'Department deleted successfully.');
+            ->with('success', 'Department removed and archived successfully.');
+    }
+
+    public function archived()
+    {
+        $currentCompany = CompanyHelper::getCurrentCompany();
+
+        $query = Department::withCount('employees')->with('supervisor')->archived();
+
+        // Filter by current company if set
+        if ($currentCompany) {
+            $query->forCompany($currentCompany->id);
+        }
+
+        $departments = $query->when(request('search'), function ($query) {
+                $query->where('name', 'like', '%' . request('search') . '%');
+            })
+            ->orderByDesc('archived_at')
+            ->paginate(15);
+
+        $user = auth()->user();
+        return view('departments.archived', compact('departments', 'user'));
+    }
+
+    public function restore(Department $department)
+    {
+        $department->archived_at = null;
+        $department->save();
+
+        return redirect()->route('departments.archived')
+            ->with('success', 'Department restored successfully.');
     }
 
     public function employees(Department $department)
     {
         $currentCompany = CompanyHelper::getCurrentCompany();
-        
+
         $query = $department->employees()->with('account');
-        
+
         // Filter by current company if set
         if ($currentCompany) {
             $query->forCompany($currentCompany->id);
         }
-        
+
         $employees = $query->when(request('search'), function ($query) {
                 $query->where('first_name', 'like', '%' . request('search') . '%')
                       ->orWhere('last_name', 'like', '%' . request('search') . '%');
@@ -110,5 +141,25 @@ class DepartmentController extends Controller
 
         $user = auth()->user();
         return view('departments.employees', compact('department', 'employees', 'user'));
+    }
+
+    public function updateSupervisor(Request $request, Department $department)
+    {
+        $validated = $request->validate([
+            'employee_id' => 'nullable|uuid|exists:employees,id',
+        ]);
+
+        $employeeId = $validated['employee_id'] ?? null;
+
+        if ($employeeId && !$department->employees()->where('id', $employeeId)->exists()) {
+            return redirect()->back()
+                ->with('error', 'The selected employee does not belong to this department.');
+        }
+
+        $department->supervisor_id = $employeeId;
+        $department->save();
+
+        return redirect()->back()
+            ->with('success', $employeeId ? 'Department supervisor updated successfully.' : 'Department supervisor removed successfully.');
     }
 }
