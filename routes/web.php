@@ -78,6 +78,12 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
     Route::put('/departments/{department}/supervisor', [DepartmentController::class, 'updateSupervisor'])->name('departments.supervisor.update');
 
     // Position routes
+    Route::post(
+        '/positions/{position}/restore',
+        [App\Http\Controllers\PositionController::class, 'restore']
+    )->name('positions.restore');
+
+    // DELETE /positions/{position} now archives the position instead of permanently deleting it.
     Route::resource('positions', App\Http\Controllers\PositionController::class);
 
     // Payroll routes
