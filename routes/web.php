@@ -8,7 +8,7 @@ use App\Http\Controllers\Web\DepartmentController;
 use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\Web\EmployeeDashboardController;
-
+use App\Http\Controllers\Web\ReportController;
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -378,12 +378,20 @@ Route::get('/debug-current-payrolls', function() {
         
         // Admin/HR only routes
         Route::middleware(['role:admin,hr'])->group(function () {
-            Route::get('/reports', [App\Http\Controllers\Web\AttendanceController::class, 'reports'])->name('reports');
+            // General reports for admin/hr (This is the old route, keeping it to avoid breaking)
+            Route::get('/reports-old', [App\Http\Controllers\Web\AttendanceController::class, 'reports'])->name('reports.old');
             
             Route::get('/settings', function () {
                 return view('attendance.settings', ['user' => auth()->user()]);
             })->name('settings');
         });
+    });
+
+    // Centralized Reports Module
+    Route::middleware(['role:admin,hr,manager'])->prefix('reports')->name('reports.')->group(function () {
+        Route::get('/', [ReportController::class, 'index'])->name('index');
+        Route::get('/generate', [ReportController::class, 'generate'])->name('generate');
+        Route::post('/export', [ReportController::class, 'export'])->name('export');
     });
     
     // Tax Bracket Management routes (outside attendance prefix)

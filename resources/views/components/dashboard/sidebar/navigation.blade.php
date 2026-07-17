@@ -339,7 +339,6 @@
                 <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }"></i>
             </button>
 
-            <!-- Reports Dropdown Menu -->
             <div x-show="open" 
                  x-transition:enter="transition ease-out duration-200"
                  x-transition:enter-start="opacity-0 transform scale-95"
@@ -348,6 +347,10 @@
                  x-transition:leave-start="opacity-100 transform scale-100"
                  x-transition:leave-end="opacity-0 transform scale-95"
                  class="ml-8 mt-2 space-y-1 bg-gray-50 rounded-lg p-2 border border-gray-200 max-h-96 overflow-y-auto">
+                <a href="{{ route('reports.index') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'reports.index' ? 'bg-white text-blue-600' : '' }}">
+                    <i class="fas fa-file-export mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'reports.index' ? 'text-blue-600' : '' }}"></i>
+                    <span>Consolidated Reports</span>
+                </a>
                 <a href="{{ route('attendance.reports') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'attendance.reports' ? 'bg-white text-blue-600' : '' }}">
                     <i class="fas fa-hourglass-half mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'attendance.reports' ? 'text-blue-600' : '' }}"></i>
                     <span>Time Summary</span>
