@@ -586,7 +586,8 @@
                                         'phic' => $payroll->phic,
                                         'pagibig' => $payroll->hdmf,
                                         'tax' => $payroll->tax_amount,
-                                        'total_deductions' => $payroll->total_deductions,
+                                        'unpaid_leave_deduction' => $payroll->unpaid_leave_deduction,
+                                        'total_deductions' => $payroll->deductions,
                                         'net_pay' => $payroll->net_pay
                                     ];
                                 @endphp
@@ -732,7 +733,8 @@
                             'phic' => $payroll->phic,
                             'pagibig' => $payroll->hdmf,
                             'tax' => $payroll->tax_amount,
-                            'total_deductions' => $payroll->total_deductions,
+                            'unpaid_leave_deduction' => $payroll->unpaid_leave_deduction,
+                            'total_deductions' => $payroll->deductions,
                             'net_pay' => $payroll->net_pay
                         ];
                     @endphp
@@ -838,7 +840,8 @@
                                     'phic' => $payroll->phic,
                                     'pagibig' => $payroll->hdmf,
                                     'tax' => $payroll->tax_amount,
-                                    'total_deductions' => $payroll->total_deductions,
+                                    'unpaid_leave_deduction' => $payroll->unpaid_leave_deduction,
+                                    'total_deductions' => $payroll->deductions,
                                     'net_pay' => $payroll->net_pay
                                 ];
                             @endphp
@@ -1339,6 +1342,14 @@ async function exportPayrollWithCalculations() {
                 <div class="bg-red-50 p-4 rounded-lg">
                     <h4 class="font-medium text-gray-900 mb-2">Deductions</h4>
                     <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span>Unpaid Leave</span>
+                            <span id="modal-ded-unpaid" class="font-medium text-red-600"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Attendance Penalties</span>
+                            <span id="modal-ded-attendance" class="font-medium text-red-600"></span>
+                        </div>
                         <div class="flex justify-between">
                             <span>SSS Contribution</span>
                             <span id="modal-ded-sss" class="font-medium"></span>
@@ -2103,6 +2114,13 @@ function openPayrollModal(payrollId, dataStr) {
             document.getElementById('modal-earn-allow').textContent = formatMoney(data.allowances);
             document.getElementById('modal-earn-total').textContent = formatMoney(data.total_earnings);
             
+            // Calculate Attendance Penalties (Total Deductions - Statutory - Unpaid)
+            const statutory = parseFloat(data.sss || 0) + parseFloat(data.phic || 0) + parseFloat(data.pagibig || 0) + parseFloat(data.tax || 0);
+            const unpaid = parseFloat(data.unpaid_leave_deduction || 0);
+            const attendancePenalties = Math.max(0, parseFloat(data.total_deductions || 0) - statutory - unpaid);
+
+            document.getElementById('modal-ded-unpaid').textContent = formatMoney(unpaid);
+            document.getElementById('modal-ded-attendance').textContent = formatMoney(attendancePenalties);
             document.getElementById('modal-ded-sss').textContent = formatMoney(data.sss);
             document.getElementById('modal-ded-phic').textContent = formatMoney(data.phic);
             document.getElementById('modal-ded-hdmf').textContent = formatMoney(data.pagibig);

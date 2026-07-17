@@ -1166,7 +1166,17 @@ class PayrollGenerationService
 
         // Calculate basic working days and hours
         $daysWorked = $this->calculateDaysWorkedFromRecords($employeeRecords);
-        $basicSalary = $daysWorked * $dailyRate;
+        
+        // Calculate period duration if missing
+        $daysInPeriod = $periodData['days_in_period'] ?? 
+            Carbon::parse($periodData['start_date'])->diffInDays(Carbon::parse($periodData['end_date'])) + 1;
+            
+        // Use fixed monthly or semi-monthly rate for basic salary as requested
+        if ($daysInPeriod >= 25) {
+            $basicSalary = $monthlyRate;
+        } else {
+            $basicSalary = $semiMonthlyRate;
+        }
 
         // Calculate overtime with Excel multipliers
         $overtimeData = $this->calculateOvertimeWithExcelRates($employeeRecords, $hourlyRate);
@@ -1203,8 +1213,11 @@ class PayrollGenerationService
         // Calculate absence deductions
         $absentDeductions = $this->calculateAbsenceDeductions($employeeRecords, $dailyRate);
 
+        // Unpaid leave deduction (personal / emergency leave days × daily rate)
+        $unpaidLeaveDeduction = $leaveData['unpaid_leave_deduction'] ?? 0;
+
         // Total deductions
-        $totalDeductions = $lateDeductions + $absentDeductions +
+        $totalDeductions = $lateDeductions + $absentDeductions + $unpaidLeaveDeduction +
             $statutoryDeductions['sss'] +
             $statutoryDeductions['phic'] +
             $statutoryDeductions['hdmf'];
@@ -1221,15 +1234,13 @@ class PayrollGenerationService
             $holidayData['total_pay'],
             $restDayData['total_pay'],
             $allowances,
-            0, // bonuses
-            $lateDeductions,
-            $absentDeductions
+            0 // bonuses
         );
 
         // Calculate tax
         $taxAmount = $this->calculateTax($grossPay);
 
-        // Calculate net pay
+        // Calculate net pay (Gross Pay minus all deductions)
         $netPay = $grossPay - $totalDeductions - $taxAmount;
 
         return [
@@ -1250,6 +1261,8 @@ class PayrollGenerationService
             'bonuses' => 0,
             'sick_leave_days' => $leaveData['sick_leave_days'] ?? 0,
             'sick_leave_pay' => $leaveData['sick_leave_pay'] ?? 0,
+            'unpaid_leave_days' => $leaveData['unpaid_leave_days'] ?? 0,
+            'unpaid_leave_deduction' => $leaveData['unpaid_leave_deduction'] ?? 0,
             'total_deductions' => $totalDeductions,
             'late_deductions' => $lateDeductions,
             'absent_deductions' => $absentDeductions,
@@ -1485,8 +1498,14 @@ class PayrollGenerationService
      */
     private function calculateApprovedLeaveData(Employee $employee, array $periodData): array
     {
+        // Paid leave types — the employee is compensated for these days.
+        $paidLeaveTypes = ['vacation', 'sick', 'bereavement', 'maternity', 'paternity', 'study'];
+
+        // Unpaid leave types — days are deducted from gross pay.
+        $unpaidLeaveTypes = ['personal', 'emergency'];
+
         $startDate = Carbon::parse($periodData['start_date'])->startOfDay();
-        $endDate = Carbon::parse($periodData['end_date'])->endOfDay();
+        $endDate   = Carbon::parse($periodData['end_date'])->endOfDay();
 
         $leaveRequests = LeaveRequest::where('employee_id', $employee->id)
             ->where('status', 'approved')
@@ -1500,26 +1519,41 @@ class PayrollGenerationService
             })
             ->get();
 
-        $sickLeaveDays = 0;
+        $dailyRate          = $employee->daily_rate ?? 0;
+        $paidLeaveDays      = 0;
+        $unpaidLeaveDays    = 0;
 
         foreach ($leaveRequests as $leaveRequest) {
-            if ($leaveRequest->leave_type !== 'sick') {
-                continue;
-            }
-
             $overlapStart = max(Carbon::parse($leaveRequest->start_date), $startDate);
-            $overlapEnd = min(Carbon::parse($leaveRequest->end_date), $endDate);
+            $overlapEnd   = min(Carbon::parse($leaveRequest->end_date), $endDate);
 
             if ($overlapStart->gt($overlapEnd)) {
                 continue;
             }
 
-            $sickLeaveDays += $overlapStart->diffInDays($overlapEnd) + 1;
+            // Count working days (excluding Sundays) within the overlap window.
+            $days    = 0;
+            $current = $overlapStart->copy()->startOfDay();
+            while ($current->lte($overlapEnd)) {
+                if ($current->dayOfWeek !== Carbon::SUNDAY) {
+                    $days++;
+                }
+                $current->addDay();
+            }
+
+            if (in_array($leaveRequest->leave_type, $paidLeaveTypes, true)) {
+                $paidLeaveDays += $days;
+            } elseif (in_array($leaveRequest->leave_type, $unpaidLeaveTypes, true)) {
+                $unpaidLeaveDays += $days;
+            }
         }
 
         return [
-            'sick_leave_days' => $sickLeaveDays,
-            'sick_leave_pay' => round($sickLeaveDays * $employee->daily_rate, 2),
+            // sick_leave_days / sick_leave_pay kept for DB column compatibility.
+            'sick_leave_days'       => $paidLeaveDays,
+            'sick_leave_pay'        => round($paidLeaveDays * $dailyRate, 2),
+            'unpaid_leave_days'     => $unpaidLeaveDays,
+            'unpaid_leave_deduction'=> round($unpaidLeaveDays * $dailyRate, 2),
         ];
     }
 
@@ -1550,9 +1584,7 @@ class PayrollGenerationService
         $holidayPay,
         $restDayPay,
         $allowances,
-        $bonuses,
-        $lateDeductions,
-        $absentDeductions
+        $bonuses
     ): float {
         // Excel formula pattern from your file:
         // =G14*K14+I14+J14+M14+O14+Q14+S14+U14+W14+Y14-AC14
@@ -1561,7 +1593,9 @@ class PayrollGenerationService
         // G14*K14 = Basic salary
         // I14 = Incentive leave
         // J14, M14, O14, Q14, S14, U14, W14, Y14 = Various premiums and allowances
-        // AC14 = Late deductions
+        
+        // Note: AC14 (Late/Absences) are now handled globally in Total Deductions
+        // so Gross Pay strictly represents Total Earnings before any penalties.
 
         $allowancesTotal = is_array($allowances) ? ($allowances['total'] ?? 0) : $allowances;
 
@@ -1571,9 +1605,7 @@ class PayrollGenerationService
             + $nightDiffPay
             + $holidayPay
             + $restDayPay
-            + $bonuses
-            - $lateDeductions
-            - $absentDeductions;
+            + $bonuses;
 
         return round($grossPay, 2);
     }
@@ -2090,7 +2122,7 @@ class PayrollGenerationService
             'bonuses' => $components['bonuses'],
             'sick_leave_days' => $components['sick_leave_days'],
             'sick_leave_pay' => $components['sick_leave_pay'],
-            'deductions' => $components['late_deductions'] + $components['absent_deductions'],
+            'deductions' => $components['total_deductions'],
             'tax_amount' => $components['tax_amount'],
             'gross_pay' => $components['gross_pay'],
             'net_pay' => $components['net_pay'],
@@ -2171,7 +2203,9 @@ class PayrollGenerationService
                 'bonuses' => $components['bonuses'],
                 'sick_leave_days' => $components['sick_leave_days'] ?? 0,
                 'sick_leave_pay' => $components['sick_leave_pay'] ?? 0,
-                'deductions' => $components['late_deductions'] + $components['absent_deductions'],
+                'unpaid_leave_days' => $components['unpaid_leave_days'] ?? 0,
+                'unpaid_leave_deduction' => $components['unpaid_leave_deduction'] ?? 0,
+                'deductions' => $components['total_deductions'],
                 'sss' => $components['sss'],
                 'phic' => $components['phic'],
                 'hdmf' => $components['hdmf'],
