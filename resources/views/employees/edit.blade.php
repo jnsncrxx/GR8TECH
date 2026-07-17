@@ -95,6 +95,23 @@
                         </div>
                         
                         <div>
+                            <label for="payroll_template_id" class="block text-sm font-medium text-gray-700 mb-2">Payroll Template (Optional)</label>
+                            <select name="payroll_template_id" id="payroll_template_id"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('payroll_template_id') border-red-500 @enderror">
+                                <option value="">System Default (No Template)</option>
+                                @foreach($payrollTemplates as $template)
+                                    <option value="{{ $template->id }}" {{ old('payroll_template_id', $employee->payroll_template_id) == $template->id ? 'selected' : '' }}>
+                                        {{ $template->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500">Overrides Position and System Default templates.</p>
+                            @error('payroll_template_id')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                        
+                        <div>
                             <label for="hire_date" class="block text-sm font-medium text-gray-700 mb-2">Hire Date</label>
                             <input type="date" name="hire_date" id="hire_date" value="{{ old('hire_date', $employee->hire_date->format('Y-m-d')) }}" required
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('hire_date') border-red-500 @enderror">

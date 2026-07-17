@@ -144,7 +144,11 @@
                     <option value="">All Employees</option>
                     @if(isset($employees) && $employees->count() > 0)
                         @foreach($employees as $emp)
-                            <option value="{{ $emp->id }}" data-department-id="{{ $emp->department_id }}" {{ request('employee_id') == $emp->id ? 'selected' : '' }}>
+                            <option value="{{ $emp->id }}"
+                                    data-department-id="{{ $emp->department_id }}"
+                                    data-full-label="{{ $emp->full_name }} - {{ $emp->department->name ?? 'No Department' }}"
+                                    data-short-label="{{ $emp->full_name }}"
+                                    {{ request('employee_id') == $emp->id ? 'selected' : '' }}>
                                 {{ $emp->full_name }} - {{ $emp->department->name ?? 'No Department' }}
                             </option>
                         @endforeach
@@ -185,7 +189,10 @@
                 <input type="date" id="dateTo" name="date_to" value="{{ request('date_to') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
             </div>
         </div>
-        <div class="mt-4 flex justify-end">
+        <div class="mt-4 flex flex-col sm:flex-row justify-end gap-3">
+            <button onclick="clearFilters()" class="w-full sm:w-auto px-6 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium">
+                <i class="fas fa-times mr-2"></i>Clear Filters
+            </button>
             <button onclick="applyFilters()" class="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
                 <i class="fas fa-search mr-2"></i>Apply Filters
             </button>
@@ -618,21 +625,132 @@
 
 <script>
 function applyFilters() {
+    const departmentEl = document.getElementById('department');
+    const department = departmentEl ? departmentEl.value : '';
     const employee = document.getElementById('employee').value;
     const leaveType = document.getElementById('leaveType').value;
     const status = document.getElementById('status').value;
     const dateFrom = document.getElementById('dateFrom').value;
+    const dateTo = document.getElementById('dateTo').value;
 
     // Build query string
     const params = new URLSearchParams();
+    if (department) params.append('department_id', department);
     if (employee) params.append('employee_id', employee);
     if (leaveType) params.append('leave_type', leaveType);
     if (status) params.append('status', status);
     if (dateFrom) params.append('date_from', dateFrom);
+    if (dateTo) params.append('date_to', dateTo);
 
     // Redirect with filters
     window.location.href = '{{ route("attendance.leave-management") }}?' + params.toString();
 }
+
+function clearFilters() {
+    // Redirect with no query params, resetting every filter
+    window.location.href = '{{ route("attendance.leave-management") }}';
+}
+
+// --- Department <-> Employee cascading filters ---
+document.addEventListener('DOMContentLoaded', function () {
+    const departmentSelect = document.getElementById('department');
+    const employeeSelect = document.getElementById('employee');
+
+    if (!departmentSelect || !employeeSelect) return;
+
+    // Snapshot every employee option's data once, before we start mutating
+    // the live <select> (rebuilding it per department, swapping labels).
+    const allEmployeeOptions = Array.from(employeeSelect.options)
+        .filter(opt => opt.value)
+        .map(opt => ({
+            value: opt.value,
+            departmentId: opt.dataset.departmentId || '',
+            fullLabel: opt.dataset.fullLabel || opt.textContent.trim(),
+            shortLabel: opt.dataset.shortLabel || opt.textContent.trim().split(' - ')[0].trim(),
+        }));
+
+    // Rebuild the Employee dropdown to only contain employees in
+    // `departmentId` (or everyone, if empty). Keeps `keepSelected` selected
+    // if it still belongs; otherwise resets to "All Employees".
+    function rebuildEmployeeOptions(departmentId, keepSelected) {
+        const currentValue = keepSelected !== undefined ? keepSelected : employeeSelect.value;
+        employeeSelect.innerHTML = '';
+
+        const allOpt = document.createElement('option');
+        allOpt.value = '';
+        allOpt.textContent = 'All Employees';
+        employeeSelect.appendChild(allOpt);
+
+        let matchedCurrent = false;
+        allEmployeeOptions.forEach(function (emp) {
+            if (departmentId && emp.departmentId !== departmentId) return;
+
+            const opt = document.createElement('option');
+            opt.value = emp.value;
+            opt.dataset.departmentId = emp.departmentId;
+            opt.dataset.fullLabel = emp.fullLabel;
+            opt.dataset.shortLabel = emp.shortLabel;
+
+            const isSelected = emp.value === currentValue;
+            opt.textContent = isSelected ? emp.shortLabel : emp.fullLabel;
+            if (isSelected) {
+                opt.selected = true;
+                matchedCurrent = true;
+            }
+            employeeSelect.appendChild(opt);
+        });
+
+        if (!matchedCurrent) {
+            employeeSelect.value = '';
+        }
+    }
+
+    // While the dropdown is open, every option shows "Name - Department"
+    // (matches how the list should look). While closed, the selected
+    // option shows just the name.
+    function showFullEmployeeLabels() {
+        Array.from(employeeSelect.options).forEach(function (opt) {
+            if (opt.dataset.fullLabel) opt.textContent = opt.dataset.fullLabel;
+        });
+    }
+
+    function showShortSelectedLabel() {
+        const selected = employeeSelect.options[employeeSelect.selectedIndex];
+        if (selected && selected.dataset.shortLabel) {
+            selected.textContent = selected.dataset.shortLabel;
+        }
+    }
+
+    // Department changed -> narrow the Employee list to that department.
+    departmentSelect.addEventListener('change', function () {
+        rebuildEmployeeOptions(departmentSelect.value);
+        showShortSelectedLabel();
+    });
+
+    // Employee changed -> auto-select their Department, and collapse the
+    // displayed label back down to just their name.
+    employeeSelect.addEventListener('change', function () {
+        const selected = employeeSelect.options[employeeSelect.selectedIndex];
+        const deptId = selected ? selected.dataset.departmentId : '';
+        if (deptId) {
+            departmentSelect.value = deptId;
+        }
+        showShortSelectedLabel();
+    });
+
+    // Show the full "Name - Department" text for every option only while
+    // the list is actually open.
+    employeeSelect.addEventListener('mousedown', showFullEmployeeLabels);
+    employeeSelect.addEventListener('focus', showFullEmployeeLabels);
+    employeeSelect.addEventListener('blur', showShortSelectedLabel);
+
+    // Respect a department already selected on page load (e.g. from the
+    // URL query string) by narrowing the employee list immediately.
+    if (departmentSelect.value) {
+        rebuildEmployeeOptions(departmentSelect.value, employeeSelect.value);
+    }
+    showShortSelectedLabel();
+});
 
 // Notification system
 function showNotification(message, type = 'success') {

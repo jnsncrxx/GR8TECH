@@ -8,7 +8,7 @@ use App\Http\Controllers\Web\DepartmentController;
 use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\Web\EmployeeDashboardController;
-
+use App\Http\Controllers\Web\ReportController;
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -81,6 +81,8 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
     Route::resource('positions', App\Http\Controllers\PositionController::class);
 
     // Payroll routes
+    Route::resource('payroll-templates', App\Http\Controllers\Web\PayrollTemplateController::class);
+    Route::post('payroll-templates/{id}/restore', [App\Http\Controllers\Web\PayrollTemplateController::class, 'restore'])->name('payroll-templates.restore');
     Route::resource('payrolls', PayrollController::class);
     Route::post('/payrolls/{payroll}/process', [PayrollController::class, 'process'])->name('payrolls.process');
     Route::get('/payrolls/reports/summary', [PayrollController::class, 'summary'])->name('payrolls.summary');
@@ -381,12 +383,22 @@ Route::get('/debug-current-payrolls', function() {
         Route::middleware(['role:admin,hr'])->group(function () {
             Route::get('/reports', [App\Http\Controllers\Web\AttendanceController::class, 'reports'])->name('reports');
 
+            // General reports for admin/hr (This is the old route, keeping it to avoid breaking)
+            Route::get('/reports-old', [App\Http\Controllers\Web\AttendanceController::class, 'reports'])->name('reports.old');
+            
             Route::get('/settings', function () {
                 return view('attendance.settings', ['user' => auth()->user()]);
             })->name('settings');
         });
     });
 
+    // Centralized Reports Module
+    Route::middleware(['role:admin,hr,manager'])->prefix('reports')->name('reports.')->group(function () {
+        Route::get('/', [ReportController::class, 'index'])->name('index');
+        Route::get('/generate', [ReportController::class, 'generate'])->name('generate');
+        Route::post('/export', [ReportController::class, 'export'])->name('export');
+    });
+    
     // Tax Bracket Management routes (outside attendance prefix)
     Route::resource('tax-brackets', App\Http\Controllers\Web\TaxBracketController::class);
     Route::post('/tax-brackets/calculate', [App\Http\Controllers\Web\TaxBracketController::class, 'calculateTax'])->name('tax-brackets.calculate');

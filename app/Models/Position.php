@@ -63,6 +63,11 @@ class Position extends Model
         return $this->belongsTo(Company::class);
     }
 
+    public function payrollTemplate(): BelongsTo
+    {
+        return $this->belongsTo(PayrollTemplate::class);
+    }
+
     /**
      * Scope to filter by company
      */

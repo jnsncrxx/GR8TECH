@@ -51,6 +51,7 @@ class PayrollController extends Controller
                 'p1.phic',
                 'p1.hdmf',
                 'p1.tax_amount',
+                'p1.unpaid_leave_deduction',
                 'p1.net_pay',
                 'p1.gross_pay',
                 'p1.created_at',
@@ -183,6 +184,7 @@ class PayrollController extends Controller
                 'phic' => $item->phic,
                 'hdmf' => $item->hdmf,
                 'tax_amount' => $item->tax_amount,
+                'unpaid_leave_deduction' => $item->unpaid_leave_deduction,
                 'net_pay' => $item->net_pay,
                 'gross_pay' => $item->gross_pay,
                 'created_at' => $item->created_at,
@@ -239,9 +241,12 @@ class PayrollController extends Controller
             'pending_count' => $allPayrolls->where('status', 'pending')->count(),
             'approved_count' => $allPayrolls->where('status', 'approved')->count(),
             'paid_count' => $allPayrolls->where('status', 'paid')->count(),
+            'canceled_count' => $allPayrolls->where('status', 'canceled')->count(),
         ];
 
-        return view('payroll.index', compact('payrolls', 'employees', 'summary', 'departments'));
+        $payrollTemplates = \App\Models\PayrollTemplate::all();
+        
+        return view('payroll.index', compact('payrolls', 'employees', 'summary', 'departments', 'payrollTemplates'));
     }
 
     public function checkDuplicatePayroll(Request $request)
@@ -2495,7 +2500,8 @@ class PayrollController extends Controller
     {
         $request->validate([
             'start_date' => 'required|date',
-            'end_date' => 'required|date|after:start_date'
+            'end_date' => 'required|date|after:start_date',
+            'payroll_template_id' => 'nullable|exists:payroll_templates,id'
         ]);
 
         try {
@@ -2550,7 +2556,9 @@ class PayrollController extends Controller
             // Generate payroll using the service
             $generatedPayrolls = $this->payrollService->generatePayrollFromComprehensiveData(
                 $periodData,
-                $comprehensiveData
+                $comprehensiveData,
+                null,
+                $request->payroll_template_id
             );
 
             $count = count($generatedPayrolls);
@@ -2567,10 +2575,18 @@ class PayrollController extends Controller
                 ])->with('warning', 'No payroll records were generated. This could be because payroll already exists for this period or there were issues with attendance data.');
             }
 
+            $successMessage = "Generated payroll for {$count} employees!";
+            if ($request->payroll_template_id) {
+                $template = \App\Models\PayrollTemplate::find($request->payroll_template_id);
+                if ($template) {
+                    $successMessage = "Generated payroll on {$template->name} for {$count} employees!";
+                }
+            }
+
             return redirect()->route('payroll.index', [
                 'start_date' => $request->start_date,
                 'end_date' => $request->end_date
-            ])->with('success', "Generated payroll for {$count} employees!");
+            ])->with('success', $successMessage);
         } catch (\Exception $e) {
             Log::error('Payroll generation failed: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
@@ -3756,6 +3772,14 @@ class PayrollController extends Controller
     {
         if (!$attendanceRecord) {
             return 'Absent';
+        }
+
+        if ($attendanceRecord->status === \App\Models\AttendanceRecord::ON_LEAVE) {
+            return 'On Leave';
+        }
+
+        if ($attendanceRecord->status === \App\Models\AttendanceRecord::OFFICIAL_BUSINESS) {
+            return 'Official Business';
         }
 
         if ($attendanceRecord->time_in && $attendanceRecord->time_out) {

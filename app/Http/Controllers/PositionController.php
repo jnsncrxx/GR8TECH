@@ -22,7 +22,9 @@ class PositionController extends Controller
 
     public function create(Request $request)
     {
-        return view('positions.create', ['user' => Auth::user()]);
+        $payrollTemplates = \App\Models\PayrollTemplate::all();
+        $departments = \App\Models\Department::all();
+        return view('positions.form', ['user' => Auth::user(), 'payrollTemplates' => $payrollTemplates, 'departments' => $departments]);
     }
 
     public function store(Request $request)
@@ -37,7 +39,10 @@ class PositionController extends Controller
 
     public function edit($position)
     {
-        return view('positions.edit', ['position' => $position, 'user' => Auth::user()]);
+        $position = Position::findOrFail($position);
+        $payrollTemplates = \App\Models\PayrollTemplate::all();
+        $departments = \App\Models\Department::all();
+        return view('positions.form', ['position' => $position, 'user' => Auth::user(), 'payrollTemplates' => $payrollTemplates, 'departments' => $departments]);
     }
 
     public function update(Request $request, $position)
