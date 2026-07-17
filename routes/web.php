@@ -439,4 +439,11 @@ Route::middleware(['auth', 'verified'])->prefix('employee')->name('employee.')->
     // Dashboard data
     Route::get('/dashboard/data', [EmployeeDashboardController::class, 'getDashboardData'])->name('dashboard.data');
 });
+
+// Personalized routes for employees
+Route::middleware(['auth'])->group(function () {
+    // Employee's own attendance records
+    Route::get('/my-attendance', [App\Http\Controllers\Web\AttendanceController::class, 'myAttendance'])
+        ->name('attendance.my');
+});
 });

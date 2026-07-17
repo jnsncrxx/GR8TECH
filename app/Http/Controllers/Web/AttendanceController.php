@@ -28,19 +28,63 @@ class AttendanceController extends Controller
     public function daily(Request $request)
     {
         $date = $request->query('date') ? Carbon::parse($request->query('date')) : Carbon::now();
+        $user = Auth::user();
+        $userRole = $user->role ?? 'employee';
 
-        // Get all employees
-        $employees = Employee::with('department')
-            ->orderBy('first_name')
-            ->paginate(15);
+        // Check if user is HR or Admin
+        $isHrOrAdmin = in_array($userRole, ['admin', 'hr']);
 
-        // Get attendance records for the date
-        $attendanceRecords = AttendanceRecord::where('date', $date->format('Y-m-d'))
-            ->get()
-            ->keyBy('employee_id');
+        if ($isHrOrAdmin) {
+            // === HR/ADMIN: Makikita LAHAT ng employees ===
+            $employees = Employee::with('department')
+                ->orderBy('first_name')
+                ->paginate(15);
 
-        // Load approved OB details linked to attendance records so the daily
-        // table can display OB Time In, Time Out, and credited hours.
+            $attendanceRecords = AttendanceRecord::where('date', $date->format('Y-m-d'))
+                ->get()
+                ->keyBy('employee_id');
+
+            $total = Employee::count();
+            $present = $attendanceRecords->count();
+            $absent = $total - $present;
+            $late = $attendanceRecords->where('status', 'late')->count();
+            $attendanceRate = $total > 0 ? round(($present / $total) * 100, 2) : 0;
+
+            $summary = [
+                'total_employees' => $total,
+                'present' => $present,
+                'absent' => $absent,
+                'late' => $late,
+                'attendance_rate' => $attendanceRate,
+            ];
+
+        } else {
+            // === EMPLOYEE: Sarili lang ===
+            $employee = Employee::find($user->employee_id);
+
+            if (!$employee) {
+                return redirect()->route('dashboard')->with('error', 'No employee record found.');
+            }
+
+            $employees = Employee::where('id', $employee->id)
+                ->with('department')
+                ->paginate(15);
+
+            $attendanceRecords = AttendanceRecord::where('date', $date->format('Y-m-d'))
+                ->where('employee_id', $employee->id)
+                ->get()
+                ->keyBy('employee_id');
+
+            $summary = [
+                'total_employees' => 1,
+                'present' => $attendanceRecords->count(),
+                'absent' => 0,
+                'late' => $attendanceRecords->where('status', 'late')->count(),
+                'attendance_rate' => $attendanceRecords->count() > 0 ? 100 : 0,
+            ];
+        }
+
+        // Load approved OB details linked to attendance records
         $officialBusinessByAttendanceId = OfficialBusinessRequest::query()
             ->whereDate('date', $date->format('Y-m-d'))
             ->where('status', OfficialBusinessRequest::APPROVED)
@@ -48,24 +92,8 @@ class AttendanceController extends Controller
             ->get()
             ->keyBy('attendance_record_id');
 
-        // Calculate summary statistics
-        // Get total count globally rather than just from the paginator's current page
-        $total = Employee::count();
-        $present = $attendanceRecords->count();
-        $absent = $total - $present;
-        $late = $attendanceRecords->where('status', 'late')->count();
-        $attendanceRate = $total > 0 ? round(($present / $total) * 100, 2) : 0;
-
-        $summary = [
-            'total_employees' => $total,
-            'present' => $present,
-            'absent' => $absent,
-            'late' => $late,
-            'attendance_rate' => $attendanceRate,
-        ];
-
         return view('attendance.daily', [
-            'user' => Auth::user(),
+            'user' => $user,
             'date' => $date,
             'employees' => $employees,
             'attendanceRecords' => $attendanceRecords,
@@ -89,13 +117,8 @@ class AttendanceController extends Controller
     public function timekeeping(Request $request)
     {
         $user = Auth::user();
-
-        $employees = Employee::with('department')
-            ->orderBy('first_name')
-            ->get();
-
-        $departments = \App\Models\Department::orderBy('name')
-            ->get();
+        $userRole = $user->role ?? 'employee';
+        $isHrOrAdmin = in_array($userRole, ['admin', 'hr']);
 
         // Default to last 30 days
         $dateFrom = $request->query('date_from') ? Carbon::parse($request->query('date_from')) : Carbon::now()->subDays(30);
@@ -104,11 +127,19 @@ class AttendanceController extends Controller
         $baseQuery = AttendanceRecord::whereDate('date', '>=', $dateFrom->toDateString())
             ->whereDate('date', '<=', $dateTo->toDateString());
 
-        if ($request->filled('employee_id')) {
+        // If employee (not HR/Admin), filter by their own employee_id
+        if (!$isHrOrAdmin) {
+            $employee = Employee::find($user->employee_id);
+            if ($employee) {
+                $baseQuery->where('employee_id', $employee->id);
+            }
+        }
+
+        if ($request->filled('employee_id') && $isHrOrAdmin) {
             $baseQuery->where('employee_id', $request->employee_id);
         }
 
-        if ($request->filled('department_id')) {
+        if ($request->filled('department_id') && $isHrOrAdmin) {
             $departmentId = $request->department_id;
             $baseQuery->whereHas('employee', function ($query) use ($departmentId) {
                 $query->where('department_id', $departmentId);
@@ -120,8 +151,19 @@ class AttendanceController extends Controller
             ->orderBy('date', 'desc')
             ->paginate(50);
 
+        // Get employees for filter (HR/Admin only)
+        if ($isHrOrAdmin) {
+            $employees = Employee::with('department')
+                ->orderBy('first_name')
+                ->get();
+        } else {
+            $employee = Employee::find($user->employee_id);
+            $employees = $employee ? collect([$employee]) : collect();
+        }
+
+        $departments = \App\Models\Department::orderBy('name')->get();
+
         // Calculate summary statistics
-        // Timekeeping expects: total_hours, regular_hours, overtime_hours, average_hours
         $summary = [
             'total_hours' => 0,
             'regular_hours' => 0,
@@ -156,7 +198,7 @@ class AttendanceController extends Controller
 
         return view('attendance.timekeeping', [
             'user' => $user,
-            'employees' => $employees,
+            'employees' => $employees ?? collect(),
             'departments' => $departments,
             'attendanceRecords' => $attendanceRecords,
             'dateFrom' => $dateFrom,
@@ -179,6 +221,10 @@ class AttendanceController extends Controller
      */
     public function reports(Request $request)
     {
+        $user = Auth::user();
+        $userRole = $user->role ?? 'employee';
+        $isHrOrAdmin = in_array($userRole, ['admin', 'hr']);
+
         $reportType = $request->query('report_type', 'daily');
         $departmentId = $request->query('department_id');
 
@@ -212,7 +258,15 @@ class AttendanceController extends Controller
             ->whereDate('date', '>=', $dateFrom->toDateString())
             ->whereDate('date', '<=', $dateTo->toDateString());
 
-        if ($departmentId) {
+        // If employee (not HR/Admin), filter by their own employee_id
+        if (!$isHrOrAdmin) {
+            $employee = Employee::find($user->employee_id);
+            if ($employee) {
+                $baseQuery->where('employee_id', $employee->id);
+            }
+        }
+
+        if ($departmentId && $isHrOrAdmin) {
             $baseQuery->whereHas('employee', function ($query) use ($departmentId) {
                 $query->where('department_id', $departmentId);
             });
@@ -243,7 +297,12 @@ class AttendanceController extends Controller
                     });
             });
 
-        if ($departmentId) {
+        if (!$isHrOrAdmin) {
+            $employee = Employee::find($user->employee_id);
+            if ($employee) {
+                $approvedLeaveQuery->where('employee_id', $employee->id);
+            }
+        } elseif ($departmentId) {
             $approvedLeaveQuery->whereHas('employee', function ($query) use ($departmentId) {
                 $query->where('department_id', $departmentId);
             });
@@ -348,15 +407,20 @@ class AttendanceController extends Controller
             ->values()
             ->toArray();
 
-        $employees = Employee::with('department')
-            ->orderBy('first_name')
-            ->get();
+        if ($isHrOrAdmin) {
+            $employees = Employee::with('department')
+                ->orderBy('first_name')
+                ->get();
+        } else {
+            $employee = Employee::find($user->employee_id);
+            $employees = $employee ? collect([$employee]) : collect();
+        }
 
         $departments = \App\Models\Department::orderBy('name')
             ->get();
 
         return view('attendance.reports', [
-            'user' => Auth::user(),
+            'user' => $user,
             'dateFrom' => $dateFrom,
             'dateTo' => $dateTo,
             'employees' => $employees,
@@ -397,7 +461,7 @@ class AttendanceController extends Controller
     {
         return view('attendance.import-dtr', [
             'user' => Auth::user(),
-            'recentImports' => collect([]) // Mocking empty collection for now to clear the error
+            'recentImports' => collect([])
         ]);
     }
 
@@ -406,42 +470,28 @@ class AttendanceController extends Controller
      */
     public function processImportDtr(Request $request)
     {
-        // Validate that file is present
         $request->validate([
             'dtr_file' => 'required|file|mimes:csv,xlsx,xls|max:10240',
         ]);
 
         try {
-            // Store uploaded file temporarily
             $file = $request->file('dtr_file');
             $filePath = $file->store('temp_dtr', 'local');
-
-            // Construct the full path using Storage disk path
             $fullPath = Storage::disk('local')->path($filePath);
-
-            // Initialize the DTR Import Service
             $dtrService = new DtrImportService();
-
-            // Parse the DTR data from the file
             $parsedData = $dtrService->parseDtrData($fullPath);
-
-            // Validate the parsed data
             $validation = $dtrService->validateParsedData($parsedData);
 
-            // Store the parsed data in session for review
             session(['imported_records' => $parsedData->toArray()]);
             session(['import_validation' => $validation]);
             session(['import_file_path' => $fullPath]);
 
-            // Clean up the temporary file
             Storage::disk('local')->delete($filePath);
 
-            // Return success response with redirect to review page
             if ($validation['is_valid']) {
                 return redirect()->route('attendance.import-dtr.review')
                     ->with('success', 'DTR file processed successfully. Please review the records before confirming.');
             } else {
-                // Return to import page with errors
                 return redirect()->back()
                     ->withInput()
                     ->with('error', 'DTR file has validation errors. Please check the data and try again.')
@@ -489,7 +539,6 @@ class AttendanceController extends Controller
     public function confirmImportDtr(Request $request)
     {
         try {
-            // Get the imported records from session
             $importedRecords = session('imported_records', []);
 
             if (empty($importedRecords)) {
@@ -497,18 +546,15 @@ class AttendanceController extends Controller
                     ->with('error', 'No imported records found. Please upload a DTR file first.');
             }
 
-            // Get current user for created_by field
             $user = Auth::user();
             $hasCreatedByColumn = Schema::hasColumn('attendance_records', 'created_by');
 
-            // Process and store each record
             $successCount = 0;
             $errorCount = 0;
             $errors = [];
 
             foreach ($importedRecords as $record) {
                 try {
-                    // Find the employee by employee_id
                     $employee = Employee::where('employee_id', $record['employee_id'])->first();
 
                     if (!$employee) {
@@ -517,13 +563,11 @@ class AttendanceController extends Controller
                         continue;
                     }
 
-                    // Check if attendance record already exists
                     $existingRecord = AttendanceRecord::where('employee_id', $employee->id)
                         ->where('date', $record['date'])
                         ->first();
 
                     if ($existingRecord) {
-                        // Update existing record
                         $updatePayload = [
                             'time_in' => $record['time_in'] ? Carbon::parse($record['date'] . ' ' . $record['time_in']) : null,
                             'time_out' => $record['time_out'] ? Carbon::parse($record['date'] . ' ' . $record['time_out']) : null,
@@ -538,7 +582,6 @@ class AttendanceController extends Controller
 
                         $existingRecord->update($updatePayload);
                     } else {
-                        // Create new record
                         $createPayload = [
                             'employee_id' => $employee->id,
                             'date' => $record['date'],
@@ -564,10 +607,8 @@ class AttendanceController extends Controller
                 }
             }
 
-            // Clear session data
             session()->forget(['imported_records', 'import_validation', 'import_file_path']);
 
-            // Prepare message
             $message = "Successfully imported {$successCount} attendance records.";
             if ($errorCount > 0) {
                 $message .= " {$errorCount} records failed to import.";
@@ -607,7 +648,6 @@ class AttendanceController extends Controller
      */
     public function approveTempTimekeeping(Request $request)
     {
-        // TODO: Implement temp timekeeping approval
         return response()->json(['message' => 'Approval not yet implemented'], 501);
     }
 
@@ -631,7 +671,6 @@ class AttendanceController extends Controller
      */
     public function storeRecord(Request $request)
     {
-        // Validate inputs
         $validated = $request->validate([
             'employee_id' => 'required|exists:employees,id',
             'date' => 'required|date',
@@ -645,32 +684,18 @@ class AttendanceController extends Controller
 
         $isOfficialBusiness = $validated['status'] === AttendanceRecord::OFFICIAL_BUSINESS;
 
-        // Official Business always requires Time In/Time Out now — no full-day
-        // option, matching the employee-facing "Apply for Official Business"
-        // form (see OfficialBusinessController::store()). The base validation
-        // above exempts official_business from the generic time_in requirement
-        // (a holdover from when full-day OB needed no times), so enforce it
-        // explicitly here instead.
         if ($isOfficialBusiness && (empty($validated['time_in']) || empty($validated['time_out']))) {
             return redirect()->back()
                 ->withInput()
                 ->with('error', 'Time In and Time Out are required for an Official Business record.');
         }
 
-        // Official Business requires a reason so it's clear why the employee was out
         if ($isOfficialBusiness && empty($validated['notes'])) {
             return redirect()->back()
                 ->withInput()
                 ->with('error', 'Please provide a reason/notes for Official Business.');
         }
 
-        // Cutoff check: manual entries should respect the same payroll cutoff
-        // window as the employee-facing OB form (see
-        // OfficialBusinessController::store()), not bypass it silently.
-        // Admin/HR may still record a closed-period entry (backfills, disputes,
-        // outage recovery), but only with an explicit acknowledgment — never
-        // as a silent default — so there's always a visible trail of when this
-        // happened. Managers get the same hard block as employees would.
         $isCutoffOpen = $this->cutoffPeriods->isOpenForAction($validated['date']);
         $userRole = Auth::user()->role ?? null;
         $canOverrideCutoff = in_array($userRole, ['admin', 'hr']);
@@ -690,7 +715,6 @@ class AttendanceController extends Controller
             }
         }
 
-        // Check existing attendance status for this employee on this date
         $existingRecord = AttendanceRecord::where('employee_id', $validated['employee_id'])
             ->where('date', $validated['date'])
             ->first();
@@ -701,7 +725,6 @@ class AttendanceController extends Controller
                 ->with('error', 'An attendance record already exists for this employee on this date. Please edit the existing record instead.');
         }
 
-        // Build the payload
         $payload = [
             'employee_id' => $validated['employee_id'],
             'date' => $validated['date'],
@@ -709,16 +732,6 @@ class AttendanceController extends Controller
             'notes' => $validated['notes'] ?? null,
         ];
 
-        // Time In/Out/Break are populated identically regardless of status.
-        // Official Business is not a special case here — per the finalized
-        // spec, it's just a clock-based record like any other, so a break
-        // taken during an OB span (e.g. it happens to cross lunchtime) is
-        // handled the exact same way it would be for a regular attendance
-        // record. total_hours/regular_hours/overtime_hours are computed after
-        // the record is created via AttendanceRecord's own calculateTotalHours()
-        // / calculateRegularAndOvertimeHours() (see below) for every status,
-        // not just OB, so there's a single source of truth for this math
-        // instead of duplicating it here.
         $payload['time_in'] = $validated['time_in'] ? Carbon::parse($validated['date'] . ' ' . $validated['time_in']) : null;
         $payload['time_out'] = $validated['time_out'] ? Carbon::parse($validated['date'] . ' ' . $validated['time_out']) : null;
         $payload['break_start'] = $validated['break_start'] ? Carbon::parse($validated['date'] . ' ' . $validated['break_start']) : null;
@@ -731,9 +744,6 @@ class AttendanceController extends Controller
             $payload['created_by'] = Auth::id();
         }
 
-        // Audit trail for the cutoff override above, so a backfilled record
-        // outside the normal window is visibly flagged rather than
-        // indistinguishable from a normal in-window entry.
         if (Schema::hasColumn('attendance_records', 'created_outside_cutoff')) {
             $payload['created_outside_cutoff'] = !$isCutoffOpen;
         }
@@ -741,10 +751,6 @@ class AttendanceController extends Controller
         try {
             $record = AttendanceRecord::create($payload);
 
-            // Keep the Official Business module in sync: manually recording an
-            // Official Business attendance entry here should also create the
-            // matching (already-approved) OfficialBusinessRequest, otherwise it
-            // never shows up on the Official Business page.
             if ($isOfficialBusiness) {
                 OfficialBusinessRequest::create([
                     'employee_id' => $validated['employee_id'],
@@ -756,22 +762,12 @@ class AttendanceController extends Controller
                     'ob_end_time' => $validated['time_out'],
                     'reviewed_by' => Auth::id(),
                     'reviewed_at' => Carbon::now(),
-                    // Same reviewer-tracking as the employee-request approval
-                    // path (see OfficialBusinessController::updateStatus()) —
-                    // without this, a backfilled OB record would silently
-                    // break the reviewer-role reporting everywhere else.
                     'approved_by_role' => Auth::user()->role ?? null,
                     'attendance_record_id' => $record->id,
                     'created_by' => Auth::id(),
-                    // credited_hours filled in right after, once total_hours is
-                    // computed below via the same canonical path every status uses.
                 ]);
             }
 
-            // Compute hours the same way for every status, via AttendanceRecord's
-            // own canonical methods — no separate manual calculation for
-            // non-OB statuses, so this can't drift out of sync with OB's math
-            // (e.g. if the break-subtraction logic ever changes).
             if ($record->time_in && $record->time_out) {
                 $totalHours = $record->calculateTotalHours();
                 $hoursSplit = $record->calculateRegularAndOvertimeHours();
@@ -828,6 +824,61 @@ class AttendanceController extends Controller
             'id' => $id,
             'user' => Auth::user(),
             'employees' => $employees
+        ]);
+    }
+
+    /**
+     * Display employee's own attendance records (EMPLOYEE ONLY)
+     */
+    public function myAttendance(Request $request)
+    {
+        $user = Auth::user();
+        $userRole = $user->role ?? 'employee';
+
+        // Only employees can access this - HR/Admin redirect to main attendance
+        if (in_array($userRole, ['admin', 'hr'])) {
+            return redirect()->route('attendance.daily')
+                ->with('info', 'HR and Admin should use the main attendance page.');
+        }
+
+        $employee = Employee::find($user->employee_id);
+
+        if (!$employee) {
+            return redirect()->route('dashboard')
+                ->with('error', 'No employee record found. Please contact HR.');
+        }
+
+        // Filter by month (default: current month)
+        $month = $request->query('month', Carbon::now()->format('Y-m'));
+
+        try {
+            $dateFrom = Carbon::parse($month . '-01')->startOfMonth();
+            $dateTo = Carbon::parse($month . '-01')->endOfMonth();
+        } catch (\Exception $e) {
+            $month = Carbon::now()->format('Y-m');
+            $dateFrom = Carbon::now()->startOfMonth();
+            $dateTo = Carbon::now()->endOfMonth();
+        }
+
+        // Get employee's attendance records
+        $records = AttendanceRecord::where('employee_id', $employee->id)
+            ->whereBetween('date', [$dateFrom->toDateString(), $dateTo->toDateString()])
+            ->orderBy('date', 'desc')
+            ->paginate(15);
+
+        // Calculate summary
+        $summary = [
+            'total_hours' => $records->sum('total_hours'),
+            'present' => $records->whereIn('status', ['present', 'late'])->count(),
+            'absent' => $records->where('status', 'absent')->count(),
+            'late' => $records->where('status', 'late')->count(),
+        ];
+
+        return view('employee.attendance', [
+            'records' => $records,
+            'summary' => $summary,
+            'month' => $month,
+            'employee' => $employee,
         ]);
     }
 }
