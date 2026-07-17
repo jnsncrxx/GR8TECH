@@ -12,10 +12,6 @@
                 <p class="mt-1 text-sm text-gray-600">Position details and information</p>
             </div>
             <div class="flex space-x-3">
-                <a href="{{ route('positions.edit', $position) }}" class="inline-flex items-center px-4 py-2 bg-yellow-600 border border-transparent rounded-lg font-medium text-white hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition-colors">
-                    <i class="fas fa-edit mr-2"></i>
-                    Edit Position
-                </a>
                 <a href="{{ route('positions.index') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
                     <i class="fas fa-arrow-left mr-2"></i>
                     Back to Positions
@@ -47,8 +43,7 @@
                         </div>
                     </div>
                     <div class="ml-4">
-                        <p class="text-sm font-medium text-gray-500">Department</p>
-                        <p class="text-lg font-bold text-gray-900">{{ $position->department->name ?? 'No Department' }}</p>
+                        <p class="text-lg font-bold text-gray-900"> {{ $position->department?->name ?? 'No Department' }}</p>
                     </div>
                 </div>
             </div>
@@ -92,7 +87,9 @@
                             </div>
                             <div>
                                 <dt class="text-sm font-medium text-gray-500">Department</dt>
-                                <dd class="mt-1 text-sm text-gray-900">{{ $position->department }}</dd>
+                                <dd class="mt-1 text-sm text-gray-900">
+                                    {{ $position->department?->name ?? 'No Department' }}
+                                </dd>
                             </div>
                             <div>
                                 <dt class="text-sm font-medium text-gray-500">Level</dt>
