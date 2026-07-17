@@ -216,7 +216,7 @@ class OfficialBusinessController extends Controller
         $summary = [
             'total' => (clone $summaryBase)->count(),
 
-            'pending' => (clone $summaryBase)
+            'pending' => (clone $summaryBase) 
                 ->pending()
                 ->count(),
 
@@ -249,6 +249,15 @@ class OfficialBusinessController extends Controller
 
                 'reviewerRole' =>
                     $reviewerRole,
+
+                'currentEmployeeId' =>
+                    $employeeId,
+
+                'cutoffDays' =>
+                    config('attendance_cutoff.cutoff_days', [10, 25]),
+
+                'graceHours' =>
+                    config('attendance_cutoff.grace_period_hours', 24),
 
                 'obRequests' =>
                     $obRequests,
@@ -489,6 +498,16 @@ class OfficialBusinessController extends Controller
             return back()->with(
                 'error',
                 'This request has already been reviewed.'
+            );
+        }
+
+        if (
+            $this->currentEmployeeId()
+            && $obRequest->employee_id === $this->currentEmployeeId()
+        ) {
+            abort(
+                403,
+                'You cannot approve or reject your own Official Business request.'
             );
         }
 
