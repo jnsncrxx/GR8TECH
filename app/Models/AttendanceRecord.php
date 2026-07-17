@@ -421,14 +421,53 @@ class AttendanceRecord extends Model
         ];
     }
 
+    // Standard company schedule: 8am-5pm with 1hr lunch, 15 min grace period
+    private const DEFAULT_SHIFT_START = '08:00';
+    private const DEFAULT_SHIFT_END = '17:00';
+    private const DEFAULT_BREAK_MINUTES = 60;
+    private const GRACE_PERIOD_MINUTES = 15;
+
+    // Get the schedule for this date, only if it's a working day
+    private function getWorkingSchedule(): ?EmployeeSchedule
+    {
+        $schedule = $this->employee->getScheduleForDate($this->date);
+
+        if (!$schedule || $schedule->status !== 'Working') {
+            return null;
+        }
+
+        return $schedule;
+    }
+
+    // Expected hours for the day - required_hours if flexible, shift span minus break if fixed
+    public function getExpectedHours(): ?float
+    {
+        $schedule = $this->getWorkingSchedule();
+        if (!$schedule) {
+            return null;
+        }
+
+        if ($schedule->isFlexible()) {
+            return (float) $schedule->required_hours;
+        }
+
+        $start = Carbon::parse($this->date->format('Y-m-d') . ' ' . ($schedule->time_in ?? self::DEFAULT_SHIFT_START));
+        $end = Carbon::parse($this->date->format('Y-m-d') . ' ' . ($schedule->time_out ?? self::DEFAULT_SHIFT_END));
+
+        $spanMinutes = abs($end->diffInMinutes($start));
+        $workingMinutes = max(0, $spanMinutes - self::DEFAULT_BREAK_MINUTES);
+
+        return round($workingMinutes / 60, 2);
+    }
+
     /**
      * Determine whether employee is late.
+     *
+     * Official Business is exempt. Flexible schedules have no
+     * fixed start time so this doesn't apply to them.
      */
     public function isLate(): bool
     {
-        /*
-         * Official Business must not be considered late.
-         */
         if ($this->isOfficialBusiness()) {
             return false;
         }
@@ -437,37 +476,78 @@ class AttendanceRecord extends Model
             return false;
         }
 
-        $schedule = $this->employee
-            ?->getWorkScheduleForDate($this->date);
+        $schedule = $this->getWorkingSchedule();
+        if (!$schedule || $schedule->isFlexible()) {
+            return false;
+        }
 
+        $expectedStartTime = $schedule->time_in ?? self::DEFAULT_SHIFT_START;
+        $expectedTime = Carbon::parse($this->date->format('Y-m-d') . ' ' . $expectedStartTime);
+
+        return Carbon::parse($this->time_in)
+            ->gt($expectedTime->addMinutes(self::GRACE_PERIOD_MINUTES));
+    }
+
+    // How many minutes late, past the grace period
+    public function getLateMinutes(): int
+    {
+        if (!$this->isLate()) {
+            return 0;
+        }
+
+        $schedule = $this->getWorkingSchedule();
+        $expectedStartTime = $schedule->time_in ?? self::DEFAULT_SHIFT_START;
+        $expectedTime = Carbon::parse($this->date->format('Y-m-d') . ' ' . $expectedStartTime)
+            ->addMinutes(self::GRACE_PERIOD_MINUTES);
+
+        return max(0, abs(Carbon::parse($this->time_in)->diffInMinutes($expectedTime)));
+    }
+
+    // Check if employee left before their scheduled end time. Doesn't apply to flexible schedules.
+    public function isUndertime(): bool
+    {
+        if (!$this->time_out) {
+            return false;
+        }
+
+        $schedule = $this->getWorkingSchedule();
+        if (!$schedule || $schedule->isFlexible()) {
+            return false;
+        }
+
+        $expectedEndTime = $schedule->time_out ?? self::DEFAULT_SHIFT_END;
+        $expectedTime = Carbon::parse($this->date->format('Y-m-d') . ' ' . $expectedEndTime);
+
+        return Carbon::parse($this->time_out)->lt($expectedTime);
+    }
+
+    // Fixed schedule: late or undertime = incomplete day.
+    // Flexible schedule: incomplete if actual hours worked is less than required_hours.
+    public function isIncompleteDay(): bool
+    {
+        if (!$this->time_in) {
+            return false;
+        }
+
+        if ($this->isOfficialBusiness()) {
+            return false;
+        }
+
+        $schedule = $this->getWorkingSchedule();
         if (!$schedule) {
             return false;
         }
 
-        $dayOfWeek = strtolower(
-            $this->date->format('l')
-        );
+        if ($schedule->isFlexible()) {
+            $expectedHours = $this->getExpectedHours();
+            if ($expectedHours === null || $expectedHours <= 0) {
+                return false;
+            }
 
-        $expectedStartTime =
-            $schedule->{$dayOfWeek . '_start'};
-
-        if (!$expectedStartTime) {
-            return false;
+            return $this->calculateTotalHours() < $expectedHours;
         }
 
-        $expectedTime = Carbon::parse(
-            $this->date->format('Y-m-d')
-            . ' '
-            . $expectedStartTime
-        );
-
-        /*
-         * 15-minute grace period.
-         */
-        $expectedTime->addMinutes(15);
-
-        return Carbon::parse($this->time_in)
-            ->gt($expectedTime);
+        return $this->isLate() || $this->isUndertime();
     }
 
     /**
