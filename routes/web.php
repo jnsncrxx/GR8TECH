@@ -71,6 +71,8 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
     Route::get('/employees/{employee}/payroll', [EmployeeController::class, 'payroll'])->name('employees.payroll');
 
     // Department routes
+    Route::get('/departments/archived', [DepartmentController::class, 'archived'])->name('departments.archived');
+    Route::put('/departments/{department}/restore', [DepartmentController::class, 'restore'])->name('departments.restore');
     Route::resource('departments', DepartmentController::class);
     Route::get('/departments/{department}/employees', [DepartmentController::class, 'employees'])->name('departments.employees');
     Route::put('/departments/{department}/supervisor', [DepartmentController::class, 'updateSupervisor'])->name('departments.supervisor.update');

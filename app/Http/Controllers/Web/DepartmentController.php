@@ -92,6 +92,36 @@ class DepartmentController extends Controller
             ->with('success', 'Department removed and archived successfully.');
     }
 
+    public function archived()
+    {
+        $currentCompany = CompanyHelper::getCurrentCompany();
+
+        $query = Department::withCount('employees')->with('supervisor')->archived();
+
+        // Filter by current company if set
+        if ($currentCompany) {
+            $query->forCompany($currentCompany->id);
+        }
+
+        $departments = $query->when(request('search'), function ($query) {
+                $query->where('name', 'like', '%' . request('search') . '%');
+            })
+            ->orderByDesc('archived_at')
+            ->paginate(15);
+
+        $user = auth()->user();
+        return view('departments.archived', compact('departments', 'user'));
+    }
+
+    public function restore(Department $department)
+    {
+        $department->archived_at = null;
+        $department->save();
+
+        return redirect()->route('departments.archived')
+            ->with('success', 'Department restored successfully.');
+    }
+
     public function employees(Department $department)
     {
         $currentCompany = CompanyHelper::getCurrentCompany();

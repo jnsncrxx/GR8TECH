@@ -10,7 +10,11 @@
             <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Departments</h1>
             <p class="mt-1 text-sm text-gray-600">Manage company departments and their information</p>
         </div>
-        <div class="mt-4 sm:mt-0">
+        <div class="mt-4 sm:mt-0 flex space-x-3">
+            <a href="{{ route('departments.archived') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                <i class="fas fa-box-archive mr-2"></i>
+                Archived Departments
+            </a>
             <a href="{{ route('departments.create') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
                 <i class="fas fa-plus mr-2"></i>
                 Add Department
