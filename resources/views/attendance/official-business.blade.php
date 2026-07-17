@@ -460,7 +460,7 @@
                             $obStatus = $ob->status;
                             $statusColor = $statusColors[$obStatus] ?? 'bg-gray-100 text-gray-600';
                             $initials = strtoupper(substr($ob->employee->first_name ?? '', 0, 1) . substr($ob->employee->last_name ?? '', 0, 1));
-                            $reviewerName = trim(($ob->reviewer->employee->first_name ?? '') . ' ' . ($ob->reviewer->employee->last_name ?? ''));
+                            $reviewerName = trim(($ob->reviewer?->employee?->first_name ?? '') . ' ' . ($ob->reviewer?->employee?->last_name ?? ''));
                         @endphp
                         <tr class="hover:bg-gray-50 transition-colors">
                             <td class="px-6 py-4 whitespace-nowrap">
@@ -514,7 +514,7 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                                 <div class="flex justify-center items-center space-x-2">
-                                    @if($ob->isPending() && $isReviewer)
+                                    @if($ob->isPending() && $isReviewer && $ob->employee_id !== $currentEmployeeId)
                                         <button onclick="approveOb('{{ $ob->id }}')"
                                                 class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors"
                                                 title="Approve">
@@ -525,7 +525,9 @@
                                                 title="Reject">
                                             <i class="fas fa-times"></i>
                                         </button>
-                                    @elseif($ob->isPending() && !$isReviewer)
+                                    @elseif($ob->isPending() && $isReviewer)
+                                        <span class="text-xs text-gray-400 italic">Your own request</span>
+                                    @elseif($ob->isPending())
                                         <form method="POST" action="{{ route('attendance.official-business.cancel', $ob->id) }}"
                                               onsubmit="return confirm('Cancel this OB request?');">
                                             @csrf
@@ -603,7 +605,7 @@
                         $obStatus = $ob->status;
                         $statusColor = $statusColors[$obStatus] ?? 'bg-gray-100 text-gray-600';
                         $initials = strtoupper(substr($ob->employee->first_name ?? '', 0, 1) . substr($ob->employee->last_name ?? '', 0, 1));
-                        $reviewerName = trim(($ob->reviewer->employee->first_name ?? '') . ' ' . ($ob->reviewer->employee->last_name ?? ''));
+                       $reviewerName = trim(($ob->reviewer?->employee?->first_name ?? '') . ' ' . ($ob->reviewer?->employee?->last_name ?? ''));
                     @endphp
                     <div class="border border-gray-200 rounded-lg p-4">
                         <div class="flex items-center justify-between mb-3">
@@ -661,7 +663,7 @@
                         </div>
                         @if($ob->isPending())
                         <div class="flex justify-end items-center space-x-2">
-                            @if($isReviewer)
+                            @if($isReviewer && $ob->employee_id !== $currentEmployeeId)
                                 <button onclick="approveOb('{{ $ob->id }}')"
                                         class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
                                         title="Approve">
@@ -672,6 +674,8 @@
                                         title="Reject">
                                     <i class="fas fa-times"></i>
                                 </button>
+                            @elseif($isReviewer)
+                                <span class="text-xs text-gray-400 italic">Your own request</span>
                             @else
                                 <form method="POST" action="{{ route('attendance.official-business.cancel', $ob->id) }}"
                                       onsubmit="return confirm('Cancel this OB request?');">
@@ -969,9 +973,13 @@ function updateObDuration() {
     return true;
 }
 
-// Lightweight client-side mirror of CutoffPeriodService's default 10th/25th
-// boundaries, purely to warn early. The server (via CutoffPeriodService) is
-// the actual source of truth and re-checks this on submit.
+// Client-side warning only, purely to give early feedback. The server (via
+// CutoffPeriodService) is the actual source of truth and re-checks this on
+// submit. Values below come from config/attendance_cutoff.php via the
+// controller, so this can never drift out of sync with the server rule.
+const OB_CUTOFF_DAYS = @json($cutoffDays ?? [10, 25]);
+const OB_GRACE_HOURS = @json($graceHours ?? 24);
+
 function checkObCutoffWarning() {
     const warningEl = document.getElementById('obCutoffWarning');
     const dateInput = document.getElementById('obDate');
@@ -982,8 +990,10 @@ function checkObCutoffWarning() {
     }
 
     const selected = new Date(`${dateInput.value}T00:00:00`);
-    const cutoffDays = [10, 25];
-    const graceHours = 24;
+    const cutoffDays = OB_CUTOFF_DAYS;
+    const graceHours = OB_GRACE_HOURS;
+
+    // Find the end-of-period cutoff date on/after the selected date.
     let periodEnd = null;
 
     // Mirror the server cutoff calendar only for early UI feedback.

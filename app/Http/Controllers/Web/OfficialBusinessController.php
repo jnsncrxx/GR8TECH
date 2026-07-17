@@ -200,6 +200,7 @@ class OfficialBusinessController extends Controller
             ->orderBy('last_name')
             ->get();
 
+
         $calendarRequests = collect();
 
         if (!$isReviewer && $employeeId) {
@@ -224,6 +225,9 @@ class OfficialBusinessController extends Controller
             'pageTitle' => 'Official Business',
             'isReviewer' => $isReviewer,
             'reviewerRole' => $reviewerRole,
+            'currentEmployeeId' => $employeeId,
+            'cutoffDays' => config('attendance_cutoff.cutoff_days', [10, 25]),
+            'graceHours' => config('attendance_cutoff.grace_period_hours', 24),
             'obRequests' => $obRequests,
             'summary' => $summary,
             'departments' => $departments,
@@ -272,6 +276,7 @@ class OfficialBusinessController extends Controller
             )->setPaper('a4', 'landscape')
                 ->download("official-business_{$timestamp}.pdf");
         }
+
 
         $export = new OfficialBusinessExport($requests);
 
@@ -518,6 +523,16 @@ class OfficialBusinessController extends Controller
             return back()->with(
                 'error',
                 'This request has already been reviewed.'
+            );
+        }
+
+        if (
+            $this->currentEmployeeId()
+            && $obRequest->employee_id === $this->currentEmployeeId()
+        ) {
+            abort(
+                403,
+                'You cannot approve or reject your own Official Business request.'
             );
         }
 
