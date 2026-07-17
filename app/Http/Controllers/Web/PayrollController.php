@@ -51,6 +51,7 @@ class PayrollController extends Controller
                 'p1.phic',
                 'p1.hdmf',
                 'p1.tax_amount',
+                'p1.unpaid_leave_deduction',
                 'p1.net_pay',
                 'p1.gross_pay',
                 'p1.created_at',
@@ -183,6 +184,7 @@ class PayrollController extends Controller
                 'phic' => $item->phic,
                 'hdmf' => $item->hdmf,
                 'tax_amount' => $item->tax_amount,
+                'unpaid_leave_deduction' => $item->unpaid_leave_deduction,
                 'net_pay' => $item->net_pay,
                 'gross_pay' => $item->gross_pay,
                 'created_at' => $item->created_at,
@@ -3756,6 +3758,14 @@ class PayrollController extends Controller
     {
         if (!$attendanceRecord) {
             return 'Absent';
+        }
+
+        if ($attendanceRecord->status === \App\Models\AttendanceRecord::ON_LEAVE) {
+            return 'On Leave';
+        }
+
+        if ($attendanceRecord->status === \App\Models\AttendanceRecord::OFFICIAL_BUSINESS) {
+            return 'Official Business';
         }
 
         if ($attendanceRecord->time_in && $attendanceRecord->time_out) {
