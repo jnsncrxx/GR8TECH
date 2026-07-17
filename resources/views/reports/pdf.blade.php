@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{{ ucfirst($type) }} Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 18px;
+            text-transform: uppercase;
+        }
+        .header p {
+            margin: 5px 0 0;
+            color: #666;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f4f4f4;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{ ucfirst($type) }} Report</h1>
+        <p>
+            @if($startDate && $endDate)
+                From: {{ \Carbon\Carbon::parse($startDate)->format('M d, Y') }} - To: {{ \Carbon\Carbon::parse($endDate)->format('M d, Y') }}
+            @else
+                All Time
+            @endif
+        </p>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                @if($type === 'attendance')
+                    <th>Employee Name</th>
+                    <th>Department</th>
+                    <th>Date</th>
+                    <th>Time In</th>
+                    <th>Time Out</th>
+                    <th>Status</th>
+                @elseif($type === 'leave')
+                    <th>Employee Name</th>
+                    <th>Department</th>
+                    <th>Leave Type</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Status</th>
+                @elseif($type === 'payroll')
+                    <th>Employee Name</th>
+                    <th>Department</th>
+                    <th>Pay Period</th>
+                    <th>Gross Pay</th>
+                    <th>Deductions</th>
+                    <th>Net Pay</th>
+                    <th>Status</th>
+                @endif
+            </tr>
+        </thead>
+        <tbody>
+            @forelse($data as $row)
+                <tr>
+                    @if($type === 'attendance')
+                        <td>{{ optional($row->employee)->full_name ?? 'N/A' }}</td>
+                        <td>{{ optional(optional($row->employee)->department)->name ?? 'N/A' }}</td>
+                        <td>{{ \Carbon\Carbon::parse($row->date)->format('M d, Y') }}</td>
+                        <td>{{ $row->time_in ? \Carbon\Carbon::parse($row->time_in)->format('h:i A') : '--' }}</td>
+                        <td>{{ $row->time_out ? \Carbon\Carbon::parse($row->time_out)->format('h:i A') : '--' }}</td>
+                        <td>{{ ucfirst($row->status) }}</td>
+                    @elseif($type === 'leave')
+                        <td>{{ optional($row->employee)->full_name ?? 'N/A' }}</td>
+                        <td>{{ optional(optional($row->employee)->department)->name ?? 'N/A' }}</td>
+                        <td>{{ $row->leave_type ? \App\Models\LeaveRequest::labelFor($row->leave_type) : 'N/A' }}</td>
+                        <td>{{ \Carbon\Carbon::parse($row->start_date)->format('M d, Y') }}</td>
+                        <td>{{ \Carbon\Carbon::parse($row->end_date)->format('M d, Y') }}</td>
+                        <td>{{ ucfirst($row->status) }}</td>
+                    @elseif($type === 'payroll')
+                        <td>{{ optional($row->employee)->full_name ?? 'N/A' }}</td>
+                        <td>{{ optional(optional($row->employee)->department)->name ?? 'N/A' }}</td>
+                        <td>{{ \Carbon\Carbon::parse($row->pay_period_start)->format('M d') }} - {{ \Carbon\Carbon::parse($row->pay_period_end)->format('M d, Y') }}</td>
+                        <td>{{ number_format($row->gross_pay, 2) }}</td>
+                        <td>{{ number_format($row->deductions, 2) }}</td>
+                        <td>{{ number_format($row->net_pay, 2) }}</td>
+                        <td>{{ ucfirst($row->status) }}</td>
+                    @endif
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="6" style="text-align: center;">No records found.</td>
+                </tr>
+            @endforelse
+        </tbody>
+    </table>
+</body>
+</html>
