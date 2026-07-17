@@ -10,7 +10,7 @@ class DepartmentController extends Controller
 {
     public function index()
     {
-        $departments = Department::withCount('employees')->paginate(15);
+        $departments = Department::withCount('employees')->active()->paginate(15);
         return response()->json($departments);
     }
 
@@ -48,7 +48,8 @@ class DepartmentController extends Controller
 
     public function destroy(Department $department)
     {
-        $department->delete();
+        $department->archived_at = \Illuminate\Support\Carbon::now();
+        $department->save();
 
         return response()->json(null, 204);
     }
