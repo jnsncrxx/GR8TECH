@@ -1,0 +1,22 @@
+Implement attendance policy: schedules, late/undertime/absence, payroll integration
+
+Attendance Module (Issue #4)
+- Add fixed vs flexible schedule support to EmployeeSchedule (schedule_type, required_hours columns + migration)
+- Compute expected working hours per day, accounting for lunch break deduction
+- Implement 15-minute grace period for late arrivals
+- Flag undertime when employee leaves before scheduled end time
+- Add isIncompleteDay() to detect incomplete days for both fixed and flexible schedules
+- Add attendance:mark-absent console command, scheduled daily at 5:15 PM
+
+Payroll Integration
+- Fix getScheduleStatus() which always returned 'Day Off' due to checking non-existent properties
+- Fix late_minutes which always evaluated to 0 due to a non-existent column
+- Wire is_incomplete_day into payroll deduction calculation
+- Fix deductions column double-counting statutory deductions on the payslip display
+
+Known issues flagged for other modules (not fixed here)
+- Net pay double-subtracts late/absent deductions (Payroll module, Issue #5)
+- editRecord() in AttendanceController doesn't pass $attendanceRecord to the view
+- Leave approval doesn't create an AttendanceRecord/update EmployeeSchedule, unlike Official Business which already does this correctly
+
+Tested manually via tinker + UI: break subtraction, late/grace period, undertime, incomplete day (fixed and flexible), auto-absence marking, and full payroll generation.

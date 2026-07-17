@@ -96,11 +96,24 @@ class EmployeeSchedule extends Model
     {
         return match ($this->status) {
             'Working' => 'green',
-            'Day Off' => 'gray',
-            'Leave' => 'yellow',
-            'Holiday' => 'red',
+            'Day Off' => 'yellow',
+            'Leave', 'Holiday', 'Regular Holiday', 'Special Holiday', 'Absent' => 'red',
             'Overtime' => 'blue',
             default => 'gray'
+        };
+    }
+
+    // display label only, db value stays 'Working'
+    public function getStatusLabelAttribute(): string
+    {
+        return self::statusLabel($this->status);
+    }
+
+    public static function statusLabel(?string $status): string
+    {
+        return match ($status) {
+            'Working' => 'On Duty',
+            default => $status ?? '',
         };
     }
 

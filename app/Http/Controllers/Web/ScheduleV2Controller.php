@@ -14,25 +14,24 @@ class ScheduleV2Controller extends Controller
         $selectedDepartment = $request->query('department_id', '');
         $selectedMonth = $request->query('month', now()->month);
         $selectedYear = $request->query('year', now()->year);
-        
+
         $departments = \App\Models\Department::orderBy('name')->get();
         $allEmployees = \App\Models\Employee::with('department')->orderBy('first_name')->get();
-        
-        $employees = collect();
-        if ($selectedDepartment || $searchQuery) {
-            $query = \App\Models\Employee::with(['department', 'position']);
-            if ($selectedDepartment) {
-                $query->where('department_id', $selectedDepartment);
-            }
-            if ($searchQuery) {
-                $query->where(function($q) use ($searchQuery) {
-                    $q->where('first_name', 'like', "%{$searchQuery}%")
-                      ->orWhere('last_name', 'like', "%{$searchQuery}%")
-                      ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$searchQuery}%"]);
-                });
-            }
-            $employees = $query->get();
+
+        // always run the query now, so a fresh page load shows everyone by default
+        // (empty department/search just means no WHERE clause = all employees)
+        $query = \App\Models\Employee::with(['department', 'position']);
+        if ($selectedDepartment) {
+            $query->where('department_id', $selectedDepartment);
         }
+        if ($searchQuery) {
+            $query->where(function ($q) use ($searchQuery) {
+                $q->where('first_name', 'like', "%{$searchQuery}%")
+                    ->orWhere('last_name', 'like', "%{$searchQuery}%")
+                    ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$searchQuery}%"]);
+            });
+        }
+        $employees = $query->get();
 
         // Build the list of days in the selected month, e.g. for July 2026:
         // [['day' => 1, 'date' => Carbon('2026-07-01')], ['day' => 2, 'date' => Carbon('2026-07-02')], ...]

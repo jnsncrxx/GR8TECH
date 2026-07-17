@@ -1,4 +1,4 @@
-@extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'attendance.timekeeping'])
+@extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'schedule-v2.index'])
 
 @section('title', 'Schedule Management V2')
 
@@ -151,7 +151,7 @@
     </div>
 
     <!-- Schedule Grid -->
-    @if(($selectedDepartment || $searchQuery) && $employees->count() > 0)
+    @if($employees->count() > 0)
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <!-- Calendar Header -->
@@ -184,7 +184,7 @@
                     <div class="flex items-center space-x-2 text-sm text-gray-600">
                         <span class="flex items-center">
                             <div class="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
-                            Working
+                            On Duty
                         </span>
                         <span class="flex items-center">
                             <div class="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
@@ -249,10 +249,24 @@
                                             value="{{ $schedule->id }}"
                                             onchange="updateBulkDeleteButton()">
                                     </div>
-                                    <div class="text-xs font-medium text-gray-900 mb-1">
-                                        {{ $schedule->status }}
+                                    @php
+                                    $statusTextClass = match($schedule->status_color) {
+                                    'green' => 'text-green-700',
+                                    'yellow' => 'text-yellow-700',
+                                    'red' => 'text-red-700',
+                                    'blue' => 'text-blue-700',
+                                    default => 'text-gray-700',
+                                    };
+                                    @endphp
+                                    <div class="text-xs font-medium {{ $statusTextClass }} mb-1">
+                                        {{ $schedule->status_label }}
                                     </div>
-                                    @if($schedule->time_in && $schedule->time_out)
+                                    @php
+                                    // don't show times for statuses where time doesn't apply
+                                    $noTimeStatuses = ['Day Off', 'Leave', 'Holiday', 'Regular Holiday', 'Special Holiday'];
+                                    $showTime = $schedule->time_in && $schedule->time_out && !in_array($schedule->status, $noTimeStatuses);
+                                    @endphp
+                                    @if($showTime)
                                     <div class="text-xs text-gray-600">
                                         {{ \Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_in)->format('H:i') }}-{{ \Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_out)->format('H:i') }}
                                     </div>
@@ -269,11 +283,13 @@
                                 @endphp
                                 <div class="inline-block">
                                     <div class="text-xs font-medium {{ $isWeekday ? 'text-green-700' : 'text-yellow-700' }} mb-1">
-                                        {{ $isWeekday ? 'Working' : 'Day Off' }}
+                                        {{ $isWeekday ? 'On Duty' : 'Day Off' }}
                                     </div>
+                                    @if($isWeekday)
                                     <div class="text-xs text-gray-600">
-                                        {{ $isWeekday ? '09:00-17:00' : '-' }}
+                                        09:00-17:00
                                     </div>
+                                    @endif
                                     <div class="mt-1">
                                         <a href="{{ route('schedule-v2.create', array_merge(['employee_id' => $employee->id, 'date' => $day['date']->format('Y-m-d')], array_filter(['department_id' => $selectedDepartment, 'month' => $selectedMonth, 'year' => $selectedYear, 'search' => $searchQuery]))) }}" class="text-blue-600 hover:text-blue-900 text-xs" title="Create or customize schedule">
                                             <i class="fas fa-pen"></i>
@@ -444,7 +460,7 @@
                                     <i class="fas fa-tasks mr-1"></i>Status
                                 </label>
                                 <select name="status" id="bulk_status" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                    <option value="Working">Working</option>
+                                    <option value="Working">On Duty</option>
                                     <option value="Day Off">Day Off</option>
                                     <option value="Leave">Leave</option>
                                     <option value="Regular Holiday">Regular Holiday</option>
@@ -1144,7 +1160,7 @@
                                     <i class="fas fa-tasks mr-1"></i>Status
                                 </label>
                         <select id="statusSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
-                            <option value="Working">Working</option>
+                            <option value="Working">On Duty</option>
                             <option value="Day Off">Day Off</option>
                             <option value="Leave">Leave</option>
                             <option value="Absent">Absent</option>
