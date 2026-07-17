@@ -137,6 +137,11 @@ class Employee extends Model
         return $this->hasMany(AttendanceRecord::class);
     }
 
+    public function payrollTemplate(): BelongsTo
+    {
+        return $this->belongsTo(PayrollTemplate::class);
+    }
+
     public function workSchedules(): HasMany
     {
         return $this->hasMany(WorkSchedule::class);

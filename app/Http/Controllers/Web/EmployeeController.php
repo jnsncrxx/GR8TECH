@@ -63,8 +63,10 @@ class EmployeeController extends Controller
         }
         $positions = $positions->active()->with('department')->orderBy('name')->get();
         
+        $payrollTemplates = \App\Models\PayrollTemplate::all();
+        
         $user = Auth::user();
-        return view('employees.create', compact('departments', 'positions', 'user'));
+        return view('employees.create', compact('departments', 'positions', 'payrollTemplates', 'user'));
     }
 
     /**
@@ -103,6 +105,7 @@ class EmployeeController extends Controller
             'loan_monthly_amortization' => 'nullable|numeric|min:0',
             'password' => 'required|string|min:8',
             'employee_id' => 'nullable|string|max:50|unique:employees,employee_id',
+            'payroll_template_id' => 'nullable|exists:payroll_templates,id',
         ]);
 
         $currentCompany = CompanyHelper::getCurrentCompany();
@@ -147,6 +150,7 @@ class EmployeeController extends Controller
             'loan_end_date' => $request->loan_end_date,
             'loan_total_amount' => $request->loan_total_amount,
             'loan_monthly_amortization' => $request->loan_monthly_amortization,
+            'payroll_template_id' => $request->payroll_template_id,
         ];
         
         if ($currentCompany) {
@@ -242,9 +246,11 @@ class EmployeeController extends Controller
         }
         $positions = $positions->active()->with('department')->orderBy('name')->get();
         
+        $payrollTemplates = \App\Models\PayrollTemplate::all();
+        
         $employee->load('account');
         $user = Auth::user();
-        return view('employees.edit', compact('employee', 'departments', 'positions', 'user'));
+        return view('employees.edit', compact('employee', 'departments', 'positions', 'payrollTemplates', 'user'));
     }
 
     /**
@@ -282,6 +288,7 @@ class EmployeeController extends Controller
             'loan_total_amount' => 'nullable|numeric|min:0',
             'loan_monthly_amortization' => 'nullable|numeric|min:0',
             'role' => 'required|in:admin,hr,manager,employee',
+            'payroll_template_id' => 'nullable|exists:payroll_templates,id',
         ]);
 
         $currentCompany = CompanyHelper::getCurrentCompany();
@@ -325,6 +332,7 @@ class EmployeeController extends Controller
             'loan_end_date' => $request->loan_end_date,
             'loan_total_amount' => $request->loan_total_amount,
             'loan_monthly_amortization' => $request->loan_monthly_amortization,
+            'payroll_template_id' => $request->payroll_template_id,
         ]);
 
         // Update account if it exists

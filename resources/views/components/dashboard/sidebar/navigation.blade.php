@@ -118,12 +118,44 @@
         @endif
         
         @if($user->role === 'admin' || $user->role === 'hr' || $user->role === 'manager')
-        <!-- Payroll -->
-        <a href="{{ route('payroll.index') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ $activeRoute === 'payroll.index' ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
-            <i class="fas fa-money-bill-wave mr-3 text-lg {{ $activeRoute === 'payroll.index' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
-            <span>Payroll</span>
-            <span class="ml-auto bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full">New</span>
-        </a>
+        <!-- Payroll Dropdown -->
+        <div class="relative" x-data="{ 
+            open: {{ in_array($activeRoute, ['payroll.index', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'true' : 'false' }}
+        }">
+            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, ['payroll.index', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+                <div class="flex items-center">
+                    <i class="fas fa-money-bill-wave mr-3 text-lg {{ in_array($activeRoute, ['payroll.index', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
+                    <span>Payroll</span>
+                </div>
+                <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }"></i>
+            </button>
+            
+            <!-- Dropdown Menu -->
+            <div x-show="open" 
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 transform scale-95"
+                 x-transition:enter-end="opacity-100 transform scale-100"
+                 x-transition:leave="transition ease-in duration-150"
+                 x-transition:leave-start="opacity-100 transform scale-100"
+                 x-transition:leave-end="opacity-0 transform scale-95"
+                 class="ml-8 mt-2 space-y-1 bg-gray-50 rounded-lg p-2 border border-gray-200">
+                
+                <!-- Payroll Index -->
+                <a href="{{ route('payroll.index') }}" 
+                   class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'payroll.index' ? 'bg-white text-blue-600' : '' }}">
+                    <i class="fas fa-list mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'payroll.index' ? 'text-blue-600' : '' }}"></i>
+                    <span>Payroll List</span>
+                </a>
+                
+                <!-- Payroll Templates -->
+                <a href="{{ route('payroll-templates.index') }}" 
+                   class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ in_array($activeRoute, ['payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'bg-white text-blue-600' : '' }}">
+                    <i class="fas fa-file-invoice mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ in_array($activeRoute, ['payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'text-blue-600' : '' }}"></i>
+                    <span>Payroll Templates</span>
+                </a>
+                
+            </div>
+        </div>
         @endif
         
         <!-- Attendance Dropdown -->
@@ -307,7 +339,6 @@
                 <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }"></i>
             </button>
 
-            <!-- Reports Dropdown Menu -->
             <div x-show="open" 
                  x-transition:enter="transition ease-out duration-200"
                  x-transition:enter-start="opacity-0 transform scale-95"
@@ -316,6 +347,10 @@
                  x-transition:leave-start="opacity-100 transform scale-100"
                  x-transition:leave-end="opacity-0 transform scale-95"
                  class="ml-8 mt-2 space-y-1 bg-gray-50 rounded-lg p-2 border border-gray-200 max-h-96 overflow-y-auto">
+                <a href="{{ route('reports.index') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'reports.index' ? 'bg-white text-blue-600' : '' }}">
+                    <i class="fas fa-file-export mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'reports.index' ? 'text-blue-600' : '' }}"></i>
+                    <span>Consolidated Reports</span>
+                </a>
                 <a href="{{ route('attendance.reports') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'attendance.reports' ? 'bg-white text-blue-600' : '' }}">
                     <i class="fas fa-hourglass-half mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'attendance.reports' ? 'text-blue-600' : '' }}"></i>
                     <span>Time Summary</span>

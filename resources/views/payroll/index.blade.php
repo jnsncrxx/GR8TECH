@@ -15,6 +15,7 @@
             @csrf
             <input type="hidden" name="start_date" id="generateStartDate" value="">
             <input type="hidden" name="end_date" id="generateEndDate" value="">
+            <input type="hidden" name="payroll_template_id" id="generateTemplateId" value="">
             <button type="button" onclick="generatePayroll()" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
                 <i class="fas fa-plus mr-2"></i>
                 Generate Payroll
@@ -163,6 +164,7 @@
                         <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
                         <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Approved</option>
                         <option value="paid" {{ request('status') == 'paid' ? 'selected' : '' }}>Paid</option>
+                        <option value="canceled" {{ request('status') == 'canceled' ? 'selected' : '' }}>Canceled</option>
                     </select>
                 </div>
                 
@@ -412,7 +414,7 @@
             </div>
         </div>
         
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div class="text-center p-4 bg-gray-50 rounded-lg">
                 <div class="text-2xl font-bold text-gray-900">{{ $summary['pending_count'] }}</div>
                 <div class="text-sm text-gray-600">Pending Review</div>
@@ -424,6 +426,10 @@
             <div class="text-center p-4 bg-gray-50 rounded-lg">
                 <div class="text-2xl font-bold text-gray-900">{{ $summary['paid_count'] }}</div>
                 <div class="text-sm text-gray-600">Paid</div>
+            </div>
+            <div class="text-center p-4 bg-gray-50 rounded-lg">
+                <div class="text-2xl font-bold text-gray-900">{{ $summary['canceled_count'] }}</div>
+                <div class="text-sm text-gray-600">Canceled</div>
             </div>
         </div>
     </div>
@@ -449,6 +455,7 @@
                             <button onclick="applyStatusFilter('pending')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('status') == 'pending' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Pending</button>
                             <button onclick="applyStatusFilter('approved')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('status') == 'approved' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Approved</button>
                             <button onclick="applyStatusFilter('paid')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('status') == 'paid' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Paid</button>
+                            <button onclick="applyStatusFilter('canceled')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('status') == 'canceled' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Canceled</button>
                         </div>
                     </div>
                 </div>
@@ -579,7 +586,8 @@
                                         'phic' => $payroll->phic,
                                         'pagibig' => $payroll->hdmf,
                                         'tax' => $payroll->tax_amount,
-                                        'total_deductions' => $payroll->total_deductions,
+                                        'unpaid_leave_deduction' => $payroll->unpaid_leave_deduction,
+                                        'total_deductions' => $payroll->deductions,
                                         'net_pay' => $payroll->net_pay
                                     ];
                                 @endphp
@@ -725,7 +733,8 @@
                             'phic' => $payroll->phic,
                             'pagibig' => $payroll->hdmf,
                             'tax' => $payroll->tax_amount,
-                            'total_deductions' => $payroll->total_deductions,
+                            'unpaid_leave_deduction' => $payroll->unpaid_leave_deduction,
+                            'total_deductions' => $payroll->deductions,
                             'net_pay' => $payroll->net_pay
                         ];
                     @endphp
@@ -831,7 +840,8 @@
                                     'phic' => $payroll->phic,
                                     'pagibig' => $payroll->hdmf,
                                     'tax' => $payroll->tax_amount,
-                                    'total_deductions' => $payroll->total_deductions,
+                                    'unpaid_leave_deduction' => $payroll->unpaid_leave_deduction,
+                                    'total_deductions' => $payroll->deductions,
                                     'net_pay' => $payroll->net_pay
                                 ];
                             @endphp
@@ -1040,7 +1050,21 @@
                 <i class="fas fa-file-invoice-dollar text-blue-600 text-xl"></i>
             </div>
             <h3 class="text-lg font-medium text-gray-900 text-center mb-2">Generate Payroll</h3>
-            <p class="text-sm text-gray-500 text-center mb-6">Are you sure you want to generate payroll for the selected period? This action will calculate salaries, deductions, and net pay for all eligible employees based on their attendance.</p>
+            <p class="text-sm text-gray-500 text-center mb-4">Are you sure you want to generate payroll for the selected period? This action will calculate salaries, deductions, and net pay for all eligible employees based on their attendance.</p>
+            
+            <div class="mb-6">
+                <label for="modalPayrollTemplate" class="block text-sm font-medium text-gray-700 mb-1">Override Payroll Template (Optional)</label>
+                <select id="modalPayrollTemplate" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                    <option value="">System Default / Employee's Assigned Template</option>
+                    @if(isset($payrollTemplates))
+                        @foreach($payrollTemplates as $template)
+                            <option value="{{ $template->id }}">{{ $template->name }}</option>
+                        @endforeach
+                    @endif
+                </select>
+                <p class="mt-1 text-xs text-gray-500">If selected, this will force all generated payrolls to use this specific template.</p>
+            </div>
+            
             <div class="flex justify-end space-x-3">
                 <button type="button" onclick="closeGeneratePayrollModal()" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
                     Cancel
@@ -1147,6 +1171,8 @@ window.closeGeneratePayrollModal = function() {
 
 window.confirmGeneratePayroll = function() {
     document.getElementById('generatePayrollConfirmModal').style.display = 'none';
+    const selectedTemplate = document.getElementById('modalPayrollTemplate').value;
+    document.getElementById('generateTemplateId').value = selectedTemplate;
     document.getElementById('generatePayrollForm').submit();
 };
 
@@ -1316,6 +1342,14 @@ async function exportPayrollWithCalculations() {
                 <div class="bg-red-50 p-4 rounded-lg">
                     <h4 class="font-medium text-gray-900 mb-2">Deductions</h4>
                     <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span>Unpaid Leave</span>
+                            <span id="modal-ded-unpaid" class="font-medium text-red-600"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Attendance Penalties</span>
+                            <span id="modal-ded-attendance" class="font-medium text-red-600"></span>
+                        </div>
                         <div class="flex justify-between">
                             <span>SSS Contribution</span>
                             <span id="modal-ded-sss" class="font-medium"></span>
@@ -2080,6 +2114,13 @@ function openPayrollModal(payrollId, dataStr) {
             document.getElementById('modal-earn-allow').textContent = formatMoney(data.allowances);
             document.getElementById('modal-earn-total').textContent = formatMoney(data.total_earnings);
             
+            // Calculate Attendance Penalties (Total Deductions - Statutory - Unpaid)
+            const statutory = parseFloat(data.sss || 0) + parseFloat(data.phic || 0) + parseFloat(data.pagibig || 0) + parseFloat(data.tax || 0);
+            const unpaid = parseFloat(data.unpaid_leave_deduction || 0);
+            const attendancePenalties = Math.max(0, parseFloat(data.total_deductions || 0) - statutory - unpaid);
+
+            document.getElementById('modal-ded-unpaid').textContent = formatMoney(unpaid);
+            document.getElementById('modal-ded-attendance').textContent = formatMoney(attendancePenalties);
             document.getElementById('modal-ded-sss').textContent = formatMoney(data.sss);
             document.getElementById('modal-ded-phic').textContent = formatMoney(data.phic);
             document.getElementById('modal-ded-hdmf').textContent = formatMoney(data.pagibig);
