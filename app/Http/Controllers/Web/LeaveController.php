@@ -8,6 +8,7 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
+use App\Notifications\RequestStatusChanged;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -397,7 +398,28 @@ class LeaveController extends Controller
             }
         });
 
+        $this->notifyRequester($leaveRequest);
+
         return response()->json(['success' => true, 'message' => 'Leave request status updated successfully.']);
+    }
+
+    protected function notifyRequester(LeaveRequest $leaveRequest): void
+    {
+        $account = $leaveRequest->employee?->account;
+        if (!$account) {
+            return;
+        }
+
+        $dateLabel = Carbon::parse($leaveRequest->start_date)->format('M d, Y')
+            . ' - ' . Carbon::parse($leaveRequest->end_date)->format('M d, Y');
+
+        $account->notify(new RequestStatusChanged(
+            RequestStatusChanged::TYPE_LEAVE,
+            $leaveRequest->id,
+            $leaveRequest->status,
+            $dateLabel,
+            $leaveRequest->rejection_reason,
+        ));
     }
 
     protected function applyApprovedLeaveToBalance(LeaveRequest $leaveRequest): void
