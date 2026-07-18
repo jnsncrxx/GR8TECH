@@ -17,7 +17,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class EmployeeController extends Controller
 {
@@ -63,8 +62,13 @@ class EmployeeController extends Controller
         }
         $positions = $positions->active()->with('department')->orderBy('name')->get();
         
+        $payrollTemplates = \App\Models\PayrollTemplate::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+        
         $user = Auth::user();
-        return view('employees.create', compact('departments', 'positions', 'user'));
+        return view('employees.create', compact('departments', 'positions', 'payrollTemplates', 'user'));
     }
 
     /**
@@ -78,7 +82,7 @@ class EmployeeController extends Controller
             'email' => 'required|email|unique:accounts,email',
             'phone' => 'required|string|max:20',
             'mobile_number' => 'nullable|string|max:11',
-            'position' => 'required|string|max:255',
+            'position_id' => 'required|exists:positions,id',
             'department_id' => 'required|exists:departments,id',
             'salary' => 'required|numeric|min:0',
             'hire_date' => 'required|date',
@@ -102,20 +106,13 @@ class EmployeeController extends Controller
             'loan_total_amount' => 'nullable|numeric|min:0',
             'loan_monthly_amortization' => 'nullable|numeric|min:0',
             'password' => 'required|string|min:8',
+            'role' => 'nullable|in:admin,hr,manager,employee',
             'employee_id' => 'nullable|string|max:50|unique:employees,employee_id',
+            'payroll_template_id' => 'nullable|exists:payroll_templates,id',
         ]);
 
         $currentCompany = CompanyHelper::getCurrentCompany();
 
-        // Resolve position from string
-        $position = Position::firstOrCreate([
-            'name' => $request->position,
-            'company_id' => $currentCompany ? $currentCompany->id : null,
-        ], [
-            'code' => Str::upper(substr(Str::slug($request->position, ''), 0, 10)),
-            'department_id' => $request->department_id,
-            'is_active' => true,
-        ]);
 
         // Create employee
         $employeeData = [
@@ -124,7 +121,7 @@ class EmployeeController extends Controller
             'last_name' => $request->last_name,
             'phone' => $request->phone,
             'mobile_number' => $request->mobile_number,
-            'position_id' => $position->id,
+            'position_id' => $request->position_id,
             'department_id' => $request->department_id,
             'salary' => $request->salary,
             'hire_date' => $request->hire_date,
@@ -147,21 +144,25 @@ class EmployeeController extends Controller
             'loan_end_date' => $request->loan_end_date,
             'loan_total_amount' => $request->loan_total_amount,
             'loan_monthly_amortization' => $request->loan_monthly_amortization,
+            'payroll_template_id' => $request->payroll_template_id,
         ];
         
         if ($currentCompany) {
             $employeeData['company_id'] = $currentCompany->id;
         }
         
-        $employee = Employee::create($employeeData);
+        [$employee, $account] = DB::transaction(function () use ($employeeData, $request) {
+            $employee = Employee::create($employeeData);
 
-        // Create account
-        $account = Account::create([
-            'employee_id' => $employee->id,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'role' => $request->role ?? 'employee',
-        ]);
+            $account = Account::create([
+                'employee_id' => $employee->id,
+                'email' => $request->email,
+                'password' => Hash::make($request->password),
+                'role' => $request->role ?? 'employee',
+            ]);
+
+            return [$employee, $account];
+        });
 
         // Send welcome email to employee
         try {
@@ -242,9 +243,14 @@ class EmployeeController extends Controller
         }
         $positions = $positions->active()->with('department')->orderBy('name')->get();
         
-        $employee->load('account');
+        $payrollTemplates = \App\Models\PayrollTemplate::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+        
+        $employee->load(['account', 'position']);
         $user = Auth::user();
-        return view('employees.edit', compact('employee', 'departments', 'positions', 'user'));
+        return view('employees.edit', compact('employee', 'departments', 'positions', 'payrollTemplates', 'user'));
     }
 
     /**
@@ -258,7 +264,7 @@ class EmployeeController extends Controller
             'email' => 'required|email|unique:accounts,email,' . ($employee->account?->id ?? ''),
             'phone' => 'required|string|max:20',
             'mobile_number' => 'nullable|string|max:20',
-            'position' => 'required|string|max:255',
+            'position_id' => 'required|exists:positions,id',
             'department_id' => 'required|exists:departments,id',
             'salary' => 'required|numeric|min:0',
             'hire_date' => 'required|date',
@@ -282,19 +288,10 @@ class EmployeeController extends Controller
             'loan_total_amount' => 'nullable|numeric|min:0',
             'loan_monthly_amortization' => 'nullable|numeric|min:0',
             'role' => 'required|in:admin,hr,manager,employee',
+            'payroll_template_id' => 'nullable|exists:payroll_templates,id',
         ]);
 
         $currentCompany = CompanyHelper::getCurrentCompany();
-
-        // Resolve position from string
-        $position = Position::firstOrCreate([
-            'name' => $request->position,
-            'company_id' => $currentCompany ? $currentCompany->id : null,
-        ], [
-            'code' => Str::upper(substr(Str::slug($request->position, ''), 0, 10)),
-            'department_id' => $request->department_id,
-            'is_active' => true,
-        ]);
 
         // Update employee
         $employee->update([
@@ -302,7 +299,7 @@ class EmployeeController extends Controller
             'last_name' => $request->last_name,
             'phone' => $request->phone,
             'mobile_number' => $request->mobile_number,
-            'position_id' => $position->id,
+            'position_id' => $request->position_id,
             'department_id' => $request->department_id,
             'salary' => $request->salary,
             'hire_date' => $request->hire_date,
@@ -325,6 +322,7 @@ class EmployeeController extends Controller
             'loan_end_date' => $request->loan_end_date,
             'loan_total_amount' => $request->loan_total_amount,
             'loan_monthly_amortization' => $request->loan_monthly_amortization,
+            'payroll_template_id' => $request->payroll_template_id,
         ]);
 
         // Update account if it exists

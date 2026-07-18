@@ -98,15 +98,18 @@
                         
                         <div>
                             <label for="position" class="block text-sm font-medium text-gray-700 mb-2">Position</label>
-                            <input type="text" name="position" id="position" value="{{ old('position') }}" required list="positions-list"
-                                placeholder="Enter position name (e.g., Software Engineer)"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('position') border-red-500 @enderror">
-                            <datalist id="positions-list">
-                                @foreach($positions as $position)
-                                    <option value="{{ $position->name }}">
+                            <select name="position_id" id="position_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('position_id') border-red-500 @enderror">
+                            <option value="">Select Position</option>
+                                 @foreach($positions as $position)
+                                    <option value="{{ $position->id }}"
+                                        {{ old('position_id') == $position->id ? 'selected' : '' }}>
+                                        {{ $position->name }}
+                                    </option>
                                 @endforeach
-                            </datalist>
-                            @error('position')
+
+                            </select>
+
+                            @error('position_id')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
@@ -116,6 +119,23 @@
                             <input type="number" name="salary" id="salary" value="{{ old('salary') }}" min="0" step="0.01" required
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('salary') border-red-500 @enderror">
                             @error('salary')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                        
+                        <div>
+                            <label for="payroll_template_id" class="block text-sm font-medium text-gray-700 mb-2">Payroll Template (Optional)</label>
+                            <select name="payroll_template_id" id="payroll_template_id"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('payroll_template_id') border-red-500 @enderror">
+                                <option value="">System Default (No Template)</option>
+                                @foreach($payrollTemplates as $template)
+                                    <option value="{{ $template->id }}" {{ old('payroll_template_id') == $template->id ? 'selected' : '' }}>
+                                        {{ $template->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500">Overrides Position and System Default templates.</p>
+                            @error('payroll_template_id')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
