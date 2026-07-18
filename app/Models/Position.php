@@ -2,13 +2,15 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Position extends Model
 {
     use HasUuids;
+
     protected $fillable = [
         'name',
         'code',
@@ -18,9 +20,10 @@ class Position extends Model
         'company_id',
         'min_salary',
         'max_salary',
+        'payroll_template_id',
         'is_active',
         'requirements',
-        'responsibilities'
+        'responsibilities',
     ];
 
     protected $casts = [
@@ -28,36 +31,24 @@ class Position extends Model
         'max_salary' => 'decimal:2',
         'is_active' => 'boolean',
         'requirements' => 'array',
-        'responsibilities' => 'array'
+        'responsibilities' => 'array',
     ];
 
-    /**
-     * Scope to get only active positions
-     */
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
     }
 
-    /**
-     * Scope to filter by department
-     */
     public function scopeByDepartment($query, $department)
     {
         return $query->where('department_id', $department);
     }
 
-    /**
-     * Get the department that owns the position
-     */
-    public function department()
+    public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
     }
 
-    /**
-     * Get the company that owns the position
-     */
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
@@ -68,30 +59,28 @@ class Position extends Model
         return $this->belongsTo(PayrollTemplate::class);
     }
 
-    /**
-     * Scope to filter by company
-     */
+    public function employees(): HasMany
+    {
+        return $this->hasMany(Employee::class);
+    }
+
     public function scopeForCompany($query, $companyId)
     {
         return $query->where('company_id', $companyId);
     }
 
-    /**
-     * Scope to filter by level
-     */
     public function scopeByLevel($query, $level)
     {
         return $query->where('level', $level);
     }
 
-    /**
-     * Get formatted salary range
-     */
-    public function getSalaryRangeAttribute()
+    public function getSalaryRangeAttribute(): string
     {
-        if ($this->min_salary && $this->max_salary) {
-            return '₱' . number_format($this->min_salary, 0) . ' - ₱' . number_format($this->max_salary, 0);
+        if ($this->min_salary !== null && $this->max_salary !== null) {
+            return '₱' . number_format((float) $this->min_salary, 0)
+                . ' - ₱' . number_format((float) $this->max_salary, 0);
         }
+
         return 'Salary not specified';
     }
 }
