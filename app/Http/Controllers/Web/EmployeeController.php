@@ -75,35 +75,34 @@ class EmployeeController extends Controller
     public function store(Request $request)
     {
         $request->validate([
+            'profile_photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072',
             'first_name' => 'required|string|max:255',
+            'middle_name' => 'nullable|string|max:255',
             'last_name' => 'required|string|max:255',
             'email' => 'required|email|unique:accounts,email',
-            'phone' => 'required|string|max:20',
             'mobile_number' => 'nullable|string|max:11',
+            'date_of_birth' => 'nullable|date',
+            'civil_status' => 'nullable|in:single,married,widowed,divorced,separated',
+            'sex' => 'nullable|in:male,female',
             'position' => 'required|string|max:255',
             'department_id' => 'required|exists:departments,id',
             'salary' => 'required|numeric|min:0',
             'hire_date' => 'required|date',
-            'date_of_birth' => 'nullable|date',
-            'civil_status' => 'nullable|string|max:100',
-            'home_address' => 'nullable|string|max:1000',
-            'current_address' => 'nullable|string|max:1000',
+            'address' => 'nullable|string|max:1000',
             'facebook_link' => 'nullable|url|max:255',
             'linkedin_link' => 'nullable|url|max:255',
             'ig_link' => 'nullable|url|max:255',
             'other_link' => 'nullable|url|max:255',
             'emergency_full_name' => 'nullable|string|max:255',
             'emergency_relationship' => 'nullable|string|max:100',
-            'emergency_home_address' => 'nullable|string|max:1000',
-            'emergency_current_address' => 'nullable|string|max:1000',
+            'emergency_address' => 'nullable|string|max:1000',
             'emergency_mobile_number' => 'nullable|string|max:20',
             'emergency_email' => 'nullable|email|max:255',
-            'emergency_facebook_link' => 'nullable|url|max:255',
             'loan_start_date' => 'nullable|date',
             'loan_end_date' => 'nullable|date|after_or_equal:loan_start_date',
             'loan_total_amount' => 'nullable|numeric|min:0',
             'loan_monthly_amortization' => 'nullable|numeric|min:0',
-            'password' => 'required|string|min:8',
+            'password' => 'required|string|min:8|confirmed',
             'employee_id' => 'nullable|string|max:50|unique:employees,employee_id',
             'payroll_template_id' => 'nullable|exists:payroll_templates,id',
         ]);
@@ -120,12 +119,19 @@ class EmployeeController extends Controller
             'is_active' => true,
         ]);
 
+        // Store the uploaded profile photo, if any
+        $photoPath = null;
+        if ($request->hasFile('profile_photo')) {
+            $photoPath = $request->file('profile_photo')->store('employee-photos', 'public');
+        }
+
         // Create employee
         $employeeData = [
             'employee_id' => $request->employee_id, // Will be auto-generated if null
+            'photo_path' => $photoPath,
             'first_name' => $request->first_name,
+            'middle_name' => $request->middle_name,
             'last_name' => $request->last_name,
-            'phone' => $request->phone,
             'mobile_number' => $request->mobile_number,
             'position_id' => $position->id,
             'department_id' => $request->department_id,
@@ -133,19 +139,17 @@ class EmployeeController extends Controller
             'hire_date' => $request->hire_date,
             'date_of_birth' => $request->date_of_birth,
             'civil_status' => $request->civil_status,
-            'home_address' => $request->home_address,
-            'current_address' => $request->current_address,
+            'sex' => $request->sex,
+            'address' => $request->address,
             'facebook_link' => $request->facebook_link,
             'linkedin_link' => $request->linkedin_link,
             'ig_link' => $request->ig_link,
             'other_link' => $request->other_link,
             'emergency_full_name' => $request->emergency_full_name,
             'emergency_relationship' => $request->emergency_relationship,
-            'emergency_home_address' => $request->emergency_home_address,
-            'emergency_current_address' => $request->emergency_current_address,
+            'emergency_address' => $request->emergency_address,
             'emergency_mobile_number' => $request->emergency_mobile_number,
             'emergency_email' => $request->emergency_email,
-            'emergency_facebook_link' => $request->emergency_facebook_link,
             'loan_start_date' => $request->loan_start_date,
             'loan_end_date' => $request->loan_end_date,
             'loan_total_amount' => $request->loan_total_amount,
@@ -259,30 +263,29 @@ class EmployeeController extends Controller
     public function update(Request $request, Employee $employee)
     {
         $request->validate([
+            'profile_photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072',
             'first_name' => 'required|string|max:255',
+            'middle_name' => 'nullable|string|max:255',
             'last_name' => 'required|string|max:255',
             'email' => 'required|email|unique:accounts,email,' . ($employee->account?->id ?? ''),
-            'phone' => 'required|string|max:20',
             'mobile_number' => 'nullable|string|max:20',
+            'date_of_birth' => 'nullable|date',
+            'civil_status' => 'nullable|in:single,married,widowed,divorced,separated',
+            'sex' => 'nullable|in:male,female',
             'position' => 'required|string|max:255',
             'department_id' => 'required|exists:departments,id',
             'salary' => 'required|numeric|min:0',
             'hire_date' => 'required|date',
-            'date_of_birth' => 'nullable|date',
-            'civil_status' => 'nullable|string|max:100',
-            'home_address' => 'nullable|string|max:1000',
-            'current_address' => 'nullable|string|max:1000',
+            'address' => 'nullable|string|max:1000',
             'facebook_link' => 'nullable|url|max:255',
             'linkedin_link' => 'nullable|url|max:255',
             'ig_link' => 'nullable|url|max:255',
             'other_link' => 'nullable|url|max:255',
             'emergency_full_name' => 'nullable|string|max:255',
             'emergency_relationship' => 'nullable|string|max:100',
-            'emergency_home_address' => 'nullable|string|max:1000',
-            'emergency_current_address' => 'nullable|string|max:1000',
+            'emergency_address' => 'nullable|string|max:1000',
             'emergency_mobile_number' => 'nullable|string|max:20',
             'emergency_email' => 'nullable|email|max:255',
-            'emergency_facebook_link' => 'nullable|url|max:255',
             'loan_start_date' => 'nullable|date',
             'loan_end_date' => 'nullable|date|after_or_equal:loan_start_date',
             'loan_total_amount' => 'nullable|numeric|min:0',
@@ -303,11 +306,11 @@ class EmployeeController extends Controller
             'is_active' => true,
         ]);
 
-        // Update employee
-        $employee->update([
+        // Replace the profile photo, if a new one was uploaded
+        $employeeData = [
             'first_name' => $request->first_name,
+            'middle_name' => $request->middle_name,
             'last_name' => $request->last_name,
-            'phone' => $request->phone,
             'mobile_number' => $request->mobile_number,
             'position_id' => $position->id,
             'department_id' => $request->department_id,
@@ -315,25 +318,33 @@ class EmployeeController extends Controller
             'hire_date' => $request->hire_date,
             'date_of_birth' => $request->date_of_birth,
             'civil_status' => $request->civil_status,
-            'home_address' => $request->home_address,
-            'current_address' => $request->current_address,
+            'sex' => $request->sex,
+            'address' => $request->address,
             'facebook_link' => $request->facebook_link,
             'linkedin_link' => $request->linkedin_link,
             'ig_link' => $request->ig_link,
             'other_link' => $request->other_link,
             'emergency_full_name' => $request->emergency_full_name,
             'emergency_relationship' => $request->emergency_relationship,
-            'emergency_home_address' => $request->emergency_home_address,
-            'emergency_current_address' => $request->emergency_current_address,
+            'emergency_address' => $request->emergency_address,
             'emergency_mobile_number' => $request->emergency_mobile_number,
             'emergency_email' => $request->emergency_email,
-            'emergency_facebook_link' => $request->emergency_facebook_link,
             'loan_start_date' => $request->loan_start_date,
             'loan_end_date' => $request->loan_end_date,
             'loan_total_amount' => $request->loan_total_amount,
             'loan_monthly_amortization' => $request->loan_monthly_amortization,
             'payroll_template_id' => $request->payroll_template_id,
-        ]);
+        ];
+
+        if ($request->hasFile('profile_photo')) {
+            if ($employee->photo_path && Storage::disk('public')->exists($employee->photo_path)) {
+                Storage::disk('public')->delete($employee->photo_path);
+            }
+            $employeeData['photo_path'] = $request->file('profile_photo')->store('employee-photos', 'public');
+        }
+
+        // Update employee
+        $employee->update($employeeData);
 
         // Update account if it exists
         if ($employee->account) {

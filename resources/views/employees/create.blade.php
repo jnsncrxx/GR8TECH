@@ -20,29 +20,71 @@
 
         <!-- Form -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-            <form method="POST" action="{{ route('employees.store') }}" class="p-4 sm:p-6 space-y-6">
+            <form method="POST" action="{{ route('employees.store') }}" enctype="multipart/form-data" class="p-4 sm:p-6 space-y-6">
                 @csrf
                 
                 <!-- Personal Information -->
                 <div>
-                    <h3 class="text-lg font-medium text-gray-900 mb-4">Personal Information</h3>
+                    <div class="flex items-start justify-between gap-4 mb-4">
+                        <h3 class="text-lg font-medium text-gray-900">Personal Information</h3>
+
+                        <!-- Profile Photo -->
+                        <div class="flex flex-col items-center shrink-0">
+                            <label for="profile_photo" class="cursor-pointer group relative">
+                                <div class="w-20 h-20 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden group-hover:border-blue-400 transition-colors">
+                                    <img id="profile_photo_preview" src="#" alt="Profile preview" class="hidden w-full h-full object-cover">
+                                    <i class="fas fa-camera text-gray-400 text-xl" id="profile_photo_icon"></i>
+                                </div>
+                            </label>
+                            <input type="file" name="profile_photo" id="profile_photo" accept="image/*" class="hidden">
+                            <span class="mt-1 text-xs text-gray-500">Upload photo</span>
+                            @error('profile_photo')
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                    </div>
+
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                        <div>
-                            <label for="first_name" class="block text-sm font-medium text-gray-700 mb-2">First Name</label>
-                            <input type="text" name="first_name" id="first_name" value="{{ old('first_name') }}" required
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('first_name') border-red-500 @enderror">
-                            @error('first_name')
+                        <div class="sm:col-span-2">
+                            <label for="employee_id" class="block text-sm font-medium text-gray-700 mb-2">Employee ID</label>
+                            <input type="text" name="employee_id" id="employee_id" value="{{ old('employee_id') }}" 
+                                placeholder="e.g., EMP-0001 or leave blank for auto-generation"
+                                maxlength="20" autocomplete="off" autocorrect="off" spellcheck="false"
+                                pattern="[A-Za-z0-9\-]*" title="Letters, numbers, and hyphens only"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('employee_id') border-red-500 @enderror">
+                            <p class="mt-1 text-xs text-gray-500">Leave blank to auto-generate (EMP-XXXX format)</p>
+                            @error('employee_id')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
-                        
-                        <div>
-                            <label for="last_name" class="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
-                            <input type="text" name="last_name" id="last_name" value="{{ old('last_name') }}" required
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('last_name') border-red-500 @enderror">
-                            @error('last_name')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                            @enderror
+
+                        <div class="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+                            <div>
+                                <label for="first_name" class="block text-sm font-medium text-gray-700 mb-2">First Name</label>
+                                <input type="text" name="first_name" id="first_name" value="{{ old('first_name') }}" required
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('first_name') border-red-500 @enderror">
+                                @error('first_name')
+                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+
+                            <div>
+                                <label for="middle_name" class="block text-sm font-medium text-gray-700 mb-2">Middle Name <span class="text-gray-400 font-normal">(optional)</span></label>
+                                <input type="text" name="middle_name" id="middle_name" value="{{ old('middle_name') }}"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('middle_name') border-red-500 @enderror">
+                                @error('middle_name')
+                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+
+                            <div>
+                                <label for="last_name" class="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
+                                <input type="text" name="last_name" id="last_name" value="{{ old('last_name') }}" required
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('last_name') border-red-500 @enderror">
+                                @error('last_name')
+                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
                         </div>
                         
                         <div>
@@ -53,23 +95,41 @@
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
-                        
+
                         <div>
-                            <label for="phone" class="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
-                            <input type="text" name="phone" id="phone" value="{{ old('phone') }}" required
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('phone') border-red-500 @enderror">
-                            @error('phone')
+                            <label for="date_of_birth" class="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
+                            <input type="date" name="date_of_birth" id="date_of_birth" value="{{ old('date_of_birth') }}"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('date_of_birth') border-red-500 @enderror">
+                            @error('date_of_birth')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
-                        
+
                         <div>
-                            <label for="employee_id" class="block text-sm font-medium text-gray-700 mb-2">Employee ID</label>
-                            <input type="text" name="employee_id" id="employee_id" value="{{ old('employee_id') }}" 
-                                placeholder="e.g., EMP-0001 or leave blank for auto-generation"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('employee_id') border-red-500 @enderror">
-                            <p class="mt-1 text-xs text-gray-500">Leave blank to auto-generate (EMP-XXXX format)</p>
-                            @error('employee_id')
+                            <label for="civil_status" class="block text-sm font-medium text-gray-700 mb-2">Civil Status</label>
+                            <select name="civil_status" id="civil_status"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('civil_status') border-red-500 @enderror">
+                                <option value="">Select Civil Status</option>
+                                <option value="single" {{ old('civil_status') == 'single' ? 'selected' : '' }}>Single</option>
+                                <option value="married" {{ old('civil_status') == 'married' ? 'selected' : '' }}>Married</option>
+                                <option value="widowed" {{ old('civil_status') == 'widowed' ? 'selected' : '' }}>Widowed</option>
+                                <option value="divorced" {{ old('civil_status') == 'divorced' ? 'selected' : '' }}>Divorced</option>
+                                <option value="separated" {{ old('civil_status') == 'separated' ? 'selected' : '' }}>Separated</option>
+                            </select>
+                            @error('civil_status')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div>
+                            <label for="sex" class="block text-sm font-medium text-gray-700 mb-2">Sex</label>
+                            <select name="sex" id="sex"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('sex') border-red-500 @enderror">
+                                <option value="">Select Sex</option>
+                                <option value="male" {{ old('sex') == 'male' ? 'selected' : '' }}>Male</option>
+                                <option value="female" {{ old('sex') == 'female' ? 'selected' : '' }}>Female</option>
+                            </select>
+                            @error('sex')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
@@ -152,35 +212,11 @@
                 <div>
                     <h3 class="text-lg font-medium text-gray-900 mb-4">Additional Employee Details</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                        <div>
-                            <label for="date_of_birth" class="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
-                            <input type="date" name="date_of_birth" id="date_of_birth" value="{{ old('date_of_birth') }}"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('date_of_birth') border-red-500 @enderror">
-                            @error('date_of_birth')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                            @enderror
-                        </div>
-                        <div>
-                            <label for="civil_status" class="block text-sm font-medium text-gray-700 mb-2">Employee's Civil Status</label>
-                            <input type="text" name="civil_status" id="civil_status" value="{{ old('civil_status') }}"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('civil_status') border-red-500 @enderror">
-                            @error('civil_status')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                            @enderror
-                        </div>
                         <div class="sm:col-span-2">
-                            <label for="home_address" class="block text-sm font-medium text-gray-700 mb-2">Employee's Home Address</label>
-                            <textarea name="home_address" id="home_address" rows="2"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('home_address') border-red-500 @enderror">{{ old('home_address') }}</textarea>
-                            @error('home_address')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                            @enderror
-                        </div>
-                        <div class="sm:col-span-2">
-                            <label for="current_address" class="block text-sm font-medium text-gray-700 mb-2">Employee's Current Address</label>
-                            <textarea name="current_address" id="current_address" rows="2"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('current_address') border-red-500 @enderror">{{ old('current_address') }}</textarea>
-                            @error('current_address')
+                            <label for="address" class="block text-sm font-medium text-gray-700 mb-2">Employee's Address</label>
+                            <textarea name="address" id="address" rows="2"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('address') border-red-500 @enderror">{{ old('address') }}</textarea>
+                            @error('address')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
@@ -227,9 +263,9 @@
                     </div>
                 </div>
 
-                <!-- In Case of Emergency -->
+                <!-- Emergency Information -->
                 <div>
-                    <h3 class="text-lg font-medium text-gray-900 mb-4">In Case of an Emergency</h3>
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Emergency Information</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                         <div>
                             <label for="emergency_full_name" class="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
@@ -248,18 +284,10 @@
                             @enderror
                         </div>
                         <div class="sm:col-span-2">
-                            <label for="emergency_home_address" class="block text-sm font-medium text-gray-700 mb-2">Home Address</label>
-                            <textarea name="emergency_home_address" id="emergency_home_address" rows="2"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('emergency_home_address') border-red-500 @enderror">{{ old('emergency_home_address') }}</textarea>
-                            @error('emergency_home_address')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                            @enderror
-                        </div>
-                        <div class="sm:col-span-2">
-                            <label for="emergency_current_address" class="block text-sm font-medium text-gray-700 mb-2">Current Address</label>
-                            <textarea name="emergency_current_address" id="emergency_current_address" rows="2"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('emergency_current_address') border-red-500 @enderror">{{ old('emergency_current_address') }}</textarea>
-                            @error('emergency_current_address')
+                            <label for="emergency_address" class="block text-sm font-medium text-gray-700 mb-2">Address</label>
+                            <textarea name="emergency_address" id="emergency_address" rows="2"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('emergency_address') border-red-500 @enderror">{{ old('emergency_address') }}</textarea>
+                            @error('emergency_address')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
@@ -276,14 +304,6 @@
                             <input type="email" name="emergency_email" id="emergency_email" value="{{ old('emergency_email') }}"
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('emergency_email') border-red-500 @enderror">
                             @error('emergency_email')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                            @enderror
-                        </div>
-                        <div class="sm:col-span-2">
-                            <label for="emergency_facebook_link" class="block text-sm font-medium text-gray-700 mb-2">Facebook Link</label>
-                            <input type="url" name="emergency_facebook_link" id="emergency_facebook_link" value="{{ old('emergency_facebook_link') }}"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('emergency_facebook_link') border-red-500 @enderror">
-                            @error('emergency_facebook_link')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
@@ -361,6 +381,18 @@
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
+
+                        <div>
+                            <label for="password_confirmation" class="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
+                            <div class="relative">
+                                <input type="password" name="password_confirmation" id="password_confirmation" required
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <button type="button" id="toggleConfirmPassword" class="absolute right-3 top-1/2 transform -translate-y-1/2 focus:outline-none text-gray-400 hover:text-gray-600">
+                                    <i class="fas fa-eye" id="toggleConfirmIcon"></i>
+                                </button>
+                            </div>
+                            <p class="mt-1 text-xs text-red-600 hidden" id="password_mismatch_error">Passwords do not match</p>
+                        </div>
                     </div>
                 </div>
 
@@ -381,21 +413,77 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const togglePassword = document.getElementById('togglePassword');
-    const passwordInput = document.getElementById('password');
-    const toggleIcon = document.getElementById('toggleIcon');
+    // Password visibility toggles
+    function wireToggle(buttonId, inputId, iconId) {
+        const toggle = document.getElementById(buttonId);
+        const input = document.getElementById(inputId);
+        const icon = document.getElementById(iconId);
 
-    if (togglePassword && passwordInput) {
-        togglePassword.addEventListener('click', function() {
-            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-            passwordInput.setAttribute('type', type);
-            
-            if (type === 'password') {
-                toggleIcon.classList.remove('fa-eye-slash');
-                toggleIcon.classList.add('fa-eye');
-            } else {
-                toggleIcon.classList.remove('fa-eye');
-                toggleIcon.classList.add('fa-eye-slash');
+        if (toggle && input) {
+            toggle.addEventListener('click', function() {
+                const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
+                input.setAttribute('type', type);
+
+                if (type === 'password') {
+                    icon.classList.remove('fa-eye-slash');
+                    icon.classList.add('fa-eye');
+                } else {
+                    icon.classList.remove('fa-eye');
+                    icon.classList.add('fa-eye-slash');
+                }
+            });
+        }
+    }
+
+    wireToggle('togglePassword', 'password', 'toggleIcon');
+    wireToggle('toggleConfirmPassword', 'password_confirmation', 'toggleConfirmIcon');
+
+    // Confirm password match validation
+    const passwordInput = document.getElementById('password');
+    const confirmInput = document.getElementById('password_confirmation');
+    const mismatchError = document.getElementById('password_mismatch_error');
+    const form = document.querySelector('form');
+
+    function checkPasswordMatch() {
+        if (confirmInput.value && passwordInput.value !== confirmInput.value) {
+            mismatchError.classList.remove('hidden');
+            confirmInput.setCustomValidity('Passwords do not match');
+        } else {
+            mismatchError.classList.add('hidden');
+            confirmInput.setCustomValidity('');
+        }
+    }
+
+    if (passwordInput && confirmInput) {
+        passwordInput.addEventListener('input', checkPasswordMatch);
+        confirmInput.addEventListener('input', checkPasswordMatch);
+    }
+
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            checkPasswordMatch();
+            if (confirmInput && confirmInput.value !== passwordInput.value) {
+                e.preventDefault();
+            }
+        });
+    }
+
+    // Profile photo preview
+    const photoInput = document.getElementById('profile_photo');
+    const photoPreview = document.getElementById('profile_photo_preview');
+    const photoIcon = document.getElementById('profile_photo_icon');
+
+    if (photoInput) {
+        photoInput.addEventListener('change', function() {
+            const file = this.files && this.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    photoPreview.src = e.target.result;
+                    photoPreview.classList.remove('hidden');
+                    if (photoIcon) photoIcon.classList.add('hidden');
+                };
+                reader.readAsDataURL(file);
             }
         });
     }

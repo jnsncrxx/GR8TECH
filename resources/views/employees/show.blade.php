@@ -45,10 +45,12 @@
                             <label class="block text-sm font-medium text-gray-500">Email Address</label>
                             <p class="mt-1 text-sm text-gray-900">{{ $employee->account?->email ?? 'No email' }}</p>
                         </div>
+                        @if($employee->phone)
                         <div>
                             <label class="block text-sm font-medium text-gray-500">Phone Number</label>
                             <p class="mt-1 text-sm text-gray-900">{{ $employee->phone }}</p>
                         </div>
+                        @endif
                         @if($employee->date_of_birth)
                         <div>
                             <label class="block text-sm font-medium text-gray-500">Date of Birth</label>
@@ -61,16 +63,10 @@
                             <p class="mt-1 text-sm text-gray-900">{{ $employee->civil_status }}</p>
                         </div>
                         @endif
-                        @if($employee->home_address)
+                        @if($employee->address)
                         <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-500">Employee's Home Address</label>
-                            <p class="mt-1 text-sm text-gray-900">{{ $employee->home_address }}</p>
-                        </div>
-                        @endif
-                        @if($employee->current_address)
-                        <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-500">Employee's Current Address</label>
-                            <p class="mt-1 text-sm text-gray-900">{{ $employee->current_address }}</p>
+                            <label class="block text-sm font-medium text-gray-500">Employee's Address</label>
+                            <p class="mt-1 text-sm text-gray-900">{{ $employee->address }}</p>
                         </div>
                         @endif
                         @if($employee->mobile_number)
@@ -106,7 +102,7 @@
                     </div>
                 </div>
 
-                @if($employee->emergency_full_name || $employee->emergency_relationship || $employee->emergency_home_address || $employee->emergency_current_address || $employee->emergency_mobile_number || $employee->emergency_email || $employee->emergency_facebook_link)
+                @if($employee->emergency_full_name || $employee->emergency_relationship || $employee->emergency_address || $employee->emergency_mobile_number || $employee->emergency_email || $employee->emergency_facebook_link)
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                     <h3 class="text-lg font-medium text-gray-900 mb-4">In Case of an Emergency</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -122,16 +118,10 @@
                             <p class="mt-1 text-sm text-gray-900">{{ $employee->emergency_relationship }}</p>
                         </div>
                         @endif
-                        @if($employee->emergency_home_address)
+                        @if($employee->emergency_address)
                         <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-500">Home Address</label>
-                            <p class="mt-1 text-sm text-gray-900">{{ $employee->emergency_home_address }}</p>
-                        </div>
-                        @endif
-                        @if($employee->emergency_current_address)
-                        <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-500">Current Address</label>
-                            <p class="mt-1 text-sm text-gray-900">{{ $employee->emergency_current_address }}</p>
+                            <label class="block text-sm font-medium text-gray-500">Address</label>
+                            <p class="mt-1 text-sm text-gray-900">{{ $employee->emergency_address }}</p>
                         </div>
                         @endif
                         @if($employee->emergency_mobile_number)
