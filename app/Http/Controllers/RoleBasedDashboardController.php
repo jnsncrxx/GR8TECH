@@ -185,7 +185,7 @@ class RoleBasedDashboardController extends Controller
 
         $stats = [
             'employee_name' => $employee->full_name,
-            'position' => $employee->position,
+            'position' => $employee->position->name ?? 'N/A',
             'department' => $employee->department->name,
             'salary' => $employee->salary,
             'hire_date' => $employee->hire_date,
