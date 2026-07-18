@@ -32,11 +32,11 @@ class MarkAbsentEmployees extends Command
                 ->where('date', $dateStr)
                 ->first();
 
-            // already has a time in, skip
-            if ($existingRecord && $existingRecord->time_in) {
+            // any existing record (time-in, leave, official business, etc.)
+            // means something already handled this day - never overwrite it
+            if ($existingRecord) {
                 continue;
             }
-
             AttendanceRecord::updateOrCreate(
                 [
                     'employee_id' => $schedule->employee_id,

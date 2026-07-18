@@ -1,4 +1,4 @@
-@extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'attendance.timekeeping'])
+@extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'schedule-v2.index'])
 
 @section('title', 'Edit Schedule')
 
@@ -67,7 +67,7 @@
                     <label for="status" class="block text-sm font-medium text-gray-700 mb-2">Status</label>
                     <select name="status" id="status" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('status') border-red-500 @enderror">
                         <option value="">Select status</option>
-                        <option value="Working" {{ old('status', $schedule->status) == 'Working' ? 'selected' : '' }}>Working</option>
+                        <option value="Working" {{ old('status', $schedule->status) == 'Working' ? 'selected' : '' }}>On Duty</option>
                         <option value="Day Off" {{ old('status', $schedule->status) == 'Day Off' ? 'selected' : '' }}>Day Off</option>
                         <option value="Leave" {{ old('status', $schedule->status) == 'Leave' ? 'selected' : '' }}>Leave</option>
                         <option value="Absent" {{ old('status', $schedule->status) == 'Absent' ? 'selected' : '' }}>Absent</option>

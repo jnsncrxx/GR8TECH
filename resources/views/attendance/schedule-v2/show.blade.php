@@ -1,4 +1,4 @@
-@extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'attendance.timekeeping'])
+@extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'schedule-v2.index'])
 
 @section('title', 'Schedule Details')
 
