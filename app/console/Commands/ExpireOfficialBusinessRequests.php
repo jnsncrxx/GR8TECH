@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Notifications\RequestStatusChanged;
 use Illuminate\Console\Command;
 
 class ExpireOfficialBusinessRequests extends Command
@@ -35,11 +36,55 @@ class ExpireOfficialBusinessRequests extends Command
                 $request->update([
                     'status' => $modelClass::EXPIRED,
                 ]);
+
+                $this->notifyRequester($request);
             }
 
             $this->info("{$modelClass}: expired {$count} overdue request(s).");
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Notify the requesting employee's account that their request expired.
+     * Mirrors the per-controller notifyRequester() helpers used on
+     * approve/reject, so status changes are always announced the same way
+     * regardless of whether a human or this sweep made the change.
+     */
+    private function notifyRequester(object $request): void
+    {
+        $account = $request->employee?->account;
+        if (!$account) {
+            return;
+        }
+
+        [$type, $dateLabel] = match (get_class($request)) {
+            \App\Models\LeaveRequest::class => [
+                RequestStatusChanged::TYPE_LEAVE,
+                \Carbon\Carbon::parse($request->start_date)->format('M d, Y')
+                    . ' - ' . \Carbon\Carbon::parse($request->end_date)->format('M d, Y'),
+            ],
+            \App\Models\OvertimeRequest::class => [
+                RequestStatusChanged::TYPE_OVERTIME,
+                \Carbon\Carbon::parse($request->date)->format('M d, Y'),
+            ],
+            \App\Models\OfficialBusinessRequest::class => [
+                RequestStatusChanged::TYPE_OFFICIAL_BUSINESS,
+                \Carbon\Carbon::parse($request->date)->format('M d, Y'),
+            ],
+            default => [null, null],
+        };
+
+        if (!$type) {
+            return;
+        }
+
+        $account->notify(new RequestStatusChanged(
+            $type,
+            $request->id,
+            $request->status,
+            $dateLabel,
+        ));
     }
 }

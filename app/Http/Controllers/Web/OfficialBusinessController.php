@@ -8,6 +8,7 @@ use App\Models\AttendanceRecord;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\OfficialBusinessRequest;
+use App\Notifications\RequestStatusChanged;
 use App\Services\CutoffPeriodService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -643,6 +644,8 @@ class OfficialBusinessController extends Controller
                         ->recalculateAttendanceWithOfficialBusiness(
                             $attendanceRecord
                         );
+
+                    $this->notifyRequester($obRequest->fresh());
                 }
             );
 
@@ -670,10 +673,30 @@ class OfficialBusinessController extends Controller
             ),
         ]);
 
+        $this->notifyRequester($obRequest->fresh());
+
         return back()->with(
             'success',
             'OB request rejected.'
         );
+    }
+
+    protected function notifyRequester(OfficialBusinessRequest $obRequest): void
+    {
+        $account = $obRequest->employee?->account;
+        if (!$account) {
+            return;
+        }
+
+        $dateLabel = Carbon::parse($this->normalizeDate($obRequest->date))->format('M d, Y');
+
+        $account->notify(new RequestStatusChanged(
+            RequestStatusChanged::TYPE_OFFICIAL_BUSINESS,
+            $obRequest->id,
+            $obRequest->status,
+            $dateLabel,
+            $obRequest->rejection_reason,
+        ));
     }
 
     /**

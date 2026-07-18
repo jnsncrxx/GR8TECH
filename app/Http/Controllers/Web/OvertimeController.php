@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Notifications\RequestStatusChanged;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -139,7 +141,9 @@ class OvertimeController extends Controller
                 'approved_at' => now(),
                 'rejection_reason' => $request->status === 'rejected' ? $request->rejection_reason : null,
             ]);
-            
+
+            $this->notifyRequester($overtime);
+
             return response()->json([
                 'message' => 'Overtime status updated successfully.',
                 'overtime' => $overtime
@@ -150,6 +154,24 @@ class OvertimeController extends Controller
         }
     }
     
+    protected function notifyRequester(\App\Models\OvertimeRequest $overtime): void
+    {
+        $account = $overtime->employee?->account;
+        if (!$account) {
+            return;
+        }
+
+        $dateLabel = Carbon::parse($overtime->date)->format('M d, Y');
+
+        $account->notify(new RequestStatusChanged(
+            RequestStatusChanged::TYPE_OVERTIME,
+            $overtime->id,
+            $overtime->status,
+            $dateLabel,
+            $overtime->rejection_reason,
+        ));
+    }
+
     public function cancel(Request $request, $id) { return back(); }
     public function getStatistics(Request $request) { return response()->json([]); }
 }

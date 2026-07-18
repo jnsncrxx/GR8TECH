@@ -49,6 +49,13 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
     Route::get('/notifications', [App\Http\Controllers\NotificationController::class, 'index'])
         ->name('notifications.index')
         ->middleware('role:admin,hr,manager');
+    // Personal "my requests" status-change notifications — available to every role.
+    Route::get('/notifications/mine', [App\Http\Controllers\NotificationController::class, 'myNotifications'])
+        ->name('notifications.mine');
+    Route::post('/notifications/{id}/read', [App\Http\Controllers\NotificationController::class, 'markNotificationRead'])
+        ->name('notifications.read');
+    Route::post('/notifications/read-all', [App\Http\Controllers\NotificationController::class, 'markAllNotificationsRead'])
+        ->name('notifications.read-all');
     // Dashboard
     Route::get('/dashboard', [RoleBasedDashboardController::class, 'index'])->name('dashboard');
    Route::get('/payroll/manage', [PayrollController::class, 'index'])->name('payroll.manage');

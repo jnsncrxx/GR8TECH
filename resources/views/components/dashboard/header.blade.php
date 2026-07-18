@@ -302,13 +302,183 @@
                     </div>
                 </div>
             </div>
-            @else
-            <!-- Empty placeholder for non-HR/Admin users -->
-            <div class="p-1.5 sm:p-2 text-gray-300">
-                <i class="fas fa-bell text-lg sm:text-xl"></i>
-            </div>
             @endif
-            
+
+            <!-- My Requests Notifications - Leave / Overtime / Official Business status changes.
+                 Available to every role, since anyone can file these requests. -->
+            <div class="relative" x-data="{
+                open: false,
+                notifications: [],
+                unreadCount: 0,
+                loading: false,
+
+                init() {
+                    this.loadNotifications();
+                    setInterval(() => {
+                        if (!this.open) {
+                            this.loadNotifications();
+                        }
+                    }, 60000);
+                },
+
+                toggleNotifications() {
+                    this.open = !this.open;
+                    if (this.open) {
+                        this.loadNotifications();
+                    }
+                },
+
+                async loadNotifications() {
+                    this.loading = true;
+                    try {
+                        const response = await fetch('{{ route('notifications.mine') }}', {
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name=\'csrf-token\']').content
+                            }
+                        });
+
+                        if (!response.ok) {
+                            throw new Error('Failed to load notifications');
+                        }
+
+                        const data = await response.json();
+                        this.notifications = data.notifications || [];
+                        this.unreadCount = data.unread_count || 0;
+                    } catch (error) {
+                        console.error('Error loading request notifications:', error);
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                async openNotification(notification) {
+                    if (!notification.read) {
+                        try {
+                            await fetch(`/notifications/${notification.id}/read`, {
+                                method: 'POST',
+                                headers: {
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name=\'csrf-token\']').content
+                                }
+                            });
+                            notification.read = true;
+                            this.unreadCount = Math.max(0, this.unreadCount - 1);
+                        } catch (error) {
+                            console.error('Error marking notification as read:', error);
+                        }
+                    }
+                    if (notification.url) {
+                        window.location.href = notification.url;
+                    }
+                },
+
+                async markAllAsRead() {
+                    try {
+                        await fetch('{{ route('notifications.read-all') }}', {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRF-TOKEN': document.querySelector('meta[name=\'csrf-token\']').content
+                            }
+                        });
+                        this.notifications.forEach(n => n.read = true);
+                        this.unreadCount = 0;
+                    } catch (error) {
+                        console.error('Error marking all as read:', error);
+                    }
+                }
+            }">
+                <button @click="toggleNotifications()"
+                        :class="{'bg-gray-100': open}"
+                        title="My request updates"
+                        class="relative p-1.5 sm:p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
+                    <i class="fas fa-bell text-lg sm:text-xl"></i>
+                    <template x-if="unreadCount > 0">
+                        <span x-text="unreadCount > 99 ? '99+' : unreadCount"
+                              class="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 block h-4 w-4 sm:h-5 sm:w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center animate-pulse"></span>
+                    </template>
+                </button>
+
+                <div x-show="open"
+                     x-cloak
+                     @click.away="open = false"
+                     x-transition:enter="transition ease-out duration-100"
+                     x-transition:enter-start="transform opacity-0 scale-95"
+                     x-transition:enter-end="transform opacity-100 scale-100"
+                     x-transition:leave="transition ease-in duration-75"
+                     x-transition:leave-start="transform opacity-100 scale-100"
+                     x-transition:leave-end="transform opacity-0 scale-95"
+                     class="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50 max-h-[80vh] overflow-hidden flex flex-col">
+
+                    <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white">
+                        <div>
+                            <h3 class="text-sm font-semibold text-gray-900">My Request Updates</h3>
+                            <p class="text-xs text-gray-500 mt-0.5">Leave, Overtime &amp; Official Business</p>
+                        </div>
+                        <span x-show="loading" class="text-xs text-gray-500">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </span>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto">
+                        <template x-if="notifications.length === 0 && !loading">
+                            <div class="px-4 py-8 text-center">
+                                <i class="fas fa-bell-slash text-gray-300 text-3xl mb-2"></i>
+                                <p class="text-sm text-gray-500">No updates yet</p>
+                                <p class="text-xs text-gray-400 mt-1">You'll see status changes for your requests here</p>
+                            </div>
+                        </template>
+
+                        <template x-for="notification in notifications" :key="notification.id">
+                            <button @click="openNotification(notification)"
+                                    class="w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors"
+                                    :class="{ 'bg-blue-50/50': !notification.read }">
+                                <div class="flex items-start">
+                                    <div class="flex-shrink-0">
+                                        <div class="w-8 h-8 rounded-full flex items-center justify-center shadow-sm"
+                                             :class="{
+                                                'bg-green-100': notification.color === 'green',
+                                                'bg-red-100': notification.color === 'red',
+                                                'bg-gray-200': notification.color === 'gray',
+                                                'bg-blue-100': !['green','red','gray'].includes(notification.color)
+                                             }">
+                                            <i class="fas text-sm"
+                                               :class="[notification.icon || 'fa-bell', {
+                                                    'text-green-600': notification.color === 'green',
+                                                    'text-red-600': notification.color === 'red',
+                                                    'text-gray-600': notification.color === 'gray',
+                                                    'text-blue-600': !['green','red','gray'].includes(notification.color)
+                                               }]"></i>
+                                        </div>
+                                    </div>
+                                    <div class="ml-3 flex-1 min-w-0">
+                                        <div class="flex items-start justify-between">
+                                            <p class="text-sm font-medium text-gray-900" x-text="notification.title"></p>
+                                            <span class="text-xs text-gray-400 ml-2 flex-shrink-0" x-text="notification.time_ago"></span>
+                                        </div>
+                                        <p class="text-xs text-gray-600 mt-0.5" x-text="notification.message"></p>
+                                    </div>
+                                    <template x-if="!notification.read">
+                                        <span class="ml-2 mt-1 h-2 w-2 rounded-full bg-blue-600 flex-shrink-0"></span>
+                                    </template>
+                                </div>
+                            </button>
+                        </template>
+                    </div>
+
+                    <div class="px-4 py-2 border-t border-gray-100 bg-gray-50">
+                        <div class="flex items-center justify-between">
+                            <p class="text-xs text-gray-500">
+                                <span x-text="notifications.length"></span> updates
+                            </p>
+                            <button @click="markAllAsRead()" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                                Mark all as read
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Inbox Popup - Only show for HR and Admin -->
             @if(in_array($user->role, ['admin', 'hr']))
             <div class="relative" x-data="{

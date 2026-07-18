@@ -57,6 +57,9 @@ class RequireTimeInMiddleware
             'attendance.official-business.cancel',
             'attendance.official-business.statistics',
             'attendance.official-business.update-status',
+            'notifications.mine',
+            'notifications.read',
+            'notifications.read-all',
         ])) {
             return $next($request);
         }

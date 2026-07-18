@@ -80,6 +80,55 @@ class NotificationController extends Controller
         return min($recentLogsCount, 99); // Cap at 99
     }
 
+    /**
+     * Personal "my requests" notifications for the current account — Leave /
+     * Overtime / Official Business status changes. Unlike getLoginLogs()
+     * above, this is available to every role, since every employee can file
+     * these requests and needs to know when they're actioned.
+     */
+    public function myNotifications(Request $request)
+    {
+        $account = auth()->user();
+
+        $notifications = $account->notifications()
+            ->latest()
+            ->limit(20)
+            ->get()
+            ->map(function ($notification) {
+                return [
+                    'id' => $notification->id,
+                    'read' => !is_null($notification->read_at),
+                    'time_ago' => $notification->created_at->diffForHumans(),
+                ] + $notification->data;
+            });
+
+        return response()->json([
+            'notifications' => $notifications,
+            'unread_count' => $account->unreadNotifications()->count(),
+        ]);
+    }
+
+    public function markNotificationRead(Request $request, $id)
+    {
+        $account = auth()->user();
+        $notification = $account->notifications()->where('id', $id)->first();
+
+        if (!$notification) {
+            return response()->json(['error' => 'Notification not found'], 404);
+        }
+
+        $notification->markAsRead();
+
+        return response()->json(['success' => true]);
+    }
+
+    public function markAllNotificationsRead(Request $request)
+    {
+        auth()->user()->unreadNotifications()->update(['read_at' => now()]);
+
+        return response()->json(['success' => true]);
+    }
+
     public function index()
     {
         $user = auth()->user();
