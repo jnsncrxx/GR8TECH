@@ -383,6 +383,27 @@ class OfficialBusinessController extends Controller
             $endTime
         );
 
+        $existingAttendance =
+                AttendanceRecord::query()
+                    ->where(
+                        'employee_id',
+                        $employeeId
+                    )
+                    ->whereDate(
+                        'date',
+                        $obDate
+                    )
+                    ->whereNotNull('time_in')
+                    ->first();
+            if ($existingAttendance) {
+                return back()
+                    ->withInput()
+                    ->with(
+                        'error',
+                        'This date already has an attendance record. Official Business requests cannot be filed for dates you have already clocked in for.'
+                    );
+            }
+
         $existingRequests =
             OfficialBusinessRequest::query()
                 ->where(
