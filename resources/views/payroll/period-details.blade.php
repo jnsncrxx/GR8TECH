@@ -196,7 +196,7 @@
                     </table>
                 </div>
             @else
-                <div class="text-center py-12">
+                <!--<div class="text-center py-12">
                     <i class="fas fa-inbox text-gray-400 text-4xl mb-4"></i>
                     <h3 class="text-lg font-medium text-gray-900 mb-2">No Payroll Records</h3>
                     <p class="text-gray-600 mb-4">No payroll records found for this period.</p>
@@ -204,7 +204,7 @@
                         <i class="fas fa-calculator mr-2"></i>
                         Generate Payroll
                     </a>
-                </div>
+                </div>-->
             @endif
         </div>
     </div>

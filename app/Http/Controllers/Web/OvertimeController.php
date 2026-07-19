@@ -94,6 +94,14 @@ class OvertimeController extends Controller
                 return response()->json(['error' => 'You already have a pending or approved overtime request for this date. Please choose another day.'], 422);
             }
             
+            $hasAttendanceRecord = \App\Models\AttendanceRecord::where('employee_id', $user->employee_id)
+                ->whereDate('date', $request->date)
+                ->exists();
+
+            if (!$hasAttendanceRecord) {
+                return response()->json(['error' => 'Overtime can only be requested for a date with an existing attendance record.'], 422);
+            }
+            
             $hours = $startTime->diffInMinutes($endTime) / 60;
             
             $overtime = \App\Models\OvertimeRequest::create([
@@ -102,7 +110,7 @@ class OvertimeController extends Controller
                 'start_time' => $startTime,
                 'end_time' => $endTime,
                 'hours' => round($hours, 2),
-                'rate_multiplier' => 1.25,
+                'rate_multiplier' => (float) \App\Models\AttendanceSetting::getValue('overtime_rate_multiplier', 1.5),
                 'reason' => $request->reason,
                 'status' => \App\Models\OvertimeRequest::PENDING,
                 'expires_at' => $endTime,

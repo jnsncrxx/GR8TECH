@@ -21,6 +21,8 @@ class LeaveBalance extends Model
         'vacation_days_used',
         'sick_days_total',
         'sick_days_used',
+        'sil_days_total',
+        'sil_days_used',
         'personal_days_total',
         'personal_days_used',
         'emergency_days_total',
@@ -68,17 +70,17 @@ class LeaveBalance extends Model
     {
         $totalField = $leaveType . '_days_total';
         $usedField = $leaveType . '_days_used';
-        
+
         return $this->$totalField - $this->$usedField;
     }
 
     /**
      * Check if employee has enough leave balance.
      *
-     * Personal and Emergency leave are incremental: employees can keep
-     * filing them past their nominal allotment, so no cap is enforced here.
-     * Usage still accumulates via incrementUsedDays()/days_used for
-     * reporting, it just never blocks a new request.
+     * Everything except Vacation, Sick, and SIL is incremental: employees
+     * can keep filing them with no hard cap, so no balance check is
+     * enforced here. Usage still accumulates via incrementUsedDays()/
+     * days_used for reporting, it just never blocks a new request.
      */
     public function hasEnoughBalance(string $leaveType, int $daysRequested): bool
     {

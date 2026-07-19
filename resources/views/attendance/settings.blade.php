@@ -6,10 +6,10 @@
 <x-page-header 
     title="Attendance Settings"
     description="Configure attendance policies and rules"
-    :actions="[
-        ['type' => 'button', 'label' => 'Save Settings', 'icon' => 'save', 'variant' => 'primary']
-    ]"
 >
+<form action="{{ route('attendance.settings.update') }}" method="POST">
+    @csrf
+    @method('PUT')
 
     <!-- General Settings -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -106,13 +106,13 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div>
                 <label for="overtimeRate" class="block text-sm font-medium text-gray-700 mb-2">Overtime Rate Multiplier</label>
-                <input type="number" id="overtimeRate" value="1.5" min="1" max="3" step="0.1" 
+                <input type="number" id="overtimeRate" name="overtime_rate_multiplier" value="{{ $overtimeRateMultiplier }}" min="1" max="3" step="0.1" 
                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
                 <p class="mt-1 text-xs text-gray-500">Rate multiplier for overtime hours (e.g., 1.5 = 150%)</p>
             </div>
             <div>
                 <label for="maxOvertime" class="block text-sm font-medium text-gray-700 mb-2">Maximum Overtime (hours/day)</label>
-                <input type="number" id="maxOvertime" value="4" min="1" max="12" 
+                <input type="number" id="maxOvertime" name="max_overtime_hours" value="{{ $maxOvertimeHours }}" min="1" max="12" 
                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
                 <p class="mt-1 text-xs text-gray-500">Maximum overtime hours allowed per day</p>
             </div>
@@ -250,4 +250,7 @@
         </div>
     </div>
 </x-page-header>
+
+<button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Settings</button>
+</form>
 @endsection

@@ -110,7 +110,6 @@ class AttendanceController extends Controller
         // TODO: Implement daily attendance export
         return response()->json(['message' => 'Export not yet implemented'], 501);
     }
-
     /**
      * Display timekeeping records
      */
@@ -675,6 +674,7 @@ class AttendanceController extends Controller
             'employee_id' => 'required|exists:employees,id',
             'date' => 'required|date',
             'status' => 'required|string|in:' . implode(',', AttendanceRecord::STATUSES),
+            'is_full_day' => 'nullable|in:0,1',
             'time_in' => 'nullable|required_unless:status,official_business|date_format:H:i',
             'time_out' => 'nullable|date_format:H:i|after:time_in',
             'break_start' => 'nullable|date_format:H:i',
@@ -683,11 +683,16 @@ class AttendanceController extends Controller
         ]);
 
         $isOfficialBusiness = $validated['status'] === AttendanceRecord::OFFICIAL_BUSINESS;
+        // Default to full day when OB is selected but the radio somehow didn't come through
+        $isFullDayOb = $isOfficialBusiness ? (($validated['is_full_day'] ?? '1') === '1') : null;
 
-        if ($isOfficialBusiness && (empty($validated['time_in']) || empty($validated['time_out']))) {
+        // Partial-day OB needs an explicit start/end window. Full-day OB
+        // doesn't use clock times at all — scheduled shift hours are
+        // credited automatically via OfficialBusinessRequest::computeCreditedHours().
+        if ($isOfficialBusiness && !$isFullDayOb && (empty($validated['time_in']) || empty($validated['time_out']))) {
             return redirect()->back()
                 ->withInput()
-                ->with('error', 'Time In and Time Out are required for an Official Business record.');
+                ->with('error', 'Please provide both an OB start time and end time for partial-day Official Business.');
         }
 
         if ($isOfficialBusiness && empty($validated['notes'])) {
@@ -732,13 +737,36 @@ class AttendanceController extends Controller
             'notes' => $validated['notes'] ?? null,
         ];
 
-        $payload['time_in'] = $validated['time_in'] ? Carbon::parse($validated['date'] . ' ' . $validated['time_in']) : null;
-        $payload['time_out'] = $validated['time_out'] ? Carbon::parse($validated['date'] . ' ' . $validated['time_out']) : null;
-        $payload['break_start'] = $validated['break_start'] ? Carbon::parse($validated['date'] . ' ' . $validated['break_start']) : null;
-        $payload['break_end'] = $validated['break_end'] ? Carbon::parse($validated['date'] . ' ' . $validated['break_end']) : null;
-        $payload['total_hours'] = 0;
-        $payload['regular_hours'] = 0;
-        $payload['overtime_hours'] = 0;
+        // Credited hours for full-day OB, computed up front so it can go
+        // straight onto the attendance record (which never gets time_in/out).
+        $fullDayCreditedHours = null;
+
+        if ($isOfficialBusiness && $isFullDayOb) {
+            $obLookup = new OfficialBusinessRequest([
+                'employee_id' => $validated['employee_id'],
+                'date' => $validated['date'],
+                'is_full_day' => true,
+                'ob_start_time' => null,
+                'ob_end_time' => null,
+            ]);
+            $fullDayCreditedHours = $obLookup->computeCreditedHours();
+
+            $payload['time_in'] = null;
+            $payload['time_out'] = null;
+            $payload['break_start'] = null;
+            $payload['break_end'] = null;
+            $payload['total_hours'] = $fullDayCreditedHours;
+            $payload['regular_hours'] = min(8, $fullDayCreditedHours);
+            $payload['overtime_hours'] = 0;
+        } else {
+            $payload['time_in'] = $validated['time_in'] ? Carbon::parse($validated['date'] . ' ' . $validated['time_in']) : null;
+            $payload['time_out'] = $validated['time_out'] ? Carbon::parse($validated['date'] . ' ' . $validated['time_out']) : null;
+            $payload['break_start'] = $validated['break_start'] ? Carbon::parse($validated['date'] . ' ' . $validated['break_start']) : null;
+            $payload['break_end'] = $validated['break_end'] ? Carbon::parse($validated['date'] . ' ' . $validated['break_end']) : null;
+            $payload['total_hours'] = 0;
+            $payload['regular_hours'] = 0;
+            $payload['overtime_hours'] = 0;
+        }
 
         if (Schema::hasColumn('attendance_records', 'created_by') && Auth::check()) {
             $payload['created_by'] = Auth::id();
@@ -757,9 +785,10 @@ class AttendanceController extends Controller
                     'date' => $validated['date'],
                     'reason' => $validated['notes'],
                     'status' => OfficialBusinessRequest::APPROVED,
-                    'is_full_day' => false,
-                    'ob_start_time' => $validated['time_in'],
-                    'ob_end_time' => $validated['time_out'],
+                    'is_full_day' => $isFullDayOb,
+                    'ob_start_time' => $isFullDayOb ? null : $validated['time_in'],
+                    'ob_end_time' => $isFullDayOb ? null : $validated['time_out'],
+                    'credited_hours' => $fullDayCreditedHours,
                     'reviewed_by' => Auth::id(),
                     'reviewed_at' => Carbon::now(),
                     'approved_by_role' => Auth::user()->role ?? null,
@@ -779,6 +808,9 @@ class AttendanceController extends Controller
                 ]);
 
                 if ($isOfficialBusiness) {
+                    // Partial-day OB: credited hours are the exact OB window
+                    // duration (via computeCreditedHours()), not the generic
+                    // regular/overtime split used for clock-based statuses.
                     $obRequest = OfficialBusinessRequest::where(
                         'attendance_record_id',
                         $record->id
@@ -880,5 +912,39 @@ class AttendanceController extends Controller
             'month' => $month,
             'employee' => $employee,
         ]);
+    }
+
+    /**
+     * Display attendance settings, loaded from persisted AttendanceSetting rows.
+     */
+    public function settings(Request $request)
+    {
+        return view('attendance.settings', [
+            'user' => Auth::user(),
+            'overtimeRateMultiplier' => \App\Models\AttendanceSetting::getValue('overtime_rate_multiplier', '1.5'),
+            'maxOvertimeHours' => \App\Models\AttendanceSetting::getValue('max_overtime_hours', '4'),
+            'requireOvertimeApproval' => \App\Models\AttendanceSetting::getValue('require_overtime_approval', '0'),
+            'autoCalculateOvertime' => \App\Models\AttendanceSetting::getValue('auto_calculate_overtime', '1'),
+        ]);
+    }
+
+    /**
+     * Persist attendance/overtime settings.
+     */
+    public function updateSettings(Request $request)
+    {
+        $validated = $request->validate([
+            'overtime_rate_multiplier' => 'required|numeric|min:1|max:3',
+            'max_overtime_hours' => 'required|numeric|min:1|max:12',
+            'require_overtime_approval' => 'nullable|boolean',
+            'auto_calculate_overtime' => 'nullable|boolean',
+        ]);
+
+        \App\Models\AttendanceSetting::setValue('overtime_rate_multiplier', (string) $validated['overtime_rate_multiplier'], 'Rate multiplier for overtime hours (e.g., 1.5 = 150%)');
+        \App\Models\AttendanceSetting::setValue('max_overtime_hours', (string) $validated['max_overtime_hours'], 'Maximum overtime hours allowed per day');
+        \App\Models\AttendanceSetting::setValue('require_overtime_approval', $request->boolean('require_overtime_approval') ? '1' : '0', 'Overtime must be approved by supervisor');
+        \App\Models\AttendanceSetting::setValue('auto_calculate_overtime', $request->boolean('auto_calculate_overtime') ? '1' : '0', 'Automatically calculate overtime hours');
+
+        return redirect()->route('attendance.settings')->with('success', 'Settings updated successfully');
     }
 }

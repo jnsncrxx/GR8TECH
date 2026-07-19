@@ -1046,7 +1046,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             $leaveTypes = [
                                 'vacation' => ['label' => 'Vacation Leave', 'default' => 15],
                                 'sick' => ['label' => 'Sick Leave', 'default' => 10],
-                                'bereavement' => ['label' => 'SIL (Service Incentive Leave)', 'default' => 0],
+                                'sil' => ['label' => 'SIL (Service Incentive Leave)', 'default' => 5],
                             ];
                             // Personal and Emergency are excluded here: they're incremental
                             // (see LeaveRequest::UNCAPPED_LEAVE_TYPES) with no cap to set.
@@ -1107,12 +1107,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             $leaveTypes = [
                                 'vacation' => ['label' => 'Vacation Leave'],
                                 'sick' => ['label' => 'Sick Leave'],
-                                'bereavement' => ['label' => 'SIL (Service Incentive Leave)'],
+                                'sil' => ['label' => 'SIL (Service Incentive Leave)'],
                             ];
-                            // Personal and Emergency are excluded here: they're incremental
-                            // (see LeaveRequest::UNCAPPED_LEAVE_TYPES) with no cap to set.
-                            // Maternity and Paternity are excluded here: not managed through
-                            // this bulk form, only settable another way.
+                            // Everything else (Personal, Emergency, Maternity, Paternity,
+                            // Bereavement, Study) is incremental with no cap to set — see
+                            // LeaveRequest::UNCAPPED_LEAVE_TYPES.
                         @endphp
                         @foreach($leaveTypes as $type => $config)
                         <div class="border border-gray-200 rounded-lg p-3">
@@ -1199,12 +1198,12 @@ document.getElementById('setLeaveBalanceForm').addEventListener('submit', async 
         }
     }
 
-    const submitData = {
+   const submitData = {
         employee_id: data.employee_id === 'all' ? 'all' : data.employee_id,
         year: parseInt(data.year),
         vacation_days_total: parseInt(data.vacation_days_total || 0),
         sick_days_total: parseInt(data.sick_days_total || 0),
-        bereavement_days_total: parseInt(data.bereavement_days_total || 0),
+        sil_days_total: parseInt(data.sil_days_total || 0),
     };
 
     try {
@@ -1212,6 +1211,7 @@ document.getElementById('setLeaveBalanceForm').addEventListener('submit', async 
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json',
                 'X-CSRF-TOKEN': '{{ csrf_token() }}'
             },
             body: JSON.stringify(submitData)
