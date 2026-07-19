@@ -56,12 +56,6 @@
                     @error('date')
                         <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                     @enderror
-                    @if(in_array($user->role, ['admin', 'hr']))
-                        <label class="mt-2 inline-flex items-start gap-2 text-xs text-gray-600">
-                            <input type="checkbox" name="override_cutoff" value="1" {{ old('override_cutoff') ? 'checked' : '' }} class="mt-0.5 text-blue-600 focus:ring-blue-500">
-                            <span>Add anyway if this date is outside the current payroll cutoff period (admin/HR override)</span>
-                        </label>
-                    @endif
                 </div>
 
                 <!-- Status -->
@@ -82,12 +76,33 @@
                     @enderror
                 </div>
 
-                <!-- Time In / Time Out (applies to every status, including Official Business) -->
-                <div id="time-inout-section" class="contents">
+                <!-- Official Business duration (Full day / Partial day) -->
+                <div id="ob-duration-section" class="sm:col-span-2 hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Duration <span class="text-red-500">*</span>
+                    </label>
+                    <div class="flex items-center gap-6">
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="radio" name="is_full_day" id="ob_full_day" value="1" {{ old('is_full_day', '1') == '1' ? 'checked' : '' }} class="text-blue-600 focus:ring-blue-500">
+                            <span class="ml-2 text-sm text-gray-700">Full day</span>
+                        </label>
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="radio" name="is_full_day" id="ob_partial_day" value="0" {{ old('is_full_day') == '0' ? 'checked' : '' }} class="text-blue-600 focus:ring-blue-500">
+                            <span class="ml-2 text-sm text-gray-700">Partial day</span>
+                        </label>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500">Full day credits the employee's scheduled shift hours. Partial day credits only the time range you select below.</p>
+                    @error('is_full_day')
+                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <!-- Time In / Time Out (hidden for full-day Official Business) -->
+                <div id="time-in-out-section" class="contents">
                     <!-- Time In -->
                     <div>
-                        <label for="time_in" class="block text-sm font-medium text-gray-700 mb-2">
-                            Time In <span id="time_in_required_indicator" class="text-red-500">*</span>
+                        <label for="time_in" id="time_in_label" class="block text-sm font-medium text-gray-700 mb-2">
+                            <span id="time_in_label_text">Time In</span> <span id="time_in_required_indicator" class="text-red-500">*</span>
                         </label>
                         <input type="time" name="time_in" id="time_in" value="{{ old('time_in') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('time_in') border-red-500 @enderror" style="background-color: white !important; color: #111827 !important;">
                         @error('time_in')
@@ -97,8 +112,8 @@
 
                     <!-- Time Out -->
                     <div>
-                        <label for="time_out" class="block text-sm font-medium text-gray-700 mb-2">
-                            Time Out <span id="time_out_required_indicator" class="text-red-500 hidden">*</span>
+                        <label for="time_out" id="time_out_label" class="block text-sm font-medium text-gray-700 mb-2">
+                            <span id="time_out_label_text">Time Out</span> <span id="time_out_required_indicator" class="text-red-500 hidden">*</span>
                         </label>
                         <input type="time" name="time_out" id="time_out" value="{{ old('time_out') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('time_out') border-red-500 @enderror" style="background-color: white !important; color: #111827 !important;">
                         @error('time_out')
@@ -107,8 +122,8 @@
                     </div>
                 </div>
 
-                <!-- Break fields (applies to every status, including Official Business) -->
-                <div id="break-fields-section" class="contents">
+                <!-- Break Start / End (not applicable to Official Business, full or partial) -->
+                <div id="break-section" class="contents">
                     <!-- Break Start -->
                     <div>
                         <label for="break_start" class="block text-sm font-medium text-gray-700 mb-2">
@@ -132,11 +147,11 @@
                     </div>
                 </div>
 
-                <!-- Official Business notice -->
+                <!-- Official Business notice (full-day only) -->
                 <div id="ob-notice" class="sm:col-span-2 hidden">
                     <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
                         <i class="fas fa-briefcase mr-1"></i>
-                        For Official Business, use Time In and Time Out above to record when the employee left and returned, plus a Break if one applies — computed the same way as any other attendance record. Explain the reason in Notes.
+                        <span id="ob-notice-text">Full-day Official Business doesn't use clock times — the employee's scheduled shift hours will be credited automatically.</span>
                     </div>
                 </div>
 
@@ -180,7 +195,7 @@
                         <li>Break duration is automatically calculated if you provide both Time In and Time Out</li>
                         <li>Total hours will be calculated as: (Time Out - Time In) - Break Duration</li>
                         <li>You cannot add duplicate records for the same employee on the same date</li>
-                        <li>Official Business uses Time In, Time Out, and Break the same way a regular record does, and requires a reason in Notes</li>
+                        <li>Official Business doesn't use breaks — choose Full day (scheduled shift hours are credited automatically) or Partial day (set the OB start/end time)</li>
                     </ul>
                 </div>
             </div>
@@ -196,33 +211,61 @@ document.addEventListener('DOMContentLoaded', function() {
     const breakDurationInput = document.getElementById('break_duration');
     const dateInput = document.getElementById('date');
     const statusSelect = document.getElementById('status');
+    const timeInOutSection = document.getElementById('time-in-out-section');
+    const breakSection = document.getElementById('break-section');
+    const obDurationSection = document.getElementById('ob-duration-section');
+    const obFullDayRadio = document.getElementById('ob_full_day');
+    const obPartialDayRadio = document.getElementById('ob_partial_day');
     const obNotice = document.getElementById('ob-notice');
     const notesTextarea = document.getElementById('notes');
     const notesRequiredIndicator = document.getElementById('notes_required_indicator');
+    const timeInLabel = document.getElementById('time_in_label_text');
+    const timeOutLabel = document.getElementById('time_out_label_text');
     const timeInRequiredIndicator = document.getElementById('time_in_required_indicator');
     const timeOutRequiredIndicator = document.getElementById('time_out_required_indicator');
 
     function toggleOfficialBusinessFields() {
         const isOfficialBusiness = statusSelect.value === 'official_business';
+        const isFullDay = obFullDayRadio.checked;
 
         if (isOfficialBusiness) {
-            obNotice.classList.remove('hidden');
+            obDurationSection.classList.remove('hidden');
+            breakSection.classList.add('hidden'); // OB never has breaks, full or partial
 
-            timeInInput.setAttribute('required', 'required');
-            timeInRequiredIndicator.classList.remove('hidden');
-            timeOutInput.setAttribute('required', 'required');
-            timeOutRequiredIndicator.classList.remove('hidden');
+            if (isFullDay) {
+                // Full day OB: no clock times, scheduled shift hours are credited automatically
+                timeInOutSection.classList.add('hidden');
+                obNotice.classList.remove('hidden');
+                timeInInput.removeAttribute('required');
+                timeOutInput.removeAttribute('required');
+                timeInRequiredIndicator.classList.add('hidden');
+                timeOutRequiredIndicator.classList.add('hidden');
+            } else {
+                // Partial day OB: reuse Time In/Out as the OB start/end window
+                timeInOutSection.classList.remove('hidden');
+                obNotice.classList.add('hidden');
+                timeInLabel.textContent = 'OB Start Time';
+                timeOutLabel.textContent = 'OB End Time';
+                timeInInput.setAttribute('required', 'required');
+                timeOutInput.setAttribute('required', 'required');
+                timeInRequiredIndicator.classList.remove('hidden');
+                timeOutRequiredIndicator.classList.remove('hidden');
+            }
 
             // Notes becomes the required "reason" field
             notesTextarea.setAttribute('required', 'required');
             notesTextarea.placeholder = 'Reason for Official Business (required)...';
             notesRequiredIndicator.classList.remove('hidden');
         } else {
+            obDurationSection.classList.add('hidden');
+            timeInOutSection.classList.remove('hidden');
+            breakSection.classList.remove('hidden');
             obNotice.classList.add('hidden');
-
+            timeInLabel.textContent = 'Time In';
+            timeOutLabel.textContent = 'Time Out';
             timeInInput.setAttribute('required', 'required');
-            timeInRequiredIndicator.classList.remove('hidden');
             timeOutInput.removeAttribute('required');
+            timeInRequiredIndicator.classList.remove('hidden');
             timeOutRequiredIndicator.classList.add('hidden');
 
             notesTextarea.removeAttribute('required');
@@ -232,10 +275,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     statusSelect.addEventListener('change', toggleOfficialBusinessFields);
+    obFullDayRadio.addEventListener('change', toggleOfficialBusinessFields);
+    obPartialDayRadio.addEventListener('change', toggleOfficialBusinessFields);
     // Run once on load in case of old() repopulated status (e.g. after a validation error)
     toggleOfficialBusinessFields();
 
     function calculateTotalHours() {
+        if (statusSelect.value === 'official_business') {
+            return;
+        }
+
         const timeIn = timeInInput.value;
         const timeOut = timeOutInput.value;
         const breakStart = document.getElementById('break_start').value;

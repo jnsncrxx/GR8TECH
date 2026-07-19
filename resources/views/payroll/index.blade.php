@@ -7,20 +7,54 @@
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Payroll Management</h1>
-            <p class="mt-1 text-sm text-gray-600">Manage employee salaries, deductions, and payments</p>
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">
+                Payroll Management
+            </h1>
+
+            <p class="mt-1 text-sm text-gray-600">
+                Manage employee salaries, deductions, and payments
+            </p>
         </div>
-        <div class="mt-4 sm:mt-0 flex space-x-3">
-        <form action="{{ route('payrolls.generate') }}" method="POST" class="inline" id="generatePayrollForm">
-            @csrf
-            <input type="hidden" name="start_date" id="generateStartDate" value="">
-            <input type="hidden" name="end_date" id="generateEndDate" value="">
-            <input type="hidden" name="payroll_template_id" id="generateTemplateId" value="">
-            <button type="button" onclick="generatePayroll()" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-                <i class="fas fa-plus mr-2"></i>
-                Generate Payroll
-            </button>
-        </form>
+
+        <div class="mt-4 sm:mt-0 flex flex-wrap gap-3">
+
+            <!-- Existing payroll generation -->
+            <form action="{{ route('payrolls.generate') }}"
+                  method="POST"
+                  class="inline"
+                  id="generatePayrollForm">
+                @csrf
+
+                <input type="hidden"
+                       name="start_date"
+                       id="generateStartDate"
+                       value="">
+
+                <input type="hidden"
+                       name="end_date"
+                       id="generateEndDate"
+                       value="">
+
+                <input type="hidden"
+                       name="payroll_template_id"
+                       id="generateTemplateId"
+                       value="">
+
+                <button type="button"
+                        onclick="generatePayroll()"
+                        class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                    <i class="fas fa-plus mr-2"></i>
+                    Generate Payroll
+                </button>
+            </form>
+
+            {{--Generate using Period Management
+            <a href="{{ route('payrolls.generate-from-period') }}"
+               class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-lg font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors">
+                <i class="fas fa-calendar-alt mr-2"></i>
+                Generate from Period
+            </a> --}}
+
         </div>
     </div>
 
@@ -1390,8 +1424,12 @@ async function exportPayrollWithCalculations() {
                 class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center">
                     <i class="fas fa-download mr-2"></i>Download Payslip
                 </a>
+            </div>
+        </div>
+    </div>
+</div>
 
-                <!-- Payment Modal -->
+<!-- Payment Modal -->
 <div id="paymentModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
     <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 xl:w-1/3 shadow-lg rounded-md bg-white">
         <div class="mt-3">
@@ -1465,6 +1503,12 @@ async function exportPayrollWithCalculations() {
                 </button>
                 <button onclick="processSelectedPayments()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                     <i class="fas fa-credit-card mr-2"></i>Process Payments
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Approve Payroll Modal -->
 <div id="approvePayrollModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
     <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-1/3 shadow-lg rounded-md bg-white">

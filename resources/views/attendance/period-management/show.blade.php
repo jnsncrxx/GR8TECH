@@ -200,7 +200,7 @@
                                 </div>
                                 <div>
                                     <h4 class="text-sm font-medium text-gray-900">
-                                        {{ $employeeRecords->first()['employee_code'] }} - {{ $employeeRecords->first()['employee_name'] }}
+                                        {{ $employeeRecords->first()['employee_code'] ?? '—' }} - {{ $employeeRecords->first()['employee_name'] ?? 'Unknown Employee' }}
                                     </h4>
                                     <p class="text-sm text-gray-500">{{ $employeeRecords->count() }} record(s)</p>
                                 </div>

@@ -93,7 +93,12 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
     // DELETE /positions/{position} now archives the position instead of permanently deleting it.
     Route::resource('positions', App\Http\Controllers\PositionController::class);
 
-    // Payroll routes
+   /* // Payroll generation from Period Management
+    Route::get('/payrolls/generate-from-period',[PayrollController::class, 'generateFromPeriod'] )->name('payrolls.generate-from-period');
+    Route::post('/payrolls/generate-from-period', [PayrollController::class, 'generateFromPeriodData'])->name('payrolls.generate-from-period.store');
+    */
+
+     // Payroll routes
     Route::resource('payroll-templates', App\Http\Controllers\Web\PayrollTemplateController::class);
     Route::post('payroll-templates/{id}/restore', [App\Http\Controllers\Web\PayrollTemplateController::class, 'restore'])->name('payroll-templates.restore');
     Route::resource('payrolls', PayrollController::class);
@@ -346,8 +351,8 @@ Route::get('/debug-current-payrolls', function() {
             Route::get('/templates', [App\Http\Controllers\Web\AttendanceController::class, 'scheduleTemplates'])->name('templates');
         });
 
-        // Period Management routes
-        Route::prefix('period-management')->name('period-management.')->group(function () {
+        /* Period Management routes
+            Route::prefix('period-management')->name('period-management.')->group(function () {
             Route::get('/', [App\Http\Controllers\Web\PeriodManagementController::class, 'index'])->name('index');
             Route::get('/create', [App\Http\Controllers\Web\PeriodManagementController::class, 'create'])->name('create');
             Route::post('/', [App\Http\Controllers\Web\PeriodManagementController::class, 'store'])->name('store');
@@ -359,7 +364,7 @@ Route::get('/debug-current-payrolls', function() {
             Route::post('/{period}/generate-payroll', [App\Http\Controllers\Web\PeriodManagementController::class, 'generatePayroll'])->name('generate-payroll');
             Route::get('/{period}/payroll-summary', [App\Http\Controllers\Web\PeriodManagementController::class, 'showPayrollSummary'])->name('payroll-summary');
             Route::get('/{period}/export-payroll', [App\Http\Controllers\Web\PeriodManagementController::class, 'exportPayroll'])->name('export-payroll');
-        });
+        }); */
 
         // Overtime routes
         Route::get('/overtime', [App\Http\Controllers\Web\OvertimeController::class, 'index'])->name('overtime');
@@ -399,9 +404,8 @@ Route::get('/debug-current-payrolls', function() {
             // General reports for admin/hr (This is the old route, keeping it to avoid breaking)
             Route::get('/reports-old', [App\Http\Controllers\Web\AttendanceController::class, 'reports'])->name('reports.old');
             
-            Route::get('/settings', function () {
-                return view('attendance.settings', ['user' => auth()->user()]);
-            })->name('settings');
+           Route::get('/settings', [App\Http\Controllers\Web\AttendanceController::class, 'settings'])->name('settings');
+            Route::put('/settings', [App\Http\Controllers\Web\AttendanceController::class, 'updateSettings'])->name('settings.update');
         });
     });
 

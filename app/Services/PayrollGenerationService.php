@@ -135,7 +135,7 @@ class PayrollGenerationService
     </head>
     <body>
         <div class="header">
-            <h1>Aeternitas Company</h1>
+            <h1>GR8 TECH ENTERPRISE INC.</h1>
             <h2>PAYSLIP</h2>
         </div>
         
@@ -971,7 +971,7 @@ class PayrollGenerationService
             \Illuminate\Support\Facades\Log::info('Employee found: ' . $employee->full_name);
 
             // 2. Get company
-            $company = CompanyHelper::getCurrentCompany() ?? (object)['name' => 'Aeternitas Company'];
+            $company = CompanyHelper::getCurrentCompany() ?? (object)['name' => 'GR8 TECH ENTERPRISE INC.'];
 
             // 3. Get HTML content (you might need to create a view or use inline HTML)
             $html = $this->generatePayslipHtmlService($payroll, $employee, $company);
@@ -1208,7 +1208,7 @@ class PayrollGenerationService
         }
 
         // Calculate late/undertime deductions
-        $lateDeductions = $this->calculateLateUndertimeDeductions($employeeRecords, $hourlyRate);
+        $timeDeductions = $this->calculateLateUndertimeDeductions($employeeRecords, $hourlyRate);
 
         // Calculate absence deductions
         $absentDeductions = $this->calculateAbsenceDeductions($employeeRecords, $dailyRate);
@@ -1217,7 +1217,7 @@ class PayrollGenerationService
         $unpaidLeaveDeduction = $leaveData['unpaid_leave_deduction'] ?? 0;
 
         // Total deductions
-        $totalDeductions = $lateDeductions + $absentDeductions + $unpaidLeaveDeduction +
+        $totalDeductions = $timeDeductions['total'] + $absentDeductions + $unpaidLeaveDeduction +
             $statutoryDeductions['sss'] +
             $statutoryDeductions['phic'] +
             $statutoryDeductions['hdmf'];
@@ -1251,7 +1251,7 @@ class PayrollGenerationService
             'basic_salary' => $basicSalary,
             'days_worked' => $daysWorked,
             'overtime_hours' => $overtimeData['total_hours'],
-            'overtime_rate' => $hourlyRate * 1.25, // Excel: 125% of hourly rate
+            'overtime_rate' => $overtimeData['effective_rate'],
             'overtime_pay' => $overtimeData['total_pay'],
             'night_differential_hours' => $nightDiffData['total_hours'],
             'night_differential_rate' => $hourlyRate * 0.10, // Excel: 10% of hourly rate
@@ -1264,7 +1264,10 @@ class PayrollGenerationService
             'unpaid_leave_days' => $leaveData['unpaid_leave_days'] ?? 0,
             'unpaid_leave_deduction' => $leaveData['unpaid_leave_deduction'] ?? 0,
             'total_deductions' => $totalDeductions,
-            'late_deductions' => $lateDeductions,
+            'late_minutes' => $timeDeductions['late_minutes'],
+            'undertime_minutes' => $timeDeductions['undertime_minutes'],
+            'late_deductions' => $timeDeductions['late'],
+            'undertime_deductions' => $timeDeductions['undertime'],
             'absent_deductions' => $absentDeductions,
             'sss' => $statutoryDeductions['sss'],
             'phic' => $statutoryDeductions['phic'],
@@ -1291,7 +1294,7 @@ class PayrollGenerationService
 
         // Check if employee has ANY attendance records indicating presence
         $hasAnyAttendance = collect($employeeRecords)->contains(function ($record) {
-            return isset($record['attendance_status']) && in_array($record['attendance_status'], ['Present', 'Late', 'Half Day']);
+            return isset($record['attendance_status']) && in_array($record['attendance_status'], ['Present', 'Late', 'Half Day', 'Official Business'], true);
         });
 
         foreach ($employeeRecords as $record) {
@@ -1309,7 +1312,7 @@ class PayrollGenerationService
                 // Only count actual hours worked on working days if they have attendance
                 if (
                     $record['schedule_status'] === 'Working' &&
-                    $record['attendance_status'] === 'Present'
+                    in_array($record['attendance_status'], ['Present', 'Late', 'Half Day', 'Official Business'], true)
                 ) {
 
                     // Parse scheduled hours from the record
@@ -1324,36 +1327,75 @@ class PayrollGenerationService
     }
 
     /**
-     * Calculate overtime with exact Excel multipliers
+     * Calculate approved overtime using each request's configured multiplier.
+     *
+     * The controller passes `overtime_entries` containing the hours and
+     * rate_multiplier from approved OvertimeRequest rows. The legacy
+     * `overtime` value remains as a backward-compatible 1.25 fallback.
      */
     private function calculateOvertimeWithExcelRates($employeeRecords, $hourlyRate): array
     {
-        $totalHours = 0;
-        $totalPay = 0;
+        $totalHours = 0.0;
+        $totalPay = 0.0;
+        $weightedMultiplierTotal = 0.0;
 
-        foreach ($employeeRecords as $record) {
-            // Regular OT: hours × 1.25 × hourly rate
-            if ($record['overtime'] > 0) {
-                $totalHours += $record['overtime'];
-                $totalPay += $record['overtime'] * $hourlyRate * 1.25;
+         foreach ($employeeRecords as $record) {
+            // Overtime requires an actual attendance record for that date.
+            // A day marked Absent (no time_in/time_out) cannot also earn OT pay.
+            if (($record['attendance_status'] ?? null) === 'Absent') {
+                continue;
+            }
+            $entries = $record['overtime_entries'] ?? [];
+
+            if (!empty($entries)) {
+                foreach ($entries as $entry) {
+                    $hours = max(0, (float) ($entry['hours'] ?? 0));
+                    $multiplier = max(0, (float) ($entry['rate_multiplier'] ?? 1.25));
+
+                    $totalHours += $hours;
+                    $totalPay += $hours * $hourlyRate * $multiplier;
+                    $weightedMultiplierTotal += $hours * $multiplier;
+                }
+            } else {
+                // Backward compatibility for existing comprehensive records.
+                $hours = max(0, (float) ($record['overtime'] ?? 0));
+
+                if ($hours > 0) {
+                    $totalHours += $hours;
+                    $totalPay += $hours * $hourlyRate * 1.25;
+                    $weightedMultiplierTotal += $hours * 1.25;
+                }
             }
 
-            // LH OT: hours × 2.0 × 1.3 × hourly rate (Excel: =H17*200%*1.3*N17)
-            if (isset($record['lh_overtime']) && $record['lh_overtime'] > 0) {
-                $totalHours += $record['lh_overtime'];
-                $totalPay += $record['lh_overtime'] * $hourlyRate * 2.0 * 1.3;
+            // Existing holiday-specific fields remain supported.
+            if (!empty($record['lh_overtime'])) {
+                $hours = (float) $record['lh_overtime'];
+                $multiplier = 2.0 * 1.3;
+
+                $totalHours += $hours;
+                $totalPay += $hours * $hourlyRate * $multiplier;
+                $weightedMultiplierTotal += $hours * $multiplier;
             }
 
-            // SH OT: hours × 1.3 × hourly rate (Excel: =H14*P14*1.3)
-            if (isset($record['sh_overtime']) && $record['sh_overtime'] > 0) {
-                $totalHours += $record['sh_overtime'];
-                $totalPay += $record['sh_overtime'] * $hourlyRate * 1.3;
+            if (!empty($record['sh_overtime'])) {
+                $hours = (float) $record['sh_overtime'];
+                $multiplier = 1.3;
+
+                $totalHours += $hours;
+                $totalPay += $hours * $hourlyRate * $multiplier;
+                $weightedMultiplierTotal += $hours * $multiplier;
             }
         }
 
+        $effectiveMultiplier = $totalHours > 0
+            ? $weightedMultiplierTotal / $totalHours
+            : 1.25;
+
         return [
-            'total_hours' => $totalHours,
-            'total_pay' => round($totalPay, 2)
+            'total_hours' => round($totalHours, 2),
+            'effective_multiplier' => round($effectiveMultiplier, 4),
+            'effective_rate' => round($hourlyRate * $effectiveMultiplier, 2),
+            'total_pay' => round($totalPay, 2),
         ];
     }
 
@@ -1428,22 +1470,33 @@ class PayrollGenerationService
     }
 
     /**
-     * Calculate late/undertime deductions based on Excel formula
+     * Calculate late and undertime deductions from actual minutes.
+     *
+     * Formula:
+     * hourly rate ÷ 60 × minutes
      */
-    private function calculateLateUndertimeDeductions($employeeRecords, $hourlyRate): float
+    private function calculateLateUndertimeDeductions($employeeRecords, $hourlyRate): array
     {
-        $totalMinutes = 0;
+        $lateMinutes = 0;
+        $undertimeMinutes = 0;
 
         foreach ($employeeRecords as $record) {
-            if (isset($record['late_minutes']) && $record['late_minutes'] > 0) {
-                $totalMinutes += $record['late_minutes'];
-            }
+            $lateMinutes += max(0, (int) ($record['late_minutes'] ?? 0));
+            $undertimeMinutes += max(0, (int) ($record['undertime_minutes'] ?? 0));
         }
 
-        // Excel formula: =H14/60*AB14 (hourly rate ÷ 60 × total minutes)
-        $deduction = ($hourlyRate / 60) * $totalMinutes;
+        $minuteRate = $hourlyRate / 60;
 
-        return round($deduction, 2);
+        $lateDeduction = round($minuteRate * $lateMinutes, 2);
+        $undertimeDeduction = round($minuteRate * $undertimeMinutes, 2);
+
+        return [
+            'late_minutes' => $lateMinutes,
+            'undertime_minutes' => $undertimeMinutes,
+            'late' => $lateDeduction,
+            'undertime' => $undertimeDeduction,
+            'total' => round($lateDeduction + $undertimeDeduction, 2),
+        ];
     }
 
     /**
@@ -1461,13 +1514,6 @@ class PayrollGenerationService
                 $absentDays++;
             }
 
-            // late/undertime days also deduct a full day's pay
-            if (
-                !empty($record['is_incomplete_day']) &&
-                $record['schedule_status'] === 'Working'
-            ) {
-                $absentDays++;
-            }
         }
 
         // total deduction = daily rate * absent days
@@ -1498,11 +1544,15 @@ class PayrollGenerationService
      */
     private function calculateApprovedLeaveData(Employee $employee, array $periodData): array
     {
-        // Paid leave types — the employee is compensated for these days.
-        $paidLeaveTypes = ['vacation', 'sick', 'bereavement', 'maternity', 'paternity', 'study'];
-
-        // Unpaid leave types — days are deducted from gross pay.
-        $unpaidLeaveTypes = ['personal', 'emergency'];
+        // Paid leave types are compensated for these days. Everything else
+        // (LeaveRequest::UNCAPPED_LEAVE_TYPES) is unpaid and deducted from
+        // gross pay. Derived from the canonical lists on LeaveRequest so
+        // this can't drift out of sync when leave types change.
+        $paidLeaveTypes = array_diff(
+            ['vacation', 'sick', 'sil', ...\App\Models\LeaveRequest::UNCAPPED_LEAVE_TYPES],
+            \App\Models\LeaveRequest::UNCAPPED_LEAVE_TYPES
+        );
+        $unpaidLeaveTypes = \App\Models\LeaveRequest::UNCAPPED_LEAVE_TYPES;
 
         $startDate = Carbon::parse($periodData['start_date'])->startOfDay();
         $endDate   = Carbon::parse($periodData['end_date'])->endOfDay();
@@ -1562,16 +1612,53 @@ class PayrollGenerationService
      */
     private function calculateStatutoryDeductions(Employee $employee, $monthlyRate): array
     {
-        // Default values from Excel
-        $sss = 450.00; // For drivers with daily rate 695
-        $phic = $monthlyRate >= 10000 ? 225.88 : 0; // Excel: =451.75/2
-        $hdmf = 100.00; // Fixed amount
-
         return [
-            'sss' => $sss,
-            'phic' => $phic,
-            'hdmf' => $hdmf
+            'sss' => $this->calculateSssContribution($monthlyRate),
+            'phic' => $this->calculatePhilHealthContribution($monthlyRate),
+            'hdmf' => $this->calculateHdmfContribution($monthlyRate),
         ];
+    }
+
+    /**
+     * Employee share of SSS contribution (2026 table).
+     * Rate: 15% total, employee pays 5%.
+     * Monthly Salary Credit (MSC): floor ₱5,000, ceiling ₱35,000, in ₱500 brackets.
+     */
+    private function calculateSssContribution($monthlySalary): float
+    {
+        $monthlySalary = max(0, (float) $monthlySalary);
+
+        // Snap to nearest ₱500 MSC bracket, clamped to floor/ceiling
+        $msc = round($monthlySalary / 500) * 500;
+        $msc = max(5000, min(35000, $msc));
+
+        return round($msc * 0.05, 2);
+    }
+
+    /**
+     * Employee share of PhilHealth contribution (2026 table).
+     * Rate: 5% of monthly basic salary, split 2.5% employee / 2.5% employer.
+     * Floor ₱10,000, ceiling ₱100,000.
+     */
+    private function calculatePhilHealthContribution($monthlySalary): float
+    {
+        $monthlySalary = max(0, (float) $monthlySalary);
+        $base = max(10000, min(100000, $monthlySalary));
+
+        return round($base * 0.025, 2);
+    }
+
+    /**
+     * Employee share of Pag-IBIG (HDMF) contribution (2026 table, HDMF Circular No. 460).
+     * Rate: 1% if salary ≤ ₱1,500, else 2%. Computed on Maximum Fund Salary capped at ₱10,000.
+     */
+    private function calculateHdmfContribution($monthlySalary): float
+    {
+        $monthlySalary = max(0, (float) $monthlySalary);
+        $base = min($monthlySalary, 10000);
+        $rate = $monthlySalary <= 1500 ? 0.01 : 0.02;
+
+        return round($base * $rate, 2);
     }
 
     /**
@@ -1765,8 +1852,8 @@ class PayrollGenerationService
 
         // Set document properties
         $spreadsheet->getProperties()
-            ->setCreator('Aeternitas Payroll System')
-            ->setLastModifiedBy('Aeternitas Payroll System')
+            ->setCreator('GR8 TECH ENTERPRISE Payroll System')
+            ->setLastModifiedBy('GR8 TECH ENTERPRISE Payroll System')
             ->setTitle('Payroll Report')
             ->setSubject('Payroll Data')
             ->setDescription('Detailed payroll report with calculations');
@@ -2153,7 +2240,7 @@ class PayrollGenerationService
             ->first();
 
         if ($existingPayroll && in_array($existingPayroll->status, ['approved', 'paid'])) {
-            Log::info("Payroll already exists and is locked for employee {$employee->id}");
+            Log::info("SKIPPED (locked payroll) - employee {$employee->id} ({$employee->full_name}) - existing status: {$existingPayroll->status}, period {$startDate->format('Y-m-d')} to {$endDate->format('Y-m-d')}");
             return null;
         }
 
@@ -2178,13 +2265,13 @@ class PayrollGenerationService
 
         // Create or update payroll record with ALL required fields
         try {
-            $payroll = Payroll::updateOrCreate(
-                [
-                    'employee_id' => $employee->id,
-                    'pay_period_start' => $startDate->format('Y-m-d'),
-                    'pay_period_end' => $endDate->format('Y-m-d'),
-                ],
-                [
+            $attributes = [
+                'employee_id' => $employee->id,
+                'pay_period_start' => $startDate->format('Y-m-d'),
+                'pay_period_end' => $endDate->format('Y-m-d'),
+            ];
+
+            $values = [
                 'basic_salary' => $components['basic_salary'],
                 'holiday_basic_pay' => $components['holiday_basic_pay'] ?? 0,
                 'holiday_premium' => $components['holiday_premium'] ?? 0,
@@ -2213,7 +2300,37 @@ class PayrollGenerationService
                 'gross_pay' => $components['gross_pay'],
                 'net_pay' => $components['net_pay'],
                 'status' => $existingPayroll ? $existingPayroll->status : 'pending',
-            ]);
+            ];
+
+            try {
+                $payroll = Payroll::updateOrCreate($attributes, $values);
+            } catch (\Illuminate\Database\QueryException $e) {
+                // Unique constraint on (employee_id, pay_period_start, pay_period_end):
+                // two concurrent "Generate Payroll" requests both missed the initial
+                // SELECT and both tried to INSERT for the same employee/period. The
+                // loser of that race lands here — fall back to updating the row the
+                // winner just created instead of failing the whole generation run.
+                $isDuplicateKey = str_contains($e->getMessage(), 'payrolls_employee_period_unique')
+                    || (int) ($e->errorInfo[1] ?? 0) === 1062; // MySQL duplicate-entry code
+
+                if (! $isDuplicateKey) {
+                    throw $e;
+                }
+
+                Log::warning('Concurrent payroll generation detected; updating existing row instead of inserting duplicate', [
+                    'employee_id' => $employee->id,
+                    'pay_period_start' => $attributes['pay_period_start'],
+                    'pay_period_end' => $attributes['pay_period_end'],
+                ]);
+
+                $payroll = Payroll::where($attributes)->first();
+                if ($payroll) {
+                    $payroll->update($values);
+                } else {
+                    // Shouldn't happen, but re-throw if the row still isn't there.
+                    throw $e;
+                }
+            }
 
             Log::info("Generated payroll for employee {$employee->id}: Net Pay: {$components['net_pay']}");
 

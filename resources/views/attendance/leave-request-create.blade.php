@@ -89,9 +89,9 @@
                     <div class="text-xs text-blue-700">Sick</div>
                     <div class="text-sm font-semibold text-blue-900" id="balance-sick">{{ $availableDays['sick'] ?? 0 }} days</div>
                 </div>
-                <div>
+               <div>
                     <div class="text-xs text-blue-700">SIL</div>
-                    <div class="text-sm font-semibold text-blue-900" id="balance-bereavement">{{ $availableDays['bereavement'] ?? 0 }} days</div>
+                    <div class="text-sm font-semibold text-blue-900" id="balance-sil">{{ $availableDays['sil'] ?? 0 }} days</div>
                 </div>
                 @endif
             </div>
@@ -143,7 +143,9 @@
                                 <option value="emergency" {{ old('leave_type') == 'emergency' ? 'selected' : '' }}>Emergency Leave</option>
                                 <option value="maternity" {{ old('leave_type') == 'maternity' ? 'selected' : '' }}>Maternity Leave</option>
                                 <option value="paternity" {{ old('leave_type') == 'paternity' ? 'selected' : '' }}>Paternity Leave</option>
-                                <option value="bereavement" {{ old('leave_type') == 'bereavement' ? 'selected' : '' }}>SIL (Service Incentive Leave)</option>
+                                <option value="sil" {{ old('leave_type') == 'sil' ? 'selected' : '' }}>SIL (Service Incentive Leave)</option>
+                                <option value="bereavement" {{ old('leave_type') == 'bereavement' ? 'selected' : '' }}>Bereavement Leave</option>
+                                <option value="study" {{ old('leave_type') == 'study' ? 'selected' : '' }}>Others</option>
                             </select>
                             @error('leave_type')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -561,15 +563,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const leaveTypeLabels = {
         'vacation': 'Vacation',
         'sick': 'Sick',
+        'sil': 'SIL',
         'personal': 'Personal/LWOP',
         'emergency': 'Emergency',
         'maternity': 'Maternity',
         'paternity': 'Paternity',
-        'bereavement': 'SIL'
+        'bereavement': 'Bereavement',
+        'study': 'Others'
     };
 
     // Leave types without an enforced balance cap
-    const uncappedLeaveTypes = ['personal', 'emergency'];
+    const uncappedLeaveTypes = ['personal', 'emergency', 'maternity', 'paternity', 'bereavement', 'study'];
 
     // Check if a date is a Sunday
     function isSunday(date) {
@@ -916,7 +920,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateBalanceDisplay(days) {
         const balanceGrid = document.getElementById('balanceGrid');
         if (balanceGrid && Object.keys(days).length > 0) {
-            const types = ['vacation', 'sick', 'personal', 'emergency', 'bereavement'];
+            const types = ['vacation', 'sick', 'sil'];
             types.forEach(type => {
                 const el = document.getElementById(`balance-${type}`);
                 if (el) {
@@ -1084,7 +1088,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </div>
                                 <div>
                                     <div class="text-xs text-blue-700">SIL</div>
-                                    <div class="text-sm font-semibold text-blue-900" id="balance-bereavement">${data.available_days.bereavement || 0} days</div>
+                                    <div class="text-sm font-semibold text-blue-900" id="balance-sil">${data.available_days.sil || 0} days</div>
                                 </div>
                             `;
                             

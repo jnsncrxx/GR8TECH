@@ -242,7 +242,7 @@
                     <span>Official Business</span>
                 </a>
                 
-                <!-- Period Management -->
+                {{-- Period Management 
                 <a href="{{ route('attendance.period-management.index') }}" 
                    class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'attendance.period-management.index' ? 'bg-white text-blue-600' : '' }}">
                     <i class="fas fa-calendar-week mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'attendance.period-management.index' ? 'text-blue-600' : '' }}"></i>
@@ -250,7 +250,7 @@
                     @if($user->role !== 'employee')
                     <span class="ml-auto bg-purple-100 text-purple-600 text-xs px-2 py-1 rounded-full">New</span>
                     @endif
-                </a>
+                </a> --}}
                 
                 @if($user->role === 'admin' || $user->role === 'hr')
                 <!-- Timekeeping and HRIS Reports -->

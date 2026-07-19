@@ -21,6 +21,7 @@ class LeaveController extends Controller
     protected array $leaveTypes = [
         'vacation',
         'sick',
+        'sil',
         'personal',
         'emergency',
         'maternity',
@@ -28,6 +29,11 @@ class LeaveController extends Controller
         'bereavement',
         'study',
     ];
+
+    // Only these carry a settable, enforced balance. Everything else in
+    // $leaveTypes is uncapped (see LeaveRequest::UNCAPPED_LEAVE_TYPES) and
+    // doesn't need a total set via the balance form.
+    protected array $balanceLeaveTypes = ['vacation', 'sick', 'sil'];
 
     public function index(Request $request)
     {
@@ -673,10 +679,10 @@ class LeaveController extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        $data = $request->validate(array_merge([
+       $data = $request->validate(array_merge([
             'employee_id' => ['required', 'string'],
             'year' => ['required', 'integer'],
-        ], array_combine(array_map(fn($type) => "{$type}_days_total", $this->leaveTypes), array_fill(0, count($this->leaveTypes), ['required', 'integer', 'min:0']))));
+        ], array_combine(array_map(fn($type) => "{$type}_days_total", $this->balanceLeaveTypes), array_fill(0, count($this->balanceLeaveTypes), ['required', 'integer', 'min:0']))));
 
         $employeeIds = [];
         if ($data['employee_id'] === 'all') {
@@ -691,8 +697,13 @@ class LeaveController extends Controller
                 'year' => $data['year'],
             ]);
 
-            foreach ($this->leaveTypes as $type) {
+            // Only Vacation/Sick/SIL get a settable total. Every other type
+            // is uncapped, so its total stays whatever it already was (or
+            // 0 on a new record) and is never required from this form.
+            foreach ($this->balanceLeaveTypes as $type) {
                 $balance->{"{$type}_days_total"} = $data["{$type}_days_total"] ?? 0;
+            }
+            foreach ($this->leaveTypes as $type) {
                 $balance->{"{$type}_days_used"} = $balance->{"{$type}_days_used"} ?? 0;
             }
 
@@ -702,26 +713,21 @@ class LeaveController extends Controller
         return response()->json(['success' => true, 'message' => 'Leave balance saved successfully.']);
     }
 
-    public function updateBalance(Request $request, $id)
+  public function updateBalance(Request $request, $id)
     {
         $user = Auth::user();
         if (!in_array($user->role, ['admin', 'hr'], true)) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
-
         $balance = LeaveBalance::find($id);
         if (!$balance) {
             return response()->json(['error' => 'Leave balance record not found'], 404);
         }
-
-        $data = $request->validate(array_combine(array_map(fn($type) => "{$type}_days_total", $this->leaveTypes), array_fill(0, count($this->leaveTypes), ['required', 'integer', 'min:0'])));
-
-        foreach ($this->leaveTypes as $type) {
+        $data = $request->validate(array_combine(array_map(fn($type) => "{$type}_days_total", $this->balanceLeaveTypes), array_fill(0, count($this->balanceLeaveTypes), ['required', 'integer', 'min:0'])));
+        foreach ($this->balanceLeaveTypes as $type) {
             $balance->{"{$type}_days_total"} = $data["{$type}_days_total"];
         }
-
         $balance->save();
-
         return response()->json(['success' => true, 'message' => 'Leave balance updated successfully.']);
     }
 
