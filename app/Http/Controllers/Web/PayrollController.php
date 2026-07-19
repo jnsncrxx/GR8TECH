@@ -10,6 +10,7 @@ use App\Models\Period;
 use App\Models\AttendanceRecord;
 use App\Models\EmployeeSchedule;
 use App\Services\PayrollGenerationService;
+use App\Services\CutoffPeriodService;
 use App\Helpers\CompanyHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,10 +24,42 @@ use Illuminate\Support\Facades\Schema;
 class PayrollController extends Controller
 {
     protected $payrollService;
+    protected $cutoffService;
 
-    public function __construct(PayrollGenerationService $payrollService)
+    public function __construct(PayrollGenerationService $payrollService, CutoffPeriodService $cutoffService)
     {
         $this->payrollService = $payrollService;
+        $this->cutoffService = $cutoffService;
+    }
+
+    /**
+     * Snap an arbitrary start_date (from a free-form date picker) to the
+     * official cutoff period it falls in, returning ['start_date' => ..,
+     * 'end_date' => ..] as Y-m-d strings.
+     *
+     * Without this, two "Generate Payroll" submissions that each pick a
+     * slightly different date range (but both intend the same pay period)
+     * write different pay_period_start/pay_period_end values, so
+     * Payroll::updateOrCreate() in PayrollGenerationService — which is keyed
+     * on (employee_id, pay_period_start, pay_period_end) — treats them as
+     * different periods and creates a second row instead of updating the
+     * first. Canonicalizing here means every submission for "this pay
+     * period" always resolves to the same start/end, so updateOrCreate
+     * naturally collapses repeat generations into a single row.
+     *
+     * generateFromPeriodData() is intentionally NOT routed through this: it
+     * already resolves its period from the canonical Period model
+     * (period_id), which is the authoritative source when the Period
+     * Management module is used directly.
+     */
+    private function canonicalPeriodFor(string $anchorDate): array
+    {
+        $period = $this->cutoffService->periodFor($anchorDate);
+
+        return [
+            'start_date' => $period['start']->format('Y-m-d'),
+            'end_date' => $period['end']->format('Y-m-d'),
+        ];
     }
 
     public function index(Request $request)
@@ -137,12 +170,16 @@ class PayrollController extends Controller
             $query->whereYear('latest_payrolls.pay_period_start', $request->year);
         }
 
-        // Add select for employee and department data
+        // Add employee, department, and position joins
+        $query->leftJoin('positions', 'employees.position_id', '=', 'positions.id');
+
+        // Add select for employee, department, and position data
         $query->addSelect([
             'employees.first_name',
             'employees.last_name',
             'employees.employee_id as employee_code',
-            'departments.name as department_name'
+            'departments.name as department_name',
+            'positions.name as position_name'
         ]);
 
         // Sorting - FIXED
@@ -199,7 +236,10 @@ class PayrollController extends Controller
                 'employee_id' => $item->employee_code,
                 'department' => (object) [
                     'name' => $item->department_name
-                ]
+                ],
+                'position' => $item->position_name ? (object) [
+                    'name' => $item->position_name
+                ] : null
             ]);
 
             return $payroll;
@@ -632,10 +672,16 @@ class PayrollController extends Controller
     {
         set_time_limit(300); // Increase timeout for bulk generation
         try {
-            $period = $request->validate([
+            $request->validate([
                 'start_date' => 'required|date',
                 'end_date' => 'required|date'
             ]);
+
+            // Snap the picked date to the official cutoff period so repeat
+            // generations for "this period" always hit the same
+            // pay_period_start/pay_period_end and update one row instead of
+            // creating a new one. See canonicalPeriodFor() for details.
+            $period = $this->canonicalPeriodFor($request->start_date);
 
             // You'll need to get comprehensive data from somewhere
             // For now, this is a placeholder - you'll need to implement this based on your data source
@@ -655,16 +701,20 @@ class PayrollController extends Controller
      * Show form to generate payroll from period management
      */
     public function generateFromPeriod()
-    {
-        // Get recent periods from database
-        $periods = Period::with('department')
-            ->orderBy('created_at', 'desc')
-            ->get();
-        $employees = Employee::with('department')->get();
-        $departments = Department::all();
+{
+    $user = auth()->user() ?? (object)['role' => 'admin'];
 
-        return view('payroll.generate-from-period', compact('periods', 'employees', 'departments'));
-    }
+    $periods = Period::with('department')->latest()->get();
+    $employees = Employee::with('department')->get();
+    $departments = Department::all();
+
+    return view('payroll.generate-from-period', compact(
+        'user',
+        'periods',
+        'employees',
+        'departments'
+    ));
+}
 
     /**
      * Generate payroll from period management data
@@ -709,16 +759,28 @@ class PayrollController extends Controller
                 $employees = $employees->whereIn('id', $period->employee_ids);
             }
             $employees = $employees->get();
+          
 
             // Get comprehensive attendance data
-            $comprehensiveData = $this->getComprehensiveAttendanceData($startDate, $endDate, $employees);
+            $comprehensiveData = $this->getComprehensiveAttendanceData($startDate, $endDate, $employees); 
 
             // Generate payroll using comprehensive data
             $generatedPayrolls = $this->payrollService->generatePayrollFromComprehensiveData(
                 $periodData,
                 $comprehensiveData,
                 $request->employee_ids
-            );
+            ); 
+
+            // TEMP DEBUG - remove after diagnosing the empty-result issue
+            Log::info('generateFromPeriodData DEBUG', [
+                'period_id' => $period->id,
+                'period_department_id' => $period->department_id,
+                'period_employee_ids' => $period->employee_ids,
+                'resolved_employees_count' => $employees->count(),
+                'resolved_employee_ids' => $employees->pluck('id')->all(),
+                'comprehensive_data_rows' => count($comprehensiveData),
+                'generated_payrolls_count' => count($generatedPayrolls),
+            ]);
 
             if (empty($generatedPayrolls)) {
                 return redirect()->back()->with('error', 'No payroll records were generated.');
@@ -747,8 +809,11 @@ class PayrollController extends Controller
         try {
             DB::beginTransaction();
 
-            $startDate = Carbon::parse($request->start_date);
-            $endDate = Carbon::parse($request->end_date);
+            // Snap the picked range to the official cutoff period — see
+            // canonicalPeriodFor() for why this matters for idempotent generation.
+            $canonicalPeriod = $this->canonicalPeriodFor($request->start_date);
+            $startDate = Carbon::parse($canonicalPeriod['start_date']);
+            $endDate = Carbon::parse($canonicalPeriod['end_date']);
 
             // Step 1: Check if payroll already exists
             $existingPayrolls = Payroll::where('pay_period_start', $startDate->format('Y-m-d'))
@@ -761,8 +826,8 @@ class PayrollController extends Controller
             if ($existingPayrolls > 0) {
                 return redirect()->back()
                     ->with('warning', "Payroll already exists for {$existingPayrolls} employee(s). Proceeding with approval and payment processing.")
-                    ->with('start_date', $request->start_date)
-                    ->with('end_date', $request->end_date);
+                    ->with('start_date', $startDate->format('Y-m-d'))
+                    ->with('end_date', $endDate->format('Y-m-d'));
             }
 
             // Step 2: Generate payroll (if needed)
@@ -791,8 +856,8 @@ class PayrollController extends Controller
             }
 
             $periodData = [
-                'start_date' => $request->start_date,
-                'end_date' => $request->end_date,
+                'start_date' => $startDate->format('Y-m-d'),
+                'end_date' => $endDate->format('Y-m-d'),
                 'company_id' => $currentCompany?->id
             ];
 
@@ -829,8 +894,8 @@ class PayrollController extends Controller
 
             return redirect()->route('payroll.index')
                 ->with('success', $message)
-                ->with('start_date', $request->start_date)
-                ->with('end_date', $request->end_date);
+                ->with('start_date', $startDate->format('Y-m-d'))
+                ->with('end_date', $endDate->format('Y-m-d'));
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Complete payroll workflow failed: ' . $e->getMessage());
@@ -1139,7 +1204,7 @@ class PayrollController extends Controller
 
             // Get company info
             $company = CompanyHelper::getCurrentCompany() ?? (object)[
-                'name' => 'Aeternitas Company',
+                'name' => 'GR8 TECH ENTERPRISE INC.',
                 'address' => 'Not specified',
                 'contact' => 'Not specified'
             ];
@@ -1353,7 +1418,7 @@ class PayrollController extends Controller
         </div>
         
         <div class="footer">
-            <p>Generated by Aeternitas Payroll System</p>
+            <p>Generated by GR8 TECH ENTERPRISE Payroll System</p>
             <p>This is an official document. Unauthorized distribution is prohibited.</p>
             <p>Document ID: PAYSLIP-' . strtoupper(substr(md5($payroll->id . $payroll->pay_period_start), 0, 12)) . '</p>
         </div>
@@ -1398,7 +1463,7 @@ class PayrollController extends Controller
         }
 
         // Get company
-        $company = CompanyHelper::getCurrentCompany() ?? (object)['name' => 'Aeternitas Company'];
+        $company = CompanyHelper::getCurrentCompany() ?? (object)['name' => 'GR8 TECH ENTERPRISE INC.'];
 
         // Generate HTML content
         $html = view('payroll.instant-payslip', [
@@ -1990,8 +2055,8 @@ class PayrollController extends Controller
 
         // Set document properties
         $spreadsheet->getProperties()
-            ->setCreator('Aeternitas Payroll System')
-            ->setLastModifiedBy('Aeternitas Payroll System')
+            ->setCreator('GR8 TECH ENTERPRISE Payroll System')
+            ->setLastModifiedBy('GR8 TECH ENTERPRISE Payroll System')
             ->setTitle('Payroll Calculations Report')
             ->setSubject('Detailed Payroll Calculations')
             ->setDescription('Payroll export with company calculation formulas');
@@ -2505,6 +2570,10 @@ class PayrollController extends Controller
         ]);
 
         try {
+            // Snap the picked range to the official cutoff period — see
+            // canonicalPeriodFor() for why this matters for idempotent generation.
+            $canonicalPeriod = $this->canonicalPeriodFor($request->start_date);
+
             // Get the current company
             $currentCompany = CompanyHelper::getCurrentCompany();
 
@@ -2521,8 +2590,8 @@ class PayrollController extends Controller
             }
 
             // Get comprehensive attendance data for the period
-            $startDate = Carbon::parse($request->start_date);
-            $endDate = Carbon::parse($request->end_date);
+            $startDate = Carbon::parse($canonicalPeriod['start_date']);
+            $endDate = Carbon::parse($canonicalPeriod['end_date']);
 
             Log::info('Generating payroll for period', [
                 'start_date' => $startDate->format('Y-m-d'),
@@ -2542,14 +2611,14 @@ class PayrollController extends Controller
             if (empty($comprehensiveData)) {
                 return redirect()->route('payroll.index')
                     ->with('error', 'No attendance data found for the selected period. Please ensure attendance records exist for this period.')
-                    ->with('start_date', $request->start_date)
-                    ->with('end_date', $request->end_date);
+                    ->with('start_date', $startDate->format('Y-m-d'))
+                    ->with('end_date', $endDate->format('Y-m-d'));
             }
 
             // Prepare period data for payroll service
             $periodData = [
-                'start_date' => $request->start_date,
-                'end_date' => $request->end_date,
+                'start_date' => $startDate->format('Y-m-d'),
+                'end_date' => $endDate->format('Y-m-d'),
                 'company_id' => $currentCompany?->id
             ];
 
@@ -2565,13 +2634,13 @@ class PayrollController extends Controller
 
             Log::info('Payroll generation completed', [
                 'generated_count' => $count,
-                'period' => $request->start_date . ' to ' . $request->end_date
+                'period' => $periodData['start_date'] . ' to ' . $periodData['end_date']
             ]);
 
             if ($count === 0) {
                 return redirect()->route('payroll.index', [
-                    'start_date' => $request->start_date,
-                    'end_date' => $request->end_date
+                    'start_date' => $periodData['start_date'],
+                    'end_date' => $periodData['end_date']
                 ])->with('warning', 'No payroll records were generated. This could be because payroll already exists for this period or there were issues with attendance data.');
             }
 
@@ -2584,8 +2653,8 @@ class PayrollController extends Controller
             }
 
             return redirect()->route('payroll.index', [
-                'start_date' => $request->start_date,
-                'end_date' => $request->end_date
+                'start_date' => $periodData['start_date'],
+                'end_date' => $periodData['end_date']
             ])->with('success', $successMessage);
         } catch (\Exception $e) {
             Log::error('Payroll generation failed: ' . $e->getMessage(), [
@@ -3657,6 +3726,18 @@ class PayrollController extends Controller
                 return $item->employee_id . '_' . $item->date->format('Y-m-d');
             });
 
+        // Fetch all approved Official Business requests for these employees in this period.
+        // Payroll does not trust AttendanceRecord::OFFICIAL_BUSINESS status blindly - it
+        // cross-checks against an actually-approved (non-expired, since expiry only ever
+        // applies to still-pending requests) OB request for that exact employee/date.
+        $approvedObRequests = \App\Models\OfficialBusinessRequest::whereIn('employee_id', $employees->pluck('id'))
+            ->whereBetween('date', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
+            ->where('status', 'approved')
+            ->get()
+            ->keyBy(function ($item) {
+                return $item->employee_id . '_' . $item->date->format('Y-m-d');
+            });
+
         foreach ($employees as $employee) {
             $currentDate = $startDate->copy();
 
@@ -3681,7 +3762,9 @@ class PayrollController extends Controller
                 }
 
                 // Determine attendance status
-                $attendanceStatus = $this->getAttendanceStatus($attendanceRecord, $schedule);
+                $obKey = $employee->id . '_' . $dateStr;
+                $hasApprovedOb = $approvedObRequests->has($obKey);
+                $attendanceStatus = $this->getAttendanceStatus($attendanceRecord, $schedule, $hasApprovedOb);
 
                 // Initialize default values for non-working days
                 $workedHours = '—';
@@ -3690,11 +3773,27 @@ class PayrollController extends Controller
                 $eveningOvertime = 0;
                 $nightDifferentialHours = 0;
                 $lateMinutes = 0;
+                $undertimeMinutes = 0;
+                $isIncompleteDay = false;
                 $isNightShift = false;
 
-                // Retrieve approved overtime for this specific date
+                // Retrieve approved overtime for this specific date.
+                // Preserve each request's configured multiplier so payroll does
+                // not force every approved OT request to use 1.25.
                 $otKey = $employee->id . '_' . $dateStr;
-                $overtime = $overtimeRecords->has($otKey) ? $overtimeRecords->get($otKey)->sum('hours') : 0;
+                $approvedOtRequests = $overtimeRecords->get($otKey, collect());
+
+                $overtimeEntries = $approvedOtRequests
+                    ->map(static function ($request) {
+                        return [
+                            'hours' => (float) $request->hours,
+                            'rate_multiplier' => (float) ($request->rate_multiplier ?: 1.25),
+                        ];
+                    })
+                    ->values()
+                    ->all();
+
+                $overtime = collect($overtimeEntries)->sum('hours');
 
                 // Only calculate attendance metrics if schedule status is 'Working' or 'Regular Holiday' or 'Special Holiday'
                 if (in_array($scheduleStatus, ['Working', 'Regular Holiday', 'Special Holiday'])) {
@@ -3708,10 +3807,16 @@ class PayrollController extends Controller
                         $nightDifferentialHours = $attendanceRecord->calculateNightShiftHours();
                         $isNightShift = $nightDifferentialHours > 0;
 
-                        // late minutes computed based on schedule instead of missing column
+                        // Calculate late and undertime separately. Payroll
+                        // deducts only the actual minutes instead of charging a
+                        // full-day absence for an incomplete attendance day.
                         $lateMinutes = $attendanceRecord->getLateMinutes();
+                        $undertimeMinutes = $this->calculateUndertimeMinutes(
+                            $attendanceRecord,
+                            $schedule,
+                            $hasApprovedOb
+                        );
 
-                        // late or undertime = full day deduction
                         $isIncompleteDay = $attendanceRecord->isIncompleteDay();
                     } else {
                         // No attendance record - mark as absent
@@ -3723,24 +3828,73 @@ class PayrollController extends Controller
                     $scheduledHours = $scheduleStatus;
                 }
 
+                // Display-formatted schedule and actual time ranges, plus a
+                // human-readable combined status, for views such as
+                // period-management/show.blade.php. Non-working days fall
+                // back to the schedule status label (e.g. "Day Off",
+                // "Holiday") the same way $scheduledHours already does above.
+                $scheduleInOut = $scheduleStatus;
+                $workingHours = $scheduleStatus;
+
+                if ($schedule && $schedule->time_in && $schedule->time_out) {
+                    $scheduleInOut = Carbon::parse($schedule->time_in)->format('g:i A')
+                        . ' - ' . Carbon::parse($schedule->time_out)->format('g:i A');
+
+                    if ($schedule->isFlexible() && $schedule->required_hours) {
+                        $workingHours = $this->formatHours((float) $schedule->required_hours);
+                    } else {
+                        $shiftStart = Carbon::parse($schedule->time_in);
+                        $shiftEnd = Carbon::parse($schedule->time_out);
+
+                        if ($shiftEnd->lessThanOrEqualTo($shiftStart)) {
+                            $shiftEnd->addDay(); // overnight shift
+                        }
+
+                        $workingHours = $this->formatHours(
+                            $shiftStart->diffInMinutes($shiftEnd) / 60
+                        );
+                    }
+                }
+
+                $actualInOut = '—';
+
+                if ($attendanceRecord && $attendanceRecord->time_in && $attendanceRecord->time_out) {
+                    $actualInOut = Carbon::parse($attendanceRecord->time_in)->format('g:i A')
+                        . ' - ' . Carbon::parse($attendanceRecord->time_out)->format('g:i A');
+                }
+
+                // No richer status text exists anywhere else in the codebase,
+                // so this currently mirrors $attendanceStatus verbatim.
+                $combinedStatus = $attendanceStatus;
+
                 // Add to comprehensive data
                 $comprehensiveData[] = [
                     'employee_id' => $employee->id,
                     'employee_name' => $employee->full_name,
                     'employee_id_number' => $employee->employee_id,
+                    'employee_code' => $employee->employee_id,
                     'department' => $employee->department->name ?? 'N/A',
                     'date' => $dateStr,
                     'date_formatted' => $currentDate->format('M j, Y'),
                     'day_of_week' => $currentDate->format('l'),
                     'schedule_status' => $scheduleStatus,
+                    'schedule_in_out' => $scheduleInOut,
+                    'working_hours' => $workingHours,
+                    'actual_in_out' => $actualInOut,
+                    'combined_status' => $combinedStatus,
                     'attendance_status' => $attendanceStatus,
                     'scheduled_hours' => $scheduledHours,
                     'worked_hours' => $workedHours,
                     'overtime' => $overtime,
+                    'overtime_entries' => $overtimeEntries,
+                    // NOTE: pre-shift/post-shift split is not implemented —
+                    // OvertimeRequest carries no time-of-day/type data to
+                    // split on, so these stay 0 until that's designed.
                     'morning_overtime' => $morningOvertime,
                     'evening_overtime' => $eveningOvertime,
                     'night_differential_hours' => $nightDifferentialHours,
                     'late_minutes' => $lateMinutes,
+                    'undertime_minutes' => $undertimeMinutes,
                     'is_night_shift' => $isNightShift,
                     'is_incomplete_day' => $isIncompleteDay ?? false,
                 ];
@@ -3766,9 +3920,70 @@ class PayrollController extends Controller
     }
 
     /**
-     * Determine attendance status based on attendance record and schedule
+     * Calculate actual undertime minutes for payroll deductions.
+     *
+     * Fixed schedules compare the actual time-out against the scheduled
+     * time-out. Flexible schedules compare worked minutes against the
+     * required hours. Non-working statuses such as OB, leave, holiday,
+     * and day off are never charged undertime.
      */
-    private function getAttendanceStatus($attendanceRecord, $schedule)
+    private function calculateUndertimeMinutes($attendanceRecord, $schedule, bool $hasApprovedOb = false): int
+    {
+        if (!$attendanceRecord || !$schedule || !$attendanceRecord->time_out) {
+            return 0;
+        }
+
+        $isUnverifiedOb = $attendanceRecord->status === AttendanceRecord::OFFICIAL_BUSINESS && !$hasApprovedOb;
+
+        if (!$isUnverifiedOb && in_array($attendanceRecord->status, [
+            AttendanceRecord::OFFICIAL_BUSINESS,
+            AttendanceRecord::ON_LEAVE,
+            AttendanceRecord::HOLIDAY,
+            AttendanceRecord::DAY_OFF,
+            AttendanceRecord::ERROR,
+        ], true)) {
+            return 0;
+        }
+
+        if ($schedule->status !== 'Working') {
+            return 0;
+        }
+
+        if ($schedule->isFlexible()) {
+            $requiredMinutes = (int) round(((float) $schedule->required_hours) * 60);
+            $workedMinutes = (int) round(((float) $attendanceRecord->calculateTotalHours()) * 60);
+
+            return max(0, $requiredMinutes - $workedMinutes);
+        }
+
+        if (!$schedule->time_out) {
+            return 0;
+        }
+
+        $date = $attendanceRecord->date->format('Y-m-d');
+        $scheduledTimeOut = Carbon::parse(
+            $date . ' ' . Carbon::parse($schedule->time_out)->format('H:i:s')
+        );
+        $actualTimeOut = Carbon::parse($attendanceRecord->time_out);
+
+        if ($actualTimeOut->gte($scheduledTimeOut)) {
+            return 0;
+        }
+
+        return $actualTimeOut->diffInMinutes($scheduledTimeOut);
+    }
+
+    /**
+     * Determine attendance status based on attendance record and schedule
+     *
+     * @param bool $hasApprovedOb Whether a verified, approved OfficialBusinessRequest exists
+     *                            for this exact employee/date. AttendanceRecord::status can
+     *                            say OFFICIAL_BUSINESS on its own, but payroll only pays it
+     *                            as OB if that's independently confirmed here - otherwise the
+     *                            day is treated as a normal attendance record (falls through
+     *                            to Absent if there's no actual time_in/time_out either).
+     */
+    private function getAttendanceStatus($attendanceRecord, $schedule, bool $hasApprovedOb = false)
     {
         if (!$attendanceRecord) {
             return 'Absent';
@@ -3779,7 +3994,15 @@ class PayrollController extends Controller
         }
 
         if ($attendanceRecord->status === \App\Models\AttendanceRecord::OFFICIAL_BUSINESS) {
-            return 'Official Business';
+            if ($hasApprovedOb) {
+                return 'Official Business';
+            }
+
+            Log::warning('Attendance record flagged OFFICIAL_BUSINESS with no matching approved OB request - not paying as OB', [
+                'employee_id' => $attendanceRecord->employee_id,
+                'date' => $attendanceRecord->date->format('Y-m-d'),
+            ]);
+            // Fall through to normal attendance evaluation below instead of trusting the flag.
         }
 
         if ($attendanceRecord->time_in && $attendanceRecord->time_out) {
