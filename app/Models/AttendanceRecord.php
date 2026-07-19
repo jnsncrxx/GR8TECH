@@ -208,11 +208,15 @@ class AttendanceRecord extends Model
      * Calculate total worked hours.
      *
      * Priority:
-     * 1. Completed TimeEntry records.
-     * 2. attendance_records.time_in/time_out fallback.
+     * 1. Completed TimeEntry records with valid (positive) duration.
+     * 2. attendance_records.time_in/time_out fallback — used when
+     *    there are no TimeEntry records, OR when the only entries
+     *    present have zero/invalid duration (e.g. duplicate clicks
+     *    that created zero-length entries).
      *
-     * This fallback fixes Official Business and manually
-     * created attendance records returning 0.00 hours.
+     * This fallback fixes Official Business, manually created
+     * attendance records, and zero-duration TimeEntry records all
+     * returning 0.00 hours.
      */
     public function calculateTotalHours(): float
     {
@@ -222,27 +226,21 @@ class AttendanceRecord extends Model
             ->whereNotNull('time_out')
             ->get();
 
-        /*
-         * MULTI-TIME ENTRY ATTENDANCE
-         */
-        if ($entries->isNotEmpty()) {
-            foreach ($entries as $entry) {
-                $timeIn = Carbon::parse($entry->time_in);
-                $timeOut = Carbon::parse($entry->time_out);
+        foreach ($entries as $entry) {
+            $timeIn = Carbon::parse($entry->time_in);
+            $timeOut = Carbon::parse($entry->time_out);
 
-                if ($timeOut->gt($timeIn)) {
-                    $totalMinutes += $timeIn->diffInMinutes($timeOut);
-                }
+            if ($timeOut->gt($timeIn)) {
+                $totalMinutes += $timeIn->diffInMinutes($timeOut);
             }
         }
 
         /*
-         * DIRECT ATTENDANCE / OFFICIAL BUSINESS FALLBACK
-         *
-         * Approved OB records may not contain TimeEntry
-         * records. Use the attendance row time fields.
+         * Fallback: no TimeEntry produced a valid duration
+         * (empty, or all zero-length). Use the attendance
+         * record's own time_in/time_out span instead of 0.
          */
-        elseif ($this->time_in && $this->time_out) {
+        if ($totalMinutes === 0 && $this->time_in && $this->time_out) {
             $timeIn = Carbon::parse($this->time_in);
             $timeOut = Carbon::parse($this->time_out);
 
@@ -259,34 +257,6 @@ class AttendanceRecord extends Model
         $workingMinutes = max(
             0,
             $totalMinutes - $totalBreakMinutes
-        );
-
-        return round($workingMinutes / 60, 2);
-    }
-
-    /**
-     * Calculate total hours from TimeEntry records.
-     */
-    public function calculateTotalHoursFromEntries(): float
-    {
-        $totalMinutes = 0;
-
-        foreach ($this->timeEntries as $entry) {
-            if (!$entry->time_out) {
-                continue;
-            }
-
-            $timeIn = Carbon::parse($entry->time_in);
-            $timeOut = Carbon::parse($entry->time_out);
-
-            if ($timeOut->gt($timeIn)) {
-                $totalMinutes += $timeIn->diffInMinutes($timeOut);
-            }
-        }
-
-        $workingMinutes = max(
-            0,
-            $totalMinutes - $this->getTotalBreakMinutes()
         );
 
         return round($workingMinutes / 60, 2);
@@ -413,14 +383,20 @@ class AttendanceRecord extends Model
 
     /**
      * Calculate regular and overtime hours.
+     *
+     * Uses the employee's expected hours for the day (from their
+     * schedule — flexible or fixed) rather than a hardcoded 8,
+     * so this stays consistent with getExpectedHours() and with
+     * CalculatesAttendanceWithOfficialBusiness::recalculateAttendanceWithOfficialBusiness().
      */
     public function calculateRegularAndOvertimeHours(): array
     {
         $totalHours = $this->calculateTotalHours();
+        $expectedHours = $this->getExpectedHours() ?? 8.0;
 
         return [
-            'regular_hours' => min($totalHours, 8),
-            'overtime_hours' => max(0, $totalHours - 8),
+            'regular_hours' => round(min($totalHours, $expectedHours), 2),
+            'overtime_hours' => round(max(0, $totalHours - $expectedHours), 2),
         ];
     }
 
