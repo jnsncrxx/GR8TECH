@@ -43,12 +43,27 @@ class OvertimeController extends Controller
         $departments = \App\Models\Department::all();
         $employees = \App\Models\Employee::all();
 
+        $employeeOvertimeDates = collect();
+        if ($user->role === 'employee' && $user->employee_id) {
+            $employeeOvertimeDates = clone $summaryQuery;
+            $employeeOvertimeDates = $employeeOvertimeDates->whereIn('status', ['pending', 'approved'])
+                ->get(['date', 'status'])
+                ->toBase()
+                ->mapToGroups(function ($item) {
+                    return [$item->date->format('Y-m-d') => $item->status];
+                })
+                ->map(function ($statuses) {
+                    return $statuses->contains('approved') ? 'approved' : 'pending';
+                });
+        }
+
         return view("attendance.overtime", [
             "user" => $user,
             "summary" => $summary,
             "overtimeRequests" => $overtimeRequests,
             "departments" => $departments,
-            "employees" => $employees
+            "employees" => $employees,
+            "employeeOvertimeDates" => $employeeOvertimeDates
         ]);
     }
 
@@ -66,14 +81,6 @@ class OvertimeController extends Controller
             
             $startTimeStr = date('H:i', strtotime($request->start_time));
             $endTimeStr = date('H:i', strtotime($request->end_time));
-            
-            if ($startTimeStr < '17:00') {
-                return response()->json(['error' => 'Overtime must start at or after 5:00 PM.'], 422);
-            }
-            
-            if ($endTimeStr < $startTimeStr && $endTimeStr !== '00:00') {
-                return response()->json(['error' => 'End time must be after start time or exactly 12:00 AM.'], 422);
-            }
             
             $user = Auth::user();
             if (!$user->employee_id) {
@@ -115,7 +122,7 @@ class OvertimeController extends Controller
                 'rate_multiplier' => (float) \App\Models\AttendanceSetting::getValue('overtime_rate_multiplier', 1.5),
                 'reason' => $request->reason,
                 'status' => \App\Models\OvertimeRequest::PENDING,
-                'expires_at' => $endTime,
+                'expires_at' => app(\App\Services\CutoffPeriodService::class)->graceDeadlineFor($request->date),
             ]);
             
             return response()->json([

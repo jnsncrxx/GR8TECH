@@ -9,6 +9,50 @@
     .flatpickr-input[readonly] {
         background-color: #fff;
     }
+    
+    /* Highlight pending dates in flatpickr */
+    .flatpickr-day.is-pending {
+        background-color: #fef3c7 !important; /* amber-100 */
+        border-color: #f59e0b !important; /* amber-500 */
+        color: #92400e !important; /* amber-900 */
+        border-radius: 0.25rem !important;
+    }
+    
+    /* Highlight approved dates in flatpickr */
+    .flatpickr-day.is-approved {
+        background-color: #fee2e2 !important; /* red-100 */
+        border-color: #ef4444 !important; /* red-500 */
+        color: #991b1b !important; /* red-900 */
+        border-radius: 0.25rem !important;
+    }
+    
+    .calendar-legend {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        font-size: 0.75rem;
+        color: #6b7280;
+        margin-top: 0.5rem;
+    }
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+    }
+    .legend-box {
+        width: 1rem;
+        height: 1rem;
+        border: 1px solid;
+        border-radius: 0.125rem;
+    }
+    .legend-box.pending {
+        background-color: #fef3c7;
+        border-color: #f59e0b;
+    }
+    .legend-box.approved {
+        background-color: #fee2e2;
+        border-color: #ef4444;
+    }
 </style>
 <div class="space-y-6">
     <!-- Header -->
@@ -445,15 +489,24 @@
                 <div>
                     <label for="overtimeDate" class="block text-sm font-medium text-gray-700 mb-2">Date</label>
                     <input type="date" id="overtimeDate" name="date" required 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                           min="{{ date('Y-m-d') }}">
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
+                    <div class="calendar-legend">
+                        <div class="legend-item">
+                            <div class="legend-box pending"></div>
+                            <span>Pending request</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-box approved"></div>
+                            <span>Approved request</span>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label for="startTime" class="block text-sm font-medium text-gray-700 mb-2">Start Time</label>
-                        <input type="time" id="startTime" name="start_time" required value="17:00" readonly
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed focus:ring-0 focus:border-gray-300">
+                        <input type="time" id="startTime" name="start_time" required 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
                     </div>
                     <div>
                         <label for="endTime" class="block text-sm font-medium text-gray-700 mb-2">End Time</label>
@@ -552,12 +605,27 @@
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const overtimeDates = @json($user->role === 'employee' ? $employeeOvertimeDates : new \stdClass());
+
     flatpickr("#overtimeDate", {
-        minDate: "today",
         dateFormat: "Y-m-d",
         altInput: true,
         altFormat: "F j, Y",
-        disableMobile: "true"
+        disableMobile: "true",
+        onDayCreate: function(dObj, dStr, fp, dayElem) {
+            // Get date in YYYY-MM-DD format taking timezone into account
+            const date = new Date(dayElem.dateObj.getTime() - (dayElem.dateObj.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+            
+            if (overtimeDates[date]) {
+                if (overtimeDates[date] === 'pending') {
+                    dayElem.classList.add('is-pending');
+                    dayElem.title = "Pending Overtime request";
+                } else if (overtimeDates[date] === 'approved') {
+                    dayElem.classList.add('is-approved');
+                    dayElem.title = "Approved Overtime request";
+                }
+            }
+        }
     });
     
     flatpickr("#dateFrom", {
@@ -597,11 +665,9 @@ function openOvertimeModal() {
             console.error('Form not found inside modal');
         }
         
-        // Set minimum date to today
+        // Date input is handled by flatpickr
         const dateInput = document.getElementById('overtimeDate');
         if (dateInput) {
-            const today = new Date().toISOString().split('T')[0];
-            dateInput.min = today;
             console.log('Date input configured');
         } else {
             console.error('Date input not found');
@@ -632,11 +698,6 @@ async function submitOvertimeRequest(event) {
     const data = Object.fromEntries(formData);
     
     // Validate times
-    if (data.start_time < '17:00') {
-        showError('Overtime must start at or after 5:00 PM');
-        return;
-    }
-    
     if (data.start_time === data.end_time) {
         showError('Start time and end time cannot be the same');
         return;
