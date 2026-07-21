@@ -115,6 +115,10 @@ class AttendanceController extends Controller
             });
         }
 
+        if ($request->filled('status')) {
+            $baseQuery->where('status', $request->status);
+        }
+
         $attendanceRecords = (clone $baseQuery)
             ->with(['employee.department', 'breaks', 'timeEntries'])
             ->orderBy('date', 'desc')

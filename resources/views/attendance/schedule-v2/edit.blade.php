@@ -80,6 +80,35 @@
                     @enderror
                 </div>
 
+                <!-- Schedule Type -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Schedule Type</label>
+                    <div class="flex gap-4">
+                        <label class="flex items-center">
+                            <input type="radio" name="schedule_type" value="fixed" id="scheduleTypeFixed" {{ old('schedule_type', $schedule->schedule_type) == 'fixed' ? 'checked' : '' }} class="mr-2">
+                            Fixed (8:00 AM - 5:00 PM)
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" name="schedule_type" value="flexible" id="scheduleTypeFlexible" {{ old('schedule_type', $schedule->schedule_type) == 'flexible' ? 'checked' : '' }} class="mr-2">
+                            Flexible (any time, just needs required hours)
+                        </label>
+                    </div>
+                    @error('schedule_type')
+                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <!-- Required Hours (only for flexible) -->
+                <div id="requiredHoursField" style="display: none;">
+                    <label for="required_hours" class="block text-sm font-medium text-gray-700 mb-2">Required Hours</label>
+                    <input type="number" name="required_hours" id="required_hours" step="0.5" min="1" max="24" value="{{ old('required_hours', $schedule->required_hours ?? 8) }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('required_hours') border-red-500 @enderror">
+                    <p class="mt-1 text-xs text-gray-500">The time in/out below must span at least this many hours.</p>
+                    @error('required_hours')
+                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
+                    <p id="flexibleHoursWarning" class="text-sm text-red-600 hidden"></p>
+                </div>
+
                 <!-- Time In/Out (only show for working status) -->
                 <div id="timeFields" class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
@@ -169,10 +198,97 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         document.getElementById('timeFields').style.display = 'none';
     }
+
+    // Show/hide required hours field based on schedule type
+    function toggleRequiredHours() {
+        const isFlexible = document.getElementById('scheduleTypeFlexible').checked;
+        const requiredHoursField = document.getElementById('requiredHoursField');
+        const requiredHoursInput = document.getElementById('required_hours');
+
+        requiredHoursField.style.display = isFlexible ? 'block' : 'none';
+        requiredHoursInput.required = isFlexible;
+    }
+
+    // fixed = always 8AM-5PM, locked so admin can't change it
+    function updateTimeFieldsForScheduleType() {
+        const isFixed = document.getElementById('scheduleTypeFixed').checked;
+        const timeInField = document.getElementById('time_in');
+        const timeOutField = document.getElementById('time_out');
+        const timeFieldsVisible = document.getElementById('timeFields').style.display !== 'none';
+
+        if (isFixed && timeFieldsVisible) {
+            timeInField.value = '08:00';
+            timeOutField.value = '17:00';
+            timeInField.readOnly = true;
+            timeOutField.readOnly = true;
+            timeInField.classList.add('bg-gray-100');
+            timeOutField.classList.add('bg-gray-100');
+        } else {
+            timeInField.readOnly = false;
+            timeOutField.readOnly = false;
+            timeInField.classList.remove('bg-gray-100');
+            timeOutField.classList.remove('bg-gray-100');
+        }
+    }
+
+    function handleScheduleTypeChange() {
+        toggleRequiredHours();
+        updateTimeFieldsForScheduleType();
+    }
+
+    document.getElementById('scheduleTypeFixed').addEventListener('change', handleScheduleTypeChange);
+    document.getElementById('scheduleTypeFlexible').addEventListener('change', handleScheduleTypeChange);
+    toggleRequiredHours();
+    updateTimeFieldsForScheduleType();
+
+    // checks flexible schedule has enough hours before saving
+    // has to live here (not a 'submit' listener) since form.submit() below
+    // doesn't trigger the normal submit event
+    function flexibleScheduleCoversRequiredHours() {
+        const isFlexible = document.getElementById('scheduleTypeFlexible').checked;
+        const warning = document.getElementById('flexibleHoursWarning');
+        warning.classList.add('hidden');
+        warning.textContent = '';
+
+        if (!isFlexible) {
+            return true;
+        }
+
+        const timeIn = document.getElementById('time_in').value;
+        const timeOut = document.getElementById('time_out').value;
+        const requiredHours = parseFloat(document.getElementById('required_hours').value);
+
+        if (!timeIn || !timeOut || !requiredHours) {
+            return true;
+        }
+
+        const [inH, inM] = timeIn.split(':').map(Number);
+        const [outH, outM] = timeOut.split(':').map(Number);
+        let actualHours = ((outH * 60 + outM) - (inH * 60 + inM)) / 60;
+
+        // overnight shift (e.g. 6:00 PM - 3:00 AM) - time_out is really
+        // the next day, so wrap it forward instead of going negative
+        if (actualHours < 0) {
+            actualHours += 24;
+        }
+
+        if (actualHours < requiredHours) {
+            warning.textContent = `This time range only covers ${actualHours.toFixed(1)} hour(s), but this flexible schedule requires at least ${requiredHours} hour(s). Please widen the time range.`;
+            warning.classList.remove('hidden');
+            return false;
+        }
+
+        return true;
+    }
     
     // Update button - set form to update action
     updateBtn.addEventListener('click', function(e) {
         e.preventDefault();
+
+        if (!flexibleScheduleCoversRequiredHours()) {
+            return;
+        }
+
         form.action = '{{ route("schedule-v2.update", $schedule) }}';
         form.method = 'POST';
         

@@ -213,6 +213,9 @@ class RoleBasedDashboardController extends Controller
         // Get today's attendance record
         $todayAttendance = $employee->getTodayAttendance();
 
+        // Get today's schedule (Fixed 8-5 vs Flexible + required hours)
+        $todaySchedule = $employee->getScheduleForDate(today());
+
         // Get recent activity (last 5 days)
         $recentActivity = $employee->attendanceRecords()
             ->where('date', '>=', today()->subDays(5))
@@ -225,6 +228,7 @@ class RoleBasedDashboardController extends Controller
             'yearly_summary',
             'employee',
             'todayAttendance',
+            'todaySchedule',
             'recentActivity'
         ));
     }

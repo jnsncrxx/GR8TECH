@@ -8,6 +8,40 @@ use Illuminate\Support\Facades\Auth;
 
 class ScheduleV2Controller extends Controller
 {
+    // checks that a flexible schedule's time in/out actually covers the required hours
+    // used in both store() and update() so we don't repeat this logic
+    private function timeRangeCoversRequiredHours(Request $request)
+    {
+        return function ($attribute, $value, $fail) use ($request) {
+            if ($request->input('schedule_type') !== 'flexible') {
+                return;
+            }
+
+            $timeIn = $request->input('time_in');
+            $timeOut = $value;
+            $requiredHours = $request->input('required_hours');
+
+            if (!$timeIn || !$timeOut || !$requiredHours) {
+                return;
+            }
+
+            $start = \Carbon\Carbon::createFromFormat('H:i', $timeIn);
+            $end = \Carbon\Carbon::createFromFormat('H:i', $timeOut);
+
+            // overnight shift (e.g. 6:00 PM - 3:00 AM) - time_out is on the
+            // next day, so push it forward a day before measuring the span
+            if ($end->lessThan($start)) {
+                $end->addDay();
+            }
+
+            $actualHours = round($start->diffInMinutes($end) / 60, 2);
+
+            if ($actualHours < (float) $requiredHours) {
+                $fail("This time range only covers {$actualHours} hour(s), but this flexible schedule requires at least {$requiredHours} hour(s). Please widen the time range.");
+            }
+        };
+    }
+
     public function index(Request $request)
     {
         $searchQuery = $request->query('search', '');
@@ -47,11 +81,20 @@ class ScheduleV2Controller extends Controller
         // "employee_id_date" so the view can instantly look up "does this
         // employee have a schedule on this day" without a query per cell.
         $schedules = collect();
+        $attendanceRecords = collect();
         if ($employees->isNotEmpty()) {
             $schedules = \App\Models\EmployeeSchedule::whereIn('employee_id', $employees->pluck('id'))
                 ->whereBetween('date', [$monthStart->copy()->startOfMonth(), $monthStart->copy()->endOfMonth()])
                 ->get()
                 ->keyBy(fn($schedule) => $schedule->employee_id . '_' . $schedule->date->format('Y-m-d'));
+
+            // needed to show actual hours logged (vs just required_hours) on
+            // flexible-schedule calendar cells - keyed the same way as
+            // $schedules so the view can look both up together per cell
+            $attendanceRecords = \App\Models\AttendanceRecord::whereIn('employee_id', $employees->pluck('id'))
+                ->whereBetween('date', [$monthStart->copy()->startOfMonth(), $monthStart->copy()->endOfMonth()])
+                ->get()
+                ->keyBy(fn($record) => $record->employee_id . '_' . $record->date->format('Y-m-d'));
         }
 
         return view('attendance.schedule-v2.index', [
@@ -65,7 +108,8 @@ class ScheduleV2Controller extends Controller
             'employees' => $employees,
             'calendarDays' => $calendarDays,
             'schedules' => $schedules,
-            'scheduleSummary' => [] // Or mock summary data if needed
+            'attendanceRecords' => $attendanceRecords,
+            'scheduleSummary' => []
         ]);
     }
 
@@ -101,27 +145,46 @@ class ScheduleV2Controller extends Controller
             'department_id' => ['required', 'exists:departments,id'],
             'date' => ['required', 'date'],
             'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
+            'schedule_type' => ['required', 'in:fixed,flexible'],
+            'required_hours' => ['required_if:schedule_type,flexible', 'nullable', 'numeric', 'min:1', 'max:24'],
             'time_in' => ['nullable', 'date_format:H:i'],
-            'time_out' => ['nullable', 'date_format:H:i'],
+            // no 'after:time_in' here on purpose - a flexible schedule can
+            // be an overnight shift (e.g. 6:00 PM - 3:00 AM), which the
+            // required-hours closure below already handles correctly
+            'time_out' => ['nullable', 'date_format:H:i', $this->timeRangeCoversRequiredHours($request)],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        // updateOrCreate so re-submitting for the same employee+date edits
-        // the existing schedule instead of throwing a duplicate error
-        \App\Models\EmployeeSchedule::updateOrCreate(
-            [
-                'employee_id' => $validated['employee_id'],
-                'date' => $validated['date'],
-            ],
-            [
-                'department_id' => $validated['department_id'],
-                'status' => $validated['status'],
-                'time_in' => $validated['time_in'] ?? null,
-                'time_out' => $validated['time_out'] ?? null,
-                'notes' => $validated['notes'] ?? null,
-                'created_by' => Auth::id(),
-            ]
-        );
+        // Fixed schedules always run 8:00 AM - 5:00 PM (9-hour span minus a
+        // so we just overwrite whatever time was sent in, ignore user input here
+        if ($validated['schedule_type'] === 'fixed' && $validated['time_in'] && $validated['time_out']) {
+            $validated['time_in'] = '08:00';
+            $validated['time_out'] = '17:00';
+        }
+
+        // don't overwrite an existing schedule silently, ask them to edit instead
+        $exists = \App\Models\EmployeeSchedule::where('employee_id', $validated['employee_id'])
+            ->where('date', $validated['date'])
+            ->exists();
+
+        if ($exists) {
+            return back()->withInput()->withErrors([
+                'date' => 'A schedule already exists for this employee on this date. Please edit the existing schedule instead of creating a new one.',
+            ]);
+        }
+
+        \App\Models\EmployeeSchedule::create([
+            'employee_id' => $validated['employee_id'],
+            'date' => $validated['date'],
+            'department_id' => $validated['department_id'],
+            'status' => $validated['status'],
+            'schedule_type' => $validated['schedule_type'],
+            'required_hours' => $validated['schedule_type'] === 'flexible' ? $validated['required_hours'] : 8.00,
+            'time_in' => $validated['time_in'] ?? null,
+            'time_out' => $validated['time_out'] ?? null,
+            'notes' => $validated['notes'] ?? null,
+            'created_by' => Auth::id(),
+        ]);
 
         return redirect()->route('schedule-v2.index')
             ->with('success', 'Schedule created successfully.');
@@ -275,13 +338,24 @@ class ScheduleV2Controller extends Controller
 
         $validated = $request->validate([
             'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
+            'schedule_type' => ['required', 'in:fixed,flexible'],
+            'required_hours' => ['required_if:schedule_type,flexible', 'nullable', 'numeric', 'min:1', 'max:24'],
             'time_in' => ['nullable', 'date_format:H:i'],
-            'time_out' => ['nullable', 'date_format:H:i'],
+            // no 'after:time_in' here on purpose - see store() for why
+            'time_out' => ['nullable', 'date_format:H:i', $this->timeRangeCoversRequiredHours($request)],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
+        // Same fixed-hours enforcement as store() - see comment there.
+        if ($validated['schedule_type'] === 'fixed' && $validated['time_in'] && $validated['time_out']) {
+            $validated['time_in'] = '08:00';
+            $validated['time_out'] = '17:00';
+        }
+
         $schedule->update([
             'status' => $validated['status'],
+            'schedule_type' => $validated['schedule_type'],
+            'required_hours' => $validated['schedule_type'] === 'flexible' ? $validated['required_hours'] : 8.00,
             'time_in' => $validated['time_in'] ?? null,
             'time_out' => $validated['time_out'] ?? null,
             'notes' => $validated['notes'] ?? null,

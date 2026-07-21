@@ -150,6 +150,42 @@
             @endif
         </div>
 
+        <!-- Today's Schedule -->
+        @if($todaySchedule && $todaySchedule->status === 'Working')
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6" id="schedule-card">
+            <div class="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Today's Schedule</h3>
+                    @if($todaySchedule->isFlexible())
+                        <p class="text-lg font-semibold text-gray-900 mt-1">
+                            <i class="fas fa-sliders-h text-purple-600 mr-1"></i>
+                            Flexible &mdash; {{ rtrim(rtrim(number_format($todaySchedule->required_hours, 1), '0'), '.') }}h required
+                        </p>
+                        <p class="text-sm text-gray-500 mt-1">Clock in and out any time, as long as you complete your required hours today.</p>
+                    @else
+                        <p class="text-lg font-semibold text-gray-900 mt-1">
+                            <i class="fas fa-clock text-blue-600 mr-1"></i>
+                            Fixed &mdash; 8:00 AM to 5:00 PM
+                        </p>
+                        <p class="text-sm text-gray-500 mt-1">15-minute grace period. Timing in after 8:15 AM counts as late.</p>
+                    @endif
+                </div>
+                <div id="schedule-status-badge" class="hidden px-3 py-1.5 rounded-full text-sm font-medium"></div>
+            </div>
+
+            <!-- Only shown for flexible schedules -->
+            <div id="flexible-progress" class="mt-4 hidden">
+                <div class="flex justify-between text-sm text-gray-600 mb-1">
+                    <span>Hours completed</span>
+                    <span id="flexible-progress-text">0h of 0h</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div id="flexible-progress-bar" class="bg-purple-600 h-2.5 rounded-full transition-all" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+        @endif
+
         <!-- Current Time Display -->
         <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-8 text-center text-white shadow-lg">
             <div class="text-6xl font-bold mb-2" id="current-times">--:--:--</div>
@@ -573,6 +609,9 @@ function updateTime() {
         // Update total hours display in summary
         updateTotalHoursDisplay();
         
+        // Update the Today's Schedule card (late badge / flexible hours progress)
+        updateScheduleCard();
+        
         // Update real-time status
         updateRealTimeStatus();
         
@@ -741,6 +780,102 @@ function updateWorkingTime() {
     // Hide break time if not on break
     if (breakTimeElement && (!breakStart || hasBreakEnd)) {
         breakTimeElement.textContent = '0h 0m';
+    }
+}
+
+// rough estimate of hours worked today, for the flexible-schedule progress
+// bar - once timed out we use the real total_hours from the server,
+// otherwise just estimate live from time_in to now
+function getLiveTotalHoursToday() {
+    if (!currentStatus) return 0;
+
+    if (currentStatus.time_out && currentStatus.total_hours) {
+        return currentStatus.total_hours;
+    }
+
+    if (!currentStatus.time_in) return 0;
+
+    const timeIn = new Date(currentStatus.time_in);
+    if (isNaN(timeIn.getTime())) return 0;
+
+    const now = getPhilippineTime();
+    let totalMs = now - timeIn;
+
+    if (currentStatus.break_start) {
+        const breakStart = new Date(currentStatus.break_start);
+        if (currentStatus.break_end) {
+            totalMs -= (new Date(currentStatus.break_end) - breakStart);
+        } else {
+            // on break right now, stop counting at break start
+            totalMs = breakStart - timeIn;
+        }
+    }
+
+    return Math.max(0, totalMs / (1000 * 60 * 60));
+}
+
+// updates the Today's Schedule card - Fixed shows On Time/Late,
+// Flexible shows a progress bar toward required_hours
+function updateScheduleCard() {
+    const badge = document.getElementById('schedule-status-badge');
+    if (!badge) return; // no schedule card today
+
+    if (!currentStatus || !currentStatus.schedule) {
+        badge.classList.add('hidden');
+        return;
+    }
+
+    const schedule = currentStatus.schedule;
+    const progressWrap = document.getElementById('flexible-progress');
+    const progressText = document.getElementById('flexible-progress-text');
+    const progressBar = document.getElementById('flexible-progress-bar');
+
+    function setBadge(text, colorClasses) {
+        badge.textContent = text;
+        badge.className = `px-3 py-1.5 rounded-full text-sm font-medium ${colorClasses}`;
+        badge.classList.remove('hidden');
+    }
+
+    if (schedule.is_flexible) {
+        progressWrap.classList.remove('hidden');
+
+        const requiredHours = schedule.required_hours || 8;
+        const hoursSoFar = getLiveTotalHoursToday();
+        const pct = Math.min(100, Math.round((hoursSoFar / requiredHours) * 100));
+
+        progressText.textContent = `${hoursSoFar.toFixed(1)}h of ${requiredHours}h`;
+        progressBar.style.width = `${pct}%`;
+
+        if (currentStatus.has_clocked_out && currentStatus.is_incomplete_day) {
+            setBadge(`Incomplete - ${Math.max(0, requiredHours - hoursSoFar).toFixed(1)}h short`, 'bg-red-100 text-red-700');
+        } else if (hoursSoFar >= requiredHours) {
+            setBadge('Hours Complete', 'bg-green-100 text-green-700');
+        } else if (currentStatus.is_currently_clocked_in) {
+            setBadge('In Progress', 'bg-blue-100 text-blue-700');
+        } else if (currentStatus.has_clocked_in) {
+            setBadge('On Break', 'bg-yellow-100 text-yellow-700');
+        } else {
+            badge.classList.add('hidden');
+        }
+    } else {
+        progressWrap.classList.add('hidden');
+
+        if (!currentStatus.has_clocked_in) {
+            if (currentStatus.is_late) {
+                setBadge('Late - please time in', 'bg-red-100 text-red-700');
+            } else {
+                badge.classList.add('hidden');
+            }
+        } else if (currentStatus.is_late) {
+            setBadge(`Late by ${currentStatus.late_minutes}m`, 'bg-red-100 text-red-700');
+        } else if (currentStatus.has_clocked_out) {
+            setBadge(
+                currentStatus.is_incomplete_day ? 'Left Early' : 'On Time',
+                currentStatus.is_incomplete_day ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+            );
+        } else {
+            setBadge('On Time', 'bg-green-100 text-green-700');
+        }
     }
 }
 

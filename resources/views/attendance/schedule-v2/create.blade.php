@@ -29,7 +29,7 @@
     <!-- Form -->
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-            <form action="{{ route('schedule-v2.store') }}" method="POST" class="p-6 space-y-6">
+            <form action="{{ route('schedule-v2.store') }}" method="POST" id="createScheduleForm" class="p-6 space-y-6">
                 @csrf
 
                 <!-- Hidden inputs to preserve filter state -->
@@ -161,6 +161,39 @@
                                     @enderror
                                 </div>
 
+                                <!-- Schedule Type -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        <i class="fas fa-sliders-h mr-1"></i>Schedule Type
+                                    </label>
+                                    <div class="flex gap-4">
+                                        <label class="flex items-center">
+                                            <input type="radio" name="schedule_type" value="fixed" id="scheduleTypeFixed" {{ old('schedule_type', 'fixed') == 'fixed' ? 'checked' : '' }} class="mr-2">
+                                            Fixed (8:00 AM - 5:00 PM)
+                                        </label>
+                                        <label class="flex items-center">
+                                            <input type="radio" name="schedule_type" value="flexible" id="scheduleTypeFlexible" {{ old('schedule_type') == 'flexible' ? 'checked' : '' }} class="mr-2">
+                                            Flexible (any time, just needs required hours)
+                                        </label>
+                                    </div>
+                                    @error('schedule_type')
+                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                    @enderror
+                                </div>
+
+                                <!-- Required Hours (only for flexible) -->
+                                <div id="requiredHoursField" style="display: none;">
+                                    <label for="required_hours" class="block text-sm font-medium text-gray-700 mb-2">
+                                        <i class="fas fa-hourglass-half mr-1"></i>Required Hours
+                                    </label>
+                                    <input type="number" name="required_hours" id="required_hours" step="0.5" min="1" max="24" value="{{ old('required_hours', 8) }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('required_hours') border-red-500 @enderror">
+                                    <p class="mt-1 text-xs text-gray-500">The time in/out below must span at least this many hours.</p>
+                                    @error('required_hours')
+                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                    @enderror
+                                    <p id="flexibleHoursWarning" class="text-sm text-red-600 hidden"></p>
+                                </div>
+
                                 <!-- Time In/Out (only show for working status) -->
                                 <div id="timeFields" class="grid grid-cols-2 gap-4" style="display: none;">
                                     <div>
@@ -223,10 +256,8 @@
             const selectedDepartmentId = this.value;
             const employeeOptions = employeeSelect.querySelectorAll('option[data-department]');
 
-            // Reset employee selection
             employeeSelect.value = '';
 
-            // Show/hide employee options based on department
             employeeOptions.forEach(option => {
                 if (selectedDepartmentId === '' || option.getAttribute('data-department') === selectedDepartmentId) {
                     option.style.display = 'block';
@@ -237,7 +268,6 @@
         });
     }
 
-    // Other direction: picking an employee first fills in their department automatically
     if (employeeSelect && departmentSelect) {
         employeeSelect.addEventListener('change', function() {
             const selectedOption = this.options[this.selectedIndex];
@@ -249,7 +279,7 @@
         });
     }
 
-    // Show/hide time fields based on status
+    // show/hide time fields based on status
     document.getElementById('status').addEventListener('change', function() {
         const timeFields = document.getElementById('timeFields');
         const timeInField = document.getElementById('time_in');
@@ -271,9 +301,51 @@
             timeInField.value = '';
             timeOutField.value = '';
         }
+
+        updateTimeFieldsForScheduleType();
     });
 
-    // Auto-apply default schedule values based on selected date (editable by admin after auto-fill)
+    // show/hide required hours field based on schedule type
+    function toggleRequiredHours() {
+        const isFlexible = document.getElementById('scheduleTypeFlexible').checked;
+        const requiredHoursField = document.getElementById('requiredHoursField');
+        const requiredHoursInput = document.getElementById('required_hours');
+
+        requiredHoursField.style.display = isFlexible ? 'block' : 'none';
+        requiredHoursInput.required = isFlexible;
+    }
+
+    // fixed = always 8AM-5PM, locked so admin can't change it
+    function updateTimeFieldsForScheduleType() {
+        const isFixed = document.getElementById('scheduleTypeFixed').checked;
+        const timeInField = document.getElementById('time_in');
+        const timeOutField = document.getElementById('time_out');
+        const timeFieldsVisible = document.getElementById('timeFields').style.display !== 'none';
+
+        if (isFixed && timeFieldsVisible) {
+            timeInField.value = '08:00';
+            timeOutField.value = '17:00';
+            timeInField.readOnly = true;
+            timeOutField.readOnly = true;
+            timeInField.classList.add('bg-gray-100');
+            timeOutField.classList.add('bg-gray-100');
+        } else {
+            timeInField.readOnly = false;
+            timeOutField.readOnly = false;
+            timeInField.classList.remove('bg-gray-100');
+            timeOutField.classList.remove('bg-gray-100');
+        }
+    }
+
+    function handleScheduleTypeChange() {
+        toggleRequiredHours();
+        updateTimeFieldsForScheduleType();
+    }
+
+    document.getElementById('scheduleTypeFixed').addEventListener('change', handleScheduleTypeChange);
+    document.getElementById('scheduleTypeFlexible').addEventListener('change', handleScheduleTypeChange);
+
+    // auto-fill status/time based on the date picked (weekday = working, weekend = day off)
     function applyAutoScheduleDefaults() {
         const dateField = document.getElementById('date');
         const statusField = document.getElementById('status');
@@ -290,7 +362,7 @@
 
         if (isWeekday) {
             statusField.value = 'Working';
-            timeInField.value = '09:00';
+            timeInField.value = '08:00';
             timeOutField.value = '17:00';
         } else {
             statusField.value = 'Day Off';
@@ -303,7 +375,44 @@
 
     document.getElementById('date').addEventListener('change', applyAutoScheduleDefaults);
 
-    // Initialize on page load
+    // quick check before submitting so flexible schedules don't get sent
+    // in with too few hours - backend still checks this too either way
+    document.getElementById('createScheduleForm').addEventListener('submit', function(e) {
+        const isFlexible = document.getElementById('scheduleTypeFlexible').checked;
+        const warning = document.getElementById('flexibleHoursWarning');
+        warning.classList.add('hidden');
+        warning.textContent = '';
+
+        if (!isFlexible) {
+            return;
+        }
+
+        const timeIn = document.getElementById('time_in').value;
+        const timeOut = document.getElementById('time_out').value;
+        const requiredHours = parseFloat(document.getElementById('required_hours').value);
+
+        if (!timeIn || !timeOut || !requiredHours) {
+            return;
+        }
+
+        const [inH, inM] = timeIn.split(':').map(Number);
+        const [outH, outM] = timeOut.split(':').map(Number);
+        let actualHours = ((outH * 60 + outM) - (inH * 60 + inM)) / 60;
+
+        // overnight shift (e.g. 6:00 PM - 3:00 AM) - time_out is really
+        // the next day, so wrap it forward instead of going negative
+        if (actualHours < 0) {
+            actualHours += 24;
+        }
+
+        if (actualHours < requiredHours) {
+            e.preventDefault();
+            warning.textContent = `This time range only covers ${actualHours.toFixed(1)} hour(s), but this flexible schedule requires at least ${requiredHours} hour(s). Please widen the time range.`;
+            warning.classList.remove('hidden');
+        }
+    });
+
+    // run once on page load
     document.addEventListener('DOMContentLoaded', function() {
         const departmentSelectInit = document.getElementById('department_id');
         if (departmentSelectInit.value) {
@@ -318,6 +427,9 @@
         if (!{{ old('status') ? 'true' : 'false' }}) {
             applyAutoScheduleDefaults();
         }
+
+        toggleRequiredHours();
+        updateTimeFieldsForScheduleType();
     });
 </script>
 @endsection

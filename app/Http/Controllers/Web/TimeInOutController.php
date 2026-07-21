@@ -27,8 +27,11 @@ class TimeInOutController extends Controller
 
         $todayAttendance = null;
         $recentActivity = collect();
+        $todaySchedule = null;
 
         if ($employee) {
+            $todaySchedule = $employee->getScheduleForDate(Carbon::today());
+
             $todayAttendance = AttendanceRecord::where(
                 'employee_id',
                 $employee->id
@@ -60,6 +63,7 @@ class TimeInOutController extends Controller
         return view('attendance.time-in-out', [
             'user' => $user,
             'todayAttendance' => $todayAttendance,
+            'todaySchedule' => $todaySchedule,
             'recentActivity' => $recentActivity,
             'activeRoute' => 'attendance.time-in-out',
         ]);
@@ -538,7 +542,34 @@ class TimeInOutController extends Controller
                 'can_break_end' => false,
                 'status' => 'offline',
                 'attendance_record' => null,
+                'schedule' => null,
+                'is_late' => false,
+                'late_minutes' => 0,
+                'is_undertime' => false,
+                'is_incomplete_day' => false,
+                'expected_hours' => null,
             ];
+
+            // schedule info is useful even before time-in (shows "Fixed:
+            // 8-5" or "Flexible: 8h required" on the page right away)
+            $todaySchedule = $employee->getScheduleForDate($today);
+            if ($todaySchedule && $todaySchedule->status === 'Working') {
+                $status['schedule'] = [
+                    'schedule_type' => $todaySchedule->schedule_type,
+                    'is_flexible' => $todaySchedule->isFlexible(),
+                    'time_in' => $todaySchedule->isFixed() ? ($todaySchedule->time_in ?? '08:00') : null,
+                    'time_out' => $todaySchedule->isFixed() ? ($todaySchedule->time_out ?? '17:00') : null,
+                    'required_hours' => $todaySchedule->isFlexible() ? (float) $todaySchedule->required_hours : 8.0,
+                ];
+
+                // before time-in, we can still warn if they're already past
+                // the grace period for a fixed shift
+                if (!$attendanceRecord && $todaySchedule->isFixed()) {
+                    $graceCutoff = Carbon::parse($today->format('Y-m-d') . ' ' . $status['schedule']['time_in'])
+                        ->addMinutes(15);
+                    $status['is_late'] = Carbon::now()->gt($graceCutoff);
+                }
+            }
 
             if (!$attendanceRecord) {
                 return response()->json($status);
@@ -553,6 +584,13 @@ class TimeInOutController extends Controller
                 );
 
             $attendanceRecord->refresh();
+
+            // reuse the same late/undertime/incomplete-day logic payroll already relies on
+            $status['is_late'] = $attendanceRecord->isLate();
+            $status['late_minutes'] = $attendanceRecord->getLateMinutes();
+            $status['is_undertime'] = $attendanceRecord->isUndertime();
+            $status['is_incomplete_day'] = $attendanceRecord->isIncompleteDay();
+            $status['expected_hours'] = $attendanceRecord->getExpectedHours();
 
             $isClockedIn =
                 $attendanceRecord->hasActiveTimeEntry();

@@ -261,12 +261,34 @@
                                     <div class="text-xs font-medium {{ $statusTextClass }} mb-1">
                                         {{ $schedule->status_label }}
                                     </div>
-                                    @php
+                                   @php
                                     // don't show times for statuses where time doesn't apply
-                                    $noTimeStatuses = ['Day Off', 'Leave', 'Holiday', 'Regular Holiday', 'Special Holiday'];
+                                    $noTimeStatuses = ['Day Off', 'Leave', 'Holiday', 'Regular Holiday', 'Special Holiday', 'Absent'];
                                     $showTime = $schedule->time_in && $schedule->time_out && !in_array($schedule->status, $noTimeStatuses);
+                                    $isFlexible = $schedule->schedule_type === 'flexible' && !in_array($schedule->status, $noTimeStatuses);
+                                    $attendanceForDay = $attendanceRecords->get($scheduleKey);
                                     @endphp
-                                    @if($showTime)
+                                    @if($isFlexible)
+                                    <div class="text-xs text-purple-600 font-medium">
+                                        Flexible - {{ rtrim(rtrim(number_format($schedule->required_hours, 1), '0'), '.') }}h
+                                    </div>
+                                    @if($attendanceForDay && $attendanceForDay->time_out)
+                                    @php
+                                    $loggedHours = $attendanceForDay->calculateTotalHours();
+                                    $shortHours = max(0, (float) $schedule->required_hours - $loggedHours);
+                                    @endphp
+                                    <div class="text-xs {{ $shortHours > 0 ? 'text-red-600' : 'text-green-600' }}">
+                                        {{ number_format($loggedHours, 1) }}h logged
+                                        @if($shortHours > 0)
+                                            ({{ number_format($shortHours, 1) }}h short)
+                                        @endif
+                                    </div>
+                                    @elseif($attendanceForDay && $attendanceForDay->hasActiveTimeEntry())
+                                    <div class="text-xs text-blue-600">
+                                        In progress
+                                    </div>
+                                    @endif
+                                    @elseif($showTime)
                                     <div class="text-xs text-gray-600">
                                         {{ \Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_in)->format('H:i') }}-{{ \Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_out)->format('H:i') }}
                                     </div>

@@ -143,6 +143,66 @@
     <div class="mb-6 sm:mb-8">
         <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Welcome back, {{ $stats['employee_name'] }}!</h2>
         <p class="text-sm sm:text-base text-gray-600">Here's your personal information and payroll history.</p>
+
+        @if($todaySchedule)
+            @php
+                // map the schedule's color name to a full tailwind class -
+                // tailwind needs the whole class name written out somewhere
+                // in the source, it can't see one built from a variable
+                $scheduleTextClass = match($todaySchedule->status_color) {
+                    'green' => 'text-green-600',
+                    'yellow' => 'text-yellow-600',
+                    'red' => 'text-red-600',
+                    'blue' => 'text-blue-600',
+                    default => 'text-gray-600',
+                };
+            @endphp
+            <div class="mt-3 inline-flex items-center gap-3 bg-white rounded-xl shadow-sm border border-gray-200 px-4 py-2.5">
+                <span class="text-sm font-semibold {{ $scheduleTextClass }}">
+                    {{ $todaySchedule->status_label }}
+                </span>
+                @if($todaySchedule->status === 'Working')
+                    <span class="text-gray-300">|</span>
+                    @if($todaySchedule->isFlexible())
+                        <span class="text-sm font-medium text-purple-600">
+                            <i class="fas fa-sliders-h mr-1"></i>Flexible - {{ rtrim(rtrim(number_format($todaySchedule->required_hours, 1), '0'), '.') }}h
+                        </span>
+                        <span class="text-gray-300">|</span>
+                        @if($todayAttendance && $todayAttendance->time_out)
+                            @php
+                                $completedHours = $todayAttendance->calculateTotalHours();
+                                $requiredHours = (float) $todaySchedule->required_hours;
+                                $shortHours = max(0, $requiredHours - $completedHours);
+                            @endphp
+                            @if($shortHours > 0)
+                                <span class="text-sm font-medium text-red-600">
+                                    <i class="fas fa-exclamation-circle mr-1"></i>{{ number_format($shortHours, 1) }}h short
+                                </span>
+                            @else
+                                <span class="text-sm font-medium text-green-600">
+                                    <i class="fas fa-check-circle mr-1"></i>Hours Complete
+                                </span>
+                            @endif
+                        @elseif($todayAttendance && $todayAttendance->hasActiveTimeEntry())
+                            <span class="text-sm font-medium text-blue-600" id="time-remaining-badge">
+                                <i class="fas fa-hourglass-half mr-1"></i>Calculating...
+                            </span>
+                            <script>
+                                window.todayRequiredHours = {{ (float) $todaySchedule->required_hours }};
+                            </script>
+                        @else
+                            <span class="text-sm font-medium text-gray-500">
+                                {{ rtrim(rtrim(number_format($todaySchedule->required_hours, 1), '0'), '.') }}h needed today
+                            </span>
+                        @endif
+                    @else
+                        <span class="text-sm font-medium text-gray-600">
+                            <i class="fas fa-clock mr-1"></i>Fixed - 8:00 AM to 5:00 PM
+                        </span>
+                    @endif
+                @endif
+            </div>
+        @endif
     </div>
 
     <!-- Time In/Out Section -->
@@ -664,6 +724,25 @@ function updateWorkingTime() {
     const workingTimeElement = document.getElementById('working-time');
     if (workingTimeElement) {
         workingTimeElement.textContent = `${diffHours}h ${diffMinutes}m`;
+    }
+
+    // Flexible schedule: show hours remaining until required_hours is met
+    if (window.todayRequiredHours !== undefined) {
+        const badge = document.getElementById('time-remaining-badge');
+        if (badge) {
+            const elapsedHours = diffMs / (1000 * 60 * 60);
+            const remaining = window.todayRequiredHours - elapsedHours;
+
+            if (remaining <= 0) {
+                badge.innerHTML = '<i class="fas fa-check-circle mr-1"></i>Hours Complete';
+                badge.className = 'text-sm font-medium text-green-600';
+            } else {
+                const remHours = Math.floor(remaining);
+                const remMinutes = Math.round((remaining - remHours) * 60);
+                badge.innerHTML = `<i class="fas fa-hourglass-half mr-1"></i>${remHours}h ${remMinutes}m remaining`;
+                badge.className = 'text-sm font-medium text-blue-600';
+            }
+        }
     }
 }
 
