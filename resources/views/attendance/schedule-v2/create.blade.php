@@ -169,7 +169,7 @@
                                     <div class="flex gap-4">
                                         <label class="flex items-center">
                                             <input type="radio" name="schedule_type" value="fixed" id="scheduleTypeFixed" {{ old('schedule_type', 'fixed') == 'fixed' ? 'checked' : '' }} class="mr-2">
-                                            Fixed (8:00 AM - 5:00 PM)
+                                            Fixed (set specific time in/out)
                                         </label>
                                         <label class="flex items-center">
                                             <input type="radio" name="schedule_type" value="flexible" id="scheduleTypeFlexible" {{ old('schedule_type') == 'flexible' ? 'checked' : '' }} class="mr-2">
@@ -279,21 +279,22 @@
         });
     }
 
-    // show/hide time fields based on status
-    document.getElementById('status').addEventListener('change', function() {
+    // Flexible schedules have no admin-set time window at all - the
+    // employee clocks in/out whenever, they just need to hit
+    // required_hours. Only Fixed schedules show Time In/Out.
+    function updateTimeFieldsVisibility() {
+        const status = document.getElementById('status').value;
+        const isFlexible = document.getElementById('scheduleTypeFlexible').checked;
         const timeFields = document.getElementById('timeFields');
         const timeInField = document.getElementById('time_in');
         const timeOutField = document.getElementById('time_out');
 
-        if (this.value === 'Working' || this.value === 'Overtime' || this.value === 'Regular Holiday' || this.value === 'Special Holiday' || this.value === 'Day Off' || this.value === 'Leave') {
+        const statusNeedsTime = ['Working', 'Overtime', 'Regular Holiday', 'Special Holiday', 'Day Off', 'Leave'].includes(status);
+
+        if (statusNeedsTime && !isFlexible) {
             timeFields.style.display = 'grid';
-            if (this.value === 'Working' || this.value === 'Overtime') {
-                timeInField.required = true;
-                timeOutField.required = true;
-            } else {
-                timeInField.required = false;
-                timeOutField.required = false;
-            }
+            timeInField.required = (status === 'Working' || status === 'Overtime');
+            timeOutField.required = (status === 'Working' || status === 'Overtime');
         } else {
             timeFields.style.display = 'none';
             timeInField.required = false;
@@ -301,9 +302,9 @@
             timeInField.value = '';
             timeOutField.value = '';
         }
+    }
 
-        updateTimeFieldsForScheduleType();
-    });
+    document.getElementById('status').addEventListener('change', updateTimeFieldsVisibility);
 
     // show/hide required hours field based on schedule type
     function toggleRequiredHours() {
@@ -315,31 +316,9 @@
         requiredHoursInput.required = isFlexible;
     }
 
-    // fixed = always 8AM-5PM, locked so admin can't change it
-    function updateTimeFieldsForScheduleType() {
-        const isFixed = document.getElementById('scheduleTypeFixed').checked;
-        const timeInField = document.getElementById('time_in');
-        const timeOutField = document.getElementById('time_out');
-        const timeFieldsVisible = document.getElementById('timeFields').style.display !== 'none';
-
-        if (isFixed && timeFieldsVisible) {
-            timeInField.value = '08:00';
-            timeOutField.value = '17:00';
-            timeInField.readOnly = true;
-            timeOutField.readOnly = true;
-            timeInField.classList.add('bg-gray-100');
-            timeOutField.classList.add('bg-gray-100');
-        } else {
-            timeInField.readOnly = false;
-            timeOutField.readOnly = false;
-            timeInField.classList.remove('bg-gray-100');
-            timeOutField.classList.remove('bg-gray-100');
-        }
-    }
-
     function handleScheduleTypeChange() {
         toggleRequiredHours();
-        updateTimeFieldsForScheduleType();
+        updateTimeFieldsVisibility();
     }
 
     document.getElementById('scheduleTypeFixed').addEventListener('change', handleScheduleTypeChange);
@@ -375,43 +354,6 @@
 
     document.getElementById('date').addEventListener('change', applyAutoScheduleDefaults);
 
-    // quick check before submitting so flexible schedules don't get sent
-    // in with too few hours - backend still checks this too either way
-    document.getElementById('createScheduleForm').addEventListener('submit', function(e) {
-        const isFlexible = document.getElementById('scheduleTypeFlexible').checked;
-        const warning = document.getElementById('flexibleHoursWarning');
-        warning.classList.add('hidden');
-        warning.textContent = '';
-
-        if (!isFlexible) {
-            return;
-        }
-
-        const timeIn = document.getElementById('time_in').value;
-        const timeOut = document.getElementById('time_out').value;
-        const requiredHours = parseFloat(document.getElementById('required_hours').value);
-
-        if (!timeIn || !timeOut || !requiredHours) {
-            return;
-        }
-
-        const [inH, inM] = timeIn.split(':').map(Number);
-        const [outH, outM] = timeOut.split(':').map(Number);
-        let actualHours = ((outH * 60 + outM) - (inH * 60 + inM)) / 60;
-
-        // overnight shift (e.g. 6:00 PM - 3:00 AM) - time_out is really
-        // the next day, so wrap it forward instead of going negative
-        if (actualHours < 0) {
-            actualHours += 24;
-        }
-
-        if (actualHours < requiredHours) {
-            e.preventDefault();
-            warning.textContent = `This time range only covers ${actualHours.toFixed(1)} hour(s), but this flexible schedule requires at least ${requiredHours} hour(s). Please widen the time range.`;
-            warning.classList.remove('hidden');
-        }
-    });
-
     // run once on page load
     document.addEventListener('DOMContentLoaded', function() {
         const departmentSelectInit = document.getElementById('department_id');
@@ -429,7 +371,7 @@
         }
 
         toggleRequiredHours();
-        updateTimeFieldsForScheduleType();
+        updateTimeFieldsVisibility();
     });
 </script>
 @endsection

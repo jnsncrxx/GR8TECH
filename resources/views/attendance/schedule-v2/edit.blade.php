@@ -86,7 +86,7 @@
                     <div class="flex gap-4">
                         <label class="flex items-center">
                             <input type="radio" name="schedule_type" value="fixed" id="scheduleTypeFixed" {{ old('schedule_type', $schedule->schedule_type) == 'fixed' ? 'checked' : '' }} class="mr-2">
-                            Fixed (8:00 AM - 5:00 PM)
+                            Fixed (set specific time in/out)
                         </label>
                         <label class="flex items-center">
                             <input type="radio" name="schedule_type" value="flexible" id="scheduleTypeFlexible" {{ old('schedule_type', $schedule->schedule_type) == 'flexible' ? 'checked' : '' }} class="mr-2">
@@ -209,37 +209,33 @@ document.addEventListener('DOMContentLoaded', function() {
         requiredHoursInput.required = isFlexible;
     }
 
-    // fixed = always 8AM-5PM, locked so admin can't change it
-    function updateTimeFieldsForScheduleType() {
-        const isFixed = document.getElementById('scheduleTypeFixed').checked;
+    function updateTimeFieldsVisibility() {
+        const status = document.getElementById('status').value;
+        const isFlexible = document.getElementById('scheduleTypeFlexible').checked;
+        const timeFields = document.getElementById('timeFields');
         const timeInField = document.getElementById('time_in');
         const timeOutField = document.getElementById('time_out');
-        const timeFieldsVisible = document.getElementById('timeFields').style.display !== 'none';
 
-        if (isFixed && timeFieldsVisible) {
-            timeInField.value = '08:00';
-            timeOutField.value = '17:00';
-            timeInField.readOnly = true;
-            timeOutField.readOnly = true;
-            timeInField.classList.add('bg-gray-100');
-            timeOutField.classList.add('bg-gray-100');
+        const statusNeedsTime = ['Working', 'Overtime', 'Regular Holiday', 'Special Holiday', 'Day Off', 'Leave'].includes(status);
+
+        if (statusNeedsTime && !isFlexible) {
+            timeFields.style.display = 'grid';
         } else {
-            timeInField.readOnly = false;
-            timeOutField.readOnly = false;
-            timeInField.classList.remove('bg-gray-100');
-            timeOutField.classList.remove('bg-gray-100');
+            timeFields.style.display = 'none';
+            timeInField.value = '';
+            timeOutField.value = '';
         }
     }
 
     function handleScheduleTypeChange() {
         toggleRequiredHours();
-        updateTimeFieldsForScheduleType();
+        updateTimeFieldsVisibility();
     }
 
     document.getElementById('scheduleTypeFixed').addEventListener('change', handleScheduleTypeChange);
     document.getElementById('scheduleTypeFlexible').addEventListener('change', handleScheduleTypeChange);
     toggleRequiredHours();
-    updateTimeFieldsForScheduleType();
+    updateTimeFieldsVisibility();
 
     // checks flexible schedule has enough hours before saving
     // has to live here (not a 'submit' listener) since form.submit() below
@@ -322,25 +318,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Show/hide time fields based on status
+// Show/hide time fields based on status (and schedule type - Flexible never shows them)
 document.getElementById('status').addEventListener('change', function() {
-    const timeFields = document.getElementById('timeFields');
-    const timeInField = document.getElementById('time_in');
-    const timeOutField = document.getElementById('time_out');
-    
-    if (this.value === 'Working' || this.value === 'Overtime' || this.value === 'Regular Holiday' || this.value === 'Special Holiday' || this.value === 'Day Off' || this.value === 'Leave') {
-        timeFields.style.display = 'grid';
-        // Don't make fields required - let backend validation handle it
-        timeInField.required = false;
-        timeOutField.required = false;
-    } else {
-        timeFields.style.display = 'none';
-        timeInField.required = false;
-        timeOutField.required = false;
-        // Clear the time values for non-working statuses to prevent conflicts
-        timeInField.value = '';
-        timeOutField.value = '';
-    }
+    updateTimeFieldsVisibility();
 });
 
 </script>

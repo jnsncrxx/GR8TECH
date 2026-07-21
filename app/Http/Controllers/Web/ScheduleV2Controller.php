@@ -8,39 +8,6 @@ use Illuminate\Support\Facades\Auth;
 
 class ScheduleV2Controller extends Controller
 {
-    // checks that a flexible schedule's time in/out actually covers the required hours
-    // used in both store() and update() so we don't repeat this logic
-    private function timeRangeCoversRequiredHours(Request $request)
-    {
-        return function ($attribute, $value, $fail) use ($request) {
-            if ($request->input('schedule_type') !== 'flexible') {
-                return;
-            }
-
-            $timeIn = $request->input('time_in');
-            $timeOut = $value;
-            $requiredHours = $request->input('required_hours');
-
-            if (!$timeIn || !$timeOut || !$requiredHours) {
-                return;
-            }
-
-            $start = \Carbon\Carbon::createFromFormat('H:i', $timeIn);
-            $end = \Carbon\Carbon::createFromFormat('H:i', $timeOut);
-
-            // overnight shift (e.g. 6:00 PM - 3:00 AM) - time_out is on the
-            // next day, so push it forward a day before measuring the span
-            if ($end->lessThan($start)) {
-                $end->addDay();
-            }
-
-            $actualHours = round($start->diffInMinutes($end) / 60, 2);
-
-            if ($actualHours < (float) $requiredHours) {
-                $fail("This time range only covers {$actualHours} hour(s), but this flexible schedule requires at least {$requiredHours} hour(s). Please widen the time range.");
-            }
-        };
-    }
 
     public function index(Request $request)
     {
@@ -148,21 +115,26 @@ class ScheduleV2Controller extends Controller
             'schedule_type' => ['required', 'in:fixed,flexible'],
             'required_hours' => ['required_if:schedule_type,flexible', 'nullable', 'numeric', 'min:1', 'max:24'],
             'time_in' => ['nullable', 'date_format:H:i'],
-            // no 'after:time_in' here on purpose - a flexible schedule can
-            // be an overnight shift (e.g. 6:00 PM - 3:00 AM), which the
-            // required-hours closure below already handles correctly
-            'time_out' => ['nullable', 'date_format:H:i', $this->timeRangeCoversRequiredHours($request)],
+            'time_out' => ['nullable', 'date_format:H:i'],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        // Fixed schedules always run 8:00 AM - 5:00 PM (9-hour span minus a
-        // so we just overwrite whatever time was sent in, ignore user input here
-        if ($validated['schedule_type'] === 'fixed' && $validated['time_in'] && $validated['time_out']) {
-            $validated['time_in'] = '08:00';
-            $validated['time_out'] = '17:00';
+        // Fixed schedules keep whatever time_in/time_out the admin sets for
+        // that employee - "fixed" means unchanging day-to-day for that
+        // person, not that every employee must use 8-5. required_hours for
+        // Fixed is informational only (getExpectedHours() on AttendanceRecord
+        // computes it fresh from time_in/time_out every time), so 8.00 below
+        // is just a placeholder, not used in any late/undertime calculation.
+        //
+        // Flexible schedules never have an admin-set time window - the
+        // employee can clock in/out whenever, they just need to hit
+        // required_hours - so time_in/time_out are forced to null here
+        // regardless of what was submitted.
+        if ($validated['schedule_type'] === 'flexible') {
+            $validated['time_in'] = null;
+            $validated['time_out'] = null;
         }
 
-        // don't overwrite an existing schedule silently, ask them to edit instead
         $exists = \App\Models\EmployeeSchedule::where('employee_id', $validated['employee_id'])
             ->where('date', $validated['date'])
             ->exists();
@@ -336,20 +308,20 @@ class ScheduleV2Controller extends Controller
     {
         $schedule = \App\Models\EmployeeSchedule::findOrFail($schedule);
 
-        $validated = $request->validate([
+       $validated = $request->validate([
             'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
             'schedule_type' => ['required', 'in:fixed,flexible'],
             'required_hours' => ['required_if:schedule_type,flexible', 'nullable', 'numeric', 'min:1', 'max:24'],
             'time_in' => ['nullable', 'date_format:H:i'],
-            // no 'after:time_in' here on purpose - see store() for why
-            'time_out' => ['nullable', 'date_format:H:i', $this->timeRangeCoversRequiredHours($request)],
+            'time_out' => ['nullable', 'date_format:H:i'],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        // Same fixed-hours enforcement as store() - see comment there.
-        if ($validated['schedule_type'] === 'fixed' && $validated['time_in'] && $validated['time_out']) {
-            $validated['time_in'] = '08:00';
-            $validated['time_out'] = '17:00';
+        // Same as store() - Flexible schedules have no admin-set time
+        // window, so force these to null regardless of what was submitted.
+        if ($validated['schedule_type'] === 'flexible') {
+            $validated['time_in'] = null;
+            $validated['time_out'] = null;
         }
 
         $schedule->update([
