@@ -1,6 +1,6 @@
 @extends('layouts.dashboard-base', ['user' => auth()->user(), 'activeRoute' => 'payroll.index'])
 
-@section('title', 'Payroll Management')
+@section('title', 'Payroll Payments')
 
 @section('content')
 <div class="space-y-6">
@@ -8,53 +8,20 @@
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">
-                Payroll Management
+                Payroll Payments
             </h1>
 
             <p class="mt-1 text-sm text-gray-600">
-                Manage employee salaries, deductions, and payments
+                Process payment and payslip records from finalized payroll runs
             </p>
         </div>
 
         <div class="mt-4 sm:mt-0 flex flex-wrap gap-3">
-
-            <!-- Existing payroll generation -->
-            <form action="{{ route('payrolls.generate') }}"
-                  method="POST"
-                  class="inline"
-                  id="generatePayrollForm">
-                @csrf
-
-                <input type="hidden"
-                       name="start_date"
-                       id="generateStartDate"
-                       value="">
-
-                <input type="hidden"
-                       name="end_date"
-                       id="generateEndDate"
-                       value="">
-
-                <input type="hidden"
-                       name="payroll_template_id"
-                       id="generateTemplateId"
-                       value="">
-
-                <button type="button"
-                        onclick="generatePayroll()"
-                        class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-                    <i class="fas fa-plus mr-2"></i>
-                    Generate Payroll
-                </button>
-            </form>
-
-            {{--Generate using Period Management
-            <a href="{{ route('payrolls.generate-from-period') }}"
-               class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-lg font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors">
-                <i class="fas fa-calendar-alt mr-2"></i>
-                Generate from Period
-            </a> --}}
-
+            <a href="{{ route('payroll.runs') }}"
+               class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700">
+                <i class="fas fa-layer-group mr-2"></i>
+                View Payroll Runs
+            </a>
         </div>
     </div>
 
@@ -90,10 +57,22 @@
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between">
             <div class="mb-4 lg:mb-0">
-                <h3 class="text-lg font-medium text-gray-900">Payroll Period</h3>
-                <p class="text-sm text-gray-600">Select the payroll period to view and manage</p>
+                <h3 class="text-lg font-medium text-gray-900">Locked Payroll Run</h3>
+                <p class="text-sm text-gray-600">Choose the approved cutoff batch to pay</p>
             </div>
-            <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
+            <form method="GET" action="{{ route('payroll.index') }}" class="w-full lg:w-auto lg:min-w-96">
+                <label for="payroll-run-select" class="block text-sm font-medium text-gray-700 mb-1">Select locked cutoff</label>
+                <select id="payroll-run-select" name="payroll_run_id" onchange="this.form.submit()" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900">
+                    @forelse($lockedRuns as $run)
+                        <option value="{{ $run->id }}" @selected($selectedRun?->id === $run->id)>
+                            {{ $run->name }} — {{ $run->start_date->format('M j') }} to {{ $run->end_date->format('M j, Y') }} ({{ $run->payrolls_count }} employees)
+                        </option>
+                    @empty
+                        <option value="">No locked payroll runs available</option>
+                    @endforelse
+                </select>
+            </form>
+            <div class="hidden">
                 <!-- Single Calendar Date Range Picker -->
                 <div class="flex-1">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Select Date Range</label>
@@ -176,6 +155,7 @@
         
         <!-- Additional Filters Form -->
         <form method="GET" action="{{ route('payroll.index') }}" class="mt-6 pt-6 border-t border-gray-200">
+            <input type="hidden" name="payroll_run_id" value="{{ $selectedRun?->id }}">
             <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
                 <!-- Department Filter -->
                 <div class="flex-1">
@@ -227,8 +207,8 @@
             </div>
             
             <!-- Date Range Inputs (hidden - populated by calendar) -->
-            <input type="hidden" name="start_date" id="filterStartDate" value="{{ request('start_date', now()->startOfMonth()->format('Y-m-d')) }}">
-            <input type="hidden" name="end_date" id="filterEndDate" value="{{ request('end_date', now()->endOfMonth()->format('Y-m-d')) }}">
+            <input type="hidden" name="start_date" id="filterStartDate" value="{{ $selectedRun?->start_date?->format('Y-m-d') }}">
+            <input type="hidden" name="end_date" id="filterEndDate" value="{{ $selectedRun?->end_date?->format('Y-m-d') }}">
         </form>
         
         <!-- Selected Period Display -->
@@ -236,7 +216,14 @@
             <div class="flex items-center">
                 <i class="fas fa-calendar-check text-blue-600 mr-2"></i>
                 <span class="text-sm font-medium text-blue-800">
-                    Selected Period: <span id="periodDisplay">{{ date('M d, Y') }} - {{ date('M d, Y') }}</span>
+                    Selected Run:
+                    <span id="periodDisplay">
+                        @if($selectedRun)
+                            {{ $selectedRun->name }} · {{ $selectedRun->start_date->format('M d, Y') }} - {{ $selectedRun->end_date->format('M d, Y') }}
+                        @else
+                            None — finalize and lock a payroll run first
+                        @endif
+                    </span>
                 </span>
             </div>
             @if(request()->anyFilled(['department_id', 'status', 'employee_id']))
@@ -437,33 +424,32 @@
     <!-- Payroll Status Overview -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
         <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-medium text-gray-900">Payroll Status</h3>
-            <div class="flex space-x-2">
-                <button class="px-3 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">
-                    Pending Review
-                </button>
-                <button class="px-3 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-                    Ready for Payment
-                </button>
+            <div>
+                <h3 class="text-lg font-medium text-gray-900">Payment Status</h3>
+                <p class="mt-1 text-sm text-gray-600">Summary for the selected locked payroll run</p>
             </div>
         </div>
         
         <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div class="text-center p-4 bg-gray-50 rounded-lg">
-                <div class="text-2xl font-bold text-gray-900">{{ $summary['pending_count'] }}</div>
-                <div class="text-sm text-gray-600">Pending Review</div>
-            </div>
-            <div class="text-center p-4 bg-gray-50 rounded-lg">
+            <a href="{{ request()->fullUrlWithoutQuery('status') }}" class="text-center p-4 border-2 rounded-lg transition-colors {{ !request('status') || request('status') === 'all' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-gray-50 hover:border-blue-300' }}">
+                <div class="text-2xl font-bold text-gray-900">{{ $summary['total_employees'] }}</div>
+                <div class="text-sm font-medium text-gray-700">Employees in Run</div>
+                <div class="mt-1 text-xs text-gray-500">Click to show all</div>
+            </a>
+            <a href="{{ request()->fullUrlWithQuery(['status' => 'approved']) }}" class="text-center p-4 border-2 rounded-lg transition-colors {{ request('status') === 'approved' ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-gray-50 hover:border-green-300' }}">
                 <div class="text-2xl font-bold text-gray-900">{{ $summary['approved_count'] }}</div>
-                <div class="text-sm text-gray-600">Approved</div>
-            </div>
-            <div class="text-center p-4 bg-gray-50 rounded-lg">
+                <div class="text-sm font-medium text-gray-700">Ready for Payment</div>
+                <div class="mt-1 text-xs text-green-700">₱{{ number_format($summary['approved_net_pay'], 2) }}</div>
+            </a>
+            <a href="{{ request()->fullUrlWithQuery(['status' => 'paid']) }}" class="text-center p-4 border-2 rounded-lg transition-colors {{ request('status') === 'paid' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 bg-gray-50 hover:border-purple-300' }}">
                 <div class="text-2xl font-bold text-gray-900">{{ $summary['paid_count'] }}</div>
-                <div class="text-sm text-gray-600">Paid</div>
-            </div>
-            <div class="text-center p-4 bg-gray-50 rounded-lg">
-                <div class="text-2xl font-bold text-gray-900">{{ $summary['canceled_count'] }}</div>
-                <div class="text-sm text-gray-600">Canceled</div>
+                <div class="text-sm font-medium text-gray-700">Paid</div>
+                <div class="mt-1 text-xs text-purple-700">₱{{ number_format($summary['paid_net_pay'], 2) }}</div>
+            </a>
+            <div class="text-center p-4 border-2 border-gray-200 bg-gray-50 rounded-lg">
+                <div class="text-xl font-bold text-gray-900">₱{{ number_format($summary['net_pay'], 2) }}</div>
+                <div class="text-sm font-medium text-gray-700">Net Payroll</div>
+                <div class="mt-1 text-xs text-gray-500">Total amount payable</div>
             </div>
         </div>
     </div>
@@ -473,8 +459,8 @@
     <div class="px-4 sm:px-6 py-4 border-b border-gray-200">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <div>
-                <h3 class="text-lg font-medium text-gray-900">Employee Payroll</h3>
-                <p class="mt-1 text-sm text-gray-600">Individual payroll records for the selected period</p>
+                <h3 class="text-lg font-medium text-gray-900">Payment Register</h3>
+                <p class="mt-1 text-sm text-gray-600">Approved or paid employee records from locked payroll runs</p>
             </div>
             <div class="mt-4 sm:mt-0 flex space-x-3">
                 <div class="relative">
@@ -486,10 +472,8 @@
                     <div id="filterDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                         <div class="p-2">
                             <button onclick="applyStatusFilter('all')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ !request('status') || request('status') == 'all' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">All Statuses</button>
-                            <button onclick="applyStatusFilter('pending')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('status') == 'pending' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Pending</button>
                             <button onclick="applyStatusFilter('approved')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('status') == 'approved' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Approved</button>
                             <button onclick="applyStatusFilter('paid')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('status') == 'paid' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Paid</button>
-                            <button onclick="applyStatusFilter('canceled')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('status') == 'canceled' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Canceled</button>
                         </div>
                     </div>
                 </div>
@@ -521,31 +505,31 @@
                         <input type="checkbox" id="selectAllCheckbox" onchange="toggleAllCheckboxes()">
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
-                        EMPLOYEE
+                        EMPLOYEE / ID
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
                         DEPARTMENT
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
-                        BASIC SALARY
+                        BASIC PAY
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
-                        OVERTIME
+                        OT PAY
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
-                        ALLOWANCES
+                        OTHER EARNINGS
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
-                        DEDUCTIONS
+                        TOTAL DEDUCTIONS
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
                         NET PAY
                     </th>
                     <th class="px-6 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
-                        STATUS
+                        PAYMENT STATUS
                     </th>
                     <th class="px-6 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
-                        ACTIONS
+                        DETAILS / ACTION
                     </th>
                 </tr>
             </thead>
@@ -565,7 +549,11 @@
                         <tr class="hover:bg-gray-50">
                             <!-- Add this checkbox cell -->
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <input type="checkbox" class="payroll-checkbox" value="{{ $payroll->id }}">
+                                <input type="checkbox"
+                                       class="payroll-checkbox rounded border-gray-300 text-green-600 focus:ring-green-500"
+                                       value="{{ $payroll->id }}"
+                                       data-net-pay="{{ (float) $payroll->net_pay }}"
+                                       @disabled($payroll->status !== 'approved')>
                             </td>
                         <td class="px-6 py-4">
                             <div class="flex items-center">
@@ -593,7 +581,7 @@
                             <span class="text-sm font-medium text-gray-900">₱{{ number_format($payroll->allowances, 2) }}</span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="text-sm font-medium text-gray-900">₱{{ number_format($payroll->deductions, 2) }}</span>
+                            <span class="text-sm font-medium text-red-700">₱{{ number_format($payroll->deductions + $payroll->tax_amount, 2) }}</span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             <span class="text-sm font-bold text-gray-900">₱{{ number_format($payroll->net_pay, 2) }}</span>
@@ -613,15 +601,24 @@
                                         'department' => $payroll->employee->department->name ?? 'N/A',
                                         'position' => $payroll->employee->position?->name ?? 'N/A',
                                         'basic_salary' => $payroll->basic_salary,
-                                        'overtime_pay' => $payroll->overtime_pay,
-                                        'allowances' => $payroll->allowances,
+                                        'overtime_hours' => $payroll->overtime_hours ?? 0,
+                                        'overtime_pay' => $payroll->overtime_pay ?? 0,
+                                        'regular_holiday_pay' => ($payroll->holiday_basic_pay ?? 0) + ($payroll->holiday_premium ?? 0),
+                                        'special_holiday_pay' => $payroll->special_holiday_premium ?? 0,
+                                        'night_differential_pay' => $payroll->night_differential_pay ?? 0,
+                                        'rest_day_premium_pay' => $payroll->rest_day_premium_pay ?? 0,
+                                        'allowances' => $payroll->allowances ?? 0,
+                                        'bonuses' => $payroll->bonuses ?? 0,
                                         'total_earnings' => $payroll->gross_pay ?? ($payroll->basic_salary + $payroll->overtime_pay + $payroll->allowances),
                                         'sss' => $payroll->sss,
                                         'phic' => $payroll->phic,
                                         'pagibig' => $payroll->hdmf,
                                         'tax' => $payroll->tax_amount,
-                                        'unpaid_leave_deduction' => $payroll->unpaid_leave_deduction,
-                                        'total_deductions' => $payroll->deductions,
+                                        'unpaid_leave_deduction' => $payroll->unpaid_leave_deduction ?? 0,
+                                        'late_deduction' => $payroll->late_deduction ?? 0,
+                                        'undertime_deduction' => $payroll->undertime_deduction ?? 0,
+                                        'absence_deduction' => $payroll->absence_deduction ?? 0,
+                                        'total_deductions' => ($payroll->deductions ?? 0) + ($payroll->tax_amount ?? 0),
                                         'net_pay' => $payroll->net_pay
                                     ];
                                 @endphp
@@ -631,26 +628,16 @@
                                     <i class="fas fa-eye"></i>
                                 </button>
                                 
-                                <!-- Check icon: Approve (only shown when status is 'pending') -->
-                                @if($payroll->status === 'pending')
-                                    <button onclick="approvePayroll('{{ $payroll->id }}')" 
-                                            class="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50" 
-                                            title="Approve">
-                                        <i class="fas fa-check"></i>
-                                    </button>
-                                    
-                                    <!-- X icon: Reject (only shown when status is 'pending') -->
-                                    <button onclick="rejectPayroll('{{ $payroll->id }}')" 
-                                            class="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50" 
-                                            title="Reject">
-                                        <i class="fas fa-times"></i>
-                                    </button>
-                                @elseif($payroll->status === 'approved')
-                                    <!-- Additional button for approved status -->
-                                    <button class="text-purple-600 hover:text-purple-900 p-1 rounded hover:bg-purple-50" 
-                                            title="Pay">
-                                        <i class="fas fa-credit-card"></i>
-                                    </button>
+                                @if($payroll->status === 'approved')
+                                    <form id="pay-one-form-{{ $payroll->id }}" method="POST" action="{{ route('payrolls.pay-one', $payroll->id) }}" class="inline">
+                                        @csrf
+                                        <button type="button"
+                                                onclick="openSinglePaymentModal('pay-one-form-{{ $payroll->id }}', @js($payroll->employee->full_name), @js(number_format((float) $payroll->net_pay, 2)))"
+                                                class="inline-flex items-center gap-1 rounded-lg border border-green-700 bg-green-100 px-2.5 py-1.5 text-xs font-bold text-green-900 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                                title="Pay this employee">
+                                            <i class="fas fa-credit-card"></i><span>Pay</span>
+                                        </button>
+                                    </form>
                                 @elseif($payroll->status === 'paid')
                                     <!-- Additional button for paid status -->
                                     <button class="text-gray-600 hover:text-gray-900 p-1 rounded hover:bg-gray-100" 
@@ -669,7 +656,7 @@
                                     <i class="fas fa-file-invoice text-2xl text-gray-400"></i>
                                 </div>
                                 <h3 class="text-lg font-medium text-gray-900 mb-2">No payroll records found</h3>
-                                <p class="text-gray-500">Generate payroll for the selected period to view records.</p>
+                                <p class="text-gray-500">Finalize a payroll run before processing employee payments.</p>
                             </div>
                         </td>
                     </tr>
@@ -703,6 +690,8 @@
         </div>
     </div>
 </div>
+
+@include('components.single-payment-modal')
 
 <!-- Mobile Cards - Keep this section as is -->
 <div class="lg:hidden">
@@ -749,7 +738,7 @@
                     </div>
                     <div>
                         <div class="text-gray-500">Deductions</div>
-                        <div class="font-medium">₱{{ number_format($payroll->deductions, 2) }}</div>
+                        <div class="font-medium">₱{{ number_format($payroll->deductions + $payroll->tax_amount, 2) }}</div>
                     </div>
                 </div>
                 <div class="flex justify-end space-x-2">
@@ -768,7 +757,7 @@
                             'pagibig' => $payroll->hdmf,
                             'tax' => $payroll->tax_amount,
                             'unpaid_leave_deduction' => $payroll->unpaid_leave_deduction,
-                            'total_deductions' => $payroll->deductions,
+                            'total_deductions' => $payroll->deductions + $payroll->tax_amount,
                             'net_pay' => $payroll->net_pay
                         ];
                     @endphp
@@ -856,7 +845,7 @@
                             </div>
                             <div>
                                 <div class="text-gray-500">Deductions</div>
-                                <div class="font-medium">₱{{ number_format($payroll->deductions, 2) }}</div>
+                                <div class="font-medium">₱{{ number_format($payroll->deductions + $payroll->tax_amount, 2) }}</div>
                             </div>
                         </div>
                         <div class="flex justify-end space-x-2">
@@ -875,7 +864,7 @@
                                     'pagibig' => $payroll->hdmf,
                                     'tax' => $payroll->tax_amount,
                                     'unpaid_leave_deduction' => $payroll->unpaid_leave_deduction,
-                                    'total_deductions' => $payroll->deductions,
+                                    'total_deductions' => $payroll->deductions + $payroll->tax_amount,
                                     'net_pay' => $payroll->net_pay
                                 ];
                             @endphp
@@ -924,36 +913,19 @@
     
     <div class="flex flex-col sm:flex-row flex-wrap gap-3">
 
-        <!-- Approve All Pending -->
-        <div class="inline">
-            <!-- Add these hidden inputs for the Approve All Pending button -->
-            <input type="hidden" name="bulk_start_date" id="bulkStartDate" value="{{ old('start_date', request('start_date', date('Y-m-d'))) }}">
-            <input type="hidden" name="bulk_end_date" id="bulkEndDate" value="{{ old('end_date', request('end_date', date('Y-m-d'))) }}">
-            
-            <button type="button" 
-                    onclick="approveAllPendingWithConfirmation()"
-                    id="approveAllPendingBtn"
-                    class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors">
-                <i class="fas fa-check-double mr-2"></i>
-                Approve All Pending
-            </button>
+        <input type="hidden" id="paymentStartDate" value="{{ request('start_date') }}">
+        <input type="hidden" id="paymentEndDate" value="{{ request('end_date') }}">
+        <button type="button"
+                onclick="openSelectedPaymentModal()"
+                id="processSelectedPaymentsBtn"
+                disabled
+                class="inline-flex items-center justify-center px-4 py-2 border border-green-800 rounded-lg font-bold text-black bg-green-400 hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:cursor-not-allowed disabled:opacity-50">
+            <i class="fas fa-credit-card mr-2"></i>
+            Process Selected (<span id="selectedPayrollCount">0</span>)
+        </button>
+        <div class="flex items-center rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-sm text-gray-700">
+            Selected net: <strong id="selectedPayrollNet" class="ml-2 text-gray-900">₱0.00</strong>
         </div>
-
-        <!-- Process Payments -->
-        <form action="{{ route('payrolls.process-payments') }}" method="POST" class="inline" id="processPaymentsForm">
-            @csrf
-            <input type="hidden" name="start_date" id="paymentStartDate" value="{{ old('start_date', request('start_date', date('Y-m-d'))) }}">
-            <input type="hidden" name="end_date" id="paymentEndDate" value="{{ old('end_date', request('end_date', date('Y-m-d'))) }}">
-            <input type="hidden" name="payroll_ids" id="payrollIds" value="">
-            
-            <button type="button" 
-                    onclick="processPayments()"
-                    id="processPaymentsBtn"
-                    class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-                <i class="fas fa-credit-card mr-2"></i>
-                Process Payments
-            </button>
-        </form>
 
         <!-- Generate Payslips - Only for admin/hr/manager -->
         @if(!in_array(auth()->user()->role ?? '', ['employee']))
@@ -1057,24 +1029,9 @@
         iconColor="text-blue-600"
     />
 
-    <!-- Mark as Paid (Individual) -->
-    <div class="mt-4">
-        <button onclick="markSelectedAsPaid()" 
-                class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors">
-            <i class="fas fa-money-check-alt mr-2"></i>
-            Mark Selected as Paid
-        </button>
-    </div>
-
-    <!-- Checkbox for selecting payrolls -->
-    <div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-        <label class="flex items-center">
-            <input type="checkbox" id="selectAllPayrolls" class="rounded text-blue-600 mr-2">
-            <span class="text-sm font-medium text-blue-800">Select all payroll records for bulk processing</span>
-        </label>
-        <p class="text-xs text-blue-600 mt-1 ml-6">Selected records will be processed when using bulk actions</p>
-    </div>
 </div>
+
+@include('components.selected-payment-modal')
 
 <!-- Generate Payroll Confirm Modal -->
 <div id="generatePayrollConfirmModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 overflow-y-auto" style="display: none;">
@@ -1358,12 +1315,32 @@ async function exportPayrollWithCalculations() {
                             <span id="modal-earn-basic" class="font-medium"></span>
                         </div>
                         <div class="flex justify-between">
-                            <span>Overtime Pay</span>
+                            <span>Overtime Pay <small id="modal-earn-ot-hours" class="text-gray-500"></small></span>
                             <span id="modal-earn-ot" class="font-medium"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Regular Holiday Pay</span>
+                            <span id="modal-earn-reg-holiday" class="font-medium"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Special Holiday Pay</span>
+                            <span id="modal-earn-special-holiday" class="font-medium"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Night Differential</span>
+                            <span id="modal-earn-night" class="font-medium"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Rest Day Premium</span>
+                            <span id="modal-earn-rest-day" class="font-medium"></span>
                         </div>
                         <div class="flex justify-between">
                             <span>Allowances</span>
                             <span id="modal-earn-allow" class="font-medium"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Bonuses</span>
+                            <span id="modal-earn-bonus" class="font-medium"></span>
                         </div>
                         <div class="flex justify-between border-t pt-2 font-medium">
                             <span>Total Earnings</span>
@@ -1381,7 +1358,15 @@ async function exportPayrollWithCalculations() {
                             <span id="modal-ded-unpaid" class="font-medium text-red-600"></span>
                         </div>
                         <div class="flex justify-between">
-                            <span>Attendance Penalties</span>
+                            <span>Late Deduction</span>
+                            <span id="modal-ded-late" class="font-medium text-red-600"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Undertime Deduction</span>
+                            <span id="modal-ded-undertime" class="font-medium text-red-600"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Absence / Other Attendance Deduction</span>
                             <span id="modal-ded-attendance" class="font-medium text-red-600"></span>
                         </div>
                         <div class="flex justify-between">
@@ -1813,10 +1798,26 @@ function toggleAllCheckboxes() {
     
     if (selectAll && checkboxes) {
         checkboxes.forEach(checkbox => {
-            checkbox.checked = selectAll.checked;
+            if (!checkbox.disabled) checkbox.checked = selectAll.checked;
         });
+        updateSelectedPayrollSummary();
     }
 }
+
+function updateSelectedPayrollSummary() {
+    const selected = Array.from(document.querySelectorAll('.payroll-checkbox:checked:not(:disabled)'));
+    const total = selected.reduce((sum, checkbox) => sum + Number(checkbox.dataset.netPay || 0), 0);
+    const countElement = document.getElementById('selectedPayrollCount');
+    const netElement = document.getElementById('selectedPayrollNet');
+    const button = document.getElementById('processSelectedPaymentsBtn');
+    if (countElement) countElement.textContent = selected.length;
+    if (netElement) netElement.textContent = '₱' + total.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    if (button) button.disabled = selected.length === 0;
+}
+
+document.querySelectorAll('.payroll-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', updateSelectedPayrollSummary);
+});
 
 function saveSelectedDateRange(startDate, endDate) {
     try {
@@ -2155,7 +2156,13 @@ function openPayrollModal(payrollId, dataStr) {
             
             document.getElementById('modal-earn-basic').textContent = formatMoney(data.basic_salary);
             document.getElementById('modal-earn-ot').textContent = formatMoney(data.overtime_pay);
+            document.getElementById('modal-earn-ot-hours').textContent = `(${parseFloat(data.overtime_hours || 0).toFixed(1)} hrs)`;
+            document.getElementById('modal-earn-reg-holiday').textContent = formatMoney(data.regular_holiday_pay);
+            document.getElementById('modal-earn-special-holiday').textContent = formatMoney(data.special_holiday_pay);
+            document.getElementById('modal-earn-night').textContent = formatMoney(data.night_differential_pay);
+            document.getElementById('modal-earn-rest-day').textContent = formatMoney(data.rest_day_premium_pay);
             document.getElementById('modal-earn-allow').textContent = formatMoney(data.allowances);
+            document.getElementById('modal-earn-bonus').textContent = formatMoney(data.bonuses);
             document.getElementById('modal-earn-total').textContent = formatMoney(data.total_earnings);
             
             // Calculate Attendance Penalties (Total Deductions - Statutory - Unpaid)
@@ -2164,7 +2171,9 @@ function openPayrollModal(payrollId, dataStr) {
             const attendancePenalties = Math.max(0, parseFloat(data.total_deductions || 0) - statutory - unpaid);
 
             document.getElementById('modal-ded-unpaid').textContent = formatMoney(unpaid);
-            document.getElementById('modal-ded-attendance').textContent = formatMoney(attendancePenalties);
+            document.getElementById('modal-ded-late').textContent = formatMoney(data.late_deduction);
+            document.getElementById('modal-ded-undertime').textContent = formatMoney(data.undertime_deduction);
+            document.getElementById('modal-ded-attendance').textContent = formatMoney(data.absence_deduction || attendancePenalties);
             document.getElementById('modal-ded-sss').textContent = formatMoney(data.sss);
             document.getElementById('modal-ded-phic').textContent = formatMoney(data.phic);
             document.getElementById('modal-ded-hdmf').textContent = formatMoney(data.pagibig);

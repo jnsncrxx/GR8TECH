@@ -34,6 +34,14 @@
     }
 @endphp
 
+@php
+    // Used only to prevent resetting validation after payroll records exist.
+    $existingPayrolls = $existingPayrolls ?? \App\Models\Payroll::query()
+        ->whereDate('pay_period_start', $period->start_date->format('Y-m-d'))
+        ->whereDate('pay_period_end', $period->end_date->format('Y-m-d'))
+        ->get();
+@endphp
+
 @section('content')
 <div class="min-h-screen bg-gray-50">
     <!-- Header -->
@@ -65,18 +73,36 @@
                     </div>
                     <div class="flex space-x-3">
                         @if($user->role !== 'employee')
-                        <a href="{{ route('attendance.period-management.preview-payroll', $period->id) }}?refresh={{ time() }}" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-                            <i class="fas fa-eye mr-2"></i>
-                            Preview Payroll
-                        </a>
-                        <a href="{{ route('attendance.period-management.payroll-summary', $period->id) }}" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-                            <i class="fas fa-chart-bar mr-2"></i>
-                            Payroll Summary
-                        </a>
-                        <a href="{{ route('attendance.period-management.export-payroll', $period->id) }}" class="inline-flex items-center px-4 py-2 bg-purple-600 border border-transparent rounded-lg font-medium text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors">
-                            <i class="fas fa-download mr-2"></i>
-                            Export Payroll
-                        </a>
+                            @if($period->status === \App\Models\Period::STATUS_READY)
+                                <a href="{{ route('attendance.period-management.preview-payroll', $period->id) }}"
+                                   class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50">
+                                    <i class="fas fa-eye mr-2"></i>
+                                    Preview Payroll
+                                </a>
+                                <form method="POST"
+                                      action="{{ route('attendance.period-management.generate-payroll', $period->id) }}"
+                                      onsubmit="return confirm('Generate payroll for this period?');">
+                                    @csrf
+                                    <button type="submit"
+                                            class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-lg font-medium text-white hover:bg-green-700">
+                                        <i class="fas fa-calculator mr-2"></i>
+                                        Generate Payroll
+                                    </button>
+                                </form>
+                            @elseif(in_array($period->status, [
+                                \App\Models\Period::STATUS_PROCESSING,
+                                \App\Models\Period::STATUS_FOR_REVIEW,
+                                \App\Models\Period::STATUS_FINALIZED,
+                                \App\Models\Period::STATUS_LOCKED,
+                            ], true))
+                                <a href="{{ route('payroll.periods.review', $period->id) }}"
+                                   class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700">
+                                    <i class="fas fa-clipboard-check mr-2"></i>
+                                    Open in Payroll
+                                </a>
+                            @endif
+
+
                         @endif
                         <a href="{{ route('attendance.period-management.index') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
                             <i class="fas fa-arrow-left mr-2"></i>
@@ -90,6 +116,160 @@
 
     <!-- Summary Cards -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+
+        <!-- Phase 2 Validation Workflow -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">
+                        Pre-Payroll Validation
+                    </h2>
+                    <p class="mt-1 text-sm text-gray-500">
+                        Confirm Attendance, Leave, Official Business, and Overtime before payroll generation.
+                    </p>
+                </div>
+
+                <div class="min-w-56">
+                    <div class="flex items-center justify-between text-sm mb-1">
+                        <span class="font-medium text-gray-700">Progress</span>
+                        <span class="font-semibold text-gray-900">
+                            {{ $period->validation_progress }}%
+                        </span>
+                    </div>
+                    <div class="h-2 rounded-full bg-gray-200 overflow-hidden">
+                        <div class="h-full bg-green-600"
+                             style="width: {{ $period->validation_progress }}%">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @if(!in_array($period->status, [
+                \App\Models\Period::STATUS_FOR_VALIDATION,
+                \App\Models\Period::STATUS_READY,
+                \App\Models\Period::STATUS_PROCESSING,
+            ], true))
+                <div class="mt-4 rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
+                    Move this period to <strong>For Validation</strong> before confirming the validation gates.
+                </div>
+            @endif
+
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-5">
+                @foreach($validationSummary as $component => $item)
+                    <div class="rounded-lg border {{ $item['validated'] ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white' }} p-4">
+                        <div class="flex items-start justify-between">
+                            <div>
+                                <p class="text-sm font-semibold text-gray-900">
+                                    {{ $item['label'] }}
+                                </p>
+                                <p class="mt-1 text-xs {{ $item['validated'] ? 'text-green-700' : 'text-gray-500' }}">
+                                    @if($item['validated'])
+                                        Validated {{ optional($item['validated_at'])->format('M j, Y g:i A') }}
+                                    @else
+                                        Pending validation
+                                    @endif
+                                </p>
+                            </div>
+
+                            <span class="h-8 w-8 rounded-full flex items-center justify-center {{ $item['validated'] ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500' }}">
+                                <i class="fas {{ $item['validated'] ? 'fa-check' : 'fa-hourglass-half' }}"></i>
+                            </span>
+                        </div>
+
+                        @if($user->role !== 'employee'
+                            && in_array($period->status, [
+                                \App\Models\Period::STATUS_FOR_VALIDATION,
+                                \App\Models\Period::STATUS_READY,
+                            ], true))
+                            <div class="mt-4">
+                                @if(!$item['validated'])
+                                    <form method="POST"
+                                          action="{{ route('attendance.period-management.validate-component', [$period->id, $component]) }}">
+                                        @csrf
+                                        <button type="submit"
+                                                class="w-full px-3 py-2 rounded-lg bg-green-600 text-sm font-medium text-white hover:bg-green-700">
+                                            Confirm Validation
+                                        </button>
+                                    </form>
+                                @elseif($existingPayrolls->isEmpty())
+                                    <form method="POST"
+                                          action="{{ route('attendance.period-management.reset-validation-component', [$period->id, $component]) }}"
+                                          onsubmit="return confirm('Reset this validation item?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit"
+                                                class="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                            Reset
+                                        </button>
+                                    </form>
+                                @endif
+                            </div>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+
+            @if($period->status === \App\Models\Period::STATUS_READY)
+                <div class="mt-5 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+                    <i class="fas fa-check-circle mr-2"></i>
+                    All validation gates are complete. This period is Ready for Payroll.
+                </div>
+            @endif
+        </div>
+
+        @if(isset($scheduleExceptions) && $scheduleExceptions->isNotEmpty())
+            <div class="bg-white rounded-lg shadow-sm border border-red-200 mb-6 overflow-hidden">
+                <div class="px-6 py-4 bg-red-50 border-b border-red-200">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <h2 class="text-lg font-semibold text-red-900">
+                            <i class="fas fa-exclamation-triangle mr-2"></i>Schedule & Attendance Exceptions
+                        </h2>
+                        <a href="{{ route('attendance.timekeeping', ['date_from' => $period->start_date->format('Y-m-d'), 'date_to' => $period->end_date->format('Y-m-d')]) }}" class="inline-flex items-center rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100">
+                            <i class="fas fa-external-link-alt mr-2"></i>Review in Timekeeping
+                        </a>
+                    </div>
+                    <p class="mt-1 text-sm text-red-700">
+                        Resolve these items before confirming Attendance Validation.
+                    </p>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left font-medium text-gray-600">Employee</th>
+                                <th class="px-4 py-3 text-left font-medium text-gray-600">Date</th>
+                                <th class="px-4 py-3 text-left font-medium text-gray-600">Schedule</th>
+                                <th class="px-4 py-3 text-left font-medium text-gray-600">Actual Log</th>
+                                <th class="px-4 py-3 text-left font-medium text-gray-600">Issue</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 bg-white">
+                            @foreach($scheduleExceptions->take(100) as $exception)
+                                <tr>
+                                    <td class="px-4 py-3 text-gray-900">
+                                        {{ $exception['employee_code'] ?? '—' }} - {{ $exception['employee_name'] ?? 'Unknown' }}
+                                    </td>
+                                    <td class="px-4 py-3 text-gray-700">{{ $exception['date_formatted'] ?? $exception['date'] ?? '—' }}</td>
+                                    <td class="px-4 py-3 text-gray-700">{{ $exception['schedule_in_out'] ?? '—' }}</td>
+                                    <td class="px-4 py-3 text-gray-700">{{ $exception['actual_in_out'] ?? '—' }}</td>
+                                    <td class="px-4 py-3">
+                                        <span class="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
+                                            {{ $exception['validation_issue'] }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                @if($scheduleExceptions->count() > 100)
+                    <div class="px-6 py-3 bg-gray-50 text-xs text-gray-600">
+                        Showing the first 100 of {{ $scheduleExceptions->count() }} exceptions.
+                    </div>
+                @endif
+            </div>
+        @endif
+
         <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
             <!-- Total Employees -->
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
@@ -112,7 +292,7 @@
                     </div>
                     <div>
                         <h3 class="text-xl font-semibold text-gray-900">{{ $summaryData['present_days'] }}</h3>
-                        <p class="text-xs text-gray-600">Present</p>
+                        <p class="text-xs text-gray-600">Present Days</p>
                     </div>
                 </div>
             </div>
@@ -125,7 +305,7 @@
                     </div>
                     <div>
                         <h3 class="text-xl font-semibold text-gray-900">{{ $summaryData['absent_days'] }}</h3>
-                        <p class="text-xs text-gray-600">Absent</p>
+                        <p class="text-xs text-gray-600">Absent Days</p>
                     </div>
                 </div>
             </div>
@@ -208,11 +388,32 @@
                             <div class="flex items-center space-x-4">
                                 <div class="text-sm text-gray-500">
                                     @php
-                                        $presentCount = $employeeRecords->where('attendance_status', 'Present')->count();
+                                        $presentStatuses = ['Present', 'Late', 'Half Day', 'Official Business'];
+                                        $dayOffStatuses = ['Day Off', 'Rest Day'];
+                                        $holidayStatuses = ['Regular Holiday', 'Special Holiday', 'Holiday'];
+
+                                        $presentCount = $employeeRecords->whereIn('attendance_status', $presentStatuses)->count();
                                         $absentCount = $employeeRecords->where('attendance_status', 'Absent')->count();
+                                        $dayOffCount = $employeeRecords->whereIn('attendance_status', $dayOffStatuses)->count();
+                                        $holidayCount = $employeeRecords->whereIn('attendance_status', $holidayStatuses)->count();
+                                        $incompleteCount = $employeeRecords->filter(function ($record) {
+                                            return in_array($record['attendance_status'] ?? null, [
+                                                'Incomplete Log',
+                                                'Present (No Time Out)',
+                                            ], true);
+                                        })->count();
                                     @endphp
                                     <span class="text-green-600 font-medium">{{ $presentCount }}P</span>
                                     <span class="text-red-600 font-medium">{{ $absentCount }}A</span>
+                                    @if($dayOffCount > 0)
+                                        <span class="text-slate-600 font-medium">{{ $dayOffCount }}D</span>
+                                    @endif
+                                    @if($holidayCount > 0)
+                                        <span class="text-yellow-600 font-medium">{{ $holidayCount }}H</span>
+                                    @endif
+                                    @if($incompleteCount > 0)
+                                        <span class="text-orange-600 font-medium">{{ $incompleteCount }}I</span>
+                                    @endif
                                 </div>
                                 <div class="flex-shrink-0">
                                     <i class="fas fa-chevron-down text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }"></i>
@@ -385,140 +586,6 @@
                                 </div>
             @endif
         </div>
-
-        <!-- Payroll Preview Section -->
-        @php
-            $startDate = \Carbon\Carbon::parse($period['start_date']);
-            $endDate = \Carbon\Carbon::parse($period['end_date']);
-            $existingPayrolls = \App\Models\Payroll::where('pay_period_start', $startDate->format('Y-m-d'))
-                ->where('pay_period_end', $endDate->format('Y-m-d'))
-                ->with('employee.department')
-                ->get();
-        @endphp
-
-        @if($existingPayrolls->count() > 0)
-        <div class="mt-6 bg-white rounded-lg shadow-sm border border-gray-200">
-            <div class="px-6 py-4 border-b border-gray-200">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-lg font-semibold text-gray-900">Payroll Preview</h3>
-                    <div class="flex space-x-3">
-                        @if($user->role !== 'employee')
-                        <a href="{{ route('attendance.period-management.payroll-summary', $period['id']) }}" class="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-                            <i class="fas fa-eye mr-2"></i>
-                            View Details
-                        </a>
-                        <a href="{{ route('attendance.period-management.export-payroll', $period['id']) }}" class="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-                            <i class="fas fa-download mr-2"></i>
-                            Export CSV
-                        </a>
-                        @endif
-                    </div>
-                </div>
-            </div>
-            <div class="p-6">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-green-50 rounded-lg p-4">
-                        <div class="flex items-center">
-                            <div class="h-8 w-8 bg-green-100 rounded-lg flex items-center justify-center mr-3">
-                                <i class="fas fa-users text-green-600 text-sm"></i>
-                            </div>
-                            <div>
-                                <h4 class="text-lg font-semibold text-gray-900">{{ $existingPayrolls->count() }}</h4>
-                                <p class="text-xs text-gray-600">Employees</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bg-blue-50 rounded-lg p-4">
-                        <div class="flex items-center">
-                            <div class="h-8 w-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
-                                <i class="fas fa-money-bill-wave text-blue-600 text-sm"></i>
-                            </div>
-                            <div>
-                                <h4 class="text-lg font-semibold text-gray-900">₱{{ number_format($existingPayrolls->sum('gross_pay'), 2) }}</h4>
-                                <p class="text-xs text-gray-600">Gross Pay</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bg-orange-50 rounded-lg p-4">
-                        <div class="flex items-center">
-                            <div class="h-8 w-8 bg-orange-100 rounded-lg flex items-center justify-center mr-3">
-                                <i class="fas fa-minus-circle text-orange-600 text-sm"></i>
-                            </div>
-                            <div>
-                                <h4 class="text-lg font-semibold text-gray-900">₱{{ number_format($existingPayrolls->sum('deductions'), 2) }}</h4>
-                                <p class="text-xs text-gray-600">Deductions</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bg-purple-50 rounded-lg p-4">
-                        <div class="flex items-center">
-                            <div class="h-8 w-8 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
-                                <i class="fas fa-wallet text-purple-600 text-sm"></i>
-                            </div>
-                            <div>
-                                <h4 class="text-lg font-semibold text-gray-900">₱{{ number_format($existingPayrolls->sum('net_pay'), 2) }}</h4>
-                                <p class="text-xs text-gray-600">Net Pay</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Quick Payroll Table -->
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Basic Salary</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Overtime</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net Pay</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            @foreach($existingPayrolls->take(5) as $payroll)
-                            <tr>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm font-medium text-gray-900">{{ $payroll->employee->employee_id }}</div>
-                                    <div class="text-sm text-gray-500">{{ $payroll->employee->full_name }}</div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {{ $payroll->employee->department->name ?? 'N/A' }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    ₱{{ number_format($payroll->basic_salary, 2) }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {{ number_format($payroll->overtime_hours, 1) }} hrs
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    ₱{{ number_format($payroll->net_pay, 2) }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                        @if($payroll->status === 'pending') bg-yellow-100 text-yellow-800
-                                        @elseif($payroll->status === 'processed') bg-blue-100 text-blue-800
-                                        @elseif($payroll->status === 'paid') bg-green-100 text-green-800
-                                        @else bg-gray-100 text-gray-800
-                                        @endif">
-                                        {{ ucfirst($payroll->status) }}
-                                    </span>
-                                </td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-
-                @if($existingPayrolls->count() > 5)
-                <div class="mt-4 text-center">
-                    <p class="text-sm text-gray-500">Showing 5 of {{ $existingPayrolls->count() }} payroll records</p>
-                </div>
-                @endif
-            </div>
-        </div>
-        @endif
     </div>
 </div>
 

@@ -102,6 +102,14 @@ class OvertimeController extends Controller
             if ($existingRequest) {
                 return response()->json(['error' => 'You already have a pending or approved overtime request for this date. Please choose another day.'], 422);
             }
+
+            $conflicts = app(\App\Services\PayrollRequestConflictService::class);
+            if ($conflicts->leaveOnDate($user->employee_id, $request->date)) {
+                return response()->json(['error' => 'Overtime cannot be filed on a date covered by pending or approved leave.'], 422);
+            }
+            if ($conflicts->officialBusinessOnDate($user->employee_id, $request->date)) {
+                return response()->json(['error' => 'Overtime cannot be filed on a date with pending or approved Official Business.'], 422);
+            }
             
             $hasAttendanceRecord = \App\Models\AttendanceRecord::where('employee_id', $user->employee_id)
                 ->whereDate('date', $request->date)
@@ -148,6 +156,16 @@ class OvertimeController extends Controller
             
             if ($overtime->status !== \App\Models\OvertimeRequest::PENDING) {
                 return response()->json(['error' => 'Only pending requests can be updated.'], 403);
+            }
+
+            if ($request->status === 'approved') {
+                $conflicts = app(\App\Services\PayrollRequestConflictService::class);
+                if ($conflicts->leaveOnDate($overtime->employee_id, $overtime->date->toDateString())) {
+                    return response()->json(['error' => 'Cannot approve overtime because this date is covered by leave.'], 422);
+                }
+                if ($conflicts->officialBusinessOnDate($overtime->employee_id, $overtime->date->toDateString())) {
+                    return response()->json(['error' => 'Cannot approve overtime because this date has Official Business.'], 422);
+                }
             }
             
             $overtime->update([

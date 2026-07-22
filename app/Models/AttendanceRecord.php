@@ -61,6 +61,9 @@ class AttendanceRecord extends Model
         'night_shift',
         'status',
         'notes',
+        'corrected_by',
+        'correction_reason',
+        'corrected_at',
         'created_by',
     ];
 
@@ -74,6 +77,7 @@ class AttendanceRecord extends Model
         'regular_hours' => 'decimal:2',
         'overtime_hours' => 'decimal:2',
         'night_shift' => 'boolean',
+        'corrected_at' => 'datetime',
     ];
 
     protected static function boot()
@@ -222,15 +226,26 @@ class AttendanceRecord extends Model
     {
         $totalMinutes = 0;
 
-        $entries = $this->timeEntries()
-            ->whereNotNull('time_out')
-            ->get();
+        // An audited HR correction intentionally supersedes imported/raw time
+        // entries while preserving those original entries for traceability.
+        if ($this->corrected_at && $this->time_in && $this->time_out) {
+            $timeIn = Carbon::parse($this->time_in);
+            $timeOut = Carbon::parse($this->time_out);
+
+            if ($this->isPlausibleWorkSpan($timeIn, $timeOut)) {
+                $totalMinutes = $timeIn->diffInMinutes($timeOut);
+            }
+        }
+
+        $entries = $this->corrected_at || $totalMinutes > 0
+            ? collect()
+            : $this->timeEntries()->whereNotNull('time_out')->get();
 
         foreach ($entries as $entry) {
             $timeIn = Carbon::parse($entry->time_in);
             $timeOut = Carbon::parse($entry->time_out);
 
-            if ($timeOut->gt($timeIn)) {
+            if ($this->isPlausibleWorkSpan($timeIn, $timeOut)) {
                 $totalMinutes += $timeIn->diffInMinutes($timeOut);
             }
         }
@@ -240,11 +255,11 @@ class AttendanceRecord extends Model
          * (empty, or all zero-length). Use the attendance
          * record's own time_in/time_out span instead of 0.
          */
-        if ($totalMinutes === 0 && $this->time_in && $this->time_out) {
+        if (!$this->corrected_at && $totalMinutes === 0 && $this->time_in && $this->time_out) {
             $timeIn = Carbon::parse($this->time_in);
             $timeOut = Carbon::parse($this->time_out);
 
-            if ($timeOut->gt($timeIn)) {
+            if ($this->isPlausibleWorkSpan($timeIn, $timeOut)) {
                 $totalMinutes = $timeIn->diffInMinutes($timeOut);
             }
         }
@@ -263,6 +278,45 @@ class AttendanceRecord extends Model
     }
 
     /**
+     * Reject corrupted/cross-date pairs before they reach reports or payroll.
+     * A legitimate overnight shift may end on the following date, but a single
+     * attendance span can never exceed 24 hours or begin on another work date.
+     */
+    private function isPlausibleWorkSpan(Carbon $timeIn, Carbon $timeOut): bool
+    {
+        if (!$timeOut->gt($timeIn)) {
+            return false;
+        }
+
+        $recordDate = Carbon::parse($this->date)->startOfDay();
+
+        return $timeIn->isSameDay($recordDate)
+            && $timeOut->lte($recordDate->copy()->addDay()->endOfDay())
+            && $timeIn->diffInMinutes($timeOut) <= 24 * 60;
+    }
+
+    public function hasInvalidTimeSpan(): bool
+    {
+        $pairs = collect();
+
+        if ($this->time_in && $this->time_out) {
+            $pairs->push([$this->time_in, $this->time_out]);
+        }
+
+        ($this->relationLoaded('timeEntries')
+            ? $this->timeEntries->whereNotNull('time_out')
+            : $this->timeEntries()->whereNotNull('time_out')->get())
+            ->each(fn ($entry) => $pairs->push([$entry->time_in, $entry->time_out]));
+
+        return $pairs->contains(function (array $pair) {
+            return !$this->isPlausibleWorkSpan(
+                Carbon::parse($pair[0]),
+                Carbon::parse($pair[1])
+            );
+        });
+    }
+
+    /**
      * Get completed break minutes.
      *
      * Active breaks are intentionally excluded from final
@@ -272,9 +326,18 @@ class AttendanceRecord extends Model
     {
         $totalMinutes = 0;
 
-        $breaks = $this->breaks()
-            ->whereNotNull('break_end')
-            ->get();
+        if ($this->corrected_at && $this->break_start && $this->break_end) {
+            $breakStart = Carbon::parse($this->break_start);
+            $breakEnd = Carbon::parse($this->break_end);
+
+            return $breakEnd->gt($breakStart)
+                ? $breakStart->diffInMinutes($breakEnd)
+                : 0;
+        }
+
+        $breaks = $this->relationLoaded('breaks')
+            ? $this->breaks->whereNotNull('break_end')
+            : $this->breaks()->whereNotNull('break_end')->get();
 
         if ($breaks->isNotEmpty()) {
             foreach ($breaks as $break) {
@@ -400,11 +463,11 @@ class AttendanceRecord extends Model
         ];
     }
 
-    // Standard company schedule: 8am-5pm with 1hr lunch, 15 min grace period
+    // Standard company schedule: 8am-5pm with 1hr lunch, 10 min grace period
     private const DEFAULT_SHIFT_START = '08:00';
     private const DEFAULT_SHIFT_END = '17:00';
     private const DEFAULT_BREAK_MINUTES = 60;
-    private const GRACE_PERIOD_MINUTES = 15;
+    private const GRACE_PERIOD_MINUTES = 10;
 
     // Get the schedule for this date, only if it's a working day
     private function getWorkingSchedule(): ?EmployeeSchedule
@@ -468,13 +531,13 @@ class AttendanceRecord extends Model
             $this->date->format('Y-m-d')
             . ' '
             . $expectedStartTime
-        )->addMinutes(self::GRACE_PERIOD_MINUTES);
+        );
 
-        return Carbon::parse($this->time_in)
-            ->gt($expectedTime);
+        return self::lateMinutesAfterGrace($expectedTime, Carbon::parse($this->time_in)) > 0;
     }
 
-    // How many minutes late, past the grace period
+    // Once the employee exceeds the 10-minute grace window, the complete
+    // lateness from scheduled start is deductible (11 minutes late = 11).
     public function getLateMinutes(): int
     {
         if (!$this->isLate()) {
@@ -483,10 +546,23 @@ class AttendanceRecord extends Model
 
         $schedule = $this->getWorkingSchedule();
         $expectedStartTime = $schedule->time_in ?? self::DEFAULT_SHIFT_START;
-        $expectedTime = Carbon::parse($this->date->format('Y-m-d') . ' ' . $expectedStartTime)
-            ->addMinutes(self::GRACE_PERIOD_MINUTES);
+        $expectedTime = Carbon::parse($this->date->format('Y-m-d') . ' ' . $expectedStartTime);
 
-        return max(0, abs(Carbon::parse($this->time_in)->diffInMinutes($expectedTime)));
+        return self::lateMinutesAfterGrace($expectedTime, Carbon::parse($this->time_in));
+    }
+
+    private static function lateMinutesAfterGrace($scheduledStart, $actualStart): int
+    {
+        $scheduled = Carbon::parse($scheduledStart);
+        $actual = Carbon::parse($actualStart);
+
+        if ($actual->lte($scheduled)) {
+            return 0;
+        }
+
+        $minutes = $scheduled->diffInMinutes($actual);
+
+        return $minutes > self::GRACE_PERIOD_MINUTES ? $minutes : 0;
     }
 
     // Check if employee left before their scheduled end time. Doesn't apply to flexible schedules.

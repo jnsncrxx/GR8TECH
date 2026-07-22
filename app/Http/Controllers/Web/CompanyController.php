@@ -102,6 +102,21 @@ class CompanyController extends Controller
 
     public function switchCompany(Request $request)
     {
-        return response()->json(['message' => 'Switch company not yet implemented'], 501);
+        $validated = $request->validate([
+            'company_id' => ['required', 'uuid', 'exists:companies,id'],
+        ]);
+
+        $company = Company::query()
+            ->whereKey($validated['company_id'])
+            ->where('is_active', true)
+            ->first();
+
+        if (!$company) {
+            return back()->with('error', 'The selected company is inactive or unavailable.');
+        }
+
+        CompanyHelper::setCurrentCompany($company);
+
+        return back()->with('success', 'Switched to '.$company->name.'.');
     }
 }

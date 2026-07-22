@@ -916,7 +916,6 @@ class PayrollGenerationService
                     $payroll->status = 'paid';
                     $payroll->paid_at = now();
                     $payroll->paid_by = $processedBy;
-                    $result['processed']++;
 
                     Log::info('Payroll marked as paid', [
                         'payroll_id' => $payroll->id,
@@ -925,11 +924,16 @@ class PayrollGenerationService
                     ]);
                 } else {
                     $payroll->status = 'payment_failed';
-                    $result['failed']++;
                 }
 
                 $payroll->save();
                 DB::commit();
+
+                if ($status === 'success') {
+                    $result['processed']++;
+                } else {
+                    $result['failed']++;
+                }
             } catch (\Exception $e) {
                 DB::rollBack();
                 Log::error('processPayments error', [
@@ -1146,23 +1150,30 @@ class PayrollGenerationService
      */
     private function calculateAllPayrollComponents(Employee $employee, $employeeRecords, array $periodData, ?string $payrollTemplateId = null): array
     {
-        // 1. Resolve Template Priority
+        // Templates are optional. Explicit/employee/position templates take
+        // priority; when none is assigned, payroll uses the employee's salary
+        // and the rates derived from that salary.
         $template = null;
         if ($payrollTemplateId) {
             $template = \App\Models\PayrollTemplate::find($payrollTemplateId);
         }
-        if (!$template && $employee->payroll_template_id) {
+        if (! $template && $employee->payroll_template_id) {
             $template = $employee->payrollTemplate;
         }
-        if (!$template && $employee->position && $employee->position->payroll_template_id) {
+        if (! $template && $employee->position?->payroll_template_id) {
             $template = $employee->position->payrollTemplate;
         }
 
-        // Get rates from template or employee/calculate them
-        $monthlyRate = ($template && $template->monthly_rate !== null) ? $template->monthly_rate : ($employee->salary ?? 0);
+        $monthlyRate = $template && $template->monthly_rate !== null
+            ? (float) $template->monthly_rate
+            : (float) ($employee->salary ?? 0);
         $semiMonthlyRate = $monthlyRate / 2;
-        $dailyRate = ($template && $template->daily_rate !== null) ? $template->daily_rate : ($employee->daily_rate ?? ($monthlyRate * 12 / 313));
-        $hourlyRate = ($template && $template->hourly_rate !== null) ? $template->hourly_rate : ($dailyRate / 8);
+        $dailyRate = $template && $template->daily_rate !== null
+            ? (float) $template->daily_rate
+            : (float) ($employee->daily_rate ?? ($monthlyRate / 26));
+        $hourlyRate = $template && $template->hourly_rate !== null
+            ? (float) $template->hourly_rate
+            : (float) ($employee->hourly_rate ?? ($dailyRate / 8));
 
         // Calculate basic working days and hours
         $daysWorked = $this->calculateDaysWorkedFromRecords($employeeRecords);
@@ -1191,20 +1202,27 @@ class PayrollGenerationService
         $restDayData = $this->calculateRestDayPremiumWithExcelRates($employee, $employeeRecords, $dailyRate);
 
         // Calculate approved leave compensation for the payroll period
-        $leaveData = $this->calculateApprovedLeaveData($employee, $periodData);
+        $leaveData = $this->calculateApprovedLeaveData($employee, $periodData, $employeeRecords);
 
-        // Calculate allowances (incentive leave from Excel - 5 days)
+        // Calculate only earned/configured allowances. Leave pay must come
+        // from approved leave dates, never from an unconditional five-day grant.
         $allowances = $this->calculateAllowances($employee, $dailyRate, $leaveData);
         if ($template && $template->allowances !== null) {
-            $allowances['total'] = $template->allowances;
+            $allowances['total'] = (float) $template->allowances;
         }
 
         // Calculate statutory deductions (SSS, PHIC, HDMF)
         $statutoryDeductions = $this->calculateStatutoryDeductions($employee, $monthlyRate);
         if ($template) {
-            if ($template->sss !== null) $statutoryDeductions['sss'] = $template->sss;
-            if ($template->phic !== null) $statutoryDeductions['phic'] = $template->phic;
-            if ($template->hdmf !== null) $statutoryDeductions['hdmf'] = $template->hdmf;
+            if ($template->sss !== null) {
+                $statutoryDeductions['sss'] = (float) $template->sss;
+            }
+            if ($template->phic !== null) {
+                $statutoryDeductions['phic'] = (float) $template->phic;
+            }
+            if ($template->hdmf !== null) {
+                $statutoryDeductions['hdmf'] = (float) $template->hdmf;
+            }
         }
 
         // Calculate late/undertime deductions
@@ -1216,15 +1234,10 @@ class PayrollGenerationService
         // Unpaid leave deduction (personal / emergency leave days × daily rate)
         $unpaidLeaveDeduction = $leaveData['unpaid_leave_deduction'] ?? 0;
 
-        // Total deductions
-        $totalDeductions = $timeDeductions['total'] + $absentDeductions + $unpaidLeaveDeduction +
-            $statutoryDeductions['sss'] +
-            $statutoryDeductions['phic'] +
-            $statutoryDeductions['hdmf'];
-
-        if ($template && $template->deductions !== null) {
-            $totalDeductions += $template->deductions;
-        }
+        $otherDeductions = $template && $template->deductions !== null
+            ? (float) $template->deductions
+            : 0.0;
+        $scheduledLoanDeduction = $this->calculateLoanDeduction($employee, $periodData);
 
         // Calculate gross pay using Excel formula pattern
         $grossPay = $this->calculateGrossPayWithExcelFormula(
@@ -1237,11 +1250,67 @@ class PayrollGenerationService
             0 // bonuses
         );
 
-        // Calculate tax
-        $taxAmount = $this->calculateTax($grossPay);
+        // Attendance penalties can consume the basic salary earned for the
+        // cutoff, but must not consume paid leave, allowances, or premiums.
+        // This also prevents a daily-rate rounding difference from making an
+        // employee owe the company after a fully absent cutoff.
+        $scheduledAttendanceDeductions = $timeDeductions['total']
+            + $absentDeductions
+            + $unpaidLeaveDeduction;
+        $attendanceDeductionBudget = max(0, (float) $basicSalary);
+        $applyAttendanceDeduction = static function (float $scheduled) use (&$attendanceDeductionBudget): float {
+            $applied = min(max(0, $scheduled), max(0, $attendanceDeductionBudget));
+            $attendanceDeductionBudget -= $applied;
+            return round($applied, 2);
+        };
+        $appliedLateDeduction = $applyAttendanceDeduction((float) $timeDeductions['late']);
+        $appliedUndertimeDeduction = $applyAttendanceDeduction((float) $timeDeductions['undertime']);
+        $appliedAbsenceDeduction = $applyAttendanceDeduction((float) $absentDeductions);
+        $appliedUnpaidLeaveDeduction = $applyAttendanceDeduction((float) $unpaidLeaveDeduction);
+        $appliedAttendanceDeductions = round(
+            $appliedLateDeduction
+            + $appliedUndertimeDeduction
+            + $appliedAbsenceDeduction
+            + $appliedUnpaidLeaveDeduction,
+            2
+        );
 
-        // Calculate net pay (Gross Pay minus all deductions)
-        $netPay = $grossPay - $totalDeductions - $taxAmount;
+        $remainingPay = max(0, $grossPay - $appliedAttendanceDeductions);
+
+        // Withholding tax is based on compensation remaining after absence,
+        // late, undertime, and unpaid-leave adjustments—not the unreduced
+        // fixed salary. Never withhold more than the employee can receive.
+        $taxablePay = $remainingPay;
+        $scheduledTaxAmount = $this->calculateTax($taxablePay);
+        $taxAmount = min($scheduledTaxAmount, $remainingPay);
+        $remainingPay -= $taxAmount;
+
+        // Apply the remaining deductions in a deterministic priority order.
+        // Capping each item records a valid zero net pay instead of creating a
+        // negative payslip. Loan amounts not collected remain available for a
+        // future cutoff because only the applied amount is persisted.
+        $applyDeduction = static function (float $scheduled) use (&$remainingPay): float {
+            $applied = min(max(0, $scheduled), max(0, $remainingPay));
+            $remainingPay -= $applied;
+            return round($applied, 2);
+        };
+
+        $appliedSss = $applyDeduction((float) $statutoryDeductions['sss']);
+        $appliedPhic = $applyDeduction((float) $statutoryDeductions['phic']);
+        $appliedHdmf = $applyDeduction((float) $statutoryDeductions['hdmf']);
+        $appliedOtherDeductions = $applyDeduction($otherDeductions);
+        $loanDeduction = $applyDeduction($scheduledLoanDeduction);
+
+        $totalDeductions = round(
+            $appliedAttendanceDeductions
+            + $appliedSss
+            + $appliedPhic
+            + $appliedHdmf
+            + $appliedOtherDeductions
+            + $loanDeduction,
+            2
+        );
+        $netPay = round(max(0, $remainingPay), 2);
 
         return [
             'monthly_rate' => $monthlyRate,
@@ -1259,20 +1328,40 @@ class PayrollGenerationService
             'rest_day_premium_pay' => $restDayData['total_pay'],
             'allowances' => $allowances['total'],
             'bonuses' => 0,
+            'other_earnings' => 0,
             'sick_leave_days' => $leaveData['sick_leave_days'] ?? 0,
             'sick_leave_pay' => $leaveData['sick_leave_pay'] ?? 0,
             'unpaid_leave_days' => $leaveData['unpaid_leave_days'] ?? 0,
-            'unpaid_leave_deduction' => $leaveData['unpaid_leave_deduction'] ?? 0,
+            'unpaid_leave_deduction' => $appliedUnpaidLeaveDeduction,
             'total_deductions' => $totalDeductions,
             'late_minutes' => $timeDeductions['late_minutes'],
             'undertime_minutes' => $timeDeductions['undertime_minutes'],
-            'late_deductions' => $timeDeductions['late'],
-            'undertime_deductions' => $timeDeductions['undertime'],
-            'absent_deductions' => $absentDeductions,
-            'sss' => $statutoryDeductions['sss'],
-            'phic' => $statutoryDeductions['phic'],
-            'hdmf' => $statutoryDeductions['hdmf'],
+            'late_deductions' => $appliedLateDeduction,
+            'undertime_deductions' => $appliedUndertimeDeduction,
+            'absent_deductions' => $appliedAbsenceDeduction,
+            'other_deductions' => $appliedOtherDeductions,
+            'loan_deduction' => $loanDeduction,
+            'sss' => $appliedSss,
+            'phic' => $appliedPhic,
+            'hdmf' => $appliedHdmf,
             'tax_amount' => $taxAmount,
+            'taxable_pay' => $taxablePay,
+            'scheduled_deductions' => round(
+                $scheduledAttendanceDeductions
+                + array_sum($statutoryDeductions)
+                + $otherDeductions
+                + $scheduledLoanDeduction,
+                2
+            ),
+            'deferred_deductions' => round(
+                max(0, $scheduledAttendanceDeductions - $appliedAttendanceDeductions)
+                + max(0, $statutoryDeductions['sss'] - $appliedSss)
+                + max(0, $statutoryDeductions['phic'] - $appliedPhic)
+                + max(0, $statutoryDeductions['hdmf'] - $appliedHdmf)
+                + max(0, $otherDeductions - $appliedOtherDeductions)
+                + max(0, $scheduledLoanDeduction - $loanDeduction),
+                2
+            ),
             'gross_pay' => $grossPay,
             'net_pay' => $netPay,
             // Holiday data for reference
@@ -1281,7 +1370,7 @@ class PayrollGenerationService
             'special_holiday_premium' => $holidayData['special_premium'] ?? 0,
             'regular_holiday_days' => $holidayData['regular_days'] ?? 0,
             'special_holiday_days' => $holidayData['special_days'] ?? 0,
-            'scheduled_hours' => $daysWorked * 8, // Assuming 8 hours per day
+            'scheduled_hours' => $this->sumScheduledHours($employeeRecords),
         ];
     }
 
@@ -1292,38 +1381,57 @@ class PayrollGenerationService
     {
         $totalHours = 0;
 
-        // Check if employee has ANY attendance records indicating presence
-        $hasAnyAttendance = collect($employeeRecords)->contains(function ($record) {
-            return isset($record['attendance_status']) && in_array($record['attendance_status'], ['Present', 'Late', 'Half Day', 'Official Business'], true);
-        });
-
         foreach ($employeeRecords as $record) {
-            if (!$hasAnyAttendance) {
-                // If no attendance records at all, assume perfect attendance for working days
-                // Default to Mon-Sat as working days if schedule is 'Day Off' (assuming 6-day workweek)
-                $date = \Carbon\Carbon::parse($record['date']);
-                $isWorkingDay = $record['schedule_status'] === 'Working' ||
-                    ($record['schedule_status'] === 'Day Off' && $date->dayOfWeek !== \Carbon\Carbon::SUNDAY);
+            if (($record['schedule_status'] ?? null) !== 'Working') {
+                continue;
+            }
 
-                if ($isWorkingDay) {
-                    $totalHours += 8;
-                }
-            } else {
-                // Only count actual hours worked on working days if they have attendance
-                if (
-                    $record['schedule_status'] === 'Working' &&
-                    in_array($record['attendance_status'], ['Present', 'Late', 'Half Day', 'Official Business'], true)
-                ) {
+            $status = $record['attendance_status'] ?? null;
 
-                    // Parse scheduled hours from the record
-                    $hours = $this->parseFormattedHours($record['scheduled_hours'] ?? '0 hrs 0 mins');
-                    $totalHours += $hours;
-                }
+            if ($status === 'Official Business') {
+                $totalHours += $this->hoursToDecimal($record['scheduled_hours'] ?? 0);
+                continue;
+            }
+
+            if (in_array($status, ['Present', 'Late', 'Half Day'], true)) {
+                $totalHours += $this->hoursToDecimal($record['worked_hours'] ?? 0);
             }
         }
 
         // Convert hours to days (assuming 8 hours per day)
         return $totalHours / 8;
+    }
+
+    /**
+     * Sum the authoritative employee schedule hours for the cutoff. Absence
+     * does not erase the scheduled requirement; day offs and missing schedules
+     * contribute zero because their records do not contain payable hours.
+     */
+    private function sumScheduledHours($employeeRecords): float
+    {
+        return round((float) collect($employeeRecords)->sum(function ($record) {
+            if (($record['schedule_status'] ?? null) !== 'Working') {
+                return 0;
+            }
+
+            return $this->hoursToDecimal($record['scheduled_hours'] ?? 0);
+        }), 2);
+    }
+
+    private function sumWorkedHours($employeeRecords): float
+    {
+        return round((float) collect($employeeRecords)->sum(function ($record) {
+            return $this->hoursToDecimal($record['worked_hours'] ?? 0);
+        }), 2);
+    }
+
+    private function hoursToDecimal($value): float
+    {
+        if (is_numeric($value)) {
+            return max(0, (float) $value);
+        }
+
+        return max(0, (float) $this->parseFormattedHours((string) $value));
     }
 
     /**
@@ -1340,9 +1448,24 @@ class PayrollGenerationService
         $weightedMultiplierTotal = 0.0;
 
          foreach ($employeeRecords as $record) {
+            // Rest-day duty is paid once through the dedicated 130% rest-day
+            // component, never again as ordinary overtime.
+            if (in_array($record['schedule_status'] ?? null, ['Day Off', 'Rest Day'], true)) {
+                continue;
+            }
+
             // Overtime requires an actual attendance record for that date.
             // A day marked Absent (no time_in/time_out) cannot also earn OT pay.
             if (($record['attendance_status'] ?? null) === 'Absent') {
+                continue;
+            }
+
+            $requiredHours = $this->hoursToDecimal($record['scheduled_hours'] ?? 0);
+            $workedHours = $this->hoursToDecimal($record['worked_hours'] ?? 0);
+
+            // Regular OT is payable only after the employee completes the
+            // scheduled eight-hour duty (or the shorter configured shift).
+            if ($requiredHours > 0 && $workedHours < $requiredHours) {
                 continue;
             }
             $entries = $record['overtime_entries'] ?? [];
@@ -1455,12 +1578,18 @@ class PayrollGenerationService
     private function calculateRestDayPremiumWithExcelRates(Employee $employee, $employeeRecords, $dailyRate): array
     {
         $totalPay = 0;
+        $hourlyRate = $dailyRate / 8;
 
-        // Rest day duty: daily rate × 1.3 (Excel: =H14*V14*1.3)
+        // Rest-day duty pays every actual worked hour at 130%. This handles
+        // partial and full rest-day shifts without assuming exactly 8 hours.
         foreach ($employeeRecords as $record) {
-            if ($record['schedule_status'] === 'Leave' && $record['attendance_status'] === 'Present') {
-                // Excel formula for rest day duty
-                $totalPay += $dailyRate * 1.3;
+            if (
+                in_array($record['schedule_status'] ?? null, ['Day Off', 'Rest Day'], true)
+                && ($record['attendance_status'] ?? null) === 'Rest Day Duty'
+            ) {
+                $totalPay += $this->hoursToDecimal($record['worked_hours'] ?? 0)
+                    * $hourlyRate
+                    * 1.3;
             }
         }
 
@@ -1525,8 +1654,11 @@ class PayrollGenerationService
      */
     private function calculateAllowances(Employee $employee, $dailyRate, array $leaveData = []): array
     {
-        $incentiveLeaveDays = 5; // Default from Excel
-        $incentiveLeavePay = $dailyRate * $incentiveLeaveDays;
+        // The old implementation granted five incentive-leave days on every
+        // payroll run. That repeatedly paid an annual benefit and inflated all
+        // employees' gross pay even when no leave was approved.
+        $incentiveLeaveDays = 0;
+        $incentiveLeavePay = 0;
         $sickLeavePay = $leaveData['sick_leave_pay'] ?? 0;
         $totalAllowance = $incentiveLeavePay + $sickLeavePay;
 
@@ -1540,9 +1672,57 @@ class PayrollGenerationService
     }
 
     /**
+     * Convert the employee's monthly loan amortization to the current payroll
+     * frequency. Standard cutoffs are semi-monthly, so each receives half of
+     * the monthly amount. Date limits prevent deductions outside the loan term.
+     */
+    private function calculateLoanDeduction(Employee $employee, array $periodData): float
+    {
+        $employeeAttributes = $employee->getAttributes();
+        $monthlyAmortization = max(0, (float) ($employeeAttributes['loan_monthly_amortization'] ?? 0));
+
+        if ($monthlyAmortization <= 0) {
+            return 0.0;
+        }
+
+        $periodStart = Carbon::parse($periodData['start_date'])->startOfDay();
+        $periodEnd = Carbon::parse($periodData['end_date'])->endOfDay();
+
+        $loanStart = $employeeAttributes['loan_start_date'] ?? null;
+        $loanEnd = $employeeAttributes['loan_end_date'] ?? null;
+
+        if ($loanStart && Carbon::parse($loanStart)->gt($periodEnd)) {
+            return 0.0;
+        }
+
+        if ($loanEnd && Carbon::parse($loanEnd)->lt($periodStart)) {
+            return 0.0;
+        }
+
+        $daysInPeriod = $periodData['days_in_period']
+            ?? $periodStart->diffInDays($periodEnd) + 1;
+
+        $scheduledDeduction = round($daysInPeriod >= 25
+            ? $monthlyAmortization
+            : $monthlyAmortization / 2, 2);
+
+        $loanTotal = max(0, (float) ($employeeAttributes['loan_total_amount'] ?? 0));
+        if ($loanTotal <= 0 || Employee::getConnectionResolver() === null || !$employee->exists) {
+            return $scheduledDeduction;
+        }
+
+        $previouslyDeducted = (float) Payroll::query()
+            ->where('employee_id', $employee->id)
+            ->whereDate('pay_period_end', '<', $periodStart->toDateString())
+            ->sum('loan_deduction');
+
+        return round(min($scheduledDeduction, max(0, $loanTotal - $previouslyDeducted)), 2);
+    }
+
+    /**
      * Calculate approved sick leave pay for the payroll period.
      */
-    private function calculateApprovedLeaveData(Employee $employee, array $periodData): array
+    private function calculateApprovedLeaveData(Employee $employee, array $periodData, $employeeRecords = null): array
     {
         // Paid leave types are compensated for these days. Everything else
         // (LeaveRequest::UNCAPPED_LEAVE_TYPES) is unpaid and deducted from
@@ -1573,6 +1753,8 @@ class PayrollGenerationService
         $paidLeaveDays      = 0;
         $unpaidLeaveDays    = 0;
 
+        $recordsByDate = collect($employeeRecords ?? [])->keyBy('date');
+
         foreach ($leaveRequests as $leaveRequest) {
             $overlapStart = max(Carbon::parse($leaveRequest->start_date), $startDate);
             $overlapEnd   = min(Carbon::parse($leaveRequest->end_date), $endDate);
@@ -1585,7 +1767,19 @@ class PayrollGenerationService
             $days    = 0;
             $current = $overlapStart->copy()->startOfDay();
             while ($current->lte($overlapEnd)) {
-                if ($current->dayOfWeek !== Carbon::SUNDAY) {
+                $record = $recordsByDate->get($current->toDateString());
+                $isScheduledWorkday = $record
+                    ? (($record['schedule_status'] ?? null) === 'Working')
+                    : $current->dayOfWeek !== Carbon::SUNDAY;
+                $isLeaveOnly = !$record || (
+                    in_array($record['attendance_status'] ?? null, ['Paid Leave', 'Unpaid Leave'], true)
+                    && $this->hoursToDecimal($record['worked_hours'] ?? 0) <= 0
+                    && (float) ($record['overtime'] ?? 0) <= 0
+                );
+
+                // Never pay leave on a rest day or on a date already credited
+                // as attendance, Official Business, or overtime.
+                if ($isScheduledWorkday && $isLeaveOnly) {
                     $days++;
                 }
                 $current->addDay();
@@ -2187,10 +2381,18 @@ class PayrollGenerationService
         // Calculate all payroll components with Excel formulas
         $components = $this->calculateAllPayrollComponents($employee, $employeeRecords, $periodData, $payrollTemplateId);
 
+        // Keep preview identity/details aligned with the generated payroll views.
+        $employee->loadMissing(['department', 'position']);
+
+        $workedHours = $this->sumWorkedHours($employeeRecords);
+
         // Return preview data array (not saved to database)
         return [
             'employee_id' => $employee->id,
+            'employee_code' => $employee->employee_id ?? $employee->id,
             'employee_name' => $employee->full_name,
+            'department_name' => $employee->department?->name ?? 'N/A',
+            'position_name' => $employee->position?->name ?? 'N/A',
             'pay_period_start' => $startDate->format('Y-m-d'),
             'pay_period_end' => $endDate->format('Y-m-d'),
             'monthly_rate' => $components['monthly_rate'],
@@ -2198,6 +2400,9 @@ class PayrollGenerationService
             'daily_rate' => $components['daily_rate'],
             'hourly_rate' => $components['hourly_rate'],
             'basic_salary' => $components['basic_salary'],
+            'worked_hours' => $workedHours,
+            'scheduled_hours' => $components['scheduled_hours'] ?? 0,
+            'days_worked' => $components['days_worked'] ?? 0,
             'overtime_hours' => $components['overtime_hours'],
             'overtime_rate' => $components['overtime_rate'],
             'overtime_pay' => $components['overtime_pay'],
@@ -2207,15 +2412,50 @@ class PayrollGenerationService
             'rest_day_premium_pay' => $components['rest_day_premium_pay'],
             'allowances' => $components['allowances'],
             'bonuses' => $components['bonuses'],
+            'other_earnings' => $components['other_earnings'] ?? 0,
             'sick_leave_days' => $components['sick_leave_days'],
             'sick_leave_pay' => $components['sick_leave_pay'],
+            'unpaid_leave_days' => $components['unpaid_leave_days'] ?? 0,
+            'unpaid_leave_deduction' => $components['unpaid_leave_deduction'] ?? 0,
+            'late_minutes' => $components['late_minutes'] ?? 0,
+            'undertime_minutes' => $components['undertime_minutes'] ?? 0,
+            'late_deduction' => $components['late_deductions'] ?? 0,
+            'undertime_deduction' => $components['undertime_deductions'] ?? 0,
+            'absence_deduction' => $components['absent_deductions'] ?? 0,
+            'other_deductions' => $components['other_deductions'] ?? 0,
+            'loan_deduction' => $components['loan_deduction'] ?? 0,
+            'holiday_basic_pay' => $components['holiday_basic_pay'] ?? 0,
+            'holiday_premium' => $components['holiday_premium'] ?? 0,
+            'special_holiday_premium' => $components['special_holiday_premium'] ?? 0,
+            'regular_holiday_days' => $components['regular_holiday_days'] ?? 0,
+            'special_holiday_days' => $components['special_holiday_days'] ?? 0,
             'deductions' => $components['total_deductions'],
+            'scheduled_deductions' => $components['scheduled_deductions'] ?? $components['total_deductions'],
+            'deferred_deductions' => $components['deferred_deductions'] ?? 0,
             'tax_amount' => $components['tax_amount'],
+            'taxable_pay' => $components['taxable_pay'] ?? $components['gross_pay'],
             'gross_pay' => $components['gross_pay'],
             'net_pay' => $components['net_pay'],
             'sss' => $components['sss'],
             'phic' => $components['phic'],
             'hdmf' => $components['hdmf'],
+            'deductions_details' => [
+                'total_late_minutes' => $components['late_minutes'] ?? 0,
+                'late_days_count' => collect($employeeRecords)
+                    ->filter(fn ($record) => (int) ($record['late_minutes'] ?? 0) > 0)
+                    ->count(),
+                'total_late_deduction' => $components['late_deductions'] ?? 0,
+                'undertime' => $components['undertime_deductions'] ?? 0,
+                'absence' => $components['absent_deductions'] ?? 0,
+                'unpaid_leave' => $components['unpaid_leave_deduction'] ?? 0,
+                'sss' => $components['sss'] ?? 0,
+                'philhealth' => $components['phic'] ?? 0,
+                'pagibig' => $components['hdmf'] ?? 0,
+                'other' => $components['other_deductions'] ?? 0,
+                'loan' => $components['loan_deduction'] ?? 0,
+                'scheduled' => $components['scheduled_deductions'] ?? $components['total_deductions'],
+                'deferred' => $components['deferred_deductions'] ?? 0,
+            ],
             'status' => 'preview',
         ];
     }
@@ -2234,10 +2474,17 @@ class PayrollGenerationService
         $endDate = Carbon::parse($periodData['end_date']);
 
         // Check if payroll already exists and is locked
-        $existingPayroll = Payroll::where('employee_id', $employee->id)
-            ->where('pay_period_start', $startDate->format('Y-m-d'))
-            ->where('pay_period_end', $endDate->format('Y-m-d'))
-            ->first();
+        $existingPayrollQuery = Payroll::where('employee_id', $employee->id);
+
+        if (! empty($periodData['id'])) {
+            $existingPayrollQuery->where('period_id', $periodData['id']);
+        } else {
+            $existingPayrollQuery
+                ->where('pay_period_start', $startDate->format('Y-m-d'))
+                ->where('pay_period_end', $endDate->format('Y-m-d'));
+        }
+
+        $existingPayroll = $existingPayrollQuery->first();
 
         if ($existingPayroll && in_array($existingPayroll->status, ['approved', 'paid'])) {
             Log::info("SKIPPED (locked payroll) - employee {$employee->id} ({$employee->full_name}) - existing status: {$existingPayroll->status}, period {$startDate->format('Y-m-d')} to {$endDate->format('Y-m-d')}");
@@ -2271,7 +2518,12 @@ class PayrollGenerationService
                 'pay_period_end' => $endDate->format('Y-m-d'),
             ];
 
+            if (! empty($periodData['id'])) {
+                $attributes['period_id'] = $periodData['id'];
+            }
+
             $values = [
+                'company_id' => $employee->company_id,
                 'basic_salary' => $components['basic_salary'],
                 'holiday_basic_pay' => $components['holiday_basic_pay'] ?? 0,
                 'holiday_premium' => $components['holiday_premium'] ?? 0,
@@ -2282,17 +2534,26 @@ class PayrollGenerationService
                 'overtime_rate' => $components['overtime_rate'],
                 'overtime_pay' => $components['overtime_pay'],
                 'scheduled_hours' => $components['scheduled_hours'] ?? 0,
+                'worked_hours' => $this->sumWorkedHours($employeeRecords),
+                'late_minutes' => $components['late_minutes'] ?? 0,
+                'undertime_minutes' => $components['undertime_minutes'] ?? 0,
+                'late_deduction' => $components['late_deductions'] ?? 0,
+                'undertime_deduction' => $components['undertime_deductions'] ?? 0,
+                'absence_deduction' => $components['absent_deductions'] ?? 0,
                 'night_differential_hours' => $components['night_differential_hours'],
                 'night_differential_rate' => $components['night_differential_rate'],
                 'night_differential_pay' => $components['night_differential_pay'],
                 'rest_day_premium_pay' => $components['rest_day_premium_pay'],
                 'allowances' => $components['allowances'],
                 'bonuses' => $components['bonuses'],
+                'other_earnings' => $components['other_earnings'] ?? 0,
                 'sick_leave_days' => $components['sick_leave_days'] ?? 0,
                 'sick_leave_pay' => $components['sick_leave_pay'] ?? 0,
                 'unpaid_leave_days' => $components['unpaid_leave_days'] ?? 0,
                 'unpaid_leave_deduction' => $components['unpaid_leave_deduction'] ?? 0,
                 'deductions' => $components['total_deductions'],
+                'other_deductions' => $components['other_deductions'] ?? 0,
+                'loan_deduction' => $components['loan_deduction'] ?? 0,
                 'sss' => $components['sss'],
                 'phic' => $components['phic'],
                 'hdmf' => $components['hdmf'],

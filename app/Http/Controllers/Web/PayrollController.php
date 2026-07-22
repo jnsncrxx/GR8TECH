@@ -67,17 +67,51 @@ class PayrollController extends Controller
         $currentCompany = CompanyHelper::getCurrentCompany();
         $user = Auth::user();
 
+        $lockedRuns = Period::query()
+            ->withCount('payrolls')
+            ->where('status', Period::STATUS_LOCKED)
+            ->whereHas('payrolls', function ($payrollQuery) use ($currentCompany) {
+                if ($currentCompany) {
+                    $payrollQuery->whereHas('employee', fn ($employeeQuery) => $employeeQuery
+                        ->where('company_id', $currentCompany->id));
+                }
+            })
+            ->latest('payroll_date')
+            ->latest('created_at')
+            ->get();
+
+        $selectedRun = $request->filled('payroll_run_id')
+            ? $lockedRuns->firstWhere('id', $request->payroll_run_id)
+            : $lockedRuns->first();
+
+        if ($request->filled('payroll_run_id') && !$selectedRun) {
+            return redirect()->route('payroll.index')
+                ->with('error', 'The selected payroll run is unavailable or is not locked.');
+        }
+
+        if ($selectedRun) {
+            $request->merge([
+                'payroll_run_id' => $selectedRun->id,
+                'start_date' => $selectedRun->start_date->format('Y-m-d'),
+                'end_date' => $selectedRun->end_date->format('Y-m-d'),
+            ]);
+        }
+
         // Get payrolls with deduplication: only the latest payroll per employee per pay period
         // Use window function to get the latest payroll per employee per period
         $latestPayrollsSubquery = DB::table('payrolls as p1')
             ->select(
                 'p1.id',
+                'p1.period_id',
                 'p1.employee_id',
                 'p1.pay_period_start',
                 'p1.pay_period_end',
                 'p1.status',
                 'p1.basic_salary',
                 'p1.overtime_pay',
+                'p1.night_differential_hours',
+                'p1.night_differential_rate',
+                'p1.night_differential_pay',
                 'p1.allowances',
                 'p1.deductions',
                 'p1.sss',
@@ -99,6 +133,14 @@ class PayrollController extends Controller
 
         // Add employee join
         $query->join('employees', 'latest_payrolls.employee_id', '=', 'employees.id');
+        $query->join('periods', 'latest_payrolls.period_id', '=', 'periods.id')
+            ->where('periods.status', Period::STATUS_LOCKED);
+
+        if ($selectedRun) {
+            $query->where('latest_payrolls.period_id', $selectedRun->id);
+        } else {
+            $query->whereRaw('1 = 0');
+        }
 
         // Filter by company
         if ($currentCompany) {
@@ -209,12 +251,16 @@ class PayrollController extends Controller
         $payrolls->getCollection()->transform(function ($item) {
             $payroll = new \App\Models\Payroll([
                 'id' => $item->id,
+                'period_id' => $item->period_id,
                 'employee_id' => $item->employee_id,
                 'pay_period_start' => $item->pay_period_start,
                 'pay_period_end' => $item->pay_period_end,
                 'status' => $item->status,
                 'basic_salary' => $item->basic_salary,
                 'overtime_pay' => $item->overtime_pay,
+                'night_differential_hours' => $item->night_differential_hours,
+                'night_differential_rate' => $item->night_differential_rate,
+                'night_differential_pay' => $item->night_differential_pay,
                 'allowances' => $item->allowances,
                 'deductions' => $item->deductions,
                 'sss' => $item->sss,
@@ -261,6 +307,13 @@ class PayrollController extends Controller
 
         // Calculate summary statistics - get ALL payrolls for the period (using same logic)
         $summaryQuery = Payroll::query();
+        $summaryQuery->whereHas('period', fn ($periodQuery) => $periodQuery
+            ->where('status', Period::STATUS_LOCKED));
+        if ($selectedRun) {
+            $summaryQuery->where('period_id', $selectedRun->id);
+        } else {
+            $summaryQuery->whereRaw('1 = 0');
+        }
         if ($currentCompany) {
             $summaryQuery->whereHas('employee', function ($q) use ($currentCompany) {
                 $q->where('company_id', $currentCompany->id);
@@ -274,19 +327,21 @@ class PayrollController extends Controller
 
         $allPayrolls = $summaryQuery->get();
         $summary = [
-            'total_employees' => $employeesQuery->count(),
+            'total_employees' => $allPayrolls->count(),
             'gross_pay' => $allPayrolls->sum('gross_pay'),
-            'total_deductions' => $allPayrolls->sum('deductions'),
+            'total_deductions' => $allPayrolls->sum(fn ($payroll) => (float) $payroll->deductions + (float) $payroll->tax_amount),
             'net_pay' => $allPayrolls->sum('net_pay'),
             'pending_count' => $allPayrolls->where('status', 'pending')->count(),
             'approved_count' => $allPayrolls->where('status', 'approved')->count(),
             'paid_count' => $allPayrolls->where('status', 'paid')->count(),
             'canceled_count' => $allPayrolls->where('status', 'canceled')->count(),
+            'approved_net_pay' => $allPayrolls->where('status', 'approved')->sum('net_pay'),
+            'paid_net_pay' => $allPayrolls->where('status', 'paid')->sum('net_pay'),
         ];
 
         $payrollTemplates = \App\Models\PayrollTemplate::all();
         
-        return view('payroll.index', compact('payrolls', 'employees', 'summary', 'departments', 'payrollTemplates'));
+        return view('payroll.index', compact('payrolls', 'employees', 'summary', 'departments', 'payrollTemplates', 'lockedRuns', 'selectedRun'));
     }
 
     public function checkDuplicatePayroll(Request $request)
@@ -423,9 +478,14 @@ class PayrollController extends Controller
     {
         $user = Auth::user();
 
+        $validated = $request->validate([
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+        ]);
+
         // Use the more comprehensive summary method that supports date filtering
-        $startDate = $request->get('start_date', now()->startOfMonth()->format('Y-m-d'));
-        $endDate = $request->get('end_date', now()->endOfMonth()->format('Y-m-d'));
+        $startDate = $validated['start_date'] ?? now()->startOfMonth()->format('Y-m-d');
+        $endDate = $validated['end_date'] ?? now()->endOfMonth()->format('Y-m-d');
 
         $summary = $this->payrollService->getPayrollSummary(
             Carbon::parse($startDate),
@@ -452,13 +512,44 @@ class PayrollController extends Controller
         return view('payroll.summary', compact('user', 'summary', 'monthly_data', 'startDate', 'endDate'));
     }
 
+    /**
+     * List cutoff-level payroll batches generated by Period Management.
+     */
+    public function runs(Request $request)
+    {
+        $user = Auth::user();
+        $currentCompany = CompanyHelper::getCurrentCompany();
+
+        $query = Period::with('department')
+            ->withCount('payrolls')
+            ->whereHas('payrolls')
+            ->when($currentCompany, fn ($periodQuery) => $periodQuery->where('company_id', $currentCompany->id));
+
+        if ($request->filled('status') && in_array($request->status, [
+            Period::STATUS_PROCESSING,
+            Period::STATUS_FOR_REVIEW,
+            Period::STATUS_FINALIZED,
+            Period::STATUS_LOCKED,
+        ], true)) {
+            $query->where('status', $request->status);
+        }
+
+        $payrollPeriods = $query
+            ->latest('payroll_date')
+            ->latest('created_at')
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('payroll.runs', compact('user', 'payrollPeriods'));
+    }
+
     public function monthlyReport(Request $request)
     {
         $user = Auth::user();
 
         $request->validate([
-            'year' => 'required|integer|min:2020|max:2030',
-            'month' => 'required|integer|min:1|max:12',
+            'year' => 'sometimes|integer|min:2020|max:2030',
+            'month' => 'sometimes|integer|min:1|max:12',
         ]);
 
         $year = $request->get('year', now()->year);
@@ -492,6 +583,7 @@ class PayrollController extends Controller
             $payrolls = Payroll::where('pay_period_start', $request->start_date)
                 ->where('pay_period_end', $request->end_date)
                 ->where('status', 'approved')
+                ->whereHas('period', fn ($periodQuery) => $periodQuery->where('status', Period::STATUS_LOCKED))
                 ->with('employee')
                 ->get();
 
@@ -504,21 +596,8 @@ class PayrollController extends Controller
             ]);
 
             if ($payrolls->isEmpty()) {
-                // Check if there are pending payrolls that can be auto-approved
-                $pendingPayrolls = Payroll::where('pay_period_start', $request->start_date)
-                    ->where('pay_period_end', $request->end_date)
-                    ->where('status', 'pending')
-                    ->count();
-
-                if ($pendingPayrolls > 0) {
-                    return redirect()->back()
-                        ->with('info', "No approved payrolls found. Found {$pendingPayrolls} pending payroll(s). Please approve them first.")
-                        ->with('start_date', $request->start_date)
-                        ->with('end_date', $request->end_date);
-                }
-
                 return redirect()->back()
-                    ->with('error', 'No approved or pending payrolls found for this period. Please generate payroll first.')
+                    ->with('error', 'No approved payroll from a locked run was found for this exact cutoff. Finalize and lock the run before payment.')
                     ->with('start_date', $request->start_date)
                     ->with('end_date', $request->end_date);
             }
@@ -528,6 +607,13 @@ class PayrollController extends Controller
                 $payrolls->pluck('employee_id')->toArray(),
                 auth()->id()
             );
+
+            if ($result['processed'] === 0 && $result['failed'] > 0) {
+                return redirect()->back()
+                    ->with('error', 'No payments were completed. ' . $result['failed'] . ' record(s) failed; no payroll status was changed.')
+                    ->with('start_date', $request->start_date)
+                    ->with('end_date', $request->end_date);
+            }
 
             return redirect()->back()
                 ->with(
@@ -544,6 +630,50 @@ class PayrollController extends Controller
                 ->with('start_date', $request->start_date)
                 ->with('end_date', $request->end_date);
         }
+    }
+
+    /**
+     * Process one approved employee payroll from a locked run.
+     */
+    public function payOne(Payroll $payroll)
+    {
+        $payroll->loadMissing(['period', 'employee']);
+
+        if (!$payroll->period || $payroll->period->status !== Period::STATUS_LOCKED) {
+            return back()->with('error', 'Only payroll records from a locked run can be paid.');
+        }
+
+        if ($payroll->status === 'paid') {
+            return back()->with('info', ($payroll->employee?->full_name ?? 'This employee') . ' has already been paid.');
+        }
+
+        if ($payroll->status !== 'approved') {
+            return back()->with('error', 'Only an approved payroll record can be paid.');
+        }
+
+        $result = $this->payrollService->processPayments(
+            [
+                'start_date' => $payroll->pay_period_start->format('Y-m-d'),
+                'end_date' => $payroll->pay_period_end->format('Y-m-d'),
+            ],
+            [$payroll->employee_id],
+            auth()->id()
+        );
+
+        if ($result['processed'] !== 1) {
+            Log::error('Single payroll payment failed', [
+                'payroll_id' => $payroll->id,
+                'result' => $result,
+            ]);
+
+            return back()->with('error', 'Payment was not completed. No payroll status was changed.');
+        }
+
+        return back()->with(
+            'success',
+            'Payment completed for ' . ($payroll->employee?->full_name ?? 'the selected employee')
+            . ': ₱' . number_format((float) $payroll->net_pay, 2) . '.'
+        );
     }
 
     /**
@@ -1189,10 +1319,13 @@ class PayrollController extends Controller
             $user = Auth::user();
 
             // Authorization check
-            if ($user && $user->role === 'employee' && $user->employee) {
-                if ($payroll->employee_id !== $user->employee->id) {
-                    return redirect()->back()->with('error', 'You are not authorized to download this payslip.');
-                }
+            if ($user && $user->role === 'employee') {
+                abort_unless(
+                    $user->employee
+                        && $payroll->employee_id === $user->employee->id
+                        && in_array($payroll->status, ['approved', 'paid'], true),
+                    403
+                );
             }
 
             // Check if DomPDF is available
@@ -3156,11 +3289,38 @@ class PayrollController extends Controller
                 'end_date' => 'required|date'
             ]);
 
+            $eligiblePayrolls = Payroll::with('period')
+                ->whereIn('id', $request->payroll_ids)
+                ->where('status', 'approved')
+                ->whereHas('period', fn ($periodQuery) => $periodQuery->where('status', Period::STATUS_LOCKED))
+                ->get();
+
+            if ($eligiblePayrolls->count() !== count($request->payroll_ids)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only approved payroll records from a locked run can be paid.'
+                ], 422);
+            }
+
             $result = $this->payrollService->processPayments(
                 ['start_date' => $request->start_date, 'end_date' => $request->end_date],
-                $request->payroll_ids,
+                $eligiblePayrolls->pluck('employee_id')->all(),
                 auth()->id()
             );
+
+            if ($result['processed'] !== $eligiblePayrolls->count() || $result['failed'] > 0) {
+                Log::error('Selected payroll payment batch was incomplete', [
+                    'requested_ids' => $request->payroll_ids,
+                    'result' => $result,
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'processed' => $result['processed'],
+                    'failed' => $result['failed'],
+                    'message' => 'The selected payment batch was not fully completed. Refresh the register before retrying.'
+                ], 422);
+            }
 
             return response()->json([
                 'success' => true,
@@ -3247,9 +3407,11 @@ class PayrollController extends Controller
 
             $count = 0;
             foreach ($request->payroll_ids as $payrollId) {
-                $payroll = Payroll::find($payrollId);
+                $payroll = Payroll::with('period')->find($payrollId);
 
-                if ($payroll && $payroll->status === 'approved') {
+                if ($payroll
+                    && $payroll->status === 'approved'
+                    && $payroll->period?->status === Period::STATUS_LOCKED) {
                     $payroll->update([
                         'status' => 'paid',
                         'paid_at' => now(),
@@ -3738,6 +3900,16 @@ class PayrollController extends Controller
                 return $item->employee_id . '_' . $item->date->format('Y-m-d');
             });
 
+        // Approved leave must be part of the same authoritative daily snapshot.
+        // Without this, a valid leave day is also labelled Absent and receives
+        // both leave pay and an absence deduction.
+        $approvedLeaveRequests = \App\Models\LeaveRequest::whereIn('employee_id', $employees->pluck('id'))
+            ->where('status', 'approved')
+            ->whereDate('start_date', '<=', $endDate->format('Y-m-d'))
+            ->whereDate('end_date', '>=', $startDate->format('Y-m-d'))
+            ->get()
+            ->groupBy('employee_id');
+
         foreach ($employees as $employee) {
             $currentDate = $startDate->copy();
 
@@ -3754,17 +3926,26 @@ class PayrollController extends Controller
                     ->where('date', $dateStr)
                     ->first();
 
-                // Determine schedule status - if no schedule exists but employee has attendance, treat as working day
-                if (!$schedule && $attendanceRecord && $attendanceRecord->time_in) {
-                    $scheduleStatus = 'Working';
-                } else {
-                    $scheduleStatus = $this->getScheduleStatus($schedule);
-                }
+                // A missing schedule is an explicit pre-payroll exception.
+                // Payroll must never infer a working day from attendance alone.
+                $scheduleStatus = $schedule
+                    ? $this->getScheduleStatus($schedule)
+                    : 'No Schedule';
 
                 // Determine attendance status
                 $obKey = $employee->id . '_' . $dateStr;
-                $hasApprovedOb = $approvedObRequests->has($obKey);
-                $attendanceStatus = $this->getAttendanceStatus($attendanceRecord, $schedule, $hasApprovedOb);
+                $approvedObRequest = $approvedObRequests->get($obKey);
+                $hasApprovedOb = $approvedObRequest !== null;
+                $approvedLeaveRequest = $approvedLeaveRequests
+                    ->get($employee->id, collect())
+                    ->first(function ($leaveRequest) use ($dateStr) {
+                        return $leaveRequest->start_date->toDateString() <= $dateStr
+                            && $leaveRequest->end_date->toDateString() >= $dateStr;
+                    });
+                $hasApprovedLeave = $approvedLeaveRequest !== null;
+                $attendanceStatus = $schedule
+                    ? $this->getAttendanceStatus($attendanceRecord, $schedule, $hasApprovedOb)
+                    : 'No Schedule';
 
                 // Initialize default values for non-working days
                 $workedHours = '—';
@@ -3795,13 +3976,27 @@ class PayrollController extends Controller
 
                 $overtime = collect($overtimeEntries)->sum('hours');
 
-                // Only calculate attendance metrics if schedule status is 'Working' or 'Regular Holiday' or 'Special Holiday'
+                // Calculate ordinary scheduled work and holiday attendance.
                 if (in_array($scheduleStatus, ['Working', 'Regular Holiday', 'Special Holiday'])) {
 
+                    $scheduledHoursValue = (float) ($schedule->required_hours ?: $schedule->working_hours);
+                    $scheduledHours = $this->formatHours($scheduledHoursValue);
+
+                    // Approved Official Business is authoritative for payroll.
+                    // A linked/incomplete office log must not overwrite it as an
+                    // attendance exception or absence.
+                    if ($hasApprovedOb) {
+                        $workedHours = $approvedObRequest->is_full_day
+                            ? $scheduledHoursValue
+                            : min(
+                                $scheduledHoursValue,
+                                (float) ($approvedObRequest->credited_hours
+                                    ?? $approvedObRequest->computeCreditedHours())
+                            );
+                        $attendanceStatus = 'Official Business';
                     // Calculate worked hours if attendance record exists
-                    if ($attendanceRecord && $attendanceRecord->time_in && $attendanceRecord->time_out) {
-                        $workedHours = $attendanceRecord->total_hours ?? 0;
-                        $scheduledHours = $this->formatHours($workedHours);
+                    } elseif ($attendanceRecord && $attendanceRecord->time_in && $attendanceRecord->time_out) {
+                        $workedHours = $attendanceRecord->calculateTotalHours();
 
                         // Calculate night differential hours
                         $nightDifferentialHours = $attendanceRecord->calculateNightShiftHours();
@@ -3818,11 +4013,32 @@ class PayrollController extends Controller
                         );
 
                         $isIncompleteDay = $attendanceRecord->isIncompleteDay();
+                    } elseif ($hasApprovedLeave) {
+                        $attendanceStatus = in_array(
+                            $approvedLeaveRequest->leave_type,
+                            \App\Models\LeaveRequest::UNCAPPED_LEAVE_TYPES,
+                            true
+                        ) ? 'Unpaid Leave' : 'Paid Leave';
                     } else {
-                        // No attendance record - mark as absent
-                        $attendanceStatus = 'Absent';
-                        $scheduledHours = '—';
+                        // A valid working schedule with no complete log is absent/incomplete.
+                        $attendanceStatus = ($attendanceRecord && ($attendanceRecord->time_in || $attendanceRecord->time_out))
+                            ? 'Incomplete Log'
+                            : 'Absent';
                     }
+                } elseif (
+                    in_array($scheduleStatus, ['Day Off', 'Rest Day'], true)
+                    && $attendanceRecord
+                    && $attendanceRecord->time_in
+                    && $attendanceRecord->time_out
+                ) {
+                    // Rest-day duty is the complete actual shift, paid later at
+                    // the statutory/company 130% rest-day rate. It is not
+                    // ordinary scheduled time and must not also become OT.
+                    $workedHours = $attendanceRecord->calculateTotalHours();
+                    $attendanceStatus = 'Rest Day Duty';
+                    $nightDifferentialHours = $attendanceRecord->calculateNightShiftHours();
+                    $isNightShift = $nightDifferentialHours > 0;
+                    $scheduledHours = $scheduleStatus;
                 } else {
                     // Non-working day
                     $scheduledHours = $scheduleStatus;
@@ -3840,7 +4056,7 @@ class PayrollController extends Controller
                     $scheduleInOut = Carbon::parse($schedule->time_in)->format('g:i A')
                         . ' - ' . Carbon::parse($schedule->time_out)->format('g:i A');
 
-                    if ($schedule->isFlexible() && $schedule->required_hours) {
+                    if ($schedule->required_hours) {
                         $workingHours = $this->formatHours((float) $schedule->required_hours);
                     } else {
                         $shiftStart = Carbon::parse($schedule->time_in);
@@ -3866,6 +4082,12 @@ class PayrollController extends Controller
                 // No richer status text exists anywhere else in the codebase,
                 // so this currently mirrors $attendanceStatus verbatim.
                 $combinedStatus = $attendanceStatus;
+                $validationIssue = $this->scheduleAttendanceValidationIssue(
+                    $attendanceRecord,
+                    $schedule,
+                    $hasApprovedOb,
+                    $hasApprovedLeave
+                );
 
                 // Add to comprehensive data
                 $comprehensiveData[] = [
@@ -3883,6 +4105,12 @@ class PayrollController extends Controller
                     'actual_in_out' => $actualInOut,
                     'combined_status' => $combinedStatus,
                     'attendance_status' => $attendanceStatus,
+                    'validation_issue' => $validationIssue,
+                    'has_attendance_record' => $attendanceRecord !== null,
+                    'attendance_record_status' => $attendanceRecord?->status,
+                    'approved_leave_type' => $approvedLeaveRequest?->leave_type,
+                    'time_in' => $attendanceRecord?->time_in,
+                    'time_out' => $attendanceRecord?->time_out,
                     'scheduled_hours' => $scheduledHours,
                     'worked_hours' => $workedHours,
                     'overtime' => $overtime,
@@ -3904,6 +4132,50 @@ class PayrollController extends Controller
         }
 
         return $comprehensiveData;
+    }
+
+    private function scheduleAttendanceValidationIssue(
+        ?AttendanceRecord $attendanceRecord,
+        ?EmployeeSchedule $schedule,
+        bool $hasApprovedOb,
+        bool $hasApprovedLeave
+    ): ?string {
+        if (!$schedule) {
+            return 'No Schedule';
+        }
+
+        if ($hasApprovedOb || $hasApprovedLeave || !$attendanceRecord) {
+            return null;
+        }
+
+        if (($attendanceRecord->time_in && !$attendanceRecord->time_out)
+            || (!$attendanceRecord->time_in && $attendanceRecord->time_out)) {
+            return 'Incomplete Log';
+        }
+
+        if ($attendanceRecord->hasInvalidTimeSpan()) {
+            return 'Invalid Duration';
+        }
+
+        if (!$attendanceRecord->time_in || !$attendanceRecord->time_out) {
+            return null;
+        }
+
+        if (in_array($schedule->status, ['Day Off', 'Rest Day'], true)) {
+            return 'Rest Day Duty Review';
+        }
+
+        if ($schedule->status === 'Working' && $schedule->time_in) {
+            $date = Carbon::parse($attendanceRecord->date)->format('Y-m-d');
+            $scheduledIn = Carbon::parse($date . ' ' . Carbon::parse($schedule->time_in)->format('H:i:s'));
+            $actualIn = Carbon::parse($attendanceRecord->time_in);
+
+            if (abs($scheduledIn->diffInMinutes($actualIn, false)) >= 4 * 60) {
+                return 'Possible Wrong Schedule';
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -3985,8 +4257,26 @@ class PayrollController extends Controller
      */
     private function getAttendanceStatus($attendanceRecord, $schedule, bool $hasApprovedOb = false)
     {
+        // Schedule is the source of truth. A missing attendance log on a
+        // non-working day must never be counted as an absence.
+        $scheduleStatus = $schedule?->status ?? 'No Schedule';
+
+        if ($hasApprovedOb) {
+            return 'Official Business';
+        }
+
         if (!$attendanceRecord) {
-            return 'Absent';
+            if (in_array($scheduleStatus, [
+                'Day Off',
+                'Rest Day',
+                'Regular Holiday',
+                'Special Holiday',
+                'Holiday',
+            ], true)) {
+                return $scheduleStatus;
+            }
+
+            return $scheduleStatus === 'Working' ? 'Absent' : 'No Schedule';
         }
 
         if ($attendanceRecord->status === \App\Models\AttendanceRecord::ON_LEAVE) {
@@ -4006,7 +4296,7 @@ class PayrollController extends Controller
         }
 
         if ($attendanceRecord->time_in && $attendanceRecord->time_out) {
-            $totalHours = $attendanceRecord->total_hours ?? 0;
+            $totalHours = $attendanceRecord->calculateTotalHours();
 
             if ($totalHours < 4) {
                 return 'Half Day';

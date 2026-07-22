@@ -305,7 +305,8 @@
             @endif
 
             <!-- My Requests Notifications - Leave / Overtime / Official Business status changes.
-                 Available to every role, since anyone can file these requests. -->
+                 Admin and HR use the primary notification control above. -->
+            @unless(in_array($user->role, ['admin', 'hr']))
             <div class="relative" x-data="{
                 open: false,
                 notifications: [],
@@ -478,6 +479,8 @@
                     </div>
                 </div>
             </div>
+
+            @endunless
 
             <!-- Inbox Popup - Only show for HR and Admin -->
             @if(in_array($user->role, ['admin', 'hr']))

@@ -405,6 +405,21 @@ class OfficialBusinessController extends Controller
                     );
             }
 
+
+        $conflicts = app(\App\Services\PayrollRequestConflictService::class);
+        if ($conflicts->leaveOnDate($employeeId, $obDate)) {
+            return back()->withInput()->with(
+                'error',
+                'Official Business cannot be filed on a date covered by pending or approved leave.'
+            );
+        }
+        if ($conflicts->overtimeOnDate($employeeId, $obDate)) {
+            return back()->withInput()->with(
+                'error',
+                'Official Business cannot be filed on a date with pending or approved overtime.'
+            );
+        }
+
         $existingRequests =
             OfficialBusinessRequest::query()
                 ->where(
@@ -564,6 +579,15 @@ class OfficialBusinessController extends Controller
             $validated['status']
             === OfficialBusinessRequest::APPROVED
         ) {
+            $conflicts = app(\App\Services\PayrollRequestConflictService::class);
+            $date = $this->normalizeDate($obRequest->date);
+            if ($conflicts->leaveOnDate($obRequest->employee_id, $date)) {
+                return back()->with('error', 'Cannot approve Official Business because this date is covered by leave.');
+            }
+            if ($conflicts->overtimeOnDate($obRequest->employee_id, $date)) {
+                return back()->with('error', 'Cannot approve Official Business because this date has overtime.');
+            }
+
             DB::transaction(
                 function () use (
                     $obRequest,

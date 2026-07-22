@@ -1,182 +1,170 @@
 @extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'attendance.period-management.index'])
 
-@section('title', 'Period Management')
+@section('title', 'Payroll Period Management')
 
 @section('content')
 <div class="min-h-screen bg-gray-50">
-    <!-- Header -->
     <div class="bg-white shadow-sm border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="py-6">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h1 class="text-2xl font-bold text-gray-900">
-                            @if($user->role === 'employee')
-                                My Periods
-                            @else
-                                Period Management
-                            @endif
-                        </h1>
-                        <p class="mt-1 text-sm text-gray-600">
-                            @if($user->role === 'employee')
-                                View periods that include your attendance records
-                            @else
-                                Manage and analyze employee attendance records by time periods
-                            @endif
-                        </p>
-                    </div>
-                    <div class="flex space-x-3">
-                        @if($user->role !== 'employee')
-                        <a href="{{ route('attendance.period-management.create') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-                            <i class="fas fa-plus mr-2"></i>
-                            Create New Period
-                        </a>
-                        @endif
-                    </div>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-900">Payroll Period Management</h1>
+                    <p class="mt-1 text-sm text-gray-600">Set payroll dates, monitor each cutoff, and control when payroll can be processed and locked.</p>
                 </div>
+                @if($user->role !== 'employee')
+                    <a href="{{ route('attendance.period-management.create') }}"
+                       class="inline-flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700">
+                        <i class="fas fa-plus mr-2"></i>Create Payroll Period
+                    </a>
+                @endif
             </div>
         </div>
     </div>
 
-    <!-- Content -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        @if(session('success'))
-            <div class="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
-                <div class="flex">
-                    <div class="flex-shrink-0">
-                        <i class="fas fa-check-circle text-green-400"></i>
-                    </div>
-                    <div class="ml-3">
-                        <p class="text-sm font-medium text-green-800">{{ session('success') }}</p>
-                    </div>
+        @foreach(['success' => 'green', 'warning' => 'yellow', 'error' => 'red', 'info' => 'blue'] as $key => $color)
+            @if(session($key))
+                <div class="mb-5 rounded-lg border border-{{ $color }}-200 bg-{{ $color }}-50 p-4 text-sm text-{{ $color }}-800">
+                    {{ session($key) }}
                 </div>
-            </div>
-        @endif
+            @endif
+        @endforeach
 
-        @if(session('error'))
-            <div class="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-                <div class="flex">
-                    <div class="flex-shrink-0">
-                        <i class="fas fa-exclamation-circle text-red-400"></i>
-                    </div>
-                    <div class="ml-3">
-                        <p class="text-sm font-medium text-red-800">{{ session('error') }}</p>
-                    </div>
-                </div>
-            </div>
-        @endif
 
-        <!-- Search and Filter Bar -->
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-            <div class="p-4">
-                <div class="flex flex-col sm:flex-row gap-4">
-                    <!-- Search Input -->
-                    <div class="flex-1">
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <i class="fas fa-search text-gray-400"></i>
-                            </div>
-                            <input type="text" id="searchInput" placeholder="Search periods by name..." 
-                                   class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                        </div>
-                    </div>
-                    
-                    <!-- Filter Options -->
-                    <div class="flex gap-2">
-                        <select id="filterByDuration" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            <option value="">All Durations</option>
-                            <option value="1-7">1-7 days</option>
-                            <option value="8-30">8-30 days</option>
-                            <option value="31-90">31-90 days</option>
-                            <option value="90+">90+ days</option>
-                        </select>
-                    </div>
-                </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-lg border border-gray-200 p-4">
+                <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Total Periods</p>
+                <p class="mt-1 text-2xl font-bold text-gray-900">{{ $periods->count() }}</p>
+            </div>
+            <div class="bg-white rounded-lg border border-gray-200 p-4">
+                <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Open / Validation</p>
+                <p class="mt-1 text-2xl font-bold text-blue-700">{{ $periods->whereIn('status', ['open', 'for_validation', 'ready'])->count() }}</p>
+            </div>
+            <div class="bg-white rounded-lg border border-gray-200 p-4">
+                <p class="text-xs font-medium uppercase tracking-wide text-gray-500">In Payroll Process</p>
+                <p class="mt-1 text-2xl font-bold text-purple-700">{{ $periods->whereIn('status', ['processing', 'for_review', 'finalized'])->count() }}</p>
+            </div>
+            <div class="bg-white rounded-lg border border-gray-200 p-4">
+                <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Locked</p>
+                <p class="mt-1 text-2xl font-bold text-gray-700">{{ $periods->where('status', 'locked')->count() }}</p>
             </div>
         </div>
 
-        @if(empty($periods))
-            <!-- Empty State -->
-            <div class="text-center py-12">
-                <div class="mx-auto h-24 w-24 text-gray-400">
-                    <i class="fas fa-calendar-alt text-6xl"></i>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6 p-4">
+            <div class="flex flex-col gap-3 md:flex-row">
+                <div class="flex-1 relative">
+                    <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                    <input type="text" id="searchInput" placeholder="Search by period, company, dates, or status..."
+                           class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg">
                 </div>
-                <h3 class="mt-4 text-lg font-medium text-gray-900">
-                    @if($user->role === 'employee')
-                        No periods found
-                    @else
-                        No periods created yet
-                    @endif
-                </h3>
-                <p class="mt-2 text-sm text-gray-600">
-                    @if($user->role === 'employee')
-                        You are not currently included in any active periods.
-                    @else
-                        Get started by creating your first period to analyze attendance records.
-                    @endif
-                </p>
-                <div class="mt-6">
-                    @if($user->role !== 'employee')
-                    <a href="{{ route('attendance.period-management.create') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-                        <i class="fas fa-plus mr-2"></i>
-                        Create Your First Period
-                    </a>
-                    @endif
-                </div>
+                <select id="statusFilter" class="px-3 py-2 border border-gray-300 rounded-lg">
+                    <option value="">All Statuses</option>
+                    @foreach(\App\Models\Period::STATUSES as $status)
+                        <option value="{{ $status }}">{{ \App\Models\Period::labelForStatus($status) }}</option>
+                    @endforeach
+                </select>
+            </div>
+        </div>
+
+        @if($periods->isEmpty())
+            <div class="bg-white rounded-lg border border-gray-200 py-16 text-center">
+                <i class="fas fa-calendar-alt text-5xl text-gray-300"></i>
+                <h2 class="mt-4 text-lg font-semibold text-gray-900">No payroll periods yet</h2>
+                <p class="mt-2 text-sm text-gray-500">Create the first official cutoff period to begin payroll validation.</p>
             </div>
         @else
-            <!-- Periods Table -->
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period Name</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Range</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payroll Period</th>
+                                <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Coverage</th>
+                                <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pay Date</th>
+                                <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                <th class="px-5 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
                         </thead>
-                        <tbody id="periodsTableBody" class="bg-white divide-y divide-gray-200">
+                        <tbody id="periodsTableBody" class="divide-y divide-gray-200">
                             @foreach($periods as $period)
-                                <tr class="period-row hover:bg-gray-50 transition-colors">
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm font-medium text-gray-900">{{ $period->name }}</div>
-                                        @if($period->description)
-                                            <div class="text-xs text-gray-500 mt-1">{{ $period->description }}</div>
-                                        @endif
+                                @php
+                                    $statusClasses = match($period->status) {
+                                        'draft' => 'bg-gray-100 text-gray-700',
+                                        'open' => 'bg-blue-100 text-blue-800',
+                                        'for_validation' => 'bg-yellow-100 text-yellow-800',
+                                        'ready' => 'bg-green-100 text-green-800',
+                                        'processing' => 'bg-purple-100 text-purple-800',
+                                        'for_review' => 'bg-indigo-100 text-indigo-800',
+                                        'finalized' => 'bg-emerald-100 text-emerald-800',
+                                        'locked' => 'bg-slate-200 text-slate-800',
+                                        default => 'bg-gray-100 text-gray-700',
+                                    };
+                                    $nextStatus = in_array($period->status, ['draft', 'open'], true) ? $period->nextStatus() : null;
+                                @endphp
+                                <tr class="period-row hover:bg-gray-50"
+                                    data-status="{{ $period->status }}"
+                                    data-search="{{ strtolower($period->name . ' ' . ($period->company->name ?? '') . ' ' . $period->status_label . ' ' . $period->start_date->format('Y-m-d') . ' ' . $period->end_date->format('Y-m-d')) }}">
+                                    <td class="px-5 py-4">
+                                        <div class="font-medium text-gray-900">{{ $period->name }}</div>
+                                        <div class="mt-1 text-xs text-gray-500">
+                                            {{ $period->company->name ?? 'Unassigned Company' }}
+                                            @if($period->previousPeriod)
+                                                · Previous: {{ $period->previousPeriod->name }}
+                                            @endif
+                                        </div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm text-gray-900">
-                                            {{ $period->start_date->format('M j, Y') }} - 
-                                            {{ $period->end_date->format('M j, Y') }}
-                                        </div>
-                                        <div class="text-xs text-gray-500">
-                                            {{ $period->duration }} days
-                                        </div>
+                                    <td class="px-5 py-4 text-sm text-gray-700 whitespace-nowrap">
+                                        <div>{{ $period->start_date->format('M j, Y') }} – {{ $period->end_date->format('M j, Y') }}</div>
+                                        <div class="text-xs text-gray-500">{{ $period->duration }} calendar days · {{ $period->working_days ?? 0 }} weekdays</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm text-gray-900">
-                                            {{ $period->created_at->format('M j, Y g:i A') }}
-                                        </div>
-                                        <div class="text-xs text-gray-500">
-                                            by {{ $period->created_by }}
-                                        </div>
+                                    <td class="px-5 py-4 text-sm text-gray-700 whitespace-nowrap">
+                                        {{ $period->payroll_date?->format('M j, Y') ?? 'Not set' }}
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <div class="flex items-center justify-end gap-2">
-                                            <a href="{{ route('attendance.period-management.show', $period->id) }}" 
-                                               class="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-md text-sm font-medium hover:bg-blue-200 transition-colors">
-                                                <i class="fas fa-eye mr-1"></i>
-                                                View
+                                    <td class="px-5 py-4 text-sm text-gray-700">
+                                        <div>{{ str($period->period_type ?? 'regular')->replace('_', ' ')->title() }}</div>
+                                        <div class="text-xs text-gray-500">{{ str($period->processing_type ?? 'regular')->replace('_', ' ')->title() }}</div>
+                                    </td>
+                                    <td class="px-5 py-4">
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium {{ $statusClasses }}">
+                                            @if($period->status === 'locked')<i class="fas fa-lock mr-1"></i>@endif
+                                            {{ $period->status_label }}
+                                        </span>
+                                    </td>
+                                    <td class="px-5 py-4 text-right whitespace-nowrap">
+                                        <div class="inline-flex items-center gap-2">
+                                            <a href="{{ route('attendance.period-management.show', $period->id) }}"
+                                               class="px-3 py-2 rounded-lg bg-green-50 text-green-700 text-sm font-medium hover:bg-green-100">
+                                                <i class="fas fa-eye mr-1"></i>View
                                             </a>
-                                            
-                                            @if($user->role !== 'employee')
-                                            <button type="button" onclick="openDeleteModal('{{ $period->id }}', '{{ addslashes($period->name) }}')" 
-                                                    class="inline-flex items-center px-3 py-1.5 bg-red-100 text-red-700 rounded-md text-sm font-medium hover:bg-red-200 transition-colors">
-                                                <i class="fas fa-trash mr-1"></i>
-                                                Delete
-                                            </button>
+
+                                            @if($user->role !== 'employee' && $nextStatus)
+                                                <form method="POST"
+                                                      action="{{ route('attendance.period-management.status', $period->id) }}"
+                                                      class="inline period-status-form">
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <input type="hidden" name="status" value="{{ $nextStatus }}">
+
+                                                    <button type="button"
+                                                            class="open-status-modal px-3 py-2 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium hover:bg-blue-100 transition-colors"
+                                                            data-period-name="{{ $period->name }}"
+                                                            data-status-label="{{ \App\Models\Period::labelForStatus($nextStatus) }}">
+                                                        {{ \App\Models\Period::labelForStatus($nextStatus) }}
+                                                    </button>
+                                                </form>
+                                            @endif
+
+                                            @if($user->role !== 'employee' && $period->canBeDeleted())
+                                                <form method="POST" action="{{ route('attendance.period-management.destroy', $period->id) }}" class="inline"
+                                                      onsubmit="return confirm('Delete this draft payroll period?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="px-3 py-2 rounded-lg bg-red-50 text-red-700 text-sm font-medium hover:bg-red-100">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </form>
                                             @endif
                                         </div>
                                     </td>
@@ -185,179 +173,164 @@
                         </tbody>
                     </table>
                 </div>
-                
-                <!-- No Results Message -->
-                <div id="noResults" class="hidden text-center py-8">
-                    <div class="mx-auto h-16 w-16 text-gray-400">
-                        <i class="fas fa-search text-4xl"></i>
-                    </div>
-                    <h3 class="mt-4 text-lg font-medium text-gray-900">No periods found</h3>
-                    <p class="mt-2 text-sm text-gray-600">Try adjusting your search criteria.</p>
-                </div>
+                <div id="noResults" class="hidden py-10 text-center text-sm text-gray-500">No matching payroll periods.</div>
             </div>
         @endif
     </div>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('searchInput');
-    const filterByDuration = document.getElementById('filterByDuration');
-    const periodsTableBody = document.getElementById('periodsTableBody');
-    const noResults = document.getElementById('noResults');
-    
-    // Store all period rows for filtering
-    const allPeriodRows = Array.from(document.querySelectorAll('.period-row'));
-    
-    function filterPeriods() {
-        const searchTerm = searchInput.value.toLowerCase();
-        const durationFilter = filterByDuration.value;
-        
-        let visibleRows = 0;
-        
-        allPeriodRows.forEach(row => {
-            let showRow = true;
-            
-            // Search filter
-            if (searchTerm) {
-                const name = row.querySelector('td:first-child').textContent.toLowerCase();
-                
-                if (!name.includes(searchTerm)) {
-                    showRow = false;
-                }
-            }
-            
-            // Duration filter
-            if (durationFilter && showRow) {
-                const durationText = row.querySelector('td:nth-child(2)').textContent;
-                const durationMatch = durationText.match(/(\d+) days/);
-                const duration = durationMatch ? parseInt(durationMatch[1]) : 0;
-                
-                switch (durationFilter) {
-                    case '1-7':
-                        if (duration < 1 || duration > 7) showRow = false;
-                        break;
-                    case '8-30':
-                        if (duration < 8 || duration > 30) showRow = false;
-                        break;
-                    case '31-90':
-                        if (duration < 31 || duration > 90) showRow = false;
-                        break;
-                    case '90+':
-                        if (duration <= 90) showRow = false;
-                        break;
-                }
-            }
-            
-            if (showRow) {
-                row.style.display = '';
-                visibleRows++;
-            } else {
-                row.style.display = 'none';
-            }
-        });
-        
-        // Show/hide no results message
-        if (visibleRows === 0) {
-            periodsTableBody.style.display = 'none';
-            noResults.classList.remove('hidden');
-        } else {
-            periodsTableBody.style.display = '';
-            noResults.classList.add('hidden');
-        }
-    }
-    
-    // Add event listeners
-    searchInput.addEventListener('input', filterPeriods);
-    filterByDuration.addEventListener('change', filterPeriods);
-    
-    // Initial filter
-    filterPeriods();
-});
+<!-- Status Confirmation Modal -->
+<div id="statusConfirmationModal"
+     class="fixed inset-0 z-50 hidden items-center justify-center px-4"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="statusModalTitle">
 
-// Delete Modal Functions
-function openDeleteModal(periodId, periodName) {
-    document.getElementById('deletePeriodId').value = periodId;
-    document.getElementById('deletePeriodName').textContent = periodName;
-    document.getElementById('deleteModal').classList.remove('hidden');
-}
+    <div id="statusModalBackdrop"
+         class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm"></div>
 
-function closeDeleteModal() {
-    document.getElementById('deleteModal').classList.add('hidden');
-}
+    <div id="statusModalPanel"
+         class="relative w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div class="p-6">
+            <div class="flex items-start gap-4">
+                <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-blue-100">
+                    <i class="fas fa-arrow-right text-blue-700"></i>
+                </div>
 
-function confirmDelete() {
-    const periodId = document.getElementById('deletePeriodId').value;
-    
-    // Show loading state
-    const confirmBtn = document.getElementById('confirmDeleteBtn');
-    const originalText = confirmBtn.innerHTML;
-    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Deleting...';
-    confirmBtn.disabled = true;
-    
-    // Create and submit form with proper route
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = `/attendance/period-management/${periodId}`;
-    
-    // Add CSRF token
-    const csrfToken = document.createElement('input');
-    csrfToken.type = 'hidden';
-    csrfToken.name = '_token';
-    csrfToken.value = '{{ csrf_token() }}';
-    form.appendChild(csrfToken);
-    
-    // Add method override for DELETE
-    const methodField = document.createElement('input');
-    methodField.type = 'hidden';
-    methodField.name = '_method';
-    methodField.value = 'DELETE';
-    form.appendChild(methodField);
-    
-    // Submit the form
-    document.body.appendChild(form);
-    form.submit();
-}
-</script>
+                <div class="min-w-0 flex-1">
+                    <h3 id="statusModalTitle" class="text-lg font-semibold text-gray-900">
+                        Update Payroll Period
+                    </h3>
 
-<!-- Delete Confirmation Modal -->
-<div id="deleteModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
-    <div class="relative top-20 mx-auto p-6 border w-96 shadow-lg rounded-lg bg-white">
-        <div class="flex items-center justify-between mb-4">
-            <div>
-                <h3 class="text-lg font-semibold text-gray-900 flex items-center">
-                    <i class="fas fa-exclamation-triangle mr-2 text-red-600"></i>
-                    Delete Period
-                </h3>
+                    <p id="statusModalMessage" class="mt-2 text-sm leading-6 text-gray-600">
+                        Are you sure you want to update this payroll period?
+                    </p>
+                </div>
             </div>
-            <button onclick="closeDeleteModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
-                <i class="fas fa-times text-xl"></i>
-            </button>
         </div>
-        
-        <div class="mb-6">
-            <p class="text-gray-700">
-                Are you sure you want to delete the period <span id="deletePeriodName" class="font-semibold text-red-600"></span>?
-            </p>
-            <p class="text-sm text-gray-500 mt-2">
-                <i class="fas fa-info-circle mr-1"></i>
-                This action cannot be undone. All period data and analysis will be permanently removed.
-            </p>
-        </div>
-        
-        <div class="flex justify-end space-x-3">
-            <button onclick="closeDeleteModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+
+        <div class="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
+            <button type="button"
+                    id="cancelStatusUpdate"
+                    class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300">
                 Cancel
             </button>
-            <button id="confirmDeleteBtn" onclick="confirmDelete()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
-                <i class="fas fa-trash mr-2"></i>
-                Delete Period
+
+            <button type="button"
+                    id="confirmStatusUpdate"
+                    class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                <i class="fas fa-check mr-2"></i>
+                Confirm
             </button>
         </div>
-        
-        <!-- Hidden input to store period ID -->
-        <input type="hidden" id="deletePeriodId">
     </div>
 </div>
 
+<script>
+const searchInput = document.getElementById('searchInput');
+const statusFilter = document.getElementById('statusFilter');
+
+function filterPeriods() {
+    const search = searchInput.value.toLowerCase().trim();
+    const status = statusFilter.value;
+    const rows = [...document.querySelectorAll('.period-row')];
+    let visible = 0;
+
+    rows.forEach(row => {
+        const matchesSearch = !search || row.dataset.search.includes(search);
+        const matchesStatus = !status || row.dataset.status === status;
+        const show = matchesSearch && matchesStatus;
+        row.classList.toggle('hidden', !show);
+        if (show) visible++;
+    });
+
+    document.getElementById('noResults')?.classList.toggle('hidden', visible !== 0);
+}
+
+searchInput?.addEventListener('input', filterPeriods);
+statusFilter?.addEventListener('change', filterPeriods);
+
+document.addEventListener('DOMContentLoaded', function () {
+    const modal = document.getElementById('statusConfirmationModal');
+    const backdrop = document.getElementById('statusModalBackdrop');
+    const panel = document.getElementById('statusModalPanel');
+    const message = document.getElementById('statusModalMessage');
+    const cancelButton = document.getElementById('cancelStatusUpdate');
+    const confirmButton = document.getElementById('confirmStatusUpdate');
+
+    let selectedForm = null;
+    let lastFocusedButton = null;
+
+    function openModal(form, periodName, statusLabel, triggerButton) {
+        selectedForm = form;
+        lastFocusedButton = triggerButton;
+
+        message.textContent = `Move "${periodName}" to ${statusLabel}?`;
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.body.classList.add('overflow-hidden');
+
+        requestAnimationFrame(() => {
+            cancelButton.focus();
+        });
+    }
+
+    function closeModal() {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        document.body.classList.remove('overflow-hidden');
+
+        selectedForm = null;
+
+        if (lastFocusedButton) {
+            lastFocusedButton.focus();
+        }
+
+        lastFocusedButton = null;
+    }
+
+    document.querySelectorAll('.open-status-modal').forEach(function (button) {
+        button.addEventListener('click', function () {
+            const form = button.closest('.period-status-form');
+
+            openModal(
+                form,
+                button.dataset.periodName || 'this payroll period',
+                button.dataset.statusLabel || 'the next status',
+                button
+            );
+        });
+    });
+
+    confirmButton?.addEventListener('click', function () {
+        if (!selectedForm) {
+            return;
+        }
+
+        confirmButton.disabled = true;
+        cancelButton.disabled = true;
+
+        confirmButton.innerHTML = `
+            <i class="fas fa-spinner fa-spin mr-2"></i>
+            Updating...
+        `;
+
+        selectedForm.submit();
+    });
+
+    cancelButton?.addEventListener('click', closeModal);
+    backdrop?.addEventListener('click', closeModal);
+
+    panel?.addEventListener('click', function (event) {
+        event.stopPropagation();
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && !modal.classList.contains('hidden')) {
+            closeModal();
+        }
+    });
+});
+</script>
 @endsection

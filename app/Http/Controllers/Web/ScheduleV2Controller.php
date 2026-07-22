@@ -16,7 +16,7 @@ class ScheduleV2Controller extends Controller
         $selectedYear = $request->query('year', now()->year);
 
         $departments = \App\Models\Department::orderBy('name')->get();
-        $allEmployees = \App\Models\Employee::with('department')->orderBy('first_name')->get();
+        $allEmployees = \App\Models\Employee::with(['department', 'position'])->orderBy('first_name')->get();
 
         // always run the query now, so a fresh page load shows everyone by default
         // (empty department/search just means no WHERE clause = all employees)
@@ -47,11 +47,73 @@ class ScheduleV2Controller extends Controller
         // "employee_id_date" so the view can instantly look up "does this
         // employee have a schedule on this day" without a query per cell.
         $schedules = collect();
+        $attendanceHistory = collect();
         if ($employees->isNotEmpty()) {
-            $schedules = \App\Models\EmployeeSchedule::whereIn('employee_id', $employees->pluck('id'))
+            $employeeIds = $employees->pluck('id');
+            $monthEnd = $monthStart->copy()->endOfMonth();
+            $schedules = \App\Models\EmployeeSchedule::whereIn('employee_id', $employeeIds)
                 ->whereBetween('date', [$monthStart->copy()->startOfMonth(), $monthStart->copy()->endOfMonth()])
                 ->get()
                 ->keyBy(fn($schedule) => $schedule->employee_id . '_' . $schedule->date->format('Y-m-d'));
+
+            $attendance = \App\Models\AttendanceRecord::with(['breaks', 'timeEntries'])
+                ->whereIn('employee_id', $employeeIds)
+                ->whereBetween('date', [$monthStart->toDateString(), $monthEnd->toDateString()])
+                ->get()
+                ->keyBy(fn($record) => $record->employee_id . '_' . $record->date->format('Y-m-d'));
+            $officialBusiness = \App\Models\OfficialBusinessRequest::whereIn('employee_id', $employeeIds)
+                ->where('status', \App\Models\OfficialBusinessRequest::APPROVED)
+                ->whereBetween('date', [$monthStart->toDateString(), $monthEnd->toDateString()])
+                ->get()
+                ->keyBy(fn($request) => $request->employee_id . '_' . $request->date->format('Y-m-d'));
+            $leaves = \App\Models\LeaveRequest::whereIn('employee_id', $employeeIds)
+                ->where('status', \App\Models\LeaveRequest::APPROVED)
+                ->whereDate('start_date', '<=', $monthEnd->toDateString())
+                ->whereDate('end_date', '>=', $monthStart->toDateString())
+                ->get();
+            $leaveByDay = collect();
+            foreach ($leaves as $leave) {
+                for ($date = $leave->start_date->copy()->max($monthStart); $date->lte($leave->end_date->copy()->min($monthEnd)); $date->addDay()) {
+                    $leaveByDay->put($leave->employee_id . '_' . $date->format('Y-m-d'), $leave);
+                }
+            }
+
+            foreach ($employees as $employee) {
+                foreach ($calendarDays as $day) {
+                    $date = $day['date'];
+                    $key = $employee->id . '_' . $date->format('Y-m-d');
+                    $schedule = $schedules->get($key);
+                    $record = $attendance->get($key);
+                    $leave = $leaveByDay->get($key);
+                    $ob = $officialBusiness->get($key);
+
+                    if ($date->isFuture()) {
+                        continue;
+                    }
+
+                    if ($leave && $ob) {
+                        $history = ['label' => 'Leave / OB Conflict', 'tone' => 'red'];
+                    } elseif ($leave) {
+                        $history = ['label' => \App\Models\LeaveRequest::labelFor($leave->leave_type), 'tone' => 'indigo'];
+                    } elseif ($ob) {
+                        $history = ['label' => 'Official Business', 'tone' => 'indigo'];
+                    } elseif ($record && (($record->time_in && !$record->time_out) || (!$record->time_in && $record->time_out))) {
+                        $history = ['label' => 'Incomplete Log', 'tone' => 'red'];
+                    } elseif ($record && $record->hasInvalidTimeSpan()) {
+                        $history = ['label' => 'Invalid Duration', 'tone' => 'red'];
+                    } elseif ($record && $record->time_in && $record->time_out) {
+                        $history = ['label' => $record->status === \App\Models\AttendanceRecord::LATE ? 'Late' : 'Present', 'tone' => $record->status === \App\Models\AttendanceRecord::LATE ? 'amber' : 'green'];
+                    } elseif ($date->isToday()) {
+                        $history = ['label' => 'Not Yet Recorded', 'tone' => 'gray'];
+                    } elseif ($schedule?->status === 'Working') {
+                        $history = ['label' => 'Absent', 'tone' => 'red'];
+                    } else {
+                        continue;
+                    }
+
+                    $attendanceHistory->put($key, $history);
+                }
+            }
         }
 
         return view('attendance.schedule-v2.index', [
@@ -65,6 +127,7 @@ class ScheduleV2Controller extends Controller
             'employees' => $employees,
             'calendarDays' => $calendarDays,
             'schedules' => $schedules,
+            'attendanceHistory' => $attendanceHistory,
             'scheduleSummary' => [] // Or mock summary data if needed
         ]);
     }
@@ -257,14 +320,14 @@ class ScheduleV2Controller extends Controller
 
     public function show($schedule)
     {
-        $schedule = \App\Models\EmployeeSchedule::with('employee.department')->findOrFail($schedule);
+        $schedule = \App\Models\EmployeeSchedule::with(['employee.department', 'employee.position'])->findOrFail($schedule);
 
         return view('attendance.schedule-v2.show', ['schedule' => $schedule, 'user' => Auth::user()]);
     }
 
     public function edit($schedule)
     {
-        $schedule = \App\Models\EmployeeSchedule::with('employee.department')->findOrFail($schedule);
+        $schedule = \App\Models\EmployeeSchedule::with(['employee.department', 'employee.position'])->findOrFail($schedule);
 
         return view('attendance.schedule-v2.edit', ['schedule' => $schedule, 'user' => Auth::user()]);
     }

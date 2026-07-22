@@ -184,7 +184,7 @@
                     <div class="flex items-center space-x-2 text-sm text-gray-600">
                         <span class="flex items-center">
                             <div class="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
-                            On Duty
+                            Scheduled Workday
                         </span>
                         <span class="flex items-center">
                             <div class="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
@@ -207,10 +207,11 @@
                                 <i class="fas fa-user mr-2"></i>Employee
                             </th>
                             @foreach($calendarDays as $day)
-                            <th class="calendar-day px-3 py-4 text-center text-sm font-semibold text-gray-700 uppercase tracking-wider min-w-24 border-l border-gray-200" data-date="{{ $day['date']->format('Y-m-d') }}">
+                            <th class="calendar-day px-3 py-4 text-center text-sm font-semibold uppercase tracking-wider min-w-24 border-l border-gray-200 {{ $day['date']->isToday() ? 'bg-blue-100 text-blue-900 ring-2 ring-inset ring-blue-400' : 'text-gray-700' }}" data-date="{{ $day['date']->format('Y-m-d') }}">
                                 <div class="flex flex-col items-center">
                                     <span class="font-bold text-lg">{{ $day['day'] }}</span>
                                     <span class="text-xs text-gray-500 font-medium">{{ $day['date']->format('D') }}</span>
+                                    @if($day['date']->isToday())<span class="mt-1 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold text-white">TODAY</span>@endif
                                 </div>
                             </th>
                             @endforeach
@@ -239,8 +240,9 @@
                             @php
                             $scheduleKey = $employee->id . '_' . $day['date']->format('Y-m-d');
                             $schedule = $schedules->get($scheduleKey);
+                            $history = $attendanceHistory->get($scheduleKey);
                             @endphp
-                            <td class="calendar-day px-3 py-4 text-center border-l border-gray-200 hover:bg-gray-50 transition-colors" data-date="{{ $day['date']->format('Y-m-d') }}">
+                            <td class="calendar-day px-3 py-4 text-center border-l border-gray-200 hover:bg-gray-50 transition-colors {{ $day['date']->isToday() ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : '' }}" data-date="{{ $day['date']->format('Y-m-d') }}">
                                 @if($schedule)
                                 <div class="inline-block">
                                     <div class="flex items-center justify-center mb-2">
@@ -249,16 +251,13 @@
                                             value="{{ $schedule->id }}"
                                             onchange="updateBulkDeleteButton()">
                                     </div>
-                                    @php
-                                    $statusTextClass = match($schedule->status_color) {
-                                    'green' => 'text-green-700',
-                                    'yellow' => 'text-yellow-700',
-                                    'red' => 'text-red-700',
-                                    'blue' => 'text-blue-700',
-                                    default => 'text-gray-700',
-                                    };
-                                    @endphp
-                                    <div class="text-xs font-medium {{ $statusTextClass }} mb-1">
+                                    <div class="text-xs font-semibold {{ match($schedule->status_color) {
+                                        'green' => 'text-green-700',
+                                        'yellow' => 'text-yellow-700',
+                                        'red' => 'text-red-700',
+                                        'blue' => 'text-blue-700',
+                                        default => 'text-gray-700',
+                                    } }} mb-1">
                                         {{ $schedule->status_label }}
                                     </div>
                                     @php
@@ -271,6 +270,15 @@
                                         {{ \Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_in)->format('H:i') }}-{{ \Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_out)->format('H:i') }}
                                     </div>
                                     @endif
+                                    @if($history)
+                                        <div class="mt-2 text-[10px] font-semibold {{ match($history['tone']) {
+                                            'green' => 'text-green-700',
+                                            'amber' => 'text-amber-700',
+                                            'red' => 'text-red-700',
+                                            'indigo' => 'text-indigo-700',
+                                            default => 'text-gray-600',
+                                        } }}">{{ $history['label'] }}</div>
+                                    @endif
                                     <div class="mt-1">
                                         <a href="{{ route('schedule-v2.edit', array_merge(['schedule' => $schedule], array_filter(['department_id' => $selectedDepartment, 'month' => $selectedMonth, 'year' => $selectedYear, 'search' => $searchQuery]))) }}" class="text-blue-600 hover:text-blue-900 text-xs">
                                             <i class="fas fa-edit"></i>
@@ -278,18 +286,9 @@
                                     </div>
                                 </div>
                                 @else
-                                @php
-                                $isWeekday = $day['date']->isWeekday();
-                                @endphp
                                 <div class="inline-block">
-                                    <div class="text-xs font-medium {{ $isWeekday ? 'text-green-700' : 'text-yellow-700' }} mb-1">
-                                        {{ $isWeekday ? 'On Duty' : 'Day Off' }}
-                                    </div>
-                                    @if($isWeekday)
-                                    <div class="text-xs text-gray-600">
-                                        09:00-17:00
-                                    </div>
-                                    @endif
+                                    <div class="text-xs font-semibold text-red-700 mb-1">Unassigned</div>
+                                    <div class="text-[10px] text-red-500">No schedule record</div>
                                     <div class="mt-1">
                                         <a href="{{ route('schedule-v2.create', array_merge(['employee_id' => $employee->id, 'date' => $day['date']->format('Y-m-d')], array_filter(['department_id' => $selectedDepartment, 'month' => $selectedMonth, 'year' => $selectedYear, 'search' => $searchQuery]))) }}" class="text-blue-600 hover:text-blue-900 text-xs" title="Create or customize schedule">
                                             <i class="fas fa-pen"></i>
@@ -460,7 +459,7 @@
                                     <i class="fas fa-tasks mr-1"></i>Status
                                 </label>
                                 <select name="status" id="bulk_status" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                    <option value="Working">On Duty</option>
+                                    <option value="Working">Scheduled Workday</option>
                                     <option value="Day Off">Day Off</option>
                                     <option value="Leave">Leave</option>
                                     <option value="Regular Holiday">Regular Holiday</option>
@@ -665,7 +664,7 @@
                    class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" ${isSelected ? 'checked' : ''}>
             <label for="emp_${employee.id}" class="text-sm text-gray-700 cursor-pointer flex-1">
                 <div class="font-medium">${employee.first_name} ${employee.last_name}</div>
-                <div class="text-xs text-gray-500">${employee.position}</div>
+                <div class="text-xs text-gray-500">${employee.position?.name ?? 'N/A'}</div>
             </label>
         `;
 
@@ -1160,7 +1159,7 @@
                                     <i class="fas fa-tasks mr-1"></i>Status
                                 </label>
                         <select id="statusSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
-                            <option value="Working">On Duty</option>
+                            <option value="Working">Scheduled Workday</option>
                             <option value="Day Off">Day Off</option>
                             <option value="Leave">Leave</option>
                             <option value="Absent">Absent</option>
@@ -1254,7 +1253,7 @@
                         </div>
                         <div>
                             <div class="text-sm font-medium text-gray-900">${employee.first_name} ${employee.last_name}</div>
-                            <div class="text-xs text-gray-500">${employee.position}</div>
+                            <div class="text-xs text-gray-500">${employee.position?.name ?? 'N/A'}</div>
                         </div>
                     </div>
                     <div class="text-right">

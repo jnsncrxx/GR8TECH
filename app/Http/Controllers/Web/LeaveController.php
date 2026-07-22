@@ -260,6 +260,14 @@ class LeaveController extends Controller
             return back()->with('error', 'Employee not found.');
         }
 
+
+        $timeConflict = app(\App\Services\PayrollRequestConflictService::class)
+            ->timeRequestWithinLeaveRange($employee->id, $data['start_date'], $data['end_date']);
+        if ($timeConflict) {
+            return back()->with('error', "Leave cannot be filed because the selected dates contain pending or approved {$timeConflict}.")
+                ->withInput();
+        }
+
         // Check for overlapping leaves (pending or approved)
         $overlappingLeaves = $this->getOverlappingLeaves(
             $employee->id, 
@@ -355,6 +363,18 @@ class LeaveController extends Controller
 
         // Check if there are overlapping approved leaves before approving
         if ($request->status === 'approved') {
+            $timeConflict = app(\App\Services\PayrollRequestConflictService::class)
+                ->timeRequestWithinLeaveRange(
+                    $leaveRequest->employee_id,
+                    $leaveRequest->start_date->toDateString(),
+                    $leaveRequest->end_date->toDateString()
+                );
+            if ($timeConflict) {
+                return response()->json([
+                    'error' => "Cannot approve leave because the selected dates contain pending or approved {$timeConflict}.",
+                ], 422);
+            }
+
             $overlappingLeaves = $this->getOverlappingLeaves(
                 $leaveRequest->employee_id,
                 $leaveRequest->start_date,

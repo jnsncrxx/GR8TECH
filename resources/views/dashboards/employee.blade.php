@@ -145,6 +145,39 @@
         <p class="text-sm sm:text-base text-gray-600">Here's your personal information and payroll history.</p>
     </div>
 
+    <!-- Authoritative Schedule -->
+    <div class="mb-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="rounded-xl border border-blue-200 bg-blue-50 p-5">
+            <p class="text-sm font-medium text-blue-700">Today’s Assigned Schedule</p>
+            @if($todaySchedule)
+                <p class="mt-2 text-xl font-bold text-blue-950">{{ $todaySchedule->status_label }}</p>
+                @if($todaySchedule->time_in && $todaySchedule->time_out)
+                    <p class="mt-1 text-sm text-blue-800">{{ \Carbon\Carbon::parse($todaySchedule->time_in)->format('g:i A') }}–{{ \Carbon\Carbon::parse($todaySchedule->time_out)->format('g:i A') }} · {{ \App\Helpers\TimezoneHelper::formatHours((float) $todaySchedule->required_hours) }}</p>
+                @endif
+            @else
+                <p class="mt-2 font-semibold text-red-700">No schedule assigned</p>
+                <p class="mt-1 text-xs text-red-600">Contact HR before recording attendance.</p>
+            @endif
+        </div>
+        <div class="lg:col-span-2 rounded-xl border border-gray-200 bg-white p-5">
+            <div class="flex items-center justify-between">
+                <p class="text-sm font-medium text-gray-700">Next 7 Days</p>
+                <a href="{{ route('attendance.my') }}" class="text-sm font-medium text-blue-600 hover:text-blue-800">My attendance history</a>
+            </div>
+            <div class="mt-3 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+                @foreach($upcomingSchedules as $schedule)
+                    <div class="rounded-lg border border-gray-200 p-2 text-center">
+                        <p class="text-xs text-gray-500">{{ $schedule->date->format('D, M j') }}</p>
+                        <p class="mt-1 text-xs font-semibold {{ $schedule->status === 'Working' ? 'text-green-700' : 'text-amber-700' }}">{{ $schedule->status_label }}</p>
+                        @if($schedule->time_in)
+                            <p class="text-[11px] text-gray-500">{{ \Carbon\Carbon::parse($schedule->time_in)->format('g:i A') }}</p>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    </div>
+
     <!-- Time In/Out Section -->
     <div class="mb-6 sm:mb-8">
         <!-- Current Time Display -->
@@ -788,31 +821,6 @@ function getPayslipDownloadUrl(payrollId) {
     return `/employee/payslip/download/${payrollId}`;
 }
 
-function getTestDownloadUrl(payrollId) {
-    return `/employee/test-download/${payrollId}`;
-}
-
-// Test function to check if download works
-async function testDownloadRoute(payrollId) {
-    try {
-        const url = getTestDownloadUrl(payrollId);
-        console.log('Testing download route:', url);
-        
-        const response = await fetch(url);
-        const data = await response.json();
-        console.log('Test download route response:', data);
-        
-        if (data.success) {
-            return { success: true, downloadable: data.downloadable, message: data.message };
-        } else {
-            return { success: false, error: data.error || 'Route test failed' };
-        }
-    } catch (error) {
-        console.error('Route test failed:', error);
-        return { success: false, error: 'Route test failed: ' + error.message };
-    }
-}
-
 // Show loading overlay
 function showLoadingOverlay(message = 'Generating PDF...') {
     hideLoadingOverlay();
@@ -857,9 +865,7 @@ function hideLoadingOverlay() {
 }
 
 // Main download function (for navigation button)
-async function downloadEmployeePayslip(payrollId) {
-    console.log('Download Employee Payslip called for ID:', payrollId);
-    
+function downloadEmployeePayslip(payrollId) {
     // Show loading state for navigation button
     const navBtn = document.getElementById('nav-download-payslip-btn');
     if (navBtn) {
@@ -874,42 +880,11 @@ async function downloadEmployeePayslip(payrollId) {
         }, 5000);
     }
     
-    try {
-        // First test the route
-        const testResult = await testDownloadRoute(payrollId);
-        console.log('Test result:', testResult);
-        
-        if (!testResult.success) {
-            throw new Error(testResult.error || 'Cannot connect to server');
-        }
-        
-        if (!testResult.downloadable) {
-            throw new Error('Payslip is not available for download yet. Status: ' + (testResult.payroll_status || 'unknown'));
-        }
-        
-        // Direct download approach
-        const downloadUrl = getPayslipDownloadUrl(payrollId);
-        console.log('Opening download URL:', downloadUrl);
-        
-        // Open in new tab (most reliable)
-        window.open(downloadUrl, '_blank');
-        
-        // Show success message
-        showSuccess('Payslip download started!');
-        
-    } catch (error) {
-        console.error('Download error:', error);
-        showError('Error: ' + error.message);
-    } finally {
-        // Hide any loading overlay
-        hideLoadingOverlay();
-    }
+    window.location.href = getPayslipDownloadUrl(payrollId);
 }
 
 // Download function for table row buttons
-async function downloadSinglePayslip(payrollId) {
-    console.log('Download Single Payslip called for ID:', payrollId);
-    
+function downloadSinglePayslip(payrollId) {
     // Find and update the specific button
     const buttonSelector = `button[onclick*="downloadSinglePayslip('${payrollId}')"]`;
     const buttons = document.querySelectorAll(buttonSelector);
@@ -932,39 +907,7 @@ async function downloadSinglePayslip(payrollId) {
         }, 5000);
     }
     
-    try {
-        // Test the route first
-        const testResult = await testDownloadRoute(payrollId);
-        console.log('Single test result:', testResult);
-        
-        if (!testResult.success) {
-            throw new Error(testResult.error || 'Cannot connect to server');
-        }
-        
-        if (!testResult.downloadable) {
-            throw new Error('Payslip not available for download');
-        }
-        
-        // Direct download in new tab
-        const downloadUrl = getPayslipDownloadUrl(payrollId);
-        window.open(downloadUrl, '_blank');
-        
-        showSuccess('Payslip download started in new tab!');
-        
-    } catch (error) {
-        console.error('Single download error:', error);
-        showError('Error: ' + error.message);
-    } finally {
-        hideLoadingOverlay();
-        
-        // Restore button after a short delay
-        setTimeout(() => {
-            if (btn) {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-            }
-        }, 1000);
-    }
+    window.location.href = getPayslipDownloadUrl(payrollId);
 }
 
 // Initialize on page load

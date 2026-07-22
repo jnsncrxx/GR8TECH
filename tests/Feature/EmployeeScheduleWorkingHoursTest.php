@@ -52,4 +52,17 @@ class EmployeeScheduleWorkingHoursTest extends TestCase
 
         $this->assertSame(0.0, (float) $schedule->working_hours);
     }
+
+    public function test_working_status_uses_planning_language_and_exposes_assignment_source(): void
+    {
+        $manual = $this->schedule('08:00', '17:00');
+        $manual->created_by = 'user-id';
+
+        $systemDefault = $this->schedule('08:00', '17:00');
+        $systemDefault->notes = 'Default company schedule: Mon-Sat 8:00 AM-5:00 PM.';
+
+        $this->assertSame('Scheduled Workday', $manual->status_label);
+        $this->assertSame('Manual', $manual->assignment_source);
+        $this->assertSame('System Default', $systemDefault->assignment_source);
+    }
 }

@@ -49,8 +49,8 @@
                             </div>
                             <div>
                                 <h4 class="text-xl font-semibold text-gray-900">{{ $schedule->employee->full_name }}</h4>
-                                <p class="text-sm text-gray-600">{{ $schedule->employee->position }}</p>
-                                <p class="text-sm text-gray-500">{{ $schedule->employee->department->name }}</p>
+                                <p class="text-sm text-gray-600">{{ $schedule->employee->position?->name ?? 'N/A' }}</p>
+                                <p class="text-sm text-gray-500">{{ $schedule->employee->department?->name ?? 'N/A' }}</p>
                             </div>
                         </div>
 
@@ -67,7 +67,7 @@
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
                                 <div class="px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-{{ $schedule->status_color }}-100 text-{{ $schedule->status_color }}-800">
-                                        {{ $schedule->status }}
+                                        {{ $schedule->status_label }}
                                     </span>
                                 </div>
                             </div>

@@ -148,7 +148,7 @@
                                     </label>
                                     <select name="status" id="status" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('status') border-red-500 @enderror">
                                         <option value="">Select status</option>
-                                        <option value="Working" {{ old('status', $defaultStatus ?? '') == 'Working' ? 'selected' : '' }}>On Duty</option>
+                                        <option value="Working" {{ old('status', $defaultStatus ?? '') == 'Working' ? 'selected' : '' }}>Scheduled Workday</option>
                                         <option value="Day Off" {{ old('status', $defaultStatus ?? '') == 'Day Off' ? 'selected' : '' }}>Day Off</option>
                                         <option value="Leave" {{ old('status', $defaultStatus ?? '') == 'Leave' ? 'selected' : '' }}>Leave</option>
                                         <option value="Absent" {{ old('status', $defaultStatus ?? '') == 'Absent' ? 'selected' : '' }}>Absent</option>

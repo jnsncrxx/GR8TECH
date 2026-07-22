@@ -26,6 +26,7 @@ class Employee extends Model
         'created_by',
         'position', // deprecated, for migration only
         'salary',
+        'payroll_template_id',
         'hire_date',
         'company_id',
         'date_of_birth',
