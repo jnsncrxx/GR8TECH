@@ -114,6 +114,16 @@ class OfficialBusinessRequest extends Model
      */
     public function computeCreditedHours(): float
     {
+        if ($this->is_full_day) {
+            $date = $this->date?->format('Y-m-d') ?? (string) $this->getRawOriginal('date');
+            $schedule = EmployeeSchedule::query()
+                ->where('employee_id', $this->employee_id)
+                ->whereDate('date', $date)
+                ->first();
+
+            return round((float) ($schedule?->required_hours ?: $schedule?->working_hours ?: 8), 2);
+        }
+
         if (!$this->ob_start_time || !$this->ob_end_time) {
             return 0.0;
         }

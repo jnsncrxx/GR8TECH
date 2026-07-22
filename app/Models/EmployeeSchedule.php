@@ -37,6 +37,17 @@ class EmployeeSchedule extends Model
     {
         parent::boot();
 
+        static::saving(function ($model) {
+            // A non-working schedule must never carry payable required hours.
+            // Keeping shift times on a day off also causes misleading cutoff
+            // totals, so normalize the complete row at the model boundary.
+            if (in_array($model->status, ['Day Off', 'Rest Day'], true)) {
+                $model->required_hours = 0;
+                $model->time_in = null;
+                $model->time_out = null;
+            }
+        });
+
         static::creating(function ($model) {
             if (empty($model->id)) {
                 $model->id = Uuid::uuid4()->toString();
@@ -112,9 +123,24 @@ class EmployeeSchedule extends Model
     public static function statusLabel(?string $status): string
     {
         return match ($status) {
-            'Working' => 'On Duty',
+            'Working' => 'Scheduled Workday',
             default => $status ?? '',
         };
+    }
+
+    public function getAssignmentSourceAttribute(): string
+    {
+        $notes = strtolower((string) $this->notes);
+
+        if (str_contains($notes, 'default company schedule')) {
+            return 'System Default';
+        }
+
+        if (str_contains($notes, 'template')) {
+            return 'Template';
+        }
+
+        return $this->created_by ? 'Manual' : 'Imported';
     }
 
     /**

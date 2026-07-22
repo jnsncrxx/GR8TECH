@@ -130,6 +130,18 @@
                         <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                     @enderror
                 </div>
+
+                <div class="sm:col-span-2">
+                    <label for="correction_reason" class="block text-sm font-medium text-gray-700 mb-2">
+                        Correction Reason <span class="text-red-500">*</span>
+                    </label>
+                    <textarea name="correction_reason" id="correction_reason" rows="3" required maxlength="1000"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('correction_reason') border-red-500 @enderror"
+                              placeholder="Explain the supporting DTR, approved request, or manager-confirmed correction.">{{ old('correction_reason') }}</textarea>
+                    @error('correction_reason')
+                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
             </div>
 
             <!-- Current Record Info -->

@@ -682,7 +682,7 @@ class DtrImportService
         $standardStart = Carbon::parse('08:00:00');
         $actualStart = Carbon::parse($timeIn);
         
-        if ($actualStart->gt($standardStart->addMinutes(1))) { // 1 minutes grace period
+        if ($actualStart->gt($standardStart->addMinutes(10))) {
             return 'late';
         }
         

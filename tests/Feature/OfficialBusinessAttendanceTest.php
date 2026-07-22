@@ -227,7 +227,8 @@ class OfficialBusinessAttendanceTest extends TestCase
 
     public function test_actual_plus_overlapping_ob_counts_overlap_once(): void
     {
-        // Requirement Example 2: 08-12 actual + 10-14 OB => union 08-14 = 6.
+        // 08-12 actual + 10-14 OB, excluding the 12-13 lunch interval:
+        // union 08-12 and 13-14 = 5 credited hours.
         $employee = $this->makeEmployee();
         $attendance = $this->makeAttendance($employee);
         $this->makeTimeEntry($attendance, '08:00:00', '12:00:00');
@@ -235,7 +236,7 @@ class OfficialBusinessAttendanceTest extends TestCase
 
         $this->calculator()->recalc($attendance);
 
-        $this->assertHours($attendance, 6.0, 6.0, 0.0);
+        $this->assertHours($attendance, 5.0, 5.0, 0.0);
     }
 
     public function test_multiple_ob_intervals_all_participate(): void

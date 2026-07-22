@@ -11,7 +11,7 @@
             <p class="mt-1 text-sm text-gray-600">Overview of payroll statistics and trends</p>
         </div>
         <div class="mt-4 sm:mt-0 flex space-x-3">
-            <a href="{{ route('payrolls.monthly') }}" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50">
+            <a href="{{ route('payrolls.monthly', ['year' => now()->year, 'month' => now()->month]) }}" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50">
                 <i class="fas fa-calendar-alt mr-2"></i>
                 Monthly Report
             </a>

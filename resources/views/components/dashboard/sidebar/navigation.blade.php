@@ -120,11 +120,11 @@
         @if($user->role === 'admin' || $user->role === 'hr' || $user->role === 'manager')
         <!-- Payroll Dropdown -->
         <div class="relative" x-data="{ 
-            open: {{ in_array($activeRoute, ['payroll.index', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'true' : 'false' }}
+            open: {{ in_array($activeRoute, ['payroll.index', 'payroll.runs', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'true' : 'false' }}
         }">
-            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, ['payroll.index', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, ['payroll.index', 'payroll.runs', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
                 <div class="flex items-center">
-                    <i class="fas fa-money-bill-wave mr-3 text-lg {{ in_array($activeRoute, ['payroll.index', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
+                    <i class="fas fa-money-bill-wave mr-3 text-lg {{ in_array($activeRoute, ['payroll.index', 'payroll.runs', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
                     <span>Payroll</span>
                 </div>
                 <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }"></i>
@@ -144,7 +144,13 @@
                 <a href="{{ route('payroll.index') }}" 
                    class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'payroll.index' ? 'bg-white text-blue-600' : '' }}">
                     <i class="fas fa-list mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'payroll.index' ? 'text-blue-600' : '' }}"></i>
-                    <span>Payroll List</span>
+                    <span>Payroll Payments</span>
+                </a>
+
+                <a href="{{ route('payroll.runs') }}"
+                   class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'payroll.runs' ? 'bg-white text-blue-600' : '' }}">
+                    <i class="fas fa-layer-group mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'payroll.runs' ? 'text-blue-600' : '' }}"></i>
+                    <span>Payroll Runs</span>
                 </a>
                 
                 <!-- Payroll Templates -->
@@ -160,11 +166,11 @@
         
         <!-- Attendance Dropdown -->
         <div class="relative" x-data="{ 
-            open: {{ in_array($activeRoute, ['attendance.time-in-out', 'attendance.daily', 'attendance.timekeeping', 'attendance.import-dtr', 'schedule-v2.index', 'schedule-v2.create', 'schedule-v2.show', 'schedule-v2.edit', 'attendance.schedule.reports', 'attendance.schedule.templates', 'attendance.overtime', 'attendance.leave-management', 'attendance.official-business', 'attendance.reports', 'attendance.settings', 'attendance.period-management.index', 'attendance.period-management.create', 'attendance.period-management.show']) ? 'true' : 'false' }}
+            open: {{ in_array($activeRoute, ['attendance.time-in-out', 'attendance.daily', 'attendance.my', 'employee.schedule', 'attendance.timekeeping', 'attendance.import-dtr', 'schedule-v2.index', 'schedule-v2.create', 'schedule-v2.show', 'schedule-v2.edit', 'attendance.schedule.reports', 'attendance.schedule.templates', 'attendance.overtime', 'attendance.leave-management', 'attendance.official-business', 'attendance.reports', 'attendance.settings', 'attendance.period-management.index', 'attendance.period-management.create', 'attendance.period-management.show']) ? 'true' : 'false' }}
         }">
-            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, ['attendance.time-in-out', 'attendance.daily', 'attendance.timekeeping', 'attendance.import-dtr', 'schedule-v2.index', 'schedule-v2.create', 'schedule-v2.show', 'schedule-v2.edit', 'attendance.schedule.reports', 'attendance.schedule.templates', 'attendance.overtime', 'attendance.leave-management', 'attendance.official-business', 'attendance.reports', 'attendance.settings', 'attendance.period-management.index', 'attendance.period-management.create', 'attendance.period-management.show']) ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, ['attendance.time-in-out', 'attendance.daily', 'attendance.my', 'employee.schedule', 'attendance.timekeeping', 'attendance.import-dtr', 'schedule-v2.index', 'schedule-v2.create', 'schedule-v2.show', 'schedule-v2.edit', 'attendance.schedule.reports', 'attendance.schedule.templates', 'attendance.overtime', 'attendance.leave-management', 'attendance.official-business', 'attendance.reports', 'attendance.settings', 'attendance.period-management.index', 'attendance.period-management.create', 'attendance.period-management.show']) ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
                 <div class="flex items-center">
-                    <i class="fas fa-clock mr-3 text-lg {{ in_array($activeRoute, ['attendance.time-in-out', 'attendance.daily', 'attendance.timekeeping', 'attendance.import-dtr', 'schedule-v2.index', 'schedule-v2.create', 'schedule-v2.show', 'schedule-v2.edit', 'attendance.schedule.reports', 'attendance.schedule.templates', 'attendance.overtime', 'attendance.leave-management', 'attendance.official-business', 'attendance.reports', 'attendance.settings', 'attendance.period-management.index', 'attendance.period-management.create', 'attendance.period-management.show']) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
+                    <i class="fas fa-clock mr-3 text-lg {{ in_array($activeRoute, ['attendance.time-in-out', 'attendance.daily', 'attendance.my', 'employee.schedule', 'attendance.timekeeping', 'attendance.import-dtr', 'schedule-v2.index', 'schedule-v2.create', 'schedule-v2.show', 'schedule-v2.edit', 'attendance.schedule.reports', 'attendance.schedule.templates', 'attendance.overtime', 'attendance.leave-management', 'attendance.official-business', 'attendance.reports', 'attendance.settings', 'attendance.period-management.index', 'attendance.period-management.create', 'attendance.period-management.show']) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
                     <span>Attendance</span>
                 </div>
                 <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }"></i>
@@ -191,29 +197,39 @@
                 @endif
                 
                 <!-- Attendance Record -->
-                <a href="{{ route('attendance.daily') }}" 
-                   class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'attendance.daily' ? 'bg-white text-blue-600' : '' }}">
-                    <i class="fas fa-calendar-day mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'attendance.daily' ? 'text-blue-600' : '' }}"></i>
-                    <span>Attendance Record</span>
+                <a href="{{ $user->role === 'employee' ? route('attendance.my') : route('attendance.daily') }}"
+                   class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ in_array($activeRoute, ['attendance.daily', 'attendance.my']) ? 'bg-white text-blue-600' : '' }}">
+                    <i class="fas fa-calendar-day mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ in_array($activeRoute, ['attendance.daily', 'attendance.my']) ? 'text-blue-600' : '' }}"></i>
+                    <span>{{ $user->role === 'employee' ? 'My Attendance' : 'Attendance Record' }}</span>
                 </a>
                 
                 <!-- Timekeeping -->
+                @if($user->role !== 'employee')
                 <a href="{{ route('attendance.timekeeping') }}" 
                    class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'attendance.timekeeping' ? 'bg-white text-blue-600' : '' }}">
                     <i class="fas fa-stopwatch mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'attendance.timekeeping' ? 'text-blue-600' : '' }}"></i>
                     <span>Timekeeping</span>
                 </a>
+                @endif
                 
                 <!-- Import DTR -->
+                @if($user->role !== 'employee')
                 <a href="{{ route('attendance.import-dtr') }}" 
                    class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'attendance.import-dtr' ? 'bg-white text-blue-600' : '' }}">
                     <i class="fas fa-file-import mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'attendance.import-dtr' ? 'text-blue-600' : '' }}"></i>
                     <span>Import DTR</span>
                     <span class="ml-auto bg-orange-100 text-orange-600 text-xs px-2 py-1 rounded-full">New</span>
                 </a>
+                @endif
                 
-                <!-- Schedule Management -->
-                @if($user->role !== 'employee')
+                <!-- Schedule -->
+                @if($user->role === 'employee')
+                <a href="{{ route('employee.schedule') }}"
+                   class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'employee.schedule' ? 'bg-white text-blue-600' : '' }}">
+                    <i class="fas fa-calendar-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'employee.schedule' ? 'text-blue-600' : '' }}"></i>
+                    <span>My Schedule</span>
+                </a>
+                @else
                 <a href="{{ route('schedule-v2.index') }}" 
                    class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'schedule-v2.index' ? 'bg-white text-blue-600' : '' }}">
                     <i class="fas fa-calendar-plus mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'schedule-v2.index' ? 'text-blue-600' : '' }}"></i>
@@ -242,7 +258,8 @@
                     <span>Official Business</span>
                 </a>
                 
-                {{-- Period Management 
+                <!-- Period Management -->
+                @if($user->role !== 'employee')
                 <a href="{{ route('attendance.period-management.index') }}" 
                    class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'attendance.period-management.index' ? 'bg-white text-blue-600' : '' }}">
                     <i class="fas fa-calendar-week mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'attendance.period-management.index' ? 'text-blue-600' : '' }}"></i>
@@ -250,7 +267,8 @@
                     @if($user->role !== 'employee')
                     <span class="ml-auto bg-purple-100 text-purple-600 text-xs px-2 py-1 rounded-full">New</span>
                     @endif
-                </a> --}}
+                </a>
+                @endif
                 
                 @if($user->role === 'admin' || $user->role === 'hr')
                 <!-- Timekeeping and HRIS Reports -->
@@ -264,23 +282,23 @@
                     
                     <!-- Timekeeping Reports Submenu -->
                     <div class="timekeepingReportSubMenu hidden flex-col pl-4 mt-1 space-y-1 py-2">
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
+                        <a href="{{ route('attendance.timekeeping') }}" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
                                                         <i class="fas fa-hourglass-half mr-3 text-gray-400"></i>
                             <span>Time Summary</span>
                         </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
+                        <a href="{{ route('attendance.timekeeping') }}" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
                                                         <i class="fas fa-id-card mr-3 text-gray-400"></i>
                             <span>Time Card</span>
                         </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
+                        <a href="{{ route('attendance.timekeeping') }}" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
                                                         <i class="fas fa-list mr-3 text-gray-400"></i>
                             <span>Time Sheets</span>
                         </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
+                        <a href="{{ route('attendance.timekeeping', ['exception' => 'missing_schedule']) }}" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
                                                         <i class="fas fa-user-slash mr-3 text-gray-400"></i>
                             <span>Absences</span>
                         </a>
-                        <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
+                        <a href="{{ route('attendance.timekeeping', ['exception' => 'possible_wrong_schedule']) }}" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
                                                         <i class="fas fa-exclamation-triangle mr-3 text-gray-400"></i>
                             <span>Undertime & Tardiness</span>
                         </a>
@@ -311,8 +329,8 @@
                 </a>
                 
                 <!-- Attendance Settings -->
-                <a href="{{ route('attendance.settings') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'attendance.settings' ? 'bg-white text-blue-600' : '' }}">
-                    <i class="fas fa-cog mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'attendance.settings' ? 'text-blue-600' : '' }}"></i>
+                <a href="{{ route('settings') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'settings' ? 'bg-white text-blue-600' : '' }}">
+                    <i class="fas fa-cog mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'settings' ? 'text-blue-600' : '' }}"></i>
                     <span>Attendance Settings</span>
                 </a>
                 @endif
@@ -329,11 +347,11 @@
         
         <!-- Reports Dropdown -->
         <div class="relative" x-data="{ 
-            open: {{ in_array($activeRoute, ['attendance.reports', 'payroll.index']) ? 'true' : 'false' }}
+            open: {{ in_array($activeRoute, ['attendance.reports', 'payrolls.summary']) ? 'true' : 'false' }}
         }">
-            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, ['attendance.reports', 'payroll.index']) ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, ['attendance.reports', 'payrolls.summary']) ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
                 <div class="flex items-center">
-                    <i class="fas fa-chart-bar mr-3 text-lg {{ in_array($activeRoute, ['attendance.reports', 'payroll.index']) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
+                    <i class="fas fa-chart-bar mr-3 text-lg {{ in_array($activeRoute, ['attendance.reports', 'payrolls.summary']) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
                     <span>Reports</span>
                 </div>
                 <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }"></i>
@@ -355,9 +373,9 @@
                     <i class="fas fa-hourglass-half mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'attendance.reports' ? 'text-blue-600' : '' }}"></i>
                     <span>Time Summary</span>
                 </a>
-                <a href="{{ route('payroll.index') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'payroll.index' ? 'bg-white text-blue-600' : '' }}">
-                    <i class="fas fa-calculator mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'payroll.index' ? 'text-blue-600' : '' }}"></i>
-                    <span>Payroll Summary</span>
+                <a href="{{ route('payrolls.summary') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'payrolls.summary' ? 'bg-white text-blue-600' : '' }}">
+                    <i class="fas fa-calculator mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'payrolls.summary' ? 'text-blue-600' : '' }}"></i>
+                    <span>Payroll Reports</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
                                         <i class="fas fa-receipt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
@@ -490,7 +508,7 @@
                 try {
                     if (isset($user->employee) && $user->employee) {
                         $latestPayroll = \App\Models\Payroll::where('employee_id', $user->employee->id)
-                            ->whereIn('status', ['approved', 'processed', 'paid'])
+                            ->whereIn('status', ['approved', 'paid'])
                             ->latest()
                             ->first();
                     }
@@ -513,6 +531,11 @@
                     <span>No Payslip Available</span>
                 </button>
             @endif
+
+            <a href="{{ route('employee.payroll.history') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ $activeRoute === 'employee.payroll.history' ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+                <i class="fas fa-receipt mr-3 text-lg text-gray-400 group-hover:text-blue-600"></i>
+                <span>Salary & Payslips</span>
+            </a>
 
             <!-- Update Profile -->
             <a href="{{ route('hr.profile') }}" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-lg transition-all duration-200 group">

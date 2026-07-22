@@ -94,7 +94,7 @@ class RoleBasedDashboardController extends Controller
             'average_salary' => $employeeQuery->avg('salary') ?? 0,
         ];
 
-        $recent_employees = Employee::query()->with('department');
+        $recent_employees = Employee::query()->with(['department', 'position']);
         if ($currentCompany) {
             $recent_employees->forCompany($currentCompany->id);
         }
@@ -193,6 +193,7 @@ class RoleBasedDashboardController extends Controller
         ];
 
         $recent_payrolls = $employee->payrolls()
+            ->whereIn('status', ['approved', 'paid'])
             ->orderBy('pay_period_start', 'desc')
             ->limit(5)
             ->get();
@@ -205,13 +206,18 @@ class RoleBasedDashboardController extends Controller
                 DB::raw('COUNT(*) as payroll_count'),
             ])
             ->where('employee_id', $employee->id)
-            ->where('status', 'processed')
+            ->whereIn('status', ['approved', 'paid'])
             ->groupBy('year')
             ->orderBy('year', 'desc')
             ->get();
 
         // Get today's attendance record
         $todayAttendance = $employee->getTodayAttendance();
+        $todaySchedule = $employee->getScheduleForDate(today());
+        $upcomingSchedules = $employee->schedules()
+            ->whereBetween('date', [today()->toDateString(), today()->copy()->addDays(7)->toDateString()])
+            ->orderBy('date')
+            ->get();
 
         // Get recent activity (last 5 days)
         $recentActivity = $employee->attendanceRecords()
@@ -225,6 +231,8 @@ class RoleBasedDashboardController extends Controller
             'yearly_summary',
             'employee',
             'todayAttendance',
+            'todaySchedule',
+            'upcomingSchedules',
             'recentActivity'
         ));
     }

@@ -65,7 +65,7 @@
             <p class="mt-1 text-sm text-gray-600">Track and manage employee overtime hours</p>
             @endif
         </div>
-        <div class="mt-4 sm:mt-0 flex space-x-3">
+        <div class="mt-4 sm:mt-0 flex flex-wrap gap-3">
             <!-- Export Dropdown -->
             <div class="relative" x-data="{ open: false }">
                 <button @click="open = !open" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
@@ -95,6 +95,15 @@
             @endif
         </div>
     </div>
+
+    @if($isReviewer)
+        <div class="p-3 rounded-lg {{ $user->role === 'manager' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-gray-50 text-gray-600 border-gray-200' }} border text-sm">
+            <i class="fas fa-circle-info mr-1"></i>
+            {{ $user->role === 'manager'
+                ? 'You are the primary approver. Pending overtime requests are shown first.'
+                : 'You are viewing the overtime approval queue as a backup approver.' }}
+        </div>
+    @endif
 
     <!-- Overtime Summary -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
@@ -157,13 +166,13 @@
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
             <div class="flex items-center">
                 <div class="flex-shrink-0">
-                    <div class="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-clock text-orange-600"></i>
+                    <div class="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-clock-rotate-left text-gray-500"></i>
                     </div>
                 </div>
                 <div class="ml-3">
-                    <p class="text-sm font-medium text-gray-500">Total Hours</p>
-                    <p class="text-lg font-semibold text-gray-900">{{ number_format($summary['total_hours'], 1) }}h</p>
+                    <p class="text-sm font-medium text-gray-500">Expired</p>
+                    <p class="text-lg font-semibold text-gray-900">{{ $summary['expired'] }}</p>
                 </div>
             </div>
         </div>
@@ -171,7 +180,7 @@
 
     <!-- Filters -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-        <form method="GET" action="{{ route('attendance.overtime') }}" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-{{ $user->role === 'employee' ? '2' : '4' }} gap-4">
+        <form method="GET" action="{{ route('attendance.overtime') }}" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             @if($user->role !== 'employee')
             <div>
                 <label for="employee" class="block text-sm font-medium text-gray-700 mb-2">Employee</label>
@@ -202,6 +211,7 @@
                     <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }} style="color: #111827 !important;">Pending</option>
                     <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }} style="color: #111827 !important;">Approved</option>
                     <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }} style="color: #111827 !important;">Rejected</option>
+                    <option value="expired" {{ request('status') == 'expired' ? 'selected' : '' }} style="color: #111827 !important;">Expired</option>
                 </select>
             </div>
             @endif
@@ -209,13 +219,17 @@
                 <label for="dateFrom" class="block text-sm font-medium text-gray-700 mb-2">From Date</label>
                 <input type="date" id="dateFrom" name="date_from" value="{{ request('date_from') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
             </div>
-            <div class="flex items-end gap-3">
-                <button type="submit" class="w-full px-10 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                    <i class="fas fa-search mr-2"></i>Apply
-                </button>
-                <a href="{{ route('attendance.overtime') }}" class="w-full px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-center">
+            <div>
+                <label for="dateTo" class="block text-sm font-medium text-gray-700 mb-2">To Date</label>
+                <input type="date" id="dateTo" name="date_to" value="{{ request('date_to') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
+            </div>
+            <div class="flex flex-col sm:flex-row sm:justify-end gap-3 sm:col-span-2 lg:col-span-5">
+                <a href="{{ route('attendance.overtime') }}" class="inline-flex items-center justify-center px-6 py-2 border border-gray-300 text-gray-700 rounded-lg bg-white hover:bg-gray-50 transition-colors text-center">
                     <i class="fas fa-times mr-2"></i>Clear Filters
                 </a>
+                <button type="submit" class="inline-flex items-center justify-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    <i class="fas fa-search mr-2"></i>Apply
+                </button>
             </div>
         </form>
     </div>
@@ -253,6 +267,9 @@
                         <th class="px-10 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Status
                         </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Reviewed By
+                        </th>
                         @if(in_array($user->role, ['admin', 'hr', 'manager']))
                         <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Actions
@@ -278,6 +295,7 @@
                                   'expired' => 'bg-gray-100 text-gray-600'
                               ];
                               $statusColor = $statusColors[$displayStatus] ?? 'bg-gray-100 text-gray-800';
+                              $reviewerName = trim(($request->approver?->employee?->first_name ?? '') . ' ' . ($request->approver?->employee?->last_name ?? ''));
                           @endphp
                         <tr class="hover:bg-gray-50 transition-colors">
                             <td class="px-6 py-4 whitespace-nowrap">
@@ -308,25 +326,32 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900 whitespace-normal break-words min-w-[150px] max-w-xs">{{ $request->reason }}</div>
-                                @if($request->status === 'rejected' && $request->rejection_reason)
-                                <div class="text-xs text-red-600 mt-1 whitespace-normal break-words min-w-[150px] max-w-xs">
-                                    <span class="font-medium">{{ ucfirst($request->approver->role ?? 'Admin') }} Reason:</span> {{ $request->rejection_reason }}
-                                </div>
-                                @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
                                 <span class="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium {{ $statusColor }} min-w-[80px]">
                                     {{ ucfirst($displayStatus) }}
                                 </span>
+                                @if($displayStatus === 'rejected' && $request->rejection_reason)
+                                    <div class="text-xs text-red-600 mt-1 max-w-[220px] mx-auto whitespace-normal" title="{{ $request->rejection_reason }}">
+                                        <span class="font-medium">Rejection reason:</span>
+                                        {{ \Illuminate\Support\Str::limit($request->rejection_reason, 40) }}
+                                    </div>
+                                @endif
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm text-gray-900">{{ $reviewerName !== '' ? $reviewerName : '—' }}</div>
+                                @if($request->approved_at)
+                                    <div class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($request->approved_at)->format('M d, Y h:i A') }}</div>
+                                @endif
                             </td>
                             @if(in_array($user->role, ['admin', 'hr', 'manager']))
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                                 @if($displayStatus === 'pending')
                                 <div class="flex space-x-2 justify-center">
-                                    <button onclick="approveOvertime('{{ $request->id }}')" class="text-green-600 hover:text-green-900 transition-colors" title="Approve">
+                                    <button onclick="approveOvertime('{{ $request->id }}')" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors" title="Approve">
                                         <i class="fas fa-check"></i>
                                     </button>
-                                    <button onclick="rejectOvertime('{{ $request->id }}')" class="text-red-600 hover:text-red-900 transition-colors" title="Reject">
+                                    <button onclick="rejectOvertime('{{ $request->id }}')" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors" title="Reject">
                                         <i class="fas fa-times"></i>
                                     </button>
                                 </div>
@@ -338,7 +363,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ in_array($user->role, ['admin', 'hr', 'manager']) ? 8 : 7 }}" class="px-6 py-4 text-center">
+                            <td colspan="{{ in_array($user->role, ['admin', 'hr', 'manager']) ? 9 : 8 }}" class="px-6 py-4 text-center">
                                 <div class="flex flex-col items-center justify-center py-8">
                                     <i class="fas fa-clock text-gray-400 text-4xl mb-4"></i>
                                     <p class="text-gray-500 text-lg font-medium mb-2">No overtime requests found</p>
@@ -403,6 +428,7 @@
                             'expired' => 'bg-gray-100 text-gray-600'
                         ];
                         $statusColor = $statusColors[$displayStatus] ?? 'bg-gray-100 text-gray-800';
+                        $reviewerName = trim(($request->approver?->employee?->first_name ?? '') . ' ' . ($request->approver?->employee?->last_name ?? ''));
                     @endphp
                     <div class="border border-gray-200 rounded-lg p-4">
                         <div class="flex items-center justify-between mb-3">
@@ -448,13 +474,20 @@
                             <div class="font-medium text-red-600 whitespace-normal break-words">{{ $request->rejection_reason }}</div>
                         </div>
                         @endif
+                        <div class="text-sm mb-3">
+                            <div class="text-gray-500">Reviewed By</div>
+                            <div class="font-medium">{{ $reviewerName !== '' ? $reviewerName : '—' }}</div>
+                            @if($request->approved_at)
+                                <div class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($request->approved_at)->format('M d, Y h:i A') }}</div>
+                            @endif
+                        </div>
                         @if(in_array($user->role, ['admin', 'hr', 'manager']) && $displayStatus === 'pending')
                         <div class="flex justify-end space-x-2">
-                            <button onclick="approveOvertime('{{ $request->id }}')" class="text-green-600 hover:text-green-900 transition-colors">
-                                <i class="fas fa-check mr-1"></i>Approve
+                            <button onclick="approveOvertime('{{ $request->id }}')" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors" title="Approve">
+                                <i class="fas fa-check"></i>
                             </button>
-                            <button onclick="rejectOvertime('{{ $request->id }}')" class="text-red-600 hover:text-red-900 transition-colors">
-                                <i class="fas fa-times mr-1"></i>Reject
+                            <button onclick="rejectOvertime('{{ $request->id }}')" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors" title="Reject">
+                                <i class="fas fa-times"></i>
                             </button>
                         </div>
                         @endif
@@ -629,6 +662,13 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     flatpickr("#dateFrom", {
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "F j, Y",
+        disableMobile: "true"
+    });
+
+    flatpickr("#dateTo", {
         dateFormat: "Y-m-d",
         altInput: true,
         altFormat: "F j, Y",

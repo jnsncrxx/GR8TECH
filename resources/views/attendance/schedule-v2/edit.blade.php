@@ -56,7 +56,7 @@
                         </div>
                         <div>
                             <h3 class="text-lg font-medium text-gray-900">{{ $schedule->employee->full_name }}</h3>
-                            <p class="text-sm text-gray-600">{{ $schedule->employee->position }} - {{ $schedule->employee->department->name }}</p>
+                            <p class="text-sm text-gray-600">{{ $schedule->employee->position?->name ?? 'N/A' }} - {{ $schedule->employee->department?->name ?? 'N/A' }}</p>
                             <p class="text-sm text-gray-500">{{ $schedule->date->format('l, F j, Y') }}</p>
                         </div>
                     </div>
@@ -67,7 +67,7 @@
                     <label for="status" class="block text-sm font-medium text-gray-700 mb-2">Status</label>
                     <select name="status" id="status" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('status') border-red-500 @enderror">
                         <option value="">Select status</option>
-                        <option value="Working" {{ old('status', $schedule->status) == 'Working' ? 'selected' : '' }}>On Duty</option>
+                        <option value="Working" {{ old('status', $schedule->status) == 'Working' ? 'selected' : '' }}>Scheduled Workday</option>
                         <option value="Day Off" {{ old('status', $schedule->status) == 'Day Off' ? 'selected' : '' }}>Day Off</option>
                         <option value="Leave" {{ old('status', $schedule->status) == 'Leave' ? 'selected' : '' }}>Leave</option>
                         <option value="Absent" {{ old('status', $schedule->status) == 'Absent' ? 'selected' : '' }}>Absent</option>
