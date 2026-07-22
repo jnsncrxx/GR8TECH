@@ -60,6 +60,8 @@
                                     <p class="mt-1 text-xs text-gray-600">
                                         {{ \Carbon\Carbon::parse($schedule->time_in)->format('g:i A') }}–{{ \Carbon\Carbon::parse($schedule->time_out)->format('g:i A') }}
                                     </p>
+                                @elseif($schedule->isFlexible() && in_array($schedule->status, ['Working', 'Overtime']))
+                                    <p class="mt-1 text-xs text-purple-700">Flexible · {{ \App\Helpers\TimezoneHelper::formatHours((float) $schedule->required_hours) }} required</p>
                                 @endif
                             </div>
                         @endif

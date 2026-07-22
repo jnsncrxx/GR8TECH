@@ -153,6 +153,8 @@
                 <p class="mt-2 text-xl font-bold text-blue-950">{{ $todaySchedule->status_label }}</p>
                 @if($todaySchedule->time_in && $todaySchedule->time_out)
                     <p class="mt-1 text-sm text-blue-800">{{ \Carbon\Carbon::parse($todaySchedule->time_in)->format('g:i A') }}–{{ \Carbon\Carbon::parse($todaySchedule->time_out)->format('g:i A') }} · {{ \App\Helpers\TimezoneHelper::formatHours((float) $todaySchedule->required_hours) }}</p>
+                @elseif($todaySchedule->isFlexible() && in_array($todaySchedule->status, ['Working', 'Overtime']))
+                    <p class="mt-1 text-sm text-blue-800">Flexible · {{ \App\Helpers\TimezoneHelper::formatHours((float) $todaySchedule->required_hours) }} required</p>
                 @endif
             @else
                 <p class="mt-2 font-semibold text-red-700">No schedule assigned</p>
@@ -171,6 +173,8 @@
                         <p class="mt-1 text-xs font-semibold {{ $schedule->status === 'Working' ? 'text-green-700' : 'text-amber-700' }}">{{ $schedule->status_label }}</p>
                         @if($schedule->time_in)
                             <p class="text-[11px] text-gray-500">{{ \Carbon\Carbon::parse($schedule->time_in)->format('g:i A') }}</p>
+                        @elseif($schedule->isFlexible() && in_array($schedule->status, ['Working', 'Overtime']))
+                            <p class="text-[11px] text-purple-600">{{ \App\Helpers\TimezoneHelper::formatHours((float) $schedule->required_hours) }} flexi</p>
                         @endif
                     </div>
                 @endforeach

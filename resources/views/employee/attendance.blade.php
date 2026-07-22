@@ -48,6 +48,9 @@
                                 @if($schedule && $schedule->time_in && $schedule->time_out)
                                     <span class="text-gray-900">{{ \Carbon\Carbon::parse($schedule->time_in)->format('g:i A') }}–{{ \Carbon\Carbon::parse($schedule->time_out)->format('g:i A') }}</span>
                                     <span class="block text-xs text-gray-500">{{ $schedule->status_label }}</span>
+                                @elseif($schedule?->isFlexible() && in_array($schedule->status, ['Working', 'Overtime']))
+                                    <span class="text-purple-700">Flexible · {{ \App\Helpers\TimezoneHelper::formatHours((float) $schedule->required_hours) }} required</span>
+                                    <span class="block text-xs text-gray-500">{{ $schedule->status_label }}</span>
                                 @else
                                     <span class="{{ $schedule ? 'text-gray-600' : 'text-red-600' }}">{{ $schedule?->status_label ?? 'Missing schedule' }}</span>
                                 @endif
