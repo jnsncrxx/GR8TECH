@@ -280,9 +280,21 @@ class AttendanceController extends Controller
         });
 
         $exceptionFilter = $request->query('exception');
-        $filteredRecords = $exceptionFilter
-            ? $allAttendanceRecords->where('exception_code', $exceptionFilter)->values()
-            : $allAttendanceRecords;
+        $filteredRecords = match ($exceptionFilter) {
+            'manager_review' => $allAttendanceRecords
+                ->where('exception_severity', 'review')
+                ->values(),
+            'blocking' => $allAttendanceRecords
+                ->where('exception_severity', 'blocking')
+                ->values(),
+            'attention' => $allAttendanceRecords
+                ->whereIn('exception_severity', ['blocking', 'review'])
+                ->values(),
+            null, '' => $allAttendanceRecords,
+            default => $allAttendanceRecords
+                ->where('exception_code', $exceptionFilter)
+                ->values(),
+        };
 
         $page = max(1, (int) $request->query('page', 1));
         $perPage = 50;

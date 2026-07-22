@@ -3386,13 +3386,12 @@ function updateSelectionDisplay() {
 
 function processSelectedPayments() {
     if (selectedEmployees.size === 0) {
-        alert('Please select at least one employee to process payment.');
+        showNotification('Please select at least one employee to process payment.', 'error');
         return;
     }
-    
-    if (!confirm(`Process payments for ${selectedEmployees.size} employee(s) with total amount of ${document.getElementById('totalAmount').textContent}?`)) {
-        return;
-    }
+
+    // The payment modal already displays the selected employee count and
+    // total amount, so its Process Payments button is the confirmation step.
     
     const fromDate = formatDateForInput(selectedFromDate);
     const toDate = formatDateForInput(selectedToDate);

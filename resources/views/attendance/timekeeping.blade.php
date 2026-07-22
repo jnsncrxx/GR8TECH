@@ -108,6 +108,8 @@
                 <label for="exception" class="block text-sm font-medium text-gray-700 mb-2">Exception</label>
                 <select name="exception" id="exception" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900">
                     <option value="">All records</option>
+                    <option value="blocking" @selected(request('exception') === 'blocking')>All blocking exceptions</option>
+                    <option value="manager_review" @selected(request('exception') === 'manager_review')>All manager-review records</option>
                     <option value="incomplete" @selected(request('exception') === 'incomplete')>Incomplete log</option>
                     <option value="invalid_duration" @selected(request('exception') === 'invalid_duration')>Invalid duration</option>
                     <option value="missing_schedule" @selected(request('exception') === 'missing_schedule')>Missing schedule</option>
@@ -154,12 +156,12 @@
             + ($exceptionCounts['rest_day_attendance'] ?? 0);
     @endphp
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <a href="{{ request()->fullUrlWithQuery(['exception' => 'incomplete', 'page' => null]) }}" class="rounded-lg border border-red-200 bg-red-50 p-4">
+        <a href="{{ request()->fullUrlWithQuery(['exception' => 'blocking', 'page' => null]) }}" class="rounded-lg border border-red-200 bg-red-50 p-4">
             <p class="text-sm font-medium text-red-700">Blocking exceptions</p>
             <p class="mt-1 text-2xl font-bold text-red-900">{{ $blockingExceptions }}</p>
             <p class="text-xs text-red-700">Incomplete, invalid, or missing schedule</p>
         </a>
-        <a href="{{ request()->fullUrlWithQuery(['exception' => 'possible_wrong_schedule', 'page' => null]) }}" class="rounded-lg border border-amber-200 bg-amber-50 p-4">
+        <a href="{{ request()->fullUrlWithQuery(['exception' => 'manager_review', 'page' => null]) }}" class="rounded-lg border border-amber-200 bg-amber-50 p-4">
             <p class="text-sm font-medium text-amber-700">Manager review</p>
             <p class="mt-1 text-2xl font-bold text-amber-900">{{ $reviewExceptions }}</p>
             <p class="text-xs text-amber-700">Possible wrong shift or rest-day duty</p>

@@ -157,11 +157,10 @@
                                             @endif
 
                                             @if($user->role !== 'employee' && $period->canBeDeleted())
-                                                <form method="POST" action="{{ route('attendance.period-management.destroy', $period->id) }}" class="inline"
-                                                      onsubmit="return confirm('Delete this draft payroll period?')">
+                                                <form id="delete-period-form-{{ $period->id }}" method="POST" action="{{ route('attendance.period-management.destroy', $period->id) }}" class="inline">
                                                     @csrf
                                                     @method('DELETE')
-                                                    <button type="submit" class="px-3 py-2 rounded-lg bg-red-50 text-red-700 text-sm font-medium hover:bg-red-100">
+                                                    <button type="button" onclick="openAppConfirmationModal('delete-period-form-{{ $period->id }}', 'Delete draft cutoff?', @js('Delete ' . $period->name . '? This action cannot be undone.'), 'Delete Draft', 'red')" class="px-3 py-2 rounded-lg bg-red-50 text-red-700 text-sm font-medium hover:bg-red-100">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
                                                 </form>
@@ -225,6 +224,8 @@
         </div>
     </div>
 </div>
+
+@include('components.confirmation-modal')
 
 <script>
 const searchInput = document.getElementById('searchInput');

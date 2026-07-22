@@ -74,21 +74,11 @@
                     <div class="flex space-x-3">
                         @if($user->role !== 'employee')
                             @if($period->status === \App\Models\Period::STATUS_READY)
-                                <a href="{{ route('attendance.period-management.preview-payroll', $period->id) }}"
-                                   class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50">
-                                    <i class="fas fa-eye mr-2"></i>
-                                    Preview Payroll
+                                <a href="{{ route('payroll.runs', ['period_id' => $period->id]) }}"
+                                   class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-lg font-medium text-white hover:bg-green-700">
+                                    <i class="fas fa-arrow-right mr-2"></i>
+                                    Send to Payroll
                                 </a>
-                                <form method="POST"
-                                      action="{{ route('attendance.period-management.generate-payroll', $period->id) }}"
-                                      onsubmit="return confirm('Generate payroll for this period?');">
-                                    @csrf
-                                    <button type="submit"
-                                            class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-lg font-medium text-white hover:bg-green-700">
-                                        <i class="fas fa-calculator mr-2"></i>
-                                        Generate Payroll
-                                    </button>
-                                </form>
                             @elseif(in_array($period->status, [
                                 \App\Models\Period::STATUS_PROCESSING,
                                 \App\Models\Period::STATUS_FOR_REVIEW,
@@ -192,12 +182,12 @@
                                         </button>
                                     </form>
                                 @elseif($existingPayrolls->isEmpty())
-                                    <form method="POST"
-                                          action="{{ route('attendance.period-management.reset-validation-component', [$period->id, $component]) }}"
-                                          onsubmit="return confirm('Reset this validation item?');">
+                                    <form id="reset-validation-form-{{ $component }}" method="POST"
+                                          action="{{ route('attendance.period-management.reset-validation-component', [$period->id, $component]) }}">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit"
+                                        <button type="button"
+                                                onclick="openAppConfirmationModal('reset-validation-form-{{ $component }}', 'Reset {{ $item['label'] }} validation?', 'This gate must be reviewed and confirmed again before payroll can proceed.', 'Reset Validation', 'amber')"
                                                 class="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
                                             Reset
                                         </button>
@@ -218,18 +208,26 @@
         </div>
 
         @if(isset($scheduleExceptions) && $scheduleExceptions->isNotEmpty())
-            <div class="bg-white rounded-lg shadow-sm border border-red-200 mb-6 overflow-hidden">
-                <div class="px-6 py-4 bg-red-50 border-b border-red-200">
+            @php
+                $hasBlockingScheduleExceptions = $scheduleExceptions->contains(
+                    fn ($exception) => ($exception['validation_issue'] ?? null) !== 'Rest Day Duty Review'
+                );
+                $exceptionTone = $hasBlockingScheduleExceptions ? 'red' : 'amber';
+            @endphp
+            <div class="bg-white rounded-lg shadow-sm border border-{{ $exceptionTone }}-200 mb-6 overflow-hidden">
+                <div class="px-6 py-4 bg-{{ $exceptionTone }}-50 border-b border-{{ $exceptionTone }}-200">
                     <div class="flex flex-wrap items-center justify-between gap-3">
-                        <h2 class="text-lg font-semibold text-red-900">
+                        <h2 class="text-lg font-semibold text-{{ $exceptionTone }}-900">
                             <i class="fas fa-exclamation-triangle mr-2"></i>Schedule & Attendance Exceptions
                         </h2>
-                        <a href="{{ route('attendance.timekeeping', ['date_from' => $period->start_date->format('Y-m-d'), 'date_to' => $period->end_date->format('Y-m-d')]) }}" class="inline-flex items-center rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100">
+                        <a href="{{ route('attendance.timekeeping', ['date_from' => $period->start_date->format('Y-m-d'), 'date_to' => $period->end_date->format('Y-m-d'), 'exception' => 'attention']) }}" class="inline-flex items-center rounded-lg border border-{{ $exceptionTone }}-300 bg-white px-3 py-2 text-sm font-medium text-{{ $exceptionTone }}-700 hover:bg-{{ $exceptionTone }}-100">
                             <i class="fas fa-external-link-alt mr-2"></i>Review in Timekeeping
                         </a>
                     </div>
-                    <p class="mt-1 text-sm text-red-700">
-                        Resolve these items before confirming Attendance Validation.
+                    <p class="mt-1 text-sm text-{{ $exceptionTone }}-700">
+                        {{ $hasBlockingScheduleExceptions
+                            ? 'Resolve the blocking items before confirming Attendance Validation.'
+                            : 'Manager review required. A valid rest-day duty may remain a warning when its approved duty/overtime filing is present.' }}
                     </p>
                 </div>
                 <div class="overflow-x-auto">
@@ -253,7 +251,7 @@
                                     <td class="px-4 py-3 text-gray-700">{{ $exception['schedule_in_out'] ?? '—' }}</td>
                                     <td class="px-4 py-3 text-gray-700">{{ $exception['actual_in_out'] ?? '—' }}</td>
                                     <td class="px-4 py-3">
-                                        <span class="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
+                                        <span class="inline-flex rounded-full bg-{{ ($exception['validation_issue'] ?? null) === 'Rest Day Duty Review' ? 'amber' : 'red' }}-100 px-2.5 py-1 text-xs font-semibold text-{{ ($exception['validation_issue'] ?? null) === 'Rest Day Duty Review' ? 'amber' : 'red' }}-700">
                                             {{ $exception['validation_issue'] }}
                                         </span>
                                     </td>
@@ -588,6 +586,8 @@
         </div>
     </div>
 </div>
+
+@include('components.confirmation-modal')
 
 <script>
 // Export functions

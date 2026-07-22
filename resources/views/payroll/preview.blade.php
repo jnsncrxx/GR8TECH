@@ -172,35 +172,52 @@
                 <div class="flex items-center justify-between">
                     <h2 class="text-lg font-semibold text-gray-900">Payroll Preview - Review Before Finalizing</h2>
                     <div class="flex space-x-3">
-                        <a href="{{ route('attendance.period-management.preview-payroll', $period['id']) }}" class="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                        <a href="{{ route('payroll.periods.preview', $period['id']) }}" class="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
                             <i class="fas fa-sync-alt mr-2"></i>
                             Refresh Preview
                         </a>
-                        <button onclick="exportPreviewToCSV()" class="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-                            <i class="fas fa-download mr-2"></i>
-                            Export CSV
-                        </button>
+                        <a href="{{ route('payroll.periods.preview-pdf', $period['id']) }}" class="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                            <i class="fas fa-file-pdf mr-2 text-red-600"></i>
+                            Export PDF
+                        </a>
                     </div>
                 </div>
             </div>
 
             <div class="overflow-x-auto">
+                @php
+                    $earningLabels = [
+                        'basic_salary' => 'Basic salary',
+                        'allowances' => 'Allowances',
+                        'paid_leave' => 'Paid leave',
+                        'overtime' => 'Overtime',
+                        'night_differential' => 'Night differential',
+                        'holiday_pay' => 'Holiday pay',
+                        'rest_day_premium' => 'Rest-day premium',
+                        'bonuses' => 'Bonuses',
+                        'other' => 'Other earnings',
+                    ];
+                    $deductionLabels = [
+                        'total_late_deduction' => 'Late',
+                        'absence' => 'Absence',
+                        'unpaid_leave' => 'Unpaid leave',
+                        'undertime' => 'Undertime',
+                        'sss' => 'SSS',
+                        'philhealth' => 'PhilHealth',
+                        'pagibig' => 'Pag-IBIG',
+                        'other' => 'Other deductions',
+                        'loan' => 'Loan',
+                    ];
+                @endphp
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Basic Salary</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Allowance</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Regular Holiday</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Special Holiday</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Regular OverTime</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Night Differential</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bonuses</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Late</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deductions</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tax</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gross Pay</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Deductions</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tax</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net Pay</th>
                         </tr>
                     </thead>
@@ -223,89 +240,41 @@
                                     {{ number_format($payroll['scheduled_hours'] ?? 0, 1) }} hrs scheduled
                                 </div>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                <div class="font-medium">₱{{ number_format($payroll['allowances'] ?? 0, 2) }}</div>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                <div class="font-medium">₱{{ number_format($payroll['holiday_premium'] ?? 0, 2) }}</div>
-                                @if(isset($payroll['regular_holiday_days']) && $payroll['regular_holiday_days'] > 0)
-                                    <div class="text-gray-500 text-xs">({{ $payroll['regular_holiday_days'] }} day{{ $payroll['regular_holiday_days'] > 1 ? 's' : '' }})</div>
-                                @endif
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                <div class="font-medium">₱{{ number_format($payroll['special_holiday_premium'] ?? 0, 2) }}</div>
-                                @if(isset($payroll['special_holiday_days']) && $payroll['special_holiday_days'] > 0)
-                                    <div class="text-gray-500 text-xs">({{ $payroll['special_holiday_days'] }} day{{ $payroll['special_holiday_days'] > 1 ? 's' : '' }})</div>
-                                @endif
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                <div class="text-sm">{{ number_format($payroll['overtime_hours'] ?? 0, 1) }} hrs</div>
-                                <div class="text-xs text-gray-500">₱{{ number_format($payroll['overtime_pay'] ?? 0, 2) }}</div>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                <div class="font-medium">₱{{ number_format($payroll['night_differential_pay'] ?? 0, 2) }}</div>
-                                @if(isset($payroll['night_differential_hours']) && $payroll['night_differential_hours'] > 0)
-                                    <div class="text-xs text-gray-500">
-                                        <i class="fas fa-moon mr-1"></i>{{ number_format($payroll['night_differential_hours'], 1) }} hrs
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                <div>₱{{ number_format($payroll['gross_pay'] ?? 0, 2) }}</div>
+                                <details class="mt-1 text-xs font-normal text-gray-600">
+                                    <summary class="cursor-pointer select-none text-green-700 hover:text-green-900">View earnings</summary>
+                                    <div class="mt-2 min-w-48 space-y-1 rounded border border-gray-200 bg-white p-2 shadow-sm">
+                                        @foreach($earningLabels as $key => $label)
+                                            <div class="flex justify-between gap-3 {{ ($payroll['earnings_details'][$key] ?? 0) > 0 ? '' : 'text-gray-400' }}">
+                                                <span>{{ $label }}</span>
+                                                <span class="font-medium">₱{{ number_format($payroll['earnings_details'][$key] ?? 0, 2) }}</span>
+                                            </div>
+                                        @endforeach
+                                        <div class="mt-1 flex justify-between gap-3 border-t border-gray-200 pt-1 font-semibold text-gray-800">
+                                            <span>Gross pay</span>
+                                            <span>₱{{ number_format($payroll['gross_pay'] ?? 0, 2) }}</span>
+                                        </div>
                                     </div>
-                                    <div class="text-xs text-gray-500">
-                                        @ ₱{{ number_format($payroll['night_differential_rate'] ?? 0, 2) }}/hr
-                                    </div>
-                                @else
-                                    <div class="text-xs text-gray-500">
-                                        <i class="fas fa-moon mr-1"></i>0.0 hrs
-                                    </div>
-                                @endif
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                ₱{{ number_format($payroll['bonuses'] ?? 0, 2) }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600">
-                                @if(isset($payroll['deductions_details']) && $payroll['deductions_details']['total_late_minutes'] > 0)
-                                    <div class="font-medium">₱{{ number_format($payroll['deductions_details']['total_late_deduction'], 2) }}</div>
-                                    <div class="text-xs text-red-500 mt-1">
-                                        <i class="fas fa-clock mr-1"></i>{{ $payroll['deductions_details']['total_late_minutes'] }} mins late
-                                    </div>
-                                    <div class="text-xs text-gray-500">
-                                        ({{ $payroll['deductions_details']['late_days_count'] }} day{{ $payroll['deductions_details']['late_days_count'] > 1 ? 's' : '' }})
-                                    </div>
-                                    
-                                @else
-                                    <div class="font-medium">₱0.00</div>
-                                    <div class="text-xs text-gray-500 mt-1">
-                                        <i class="fas fa-clock mr-1"></i>0 mins late
-                                    </div>
-                                    <div class="text-xs text-gray-500">
-                                        (0 days)
-                                    </div>
-                                @endif
+                                </details>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600">
                                 <div class="font-medium">₱{{ number_format($payroll['deductions'] ?? 0, 2) }}</div>
                                 @if(isset($payroll['deductions_details']))
-                                    @php
-                                        $deductionLabels = [
-                                            'absence' => 'Absence',
-                                            'unpaid_leave' => 'Unpaid leave',
-                                            'undertime' => 'Undertime',
-                                            'sss' => 'SSS',
-                                            'philhealth' => 'PhilHealth',
-                                            'pagibig' => 'Pag-IBIG',
-                                            'other' => 'Other',
-                                            'loan' => 'Loan',
-                                        ];
-                                    @endphp
                                     <details class="mt-1 text-xs text-gray-600">
                                         <summary class="cursor-pointer select-none text-blue-600 hover:text-blue-800">View breakdown</summary>
                                         <div class="mt-2 min-w-44 space-y-1 rounded border border-gray-200 bg-white p-2 shadow-sm">
                                             @foreach($deductionLabels as $key => $label)
-                                                @if(($payroll['deductions_details'][$key] ?? 0) > 0)
-                                                    <div class="flex justify-between gap-3">
-                                                        <span>{{ $label }}</span>
-                                                        <span class="font-medium">₱{{ number_format($payroll['deductions_details'][$key], 2) }}</span>
-                                                    </div>
-                                                @endif
+                                                <div class="flex justify-between gap-3 {{ ($payroll['deductions_details'][$key] ?? 0) > 0 ? '' : 'text-gray-400' }}">
+                                                    <span>{{ $label }}</span>
+                                                    <span class="font-medium">₱{{ number_format($payroll['deductions_details'][$key] ?? 0, 2) }}</span>
+                                                </div>
                                             @endforeach
+                                            <div class="mt-1 flex justify-between gap-3 border-t border-gray-200 pt-1 font-semibold text-gray-800">
+                                                <span>Total deductions</span>
+                                                <span>₱{{ number_format($payroll['deductions'] ?? 0, 2) }}</span>
+                                            </div>
+                                            <div class="text-[11px] text-gray-500">Tax is displayed separately in the Tax column.</div>
                                             @if(($payroll['deductions_details']['deferred'] ?? 0) > 0)
                                                 <div class="mt-1 border-t border-gray-200 pt-1 text-amber-700">
                                                     ₱{{ number_format($payroll['deductions_details']['deferred'], 2) }} capped/deferred to prevent negative net pay
@@ -318,9 +287,6 @@
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 ₱{{ number_format($payroll['tax_amount'] ?? 0, 2) }}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                ₱{{ number_format($payroll['gross_pay'] ?? 0, 2) }}
-                            </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
                                 ₱{{ number_format($payroll['net_pay'] ?? 0, 2) }}
                             </td>
@@ -331,16 +297,9 @@
                         <tr class="font-semibold">
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" colspan="2">TOTAL</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ number_format($summaryData['total_basic_salary'] + $summaryData['total_holiday_basic_pay'], 2) }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ number_format($previewTotalAllowances, 2) }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ number_format($summaryData['total_holiday_premium'], 2) }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ number_format($summaryData['total_special_holiday_premium'], 2) }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ number_format($summaryData['total_overtime_pay'], 2) }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ number_format(collect($previewPayrolls)->sum('night_differential_pay'), 2) }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ number_format($summaryData['total_bonuses'], 2) }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600">₱{{ number_format(collect($previewPayrolls)->sum(function($p) { return isset($p['deductions_details']) ? $p['deductions_details']['total_late_deduction'] : 0; }), 2) }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">₱{{ number_format($summaryData['total_gross_pay'], 2) }}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600">₱{{ number_format($summaryData['total_deductions'], 2) }}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ number_format($summaryData['total_tax'], 2) }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">₱{{ number_format($summaryData['total_gross_pay'], 2) }}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">₱{{ number_format($summaryData['total_net_pay'], 2) }}</td>
                         </tr>
                     </tfoot>
@@ -361,7 +320,7 @@
                             <div class="ml-3">
                                 <h3 class="text-sm font-medium text-yellow-800">Important</h3>
                                 <div class="mt-2 text-sm text-yellow-700">
-                                    <p>Please review all calculations carefully before finalizing. Once approved, payroll records will be created and cannot be easily modified.</p>
+                                    <p>Please review all calculations carefully. Confirming this preview creates the payroll records and moves the cutoff into payroll processing.</p>
                                 </div>
                             </div>
                         </div>
@@ -373,11 +332,11 @@
                             Cancel
                         </a>
                         
-                        <form method="POST" action="{{ route('attendance.period-management.generate-payroll', $period['id']) }}" class="inline">
+                        <form id="generate-payroll-form" method="POST" action="{{ route('payroll.periods.generate', $period['id']) }}" class="inline">
                             @csrf
-                            <button type="submit" class="inline-flex items-center px-6 py-3 bg-green-600 border border-transparent rounded-lg font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors" onclick="return confirm('Are you sure you want to finalize this payroll? This action cannot be undone.')">
+                            <button type="button" onclick="openPayrollGenerationModal()" class="inline-flex items-center px-6 py-3 bg-green-600 border border-transparent rounded-lg font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors">
                                 <i class="fas fa-check mr-2"></i>
-                                Approve & Generate Payroll
+                                Confirm & Generate Payroll
                             </button>
                         </form>
                     </div>
@@ -387,10 +346,11 @@
     </div>
 </div>
 
-<script>
-function exportPreviewToCSV() {
-    // Implementation for CSV export
-    alert('CSV export functionality will be implemented');
-}
-</script>
+@include('components.payroll-generation-modal', [
+    'generationPeriodName' => $period['name'] ?? 'this cutoff',
+    'generationEmployeeCount' => count($previewPayrolls),
+    'generationGrossPay' => $summaryData['total_gross_pay'] ?? 0,
+    'generationNetPay' => $summaryData['total_net_pay'] ?? 0,
+])
+
 @endsection

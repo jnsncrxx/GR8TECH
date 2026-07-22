@@ -269,11 +269,11 @@
                     <i class="fas fa-calculator text-4xl"></i>
                 </div>
                 <h3 class="mt-4 text-lg font-medium text-gray-900">No payroll records found</h3>
-                <p class="mt-2 text-sm text-gray-600">No payroll data available for this period. Generate payroll first.</p>
+                <p class="mt-2 text-sm text-gray-600">No payroll data is available. Return to the period, review its payroll preview, then confirm generation.</p>
                 <div class="mt-6">
                     <a href="{{ route('attendance.period-management.show', $period['id']) }}" class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-lg font-medium text-white hover:bg-green-700">
-                        <i class="fas fa-calculator mr-2"></i>
-                        Generate Payroll
+                        <i class="fas fa-arrow-left mr-2"></i>
+                        Return to Period Review
                     </a>
                 </div>
             </div>
@@ -290,30 +290,26 @@
 
                 <div class="flex flex-wrap gap-3">
                     @if($periodModel->status === \App\Models\Period::STATUS_PROCESSING)
-                        <form method="POST" action="{{ route('attendance.period-management.submit-for-review', $periodModel->id) }}"
-                              onsubmit="return confirm('Submit the corrected payroll for review?');">
+                        <form id="submit-payroll-review-form" method="POST" action="{{ route('attendance.period-management.submit-for-review', $periodModel->id) }}">
                             @csrf
-                            <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700">
+                            <button type="button" onclick="openAppConfirmationModal('submit-payroll-review-form', 'Submit payroll for review?', 'This sends the corrected payroll to the final review stage.', 'Submit for Review', 'blue')" class="px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700">
                                 Submit for Review
                             </button>
                         </form>
                     @elseif($periodModel->status === \App\Models\Period::STATUS_FOR_REVIEW)
-                        <form method="POST" action="{{ route('payroll.periods.return-to-processing', $periodModel->id) }}"
-                              class="flex gap-2"
-                              onsubmit="return confirm('Return this payroll for correction?');">
+                        <form id="return-payroll-processing-form" method="POST" action="{{ route('payroll.periods.return-to-processing', $periodModel->id) }}" class="flex gap-2">
                             @csrf
                             <input type="text" name="reason" required maxlength="1000"
                                    placeholder="Reason for correction"
                                    class="rounded-lg border-gray-300 text-sm">
-                            <button type="submit" class="px-4 py-2 rounded-lg border border-yellow-300 bg-yellow-50 text-yellow-800 font-medium hover:bg-yellow-100">
+                            <button type="button" onclick="openAppConfirmationModal('return-payroll-processing-form', 'Return payroll for correction?', 'The payroll will return to Processing using the correction reason entered beside this button.', 'Return to Processing', 'amber')" class="px-4 py-2 rounded-lg border border-yellow-300 bg-yellow-50 text-yellow-800 font-medium hover:bg-yellow-100">
                                 Return to Processing
                             </button>
                         </form>
 
-                        <form method="POST" action="{{ route('payroll.periods.finalize', $periodModel->id) }}"
-                              onsubmit="return confirm('Finalize this payroll? Confirm that all computations are correct.');">
+                        <form id="finalize-payroll-form" method="POST" action="{{ route('payroll.periods.finalize', $periodModel->id) }}">
                             @csrf
-                            <button type="submit" class="px-4 py-2 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700">
+                            <button type="button" onclick="openAppConfirmationModal('finalize-payroll-form', 'Finalize payroll?', 'Confirm that employee earnings, deductions, tax, and net pay have been reviewed. Finalization prepares this run for locking.', 'Finalize Payroll', 'green')" class="px-4 py-2 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700">
                                 Finalize Payroll
                             </button>
                         </form>
@@ -338,6 +334,8 @@
 </div>
 
 @include('components.payroll-lock-modal')
+
+@include('components.confirmation-modal')
 
 <script>
 function exportToCSV() {

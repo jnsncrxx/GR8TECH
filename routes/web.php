@@ -62,9 +62,12 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
    Route::get('/payroll/manage', [PayrollController::class, 'index'])->name('payroll.manage');
     Route::get('/payroll', [PayrollController::class, 'index'])->name('payroll.index');
     Route::get('/payroll-runs', [PayrollController::class, 'runs'])->name('payroll.runs');
-    // Post-generation payroll workflow belongs to the Payroll module. Period
-    // Management remains responsible for cutoff setup, validation and generation.
+    // Payroll calculation and the post-generation workflow belong to Payroll.
+    // Attendance Period Management only prepares and validates cutoff data.
     Route::prefix('payroll/periods')->name('payroll.periods.')->group(function () {
+        Route::get('/{period}/preview', [PeriodManagementController::class, 'previewPayroll'])->name('preview');
+        Route::get('/{period}/preview/pdf', [PeriodManagementController::class, 'previewPayroll'])->name('preview-pdf');
+        Route::post('/{period}/generate', [PeriodManagementController::class, 'generatePayroll'])->name('generate');
         Route::get('/{period}', [PeriodManagementController::class, 'showPayrollSummary'])->name('review');
         Route::post('/{period}/return-to-processing', [PeriodManagementController::class, 'returnToProcessing'])->name('return-to-processing');
         Route::post('/{period}/finalize', [PeriodManagementController::class, 'finalizePayroll'])->name('finalize');
@@ -405,8 +408,9 @@ Route::get('/debug-current-payrolls', function() {
             [PeriodManagementController::class, 'generatePayroll']
         )->name('generate-payroll');
 
-        Route::get('/{period}/preview-payroll', [PeriodManagementController::class, 'previewPayroll'])
-            ->name('preview-payroll');
+        Route::get('/{period}/preview-payroll', function ($period) {
+            return redirect()->route('payroll.periods.preview', $period);
+        })->name('preview-payroll');
 
         Route::get('/{period}/payroll-summary', function ($period) {
             return redirect()->route('payroll.periods.review', $period);

@@ -13,6 +13,7 @@
                 <div id="selected-payment-modal-net" class="text-xl font-bold text-green-800">₱0.00</div>
             </div>
         </div>
+        <div id="selected-payment-error" class="mt-3 hidden rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800" role="alert"></div>
         <div class="mt-6 flex justify-end gap-3">
             <button type="button" onclick="closeSelectedPaymentModal()" class="rounded-lg border-2 border-gray-500 bg-white px-4 py-2 font-semibold text-black hover:bg-gray-100">Cancel</button>
             <button id="selected-payment-confirm" type="button" class="rounded-lg border-2 border-green-800 bg-green-500 px-4 py-2 font-bold text-black hover:bg-green-600">
@@ -33,6 +34,7 @@ function openSelectedPaymentModal() {
     document.getElementById('selected-payment-modal-count').textContent = selected.length;
     document.getElementById('selected-payment-modal-net').textContent = '₱' + total.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     const modal = document.getElementById('selected-payment-modal');
+    document.getElementById('selected-payment-error').classList.add('hidden');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
 }
@@ -67,7 +69,11 @@ document.getElementById('selected-payment-confirm').addEventListener('click', as
         if (!response.ok || !result.success) throw new Error(result.message || 'Payment processing failed.');
         window.location.reload();
     } catch (error) {
-        alert(error.message);
+        const errorBox = document.getElementById('selected-payment-error');
+        if (errorBox) {
+            errorBox.textContent = error.message;
+            errorBox.classList.remove('hidden');
+        }
         button.disabled = false;
         button.innerHTML = '<i class="fas fa-credit-card mr-2"></i>Confirm Payments';
     }

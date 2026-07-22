@@ -522,10 +522,14 @@ class PayrollController extends Controller
 
         $query = Period::with('department')
             ->withCount('payrolls')
-            ->whereHas('payrolls')
+            ->where(function ($periodQuery) {
+                $periodQuery->where('status', Period::STATUS_READY)
+                    ->orWhereHas('payrolls');
+            })
             ->when($currentCompany, fn ($periodQuery) => $periodQuery->where('company_id', $currentCompany->id));
 
         if ($request->filled('status') && in_array($request->status, [
+            Period::STATUS_READY,
             Period::STATUS_PROCESSING,
             Period::STATUS_FOR_REVIEW,
             Period::STATUS_FINALIZED,

@@ -448,7 +448,7 @@ class PeriodManagementController extends Controller
         if ($targetStatus === Period::STATUS_PROCESSING) {
             return back()->with(
                 'warning',
-                'Use Generate Payroll to move this period into Processing.'
+                'Review the payroll preview, then use Confirm & Generate Payroll to move this period into Processing.'
             );
         }
 
@@ -933,8 +933,17 @@ class PeriodManagementController extends Controller
             $user = auth()->user() ?? (object) ['role' => 'admin'];
             $generatedAt = now();
 
+            if (request()->routeIs('payroll.periods.preview-pdf')) {
+                return \Barryvdh\DomPDF\Facade\Pdf::loadView(
+                    'payroll.preview-pdf',
+                    compact('user', 'period', 'previewPayrolls', 'summaryData', 'generatedAt')
+                )
+                    ->setPaper('a4', 'landscape')
+                    ->download('payroll-preview-' . $startDate->format('Ymd') . '-' . $endDate->format('Ymd') . '.pdf');
+            }
+
             return view(
-                'attendance.period-management.payroll-preview',
+                'payroll.preview',
                 compact('user', 'period', 'previewPayrolls', 'summaryData', 'generatedAt')
             );
         } catch (Throwable $exception) {

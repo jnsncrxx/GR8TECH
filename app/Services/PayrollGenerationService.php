@@ -1368,8 +1368,9 @@ class PayrollGenerationService
             'holiday_basic_pay' => $holidayData['basic_pay'] ?? 0,
             'holiday_premium' => $holidayData['premium_pay'] ?? 0,
             'special_holiday_premium' => $holidayData['special_premium'] ?? 0,
-            'regular_holiday_days' => $holidayData['regular_days'] ?? 0,
-            'special_holiday_days' => $holidayData['special_days'] ?? 0,
+            'holiday_pay' => $holidayData['total_pay'] ?? 0,
+            'regular_holiday_days' => $holidayData['regular_holiday_days'] ?? 0,
+            'special_holiday_days' => $holidayData['special_holiday_days'] ?? 0,
             'scheduled_hours' => $this->sumScheduledHours($employeeRecords),
         ];
     }
@@ -2427,6 +2428,7 @@ class PayrollGenerationService
             'holiday_basic_pay' => $components['holiday_basic_pay'] ?? 0,
             'holiday_premium' => $components['holiday_premium'] ?? 0,
             'special_holiday_premium' => $components['special_holiday_premium'] ?? 0,
+            'holiday_pay' => $components['holiday_pay'] ?? 0,
             'regular_holiday_days' => $components['regular_holiday_days'] ?? 0,
             'special_holiday_days' => $components['special_holiday_days'] ?? 0,
             'deductions' => $components['total_deductions'],
@@ -2455,6 +2457,17 @@ class PayrollGenerationService
                 'loan' => $components['loan_deduction'] ?? 0,
                 'scheduled' => $components['scheduled_deductions'] ?? $components['total_deductions'],
                 'deferred' => $components['deferred_deductions'] ?? 0,
+            ],
+            'earnings_details' => [
+                'basic_salary' => $components['basic_salary'] ?? 0,
+                'allowances' => max(0, ($components['allowances'] ?? 0) - ($components['sick_leave_pay'] ?? 0)),
+                'paid_leave' => $components['sick_leave_pay'] ?? 0,
+                'overtime' => $components['overtime_pay'] ?? 0,
+                'night_differential' => $components['night_differential_pay'] ?? 0,
+                'holiday_pay' => $components['holiday_pay'] ?? 0,
+                'rest_day_premium' => $components['rest_day_premium_pay'] ?? 0,
+                'bonuses' => $components['bonuses'] ?? 0,
+                'other' => $components['other_earnings'] ?? 0,
             ],
             'status' => 'preview',
         ];

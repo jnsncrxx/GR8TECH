@@ -13,35 +13,73 @@ class OvertimeController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        
-        $query = \App\Models\OvertimeRequest::with(['employee', 'employee.department']);
-        
-        if ($user->role === 'employee') {
-            if ($user->employee_id) {
-                $query->where('employee_id', $user->employee_id);
-            } else {
-                $query->where('id', -1); // No records if no employee ID
+        $isReviewer = in_array($user->role, ['admin', 'hr', 'manager'], true);
+
+        // Keep displayed and filtered statuses authoritative between scheduled
+        // expiry sweeps, matching the Official Business reviewer portal.
+        \App\Models\OvertimeRequest::pastDeadline()->update([
+            'status' => \App\Models\OvertimeRequest::EXPIRED,
+            'updated_at' => now(),
+        ]);
+
+        $applyFilters = function ($query) use ($request, $user, $isReviewer) {
+            if (!$isReviewer) {
+                $user->employee_id
+                    ? $query->where('employee_id', $user->employee_id)
+                    : $query->whereRaw('1 = 0');
+            } elseif ($request->filled('employee_id')) {
+                $query->where('employee_id', $request->query('employee_id'));
             }
+
+            if ($isReviewer && $request->filled('department_id')) {
+                $departmentId = $request->query('department_id');
+                $query->whereHas('employee', fn ($employee) => $employee->where('department_id', $departmentId));
+            }
+
+            if ($request->filled('status')) {
+                $query->where('status', $request->query('status'));
+            }
+
+            if ($request->filled('date_from')) {
+                $query->whereDate('date', '>=', $request->query('date_from'));
+            }
+
+            if ($request->filled('date_to')) {
+                $query->whereDate('date', '<=', $request->query('date_to'));
+            }
+
+            return $query;
+        };
+
+        $query = $applyFilters(
+            \App\Models\OvertimeRequest::with(['employee.department', 'approver.employee'])
+        );
+
+        if (($user->role ?? null) === 'manager') {
+            $query->orderByRaw("CASE WHEN status = 'pending' THEN 0 ELSE 1 END");
         }
-        
-        $overtimeRequests = $query->orderBy('created_at', 'desc')->paginate(10);
-        
-        // Base queries for summary
-        $summaryQuery = \App\Models\OvertimeRequest::query();
-        if ($user->role === 'employee') {
-            $summaryQuery->where('employee_id', $user->employee_id);
-        }
+
+        $overtimeRequests = $query
+            ->orderBy('created_at', 'desc')
+            ->paginate(10)
+            ->withQueryString();
+
+        $summaryQuery = $applyFilters(\App\Models\OvertimeRequest::query());
         
         $summary = [
             "total" => (clone $summaryQuery)->count(),
             "approved" => (clone $summaryQuery)->where('status', 'approved')->count(),
             "pending" => (clone $summaryQuery)->where('status', 'pending')->count(),
             "rejected" => (clone $summaryQuery)->where('status', 'rejected')->count(),
-            "total_hours" => (clone $summaryQuery)->where('status', 'approved')->sum('hours')
+            "expired" => (clone $summaryQuery)->where('status', 'expired')->count(),
+            "total_hours" => (clone $summaryQuery)->where('status', 'approved')->sum('hours'),
         ];
         
-        $departments = \App\Models\Department::all();
-        $employees = \App\Models\Employee::all();
+        $departments = \App\Models\Department::orderBy('name')->get();
+        $employees = \App\Models\Employee::with('department')
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
 
         $employeeOvertimeDates = collect();
         if ($user->role === 'employee' && $user->employee_id) {
@@ -63,7 +101,9 @@ class OvertimeController extends Controller
             "overtimeRequests" => $overtimeRequests,
             "departments" => $departments,
             "employees" => $employees,
-            "employeeOvertimeDates" => $employeeOvertimeDates
+            "employeeOvertimeDates" => $employeeOvertimeDates,
+            "isReviewer" => $isReviewer,
+            "currentEmployeeId" => $user->employee_id,
         ]);
     }
 
