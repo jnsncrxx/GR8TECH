@@ -161,6 +161,18 @@
                                     @enderror
                                 </div>
 
+                                <div>
+                                    <label for="schedule_type" class="block text-sm font-medium text-gray-700 mb-2">
+                                        <i class="fas fa-business-time mr-1"></i>Schedule Type
+                                    </label>
+                                    <select name="schedule_type" id="schedule_type" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('schedule_type') border-red-500 @enderror">
+                                        <option value="fixed" {{ old('schedule_type', 'fixed') === 'fixed' ? 'selected' : '' }}>Fixed hours</option>
+                                        <option value="flexible" {{ old('schedule_type') === 'flexible' ? 'selected' : '' }}>Flexible hours</option>
+                                    </select>
+                                    <p class="mt-1 text-xs text-gray-500">Fixed defaults to 8:00 AM–5:00 PM and remains editable.</p>
+                                    @error('schedule_type')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+                                </div>
+
                                 <!-- Time In/Out (only show for working status) -->
                                 <div id="timeFields" class="grid grid-cols-2 gap-4" style="display: none;">
                                     <div>
@@ -182,6 +194,15 @@
                                         <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                                         @enderror
                                     </div>
+                                </div>
+
+                                <div id="requiredHoursField" style="display: none;">
+                                    <label for="required_hours" class="block text-sm font-medium text-gray-700 mb-2">
+                                        <i class="fas fa-hourglass-half mr-1"></i>Required Hours
+                                    </label>
+                                    <input type="number" name="required_hours" id="required_hours" min="1" max="24" step="0.25" value="{{ old('required_hours', 8) }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('required_hours') border-red-500 @enderror">
+                                    <p class="mt-1 text-xs text-gray-500">Flexible schedules are measured by completed hours, with no fixed clock-in time.</p>
+                                    @error('required_hours')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
                                 </div>
 
                                 <!-- Notes -->
@@ -249,29 +270,42 @@
         });
     }
 
-    // Show/hide time fields based on status
-    document.getElementById('status').addEventListener('change', function() {
+    function syncScheduleFields() {
+        const statusField = document.getElementById('status');
+        const scheduleTypeField = document.getElementById('schedule_type');
         const timeFields = document.getElementById('timeFields');
         const timeInField = document.getElementById('time_in');
         const timeOutField = document.getElementById('time_out');
+        const requiredHoursField = document.getElementById('requiredHoursField');
+        const requiredHoursInput = document.getElementById('required_hours');
+        const isWorkSchedule = statusField.value === 'Working' || statusField.value === 'Overtime';
+        const isFlexible = scheduleTypeField.value === 'flexible';
 
-        if (this.value === 'Working' || this.value === 'Overtime' || this.value === 'Regular Holiday' || this.value === 'Special Holiday' || this.value === 'Day Off' || this.value === 'Leave') {
+        if (isWorkSchedule && !isFlexible) {
             timeFields.style.display = 'grid';
-            if (this.value === 'Working' || this.value === 'Overtime') {
-                timeInField.required = true;
-                timeOutField.required = true;
-            } else {
-                timeInField.required = false;
-                timeOutField.required = false;
-            }
-        } else {
+            requiredHoursField.style.display = 'none';
+            timeInField.required = true;
+            timeOutField.required = true;
+            requiredHoursInput.required = false;
+            if (!timeInField.value) timeInField.value = '08:00';
+            if (!timeOutField.value) timeOutField.value = '17:00';
+        } else if (isWorkSchedule && isFlexible) {
             timeFields.style.display = 'none';
+            requiredHoursField.style.display = 'block';
             timeInField.required = false;
             timeOutField.required = false;
-            timeInField.value = '';
-            timeOutField.value = '';
+            requiredHoursInput.required = true;
+        } else {
+            timeFields.style.display = 'none';
+            requiredHoursField.style.display = 'none';
+            timeInField.required = false;
+            timeOutField.required = false;
+            requiredHoursInput.required = false;
         }
-    });
+    }
+
+    document.getElementById('status').addEventListener('change', syncScheduleFields);
+    document.getElementById('schedule_type').addEventListener('change', syncScheduleFields);
 
     // Auto-apply default schedule values based on selected date (editable by admin after auto-fill)
     function applyAutoScheduleDefaults() {
@@ -290,7 +324,7 @@
 
         if (isWeekday) {
             statusField.value = 'Working';
-            timeInField.value = '09:00';
+            timeInField.value = '08:00';
             timeOutField.value = '17:00';
         } else {
             statusField.value = 'Day Off';
@@ -298,7 +332,7 @@
             timeOutField.value = '';
         }
 
-        statusField.dispatchEvent(new Event('change'));
+        syncScheduleFields();
     }
 
     document.getElementById('date').addEventListener('change', applyAutoScheduleDefaults);
@@ -310,10 +344,7 @@
             departmentSelectInit.dispatchEvent(new Event('change'));
         }
 
-        const statusSelect = document.getElementById('status');
-        if (statusSelect.value === 'Working' || statusSelect.value === 'Overtime' || statusSelect.value === 'Regular Holiday' || statusSelect.value === 'Special Holiday' || statusSelect.value === 'Day Off' || statusSelect.value === 'Leave') {
-            document.getElementById('timeFields').style.display = 'grid';
-        }
+        syncScheduleFields();
 
         if (!{{ old('status') ? 'true' : 'false' }}) {
             applyAutoScheduleDefaults();

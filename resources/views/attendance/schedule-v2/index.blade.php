@@ -269,6 +269,10 @@
                                     <div class="text-xs text-gray-600">
                                         {{ \Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_in)->format('H:i') }}-{{ \Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_out)->format('H:i') }}
                                     </div>
+                                    @elseif($schedule->isFlexible() && in_array($schedule->status, ['Working', 'Overtime']))
+                                    <div class="text-xs text-purple-700">
+                                        Flexible · {{ \App\Helpers\TimezoneHelper::formatHours((float) $schedule->required_hours) }} required
+                                    </div>
                                     @endif
                                     @if($history)
                                         <div class="mt-2 text-[10px] font-semibold {{ match($history['tone']) {
@@ -424,6 +428,14 @@
                         </h4>
 
                         <div class="space-y-4">
+                            <div>
+                                <label for="bulk_schedule_type" class="block text-sm font-medium text-gray-700 mb-2">Schedule Type</label>
+                                <select name="schedule_type" id="bulk_schedule_type" required class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                    <option value="fixed">Fixed hours</option>
+                                    <option value="flexible">Flexible hours</option>
+                                </select>
+                            </div>
+
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
                                     <label for="start_date" class="block text-sm font-medium text-gray-700 mb-2">
@@ -439,19 +451,24 @@
                                 </div>
                             </div>
 
-                            <div class="grid grid-cols-2 gap-4">
+                            <div id="bulk_time_fields" class="grid grid-cols-2 gap-4">
                                 <div>
                                     <label for="bulk_time_in" class="block text-sm font-medium text-gray-700 mb-2">
                                         <i class="fas fa-clock mr-1"></i>Time In
                                     </label>
-                                    <input type="time" name="time_in" id="bulk_time_in" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <input type="time" name="time_in" id="bulk_time_in" value="08:00" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                 </div>
                                 <div>
                                     <label for="bulk_time_out" class="block text-sm font-medium text-gray-700 mb-2">
                                         <i class="fas fa-clock mr-1"></i>Time Out
                                     </label>
-                                    <input type="time" name="time_out" id="bulk_time_out" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <input type="time" name="time_out" id="bulk_time_out" value="17:00" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                 </div>
+                            </div>
+
+                            <div id="bulk_required_hours_field" class="hidden">
+                                <label for="bulk_required_hours" class="block text-sm font-medium text-gray-700 mb-2">Required Hours</label>
+                                <input type="number" name="required_hours" id="bulk_required_hours" min="1" max="24" step="0.25" value="8" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
                             </div>
 
                             <div>
@@ -1064,17 +1081,7 @@
         // Populate employee list in left panel
         populateSelectedEmployeesList();
 
-        // Initialize time fields visibility based on default status
-        const statusSelect = document.getElementById('statusSelect');
-        const timeFields = document.querySelector('.grid.grid-cols-2.gap-4');
-        if (statusSelect && timeFields) {
-            const status = statusSelect.value;
-            if (status === 'Working' || status === 'Overtime' || status === 'Regular Holiday' || status === 'Special Holiday' || status === 'Day Off' || status === 'Leave') {
-                timeFields.style.display = 'grid';
-            } else {
-                timeFields.style.display = 'none';
-            }
-        }
+        syncSelectedDateScheduleFields();
 
         // Show modal
         modal.classList.remove('hidden');
@@ -1168,20 +1175,33 @@
                             <option value="Overtime">Overtime</option>
                         </select>
                     </div>
+
+                    <div>
+                        <label for="scheduleTypeSelect" class="block text-sm font-medium text-gray-700 mb-2">Schedule Type</label>
+                        <select id="scheduleTypeSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+                            <option value="fixed">Fixed hours</option>
+                            <option value="flexible">Flexible hours</option>
+                        </select>
+                    </div>
                     
-                            <div class="grid grid-cols-2 gap-4">
+                            <div id="selectedDateTimeFields" class="grid grid-cols-2 gap-4">
                     <div>
                                     <label for="timeIn" class="block text-sm font-medium text-gray-700 mb-2">
                                         <i class="fas fa-clock mr-1"></i>Time In (Optional)
                                     </label>
-                        <input type="time" id="timeIn" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+                        <input type="time" id="timeIn" value="08:00" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
                     </div>
                     <div>
                                     <label for="timeOut" class="block text-sm font-medium text-gray-700 mb-2">
                                         <i class="fas fa-clock mr-1"></i>Time Out (Optional)
                                     </label>
-                        <input type="time" id="timeOut" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+                        <input type="time" id="timeOut" value="17:00" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
                                 </div>
+                    </div>
+
+                    <div id="selectedDateRequiredHoursField" class="hidden">
+                        <label for="selectedDateRequiredHours" class="block text-sm font-medium text-gray-700 mb-2">Required Hours</label>
+                        <input type="number" id="selectedDateRequiredHours" min="1" max="24" step="0.25" value="8" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
                     </div>
                     
                     <div>
@@ -1304,28 +1324,44 @@
 
     // Add event listener for status change in the modal
     document.addEventListener('DOMContentLoaded', function() {
+        const bulkType = document.getElementById('bulk_schedule_type');
+        const bulkStatus = document.getElementById('bulk_status');
+        const syncBulkFields = function() {
+            const isWork = bulkStatus && (bulkStatus.value === 'Working' || bulkStatus.value === 'Overtime');
+            const isFlexible = bulkType && bulkType.value === 'flexible';
+            document.getElementById('bulk_time_fields')?.classList.toggle('hidden', !isWork || isFlexible);
+            document.getElementById('bulk_required_hours_field')?.classList.toggle('hidden', !isWork || !isFlexible);
+            if (document.getElementById('bulk_time_in')) document.getElementById('bulk_time_in').required = isWork && !isFlexible;
+            if (document.getElementById('bulk_time_out')) document.getElementById('bulk_time_out').required = isWork && !isFlexible;
+            if (document.getElementById('bulk_required_hours')) document.getElementById('bulk_required_hours').required = isWork && isFlexible;
+        };
+        bulkType?.addEventListener('change', syncBulkFields);
+        bulkStatus?.addEventListener('change', syncBulkFields);
+        syncBulkFields();
+
         // Add event listener for status change in the modal
         document.addEventListener('change', function(e) {
-            if (e.target && e.target.id === 'statusSelect') {
-                const status = e.target.value;
-                const timeFields = document.querySelector('.grid.grid-cols-2.gap-4');
-
-                if (status === 'Working' || status === 'Overtime' || status === 'Regular Holiday' || status === 'Special Holiday' || status === 'Day Off' || status === 'Leave') {
-                    timeFields.style.display = 'grid';
-                } else {
-                    timeFields.style.display = 'none';
-                    // Clear time values for non-working statuses
-                    document.getElementById('timeIn').value = '';
-                    document.getElementById('timeOut').value = '';
-                }
+            if (e.target && (e.target.id === 'statusSelect' || e.target.id === 'scheduleTypeSelect')) {
+                syncSelectedDateScheduleFields();
             }
         });
     });
 
+    function syncSelectedDateScheduleFields() {
+        const status = document.getElementById('statusSelect')?.value;
+        const scheduleType = document.getElementById('scheduleTypeSelect')?.value || 'fixed';
+        const isWork = status === 'Working' || status === 'Overtime';
+        const isFlexible = scheduleType === 'flexible';
+        document.getElementById('selectedDateTimeFields')?.classList.toggle('hidden', !isWork || isFlexible);
+        document.getElementById('selectedDateRequiredHoursField')?.classList.toggle('hidden', !isWork || !isFlexible);
+    }
+
     function saveDateSchedule() {
         const status = document.getElementById('statusSelect').value;
+        const scheduleType = document.getElementById('scheduleTypeSelect').value;
         const timeIn = document.getElementById('timeIn').value;
         const timeOut = document.getElementById('timeOut').value;
+        const requiredHours = document.getElementById('selectedDateRequiredHours').value;
         const notes = document.getElementById('notes').value;
 
         // Prepare employee-specific data
@@ -1354,6 +1390,8 @@
         const requestData = {
             employee_schedules: employeeSchedules,
             status: status,
+            schedule_type: scheduleType,
+            required_hours: scheduleType === 'flexible' ? requiredHours : null,
             time_in: timeIn || null,
             time_out: timeOut || null,
             notes: notes || null

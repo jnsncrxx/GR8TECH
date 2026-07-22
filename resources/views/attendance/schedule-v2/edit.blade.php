@@ -80,6 +80,16 @@
                     @enderror
                 </div>
 
+                <div>
+                    <label for="schedule_type" class="block text-sm font-medium text-gray-700 mb-2">Schedule Type</label>
+                    <select name="schedule_type" id="schedule_type" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('schedule_type') border-red-500 @enderror">
+                        <option value="fixed" {{ old('schedule_type', $schedule->schedule_type ?? 'fixed') === 'fixed' ? 'selected' : '' }}>Fixed hours</option>
+                        <option value="flexible" {{ old('schedule_type', $schedule->schedule_type) === 'flexible' ? 'selected' : '' }}>Flexible hours</option>
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">Fixed hours are editable. Flexible schedules are evaluated using required hours.</p>
+                    @error('schedule_type')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+                </div>
+
                 <!-- Time In/Out (only show for working status) -->
                 <div id="timeFields" class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
@@ -97,6 +107,12 @@
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
                     </div>
+                </div>
+
+                <div id="requiredHoursField" style="display: none;">
+                    <label for="required_hours" class="block text-sm font-medium text-gray-700 mb-2">Required Hours</label>
+                    <input type="number" name="required_hours" id="required_hours" min="1" max="24" step="0.25" value="{{ old('required_hours', $schedule->required_hours ?: 8) }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('required_hours') border-red-500 @enderror">
+                    @error('required_hours')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
                 </div>
 
                 <!-- Notes -->
@@ -163,12 +179,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const deleteBtn = document.getElementById('deleteBtn');
     const statusSelect = document.getElementById('status');
     
-    // Initialize time fields visibility
-    if (statusSelect.value === 'Working' || statusSelect.value === 'Overtime' || statusSelect.value === 'Regular Holiday' || statusSelect.value === 'Special Holiday' || statusSelect.value === 'Day Off' || statusSelect.value === 'Leave') {
-        document.getElementById('timeFields').style.display = 'grid';
-    } else {
-        document.getElementById('timeFields').style.display = 'none';
-    }
+    syncScheduleFields();
     
     // Update button - set form to update action
     updateBtn.addEventListener('click', function(e) {
@@ -206,26 +217,42 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Show/hide time fields based on status
-document.getElementById('status').addEventListener('change', function() {
+function syncScheduleFields() {
+    const statusField = document.getElementById('status');
+    const scheduleTypeField = document.getElementById('schedule_type');
     const timeFields = document.getElementById('timeFields');
     const timeInField = document.getElementById('time_in');
     const timeOutField = document.getElementById('time_out');
-    
-    if (this.value === 'Working' || this.value === 'Overtime' || this.value === 'Regular Holiday' || this.value === 'Special Holiday' || this.value === 'Day Off' || this.value === 'Leave') {
+    const requiredHoursField = document.getElementById('requiredHoursField');
+    const requiredHoursInput = document.getElementById('required_hours');
+    const isWorkSchedule = statusField.value === 'Working' || statusField.value === 'Overtime';
+    const isFlexible = scheduleTypeField.value === 'flexible';
+
+    if (isWorkSchedule && !isFlexible) {
         timeFields.style.display = 'grid';
-        // Don't make fields required - let backend validation handle it
+        requiredHoursField.style.display = 'none';
+        timeInField.required = true;
+        timeOutField.required = true;
+        requiredHoursInput.required = false;
+        if (!timeInField.value) timeInField.value = '08:00';
+        if (!timeOutField.value) timeOutField.value = '17:00';
+    } else if (isWorkSchedule && isFlexible) {
+        timeFields.style.display = 'none';
+        requiredHoursField.style.display = 'block';
         timeInField.required = false;
         timeOutField.required = false;
+        requiredHoursInput.required = true;
     } else {
         timeFields.style.display = 'none';
+        requiredHoursField.style.display = 'none';
         timeInField.required = false;
         timeOutField.required = false;
-        // Clear the time values for non-working statuses to prevent conflicts
-        timeInField.value = '';
-        timeOutField.value = '';
+        requiredHoursInput.required = false;
     }
-});
+}
+
+document.getElementById('status').addEventListener('change', syncScheduleFields);
+document.getElementById('schedule_type').addEventListener('change', syncScheduleFields);
 
 </script>
 @endsection

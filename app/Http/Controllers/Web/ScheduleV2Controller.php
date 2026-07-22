@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class ScheduleV2Controller extends Controller
 {
@@ -164,10 +165,11 @@ class ScheduleV2Controller extends Controller
             'department_id' => ['required', 'exists:departments,id'],
             'date' => ['required', 'date'],
             'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
-            'time_in' => ['nullable', 'date_format:H:i'],
-            'time_out' => ['nullable', 'date_format:H:i'],
+            ...$this->scheduleDetailRules($request),
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
+
+        $details = $this->normalizedScheduleDetails($validated);
 
         // updateOrCreate so re-submitting for the same employee+date edits
         // the existing schedule instead of throwing a duplicate error
@@ -179,8 +181,7 @@ class ScheduleV2Controller extends Controller
             [
                 'department_id' => $validated['department_id'],
                 'status' => $validated['status'],
-                'time_in' => $validated['time_in'] ?? null,
-                'time_out' => $validated['time_out'] ?? null,
+                ...$details,
                 'notes' => $validated['notes'] ?? null,
                 'created_by' => Auth::id(),
             ]
@@ -217,10 +218,11 @@ class ScheduleV2Controller extends Controller
             'employee_schedules.*.dates' => ['required', 'array', 'min:1'],
             'employee_schedules.*.dates.*' => ['required', 'date'],
             'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
-            'time_in' => ['nullable', 'date_format:H:i'],
-            'time_out' => ['nullable', 'date_format:H:i'],
+            ...$this->scheduleDetailRules($request),
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
+
+        $details = $this->normalizedScheduleDetails($validated);
 
         $createdCount = 0;
 
@@ -236,8 +238,7 @@ class ScheduleV2Controller extends Controller
                     [
                         'department_id' => $employee->department_id,
                         'status' => $validated['status'],
-                        'time_in' => $validated['time_in'] ?? null,
-                        'time_out' => $validated['time_out'] ?? null,
+                        ...$details,
                         'notes' => $validated['notes'] ?? null,
                         'created_by' => Auth::id(),
                     ]
@@ -266,10 +267,11 @@ class ScheduleV2Controller extends Controller
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
-            'time_in' => ['nullable', 'date_format:H:i'],
-            'time_out' => ['nullable', 'date_format:H:i'],
+            ...$this->scheduleDetailRules($request),
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
+
+        $details = $this->normalizedScheduleDetails($validated);
 
         $start = \Carbon\Carbon::parse($validated['start_date']);
         $end = \Carbon\Carbon::parse($validated['end_date']);
@@ -282,8 +284,7 @@ class ScheduleV2Controller extends Controller
                     [
                         'department_id' => $validated['department_id'],
                         'status' => $validated['status'],
-                        'time_in' => $validated['time_in'] ?? null,
-                        'time_out' => $validated['time_out'] ?? null,
+                        ...$details,
                         'notes' => $validated['notes'] ?? null,
                         'created_by' => Auth::id(),
                     ]
@@ -338,15 +339,15 @@ class ScheduleV2Controller extends Controller
 
         $validated = $request->validate([
             'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
-            'time_in' => ['nullable', 'date_format:H:i'],
-            'time_out' => ['nullable', 'date_format:H:i'],
+            ...$this->scheduleDetailRules($request),
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
+        $details = $this->normalizedScheduleDetails($validated);
+
         $schedule->update([
             'status' => $validated['status'],
-            'time_in' => $validated['time_in'] ?? null,
-            'time_out' => $validated['time_out'] ?? null,
+            ...$details,
             'notes' => $validated['notes'] ?? null,
         ]);
 
@@ -361,5 +362,79 @@ class ScheduleV2Controller extends Controller
 
         return redirect()->route('schedule-v2.index')
             ->with('success', 'Schedule deleted successfully.');
+    }
+
+    private function scheduleDetailRules(Request $request): array
+    {
+        // Preserve compatibility with older clients while making fixed the
+        // explicit system default for every newly submitted schedule.
+        if (!$request->filled('schedule_type')) {
+            $request->merge(['schedule_type' => 'fixed']);
+        }
+
+        $isWorkSchedule = in_array($request->input('status'), ['Working', 'Overtime'], true);
+        $isFixed = $request->input('schedule_type', 'fixed') === 'fixed';
+
+        return [
+            'schedule_type' => ['required', Rule::in(['fixed', 'flexible'])],
+            'required_hours' => [
+                Rule::requiredIf($isWorkSchedule && !$isFixed),
+                'nullable',
+                'numeric',
+                'min:1',
+                'max:24',
+            ],
+            'time_in' => [
+                Rule::requiredIf($isWorkSchedule && $isFixed),
+                'nullable',
+                'date_format:H:i',
+            ],
+            'time_out' => [
+                Rule::requiredIf($isWorkSchedule && $isFixed),
+                'nullable',
+                'date_format:H:i',
+                Rule::when($isWorkSchedule && $isFixed, ['after:time_in']),
+            ],
+        ];
+    }
+
+    private function normalizedScheduleDetails(array $validated): array
+    {
+        $isWorkSchedule = in_array($validated['status'], ['Working', 'Overtime'], true);
+        $scheduleType = $validated['schedule_type'] ?? 'fixed';
+
+        if (!$isWorkSchedule) {
+            return [
+                'schedule_type' => $scheduleType,
+                'required_hours' => 0,
+                'time_in' => null,
+                'time_out' => null,
+            ];
+        }
+
+        if ($scheduleType === 'flexible') {
+            return [
+                'schedule_type' => 'flexible',
+                'required_hours' => (float) $validated['required_hours'],
+                'time_in' => null,
+                'time_out' => null,
+            ];
+        }
+
+        return [
+            'schedule_type' => 'fixed',
+            'required_hours' => $this->fixedRequiredHours($validated['time_in'], $validated['time_out']),
+            'time_in' => $validated['time_in'],
+            'time_out' => $validated['time_out'],
+        ];
+    }
+
+    private function fixedRequiredHours(string $timeIn, string $timeOut): float
+    {
+        $start = \Carbon\Carbon::createFromFormat('H:i', $timeIn);
+        $end = \Carbon\Carbon::createFromFormat('H:i', $timeOut);
+        $minutes = $start->diffInMinutes($end);
+
+        return round(max(0, $minutes - 60) / 60, 2);
     }
 }
