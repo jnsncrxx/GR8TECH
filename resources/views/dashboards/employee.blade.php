@@ -197,6 +197,12 @@
                 </div>
             </div>
             @if($todayAttendance && $todayAttendance->hasActiveTimeEntry())
+                @php
+                    // banked hours from finished entries only - the still-open
+                    // session gets added live in JS, so it isn't double counted
+                    $completedHoursToday = $todayAttendance->calculateTotalHours();
+                    $expectedHoursToday = $todayAttendance->getExpectedHours();
+                @endphp
                 <div class="mt-4 pt-4 border-t border-blue-400">
                     <div class="text-lg opacity-90">Working for:</div>
                     <div class="text-2xl font-bold" id="working-time">
@@ -218,6 +224,25 @@
                     @if($activeEntry)
                         <script>
                             window.activeSessionStart = "{{ $activeEntry->time_in->toIso8601String() }}";
+                        </script>
+                    @endif
+
+                    @if($expectedHoursToday)
+                        @php
+                            $progressPct = min(100, round(($completedHoursToday / max(0.01, $expectedHoursToday)) * 100));
+                        @endphp
+                        <div class="mt-3">
+                            <div class="w-full bg-white bg-opacity-20 rounded-full h-1.5 overflow-hidden">
+                                <div id="hours-progress-bar" class="bg-white h-1.5 rounded-full transition-all" style="width: {{ $progressPct }}%"></div>
+                            </div>
+                            <div class="flex justify-between text-xs opacity-75 mt-1">
+                                <span id="hours-progress-text">{{ number_format($completedHoursToday, 1) }}h of {{ number_format($expectedHoursToday, 1) }}h</span>
+                                <span id="hours-progress-pct">{{ $progressPct }}%</span>
+                            </div>
+                        </div>
+                        <script>
+                            window.completedHoursBeforeSession = {{ (float) $completedHoursToday }};
+                            window.expectedHoursToday = {{ (float) $expectedHoursToday }};
                         </script>
                     @endif
                 </div>
@@ -686,6 +711,7 @@ function updateClock() {
 }
 
 // Update working time display
+// Update working time display
 function updateWorkingTime() {
     if (!window.activeSessionStart) {
         return;
@@ -701,6 +727,22 @@ function updateWorkingTime() {
     const workingTimeElement = document.getElementById('working-time');
     if (workingTimeElement) {
         workingTimeElement.textContent = `${diffHours}h ${diffMinutes}m`;
+    }
+
+    // real hours worked = banked hours from earlier sessions today + live
+    // elapsed time on the current session (not just time since page load)
+    if (window.expectedHoursToday) {
+        const priorHours = window.completedHoursBeforeSession || 0;
+        const totalHours = priorHours + (diffMs / (1000 * 60 * 60));
+        const pct = Math.min(100, Math.max(0, Math.round((totalHours / window.expectedHoursToday) * 100)));
+
+        const bar = document.getElementById('hours-progress-bar');
+        const text = document.getElementById('hours-progress-text');
+        const pctLabel = document.getElementById('hours-progress-pct');
+
+        if (bar) bar.style.width = `${pct}%`;
+        if (text) text.textContent = `${totalHours.toFixed(1)}h of ${window.expectedHoursToday.toFixed(1)}h`;
+        if (pctLabel) pctLabel.textContent = `${pct}%`;
     }
 }
 
