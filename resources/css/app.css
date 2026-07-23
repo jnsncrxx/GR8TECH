@@ -244,13 +244,13 @@ html.dark .brand-sidebar-nav .border-brand-green {
 .brand-sidebar-nav .bg-brand-green-soft,
 .brand-sidebar-nav .bg-orange-100,
 .brand-sidebar-nav .bg-purple-100 {
-    background-color: rgba(237, 28, 36, 0.28) !important;
+    background-color: rgba(255, 255, 255, 0.2) !important;
 }
 
 .brand-sidebar-nav .border-r-4,
 .brand-sidebar-nav .border-blue-600,
 .brand-sidebar-nav .border-brand-green {
-    border-color: #ED1C24 !important;
+    border-color: #FFFFFF !important;
 }
 
 .brand-sidebar-nav .bg-blue-50,
