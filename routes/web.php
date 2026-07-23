@@ -526,3 +526,14 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/my-attendance', [App\Http\Controllers\Web\AttendanceController::class, 'myAttendance'])
         ->name('attendance.my');
 });
+
+// ============================================
+// DEVELOPER ROUTES - User Account CRUD
+// ============================================
+Route::middleware(['auth', 'role:admin,hr'])->prefix('developer')->name('developer.')->group(function () {
+    Route::get('/accounts', [App\Http\Controllers\Developer\AccountController::class, 'index'])->name('accounts.index');
+    Route::get('/accounts/{account}/edit', [App\Http\Controllers\Developer\AccountController::class, 'edit'])->name('accounts.edit');
+    Route::post('/accounts', [App\Http\Controllers\Developer\AccountController::class, 'store'])->name('accounts.store');
+    Route::put('/accounts/{account}', [App\Http\Controllers\Developer\AccountController::class, 'update'])->name('accounts.update');
+    Route::delete('/accounts/{account}', [App\Http\Controllers\Developer\AccountController::class, 'destroy'])->name('accounts.destroy');
+});
