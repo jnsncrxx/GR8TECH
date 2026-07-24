@@ -27,8 +27,14 @@ class OvertimeController extends Controller
                 $user->employee_id
                     ? $query->where('employee_id', $user->employee_id)
                     : $query->whereRaw('1 = 0');
-            } elseif ($request->filled('employee_id')) {
-                $query->where('employee_id', $request->query('employee_id'));
+            } else {
+                if (($user->role ?? null) === 'manager') {
+                    $query->whereHas('employee.department', fn ($dept) => $dept->where('manager_id', $user->employee_id));
+                }
+
+                if ($request->filled('employee_id')) {
+                    $query->where('employee_id', $request->query('employee_id'));
+                }
             }
 
             if ($isReviewer && $request->filled('department_id')) {
@@ -75,11 +81,16 @@ class OvertimeController extends Controller
             "total_hours" => (clone $summaryQuery)->where('status', 'approved')->sum('hours'),
         ];
         
-        $departments = \App\Models\Department::orderBy('name')->get();
-        $employees = \App\Models\Employee::with('department')
+        $departments = ($user->role ?? null) === 'manager'
+            ? \App\Models\Department::where('manager_id', $user->employee_id)->orderBy('name')->get()
+            : \App\Models\Department::orderBy('name')->get();
+        $employeesQuery = \App\Models\Employee::with('department')
             ->orderBy('first_name')
-            ->orderBy('last_name')
-            ->get();
+            ->orderBy('last_name');
+        if (($user->role ?? null) === 'manager') {
+            $employeesQuery->managedBy($user->employee_id);
+        }
+        $employees = $employeesQuery->get();
 
         $employeeOvertimeDates = collect();
         if ($user->role === 'employee' && $user->employee_id) {
@@ -200,6 +211,13 @@ class OvertimeController extends Controller
             if ($user->employee_id && $overtime->employee_id === $user->employee_id) {
                 return response()->json(['error' => 'You cannot approve or reject your own overtime request.'], 403);
             }
+
+            if (($user->role ?? null) === 'manager') {
+                $overtime->loadMissing('employee.department');
+                if (!$overtime->employee || !$overtime->employee->isManagedBy($user->employee_id)) {
+                    return response()->json(['error' => 'You can only review overtime requests for employees in your department.'], 403);
+                }
+            }
             
             if ($overtime->isPastDeadline()) {
                 return response()->json(['error' => 'Cannot update an expired request.'], 403);
@@ -216,6 +234,9 @@ class OvertimeController extends Controller
                 }
                 if ($conflicts->officialBusinessOnDate($overtime->employee_id, $overtime->date->toDateString())) {
                     return response()->json(['error' => 'Cannot approve overtime because this date has Official Business.'], 422);
+                }
+                if ($conflicts->payrollGeneratedForDate($overtime->employee_id, $overtime->date->toDateString())) {
+                    return response()->json(['error' => 'Cannot approve — payroll has already been generated for this date. An Admin must reopen the payroll period first.'], 422);
                 }
             }
             
@@ -277,6 +298,13 @@ class OvertimeController extends Controller
                 return response()->json(['error' => 'You are not authorized to cancel this request.'], 403);
             }
 
+            if (!$ownsRequest && ($user->role ?? null) === 'manager') {
+                $overtime->loadMissing('employee.department');
+                if (!$overtime->employee || !$overtime->employee->isManagedBy($user->employee_id)) {
+                    return response()->json(['error' => 'You can only cancel requests for employees in your department.'], 403);
+                }
+            }
+
             if (!in_array($overtime->status, [\App\Models\OvertimeRequest::PENDING, \App\Models\OvertimeRequest::APPROVED], true)) {
                 return response()->json(['error' => 'Only pending or approved requests can be cancelled.'], 422);
             }
@@ -285,12 +313,22 @@ class OvertimeController extends Controller
                 return response()->json(['error' => 'Only admin, HR, or manager can cancel an approved overtime request.'], 403);
             }
 
+            if ($overtime->status === \App\Models\OvertimeRequest::APPROVED) {
+                $conflicts = app(\App\Services\PayrollRequestConflictService::class);
+                if ($conflicts->payrollGeneratedForDate($overtime->employee_id, $overtime->date->toDateString())) {
+                    return response()->json([
+                        'error' => 'Cannot cancel — payroll has already been generated for this date. An Admin must reopen the payroll period before this request can be changed.',
+                    ], 422);
+                }
+            }
+
             $request->validate([
                 'cancellation_reason' => ['nullable', 'string', 'max:500'],
             ]);
 
             $overtime->update([
                 'status' => \App\Models\OvertimeRequest::CANCELED,
+                'approved_by' => $isReviewer ? Auth::id() : $overtime->approved_by,
                 'rejection_reason' => $request->input('cancellation_reason'),
             ]);
 
@@ -305,5 +343,110 @@ class OvertimeController extends Controller
             return response()->json(['error' => 'Error cancelling overtime request: ' . $e->getMessage()], 500);
         }
     }
+    /**
+     * Edit an already-approved overtime request. Reserved for admin/hr/manager
+     * (manager scoped to their department), and only while no payroll has
+     * been generated for the original or new date. Unlike Leave/OB, overtime
+     * approval never touches AttendanceRecord, so this is a straightforward
+     * field update plus the same conflict re-checks approval itself runs —
+     * no reversal/reapply cascade needed. Writes a before/after audit row.
+     */
+    public function updateApproved(Request $request, $id)
+    {
+        try {
+            $user = Auth::user();
+            $overtime = \App\Models\OvertimeRequest::findOrFail($id);
+
+            if ($overtime->status !== \App\Models\OvertimeRequest::APPROVED) {
+                return response()->json(['error' => 'Only approved overtime requests can be edited here.'], 422);
+            }
+
+            $isReviewer = in_array($user->role ?? null, ['admin', 'hr', 'manager'], true);
+            if (!$isReviewer) {
+                return response()->json(['error' => 'Only admin, HR, or manager can edit an approved overtime request.'], 403);
+            }
+
+            if (($user->role ?? null) === 'manager' && $overtime->employee_id !== $user->employee_id) {
+                $overtime->loadMissing('employee.department');
+                if (!$overtime->employee || !$overtime->employee->isManagedBy($user->employee_id)) {
+                    return response()->json(['error' => 'You can only edit requests for employees in your department.'], 403);
+                }
+            }
+
+            $conflicts = app(\App\Services\PayrollRequestConflictService::class);
+            $originalDate = $overtime->date->toDateString();
+
+            if ($conflicts->payrollGeneratedForDate($overtime->employee_id, $originalDate)) {
+                return response()->json([
+                    'error' => 'Cannot edit — payroll has already been generated for this date. An Admin must reopen the payroll period before this request can be changed.',
+                ], 422);
+            }
+
+            $validated = $request->validate([
+                'date' => ['required', 'date'],
+                'start_time' => ['required', 'date_format:H:i'],
+                'end_time' => ['required', 'date_format:H:i', 'after:start_time'],
+                'hours' => ['required', 'numeric', 'min:0.5'],
+                'rate_multiplier' => ['required', 'numeric', 'min:1'],
+                'reason' => ['required', 'string', 'max:1000'],
+                'correction_reason' => ['required', 'string', 'max:500'],
+            ]);
+
+            $newDate = \Carbon\Carbon::parse($validated['date'])->toDateString();
+
+            if ($conflicts->payrollGeneratedForDate($overtime->employee_id, $newDate)) {
+                return response()->json([
+                    'error' => 'Cannot edit — payroll has already been generated for the new date. An Admin must reopen that payroll period first.',
+                ], 422);
+            }
+
+            if ($newDate !== $originalDate) {
+                if ($conflicts->leaveOnDate($overtime->employee_id, $newDate)) {
+                    return response()->json(['error' => 'Cannot move this overtime — the new date is covered by leave.'], 422);
+                }
+                if ($conflicts->officialBusinessOnDate($overtime->employee_id, $newDate)) {
+                    return response()->json(['error' => 'Cannot move this overtime — the new date already has Official Business.'], 422);
+                }
+            }
+
+            $auditFields = ['date', 'start_time', 'end_time', 'hours', 'rate_multiplier', 'reason'];
+            $originalValues = $overtime->only($auditFields);
+
+            \Illuminate\Support\Facades\DB::transaction(function () use ($overtime, $validated, $newDate, $originalValues, $auditFields, $user) {
+                $overtime->fill([
+                    'date' => $newDate,
+                    'start_time' => $validated['start_time'],
+                    'end_time' => $validated['end_time'],
+                    'hours' => $validated['hours'],
+                    'rate_multiplier' => $validated['rate_multiplier'],
+                    'reason' => $validated['reason'],
+                ]);
+                $overtime->save();
+
+                \Illuminate\Support\Facades\DB::table('request_corrections')->insert([
+                    'id' => (string) \Illuminate\Support\Str::uuid(),
+                    'request_type' => 'overtime',
+                    'request_id' => $overtime->id,
+                    'corrected_by' => $user->id,
+                    'reason' => $validated['correction_reason'],
+                    'original_values' => json_encode($originalValues),
+                    'corrected_values' => json_encode($overtime->fresh()->only($auditFields)),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            });
+
+            $this->notifyRequester($overtime);
+
+            return response()->json([
+                'message' => 'Approved overtime request corrected successfully.',
+                'overtime' => $overtime,
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error editing approved overtime: ' . $e->getMessage());
+            return response()->json(['error' => 'Error editing overtime request: ' . $e->getMessage()], 500);
+        }
+    }
+
     public function getStatistics(Request $request) { return response()->json([]); }
 }

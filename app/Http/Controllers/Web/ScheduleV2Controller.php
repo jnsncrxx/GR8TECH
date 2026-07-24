@@ -16,13 +16,26 @@ class ScheduleV2Controller extends Controller
         $selectedMonth = $request->query('month', now()->month);
         $selectedYear = $request->query('year', now()->year);
 
-        $departments = \App\Models\Department::orderBy('name')->get();
-        $allEmployees = \App\Models\Employee::with(['department', 'position'])->orderBy('first_name')->get();
+        $user = Auth::user();
+        $isManager = $user->role === 'manager';
+
+        $departments = $isManager
+            ? \App\Models\Department::where('manager_id', $user->employee_id)->orderBy('name')->get()
+            : \App\Models\Department::orderBy('name')->get();
+        $allEmployeesQuery = \App\Models\Employee::with(['department', 'position'])->orderBy('first_name');
+        if ($isManager) {
+            $allEmployeesQuery->managedBy($user->employee_id);
+        }
+        $allEmployees = $allEmployeesQuery->get();
 
         // always run the query now, so a fresh page load shows everyone by default
         // (empty department/search just means no WHERE clause = all employees)
         $query = \App\Models\Employee::with(['department', 'position']);
-        if ($selectedDepartment) {
+        if ($isManager) {
+            // Managers never see other departments' employees, regardless of
+            // what department_id a crafted request tries to pass.
+            $query->managedBy($user->employee_id);
+        } elseif ($selectedDepartment) {
             $query->where('department_id', $selectedDepartment);
         }
         if ($searchQuery) {
@@ -135,14 +148,29 @@ class ScheduleV2Controller extends Controller
 
     public function create(Request $request)
     {
-        $departments = \App\Models\Department::orderBy('name')->get();
-        $employees = \App\Models\Employee::with('department')->orderBy('first_name')->get();
+        $user = Auth::user();
+        $isManager = $user->role === 'manager';
+
+        $departments = $isManager
+            ? \App\Models\Department::where('manager_id', $user->employee_id)->orderBy('name')->get()
+            : \App\Models\Department::orderBy('name')->get();
+        $employeesQuery = \App\Models\Employee::with('department')->orderBy('first_name');
+        if ($isManager) {
+            $employeesQuery->managedBy($user->employee_id);
+        }
+        $employees = $employeesQuery->get();
 
         // if the user clicked "create schedule" for a specific employee/date
         // from the index page, pre-fill those fields instead of leaving them blank
         $employee = $request->filled('employee_id')
             ? \App\Models\Employee::find($request->query('employee_id'))
             : null;
+
+        // A manager can't pre-fill (or later submit) a schedule for someone
+        // outside their department, even via a crafted employee_id query param.
+        if ($isManager && $employee && !$employee->isManagedBy($user->employee_id)) {
+            abort(403, 'You can only manage schedules for your own department.');
+        }
 
         $date = $request->query('date', now()->format('Y-m-d'));
 
@@ -158,6 +186,21 @@ class ScheduleV2Controller extends Controller
         ]);
     }
 
+    /**
+     * Blocks a manager from creating, editing, or deleting a schedule for an
+     * employee outside their own department. Admin/HR are unrestricted.
+     * Guards against a manager submitting a crafted employee_id/schedule_id
+     * for someone else's team, since the create/edit forms only *display*
+     * the manager's own department — the server has to enforce it too.
+     */
+    private function assertEmployeeManageable(\App\Models\Employee $employee): void
+    {
+        $user = Auth::user();
+        if ($user->role === 'manager' && !$employee->isManagedBy($user->employee_id)) {
+            abort(403, 'You can only manage schedules for your own department.');
+        }
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -168,6 +211,16 @@ class ScheduleV2Controller extends Controller
             ...$this->scheduleDetailRules($request),
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
+
+        $employee = \App\Models\Employee::findOrFail($validated['employee_id']);
+        $this->assertEmployeeManageable($employee);
+
+        if (app(\App\Services\PayrollRequestConflictService::class)->payrollGeneratedForDate($validated['employee_id'], $validated['date'])) {
+            return redirect()->back()->withInput()->with(
+                'error',
+                'Cannot set a schedule — payroll has already been generated for this date. An Admin must reopen the payroll period first.'
+            );
+        }
 
         $details = $this->normalizedScheduleDetails($validated);
 
@@ -223,6 +276,18 @@ class ScheduleV2Controller extends Controller
         ]);
 
         $details = $this->normalizedScheduleDetails($validated);
+        $conflicts = app(\App\Services\PayrollRequestConflictService::class);
+
+        foreach ($validated['employee_schedules'] as $entry) {
+            foreach ($entry['dates'] as $date) {
+                if ($conflicts->payrollGeneratedForDate($entry['employee_id'], $date)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Cannot save — payroll has already been generated for {$date}. An Admin must reopen the payroll period first.",
+                    ], 422);
+                }
+            }
+        }
 
         $createdCount = 0;
 
@@ -231,6 +296,7 @@ class ScheduleV2Controller extends Controller
             if (!$employee) {
                 continue;
             }
+            $this->assertEmployeeManageable($employee);
 
             foreach ($entry['dates'] as $date) {
                 \App\Models\EmployeeSchedule::updateOrCreate(
@@ -272,6 +338,18 @@ class ScheduleV2Controller extends Controller
         ]);
 
         $details = $this->normalizedScheduleDetails($validated);
+        $conflicts = app(\App\Services\PayrollRequestConflictService::class);
+
+        foreach ($validated['employee_ids'] as $employeeId) {
+            $this->assertEmployeeManageable(\App\Models\Employee::findOrFail($employeeId));
+
+            if ($conflicts->payrollGeneratedForRange($employeeId, $validated['start_date'], $validated['end_date'])) {
+                return redirect()->back()->withInput()->with(
+                    'error',
+                    'Cannot save — payroll has already been generated for part of this date range. An Admin must reopen the payroll period first.'
+                );
+            }
+        }
 
         $start = \Carbon\Carbon::parse($validated['start_date']);
         $end = \Carbon\Carbon::parse($validated['end_date']);
@@ -305,6 +383,24 @@ class ScheduleV2Controller extends Controller
             'schedule_ids.*' => ['exists:employee_schedules,id'],
         ]);
 
+        $schedules = \App\Models\EmployeeSchedule::with('employee')
+            ->whereIn('id', $validated['schedule_ids'])
+            ->get();
+
+        $conflicts = app(\App\Services\PayrollRequestConflictService::class);
+
+        foreach ($schedules as $schedule) {
+            if ($schedule->employee) {
+                $this->assertEmployeeManageable($schedule->employee);
+            }
+            if ($conflicts->payrollGeneratedForDate($schedule->employee_id, $schedule->date->toDateString())) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Cannot delete — payroll has already been generated for {$schedule->date->toDateString()}. An Admin must reopen the payroll period first.",
+                ], 422);
+            }
+        }
+
         $deletedCount = \App\Models\EmployeeSchedule::whereIn('id', $validated['schedule_ids'])->delete();
 
         return response()->json([
@@ -322,6 +418,9 @@ class ScheduleV2Controller extends Controller
     public function show($schedule)
     {
         $schedule = \App\Models\EmployeeSchedule::with(['employee.department', 'employee.position'])->findOrFail($schedule);
+        if ($schedule->employee) {
+            $this->assertEmployeeManageable($schedule->employee);
+        }
 
         return view('attendance.schedule-v2.show', ['schedule' => $schedule, 'user' => Auth::user()]);
     }
@@ -329,13 +428,26 @@ class ScheduleV2Controller extends Controller
     public function edit($schedule)
     {
         $schedule = \App\Models\EmployeeSchedule::with(['employee.department', 'employee.position'])->findOrFail($schedule);
+        if ($schedule->employee) {
+            $this->assertEmployeeManageable($schedule->employee);
+        }
 
         return view('attendance.schedule-v2.edit', ['schedule' => $schedule, 'user' => Auth::user()]);
     }
 
     public function update(Request $request, $schedule)
     {
-        $schedule = \App\Models\EmployeeSchedule::findOrFail($schedule);
+        $schedule = \App\Models\EmployeeSchedule::with('employee')->findOrFail($schedule);
+        if ($schedule->employee) {
+            $this->assertEmployeeManageable($schedule->employee);
+        }
+
+        if (app(\App\Services\PayrollRequestConflictService::class)->payrollGeneratedForDate($schedule->employee_id, $schedule->date->toDateString())) {
+            return redirect()->back()->withInput()->with(
+                'error',
+                'Cannot edit this schedule — payroll has already been generated for this date. An Admin must reopen the payroll period first.'
+            );
+        }
 
         $validated = $request->validate([
             'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
@@ -357,7 +469,18 @@ class ScheduleV2Controller extends Controller
 
     public function destroy($schedule)
     {
-        $schedule = \App\Models\EmployeeSchedule::findOrFail($schedule);
+        $schedule = \App\Models\EmployeeSchedule::with('employee')->findOrFail($schedule);
+        if ($schedule->employee) {
+            $this->assertEmployeeManageable($schedule->employee);
+        }
+
+        if (app(\App\Services\PayrollRequestConflictService::class)->payrollGeneratedForDate($schedule->employee_id, $schedule->date->toDateString())) {
+            return redirect()->back()->with(
+                'error',
+                'Cannot delete this schedule — payroll has already been generated for this date. An Admin must reopen the payroll period first.'
+            );
+        }
+
         $schedule->delete();
 
         return redirect()->route('schedule-v2.index')

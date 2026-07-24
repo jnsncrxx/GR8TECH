@@ -50,8 +50,14 @@ class LeaveController extends Controller
             'rejected' => (clone $summaryQuery)->where('status', 'rejected')->count(),
         ];
 
-        $employees = Employee::with('department')->get();
-        $departments = Department::orderBy('name')->get();
+        $employeesQuery = Employee::with('department');
+        if ($user->role === 'manager') {
+            $employeesQuery->managedBy($user->employee_id);
+        }
+        $employees = $employeesQuery->get();
+        $departments = $user->role === 'manager'
+            ? Department::where('manager_id', $user->employee_id)->orderBy('name')->get()
+            : Department::orderBy('name')->get();
 
         $hasEmployeesWithoutBalances = Employee::whereDoesntHave('leaveBalances', function ($query) {
             $query->where('year', Carbon::now()->year);
@@ -350,6 +356,13 @@ class LeaveController extends Controller
             return response()->json(['error' => 'You cannot approve or reject your own leave request.'], 403);
         }
 
+        if ($user->role === 'manager') {
+            $leaveRequest->loadMissing('employee.department');
+            if (!$leaveRequest->employee || !$leaveRequest->employee->isManagedBy($user->employee_id)) {
+                return response()->json(['error' => 'You can only review leave requests for employees in your department.'], 403);
+            }
+        }
+
         // Flip past-deadline pending requests to expired before any other check.
         if ($leaveRequest->isPastDeadline()) {
             $leaveRequest->update(['status' => LeaveRequest::EXPIRED]);
@@ -367,15 +380,26 @@ class LeaveController extends Controller
 
         // Check if there are overlapping approved leaves before approving
         if ($request->status === 'approved') {
-            $timeConflict = app(\App\Services\PayrollRequestConflictService::class)
-                ->timeRequestWithinLeaveRange(
-                    $leaveRequest->employee_id,
-                    $leaveRequest->start_date->toDateString(),
-                    $leaveRequest->end_date->toDateString()
-                );
+            $leaveConflicts = app(\App\Services\PayrollRequestConflictService::class);
+
+            $timeConflict = $leaveConflicts->timeRequestWithinLeaveRange(
+                $leaveRequest->employee_id,
+                $leaveRequest->start_date->toDateString(),
+                $leaveRequest->end_date->toDateString()
+            );
             if ($timeConflict) {
                 return response()->json([
                     'error' => "Cannot approve leave because the selected dates contain pending or approved {$timeConflict}.",
+                ], 422);
+            }
+
+            if ($leaveConflicts->payrollGeneratedForRange(
+                $leaveRequest->employee_id,
+                $leaveRequest->start_date->toDateString(),
+                $leaveRequest->end_date->toDateString()
+            )) {
+                return response()->json([
+                    'error' => 'Cannot approve — payroll has already been generated for part of this leave period. An Admin must reopen the payroll period first.',
                 ], 422);
             }
 
@@ -582,6 +606,13 @@ class LeaveController extends Controller
 
         $isReviewer = in_array($user->role, ['admin', 'hr', 'manager'], true);
 
+        if ($user->role === 'manager' && $leaveRequest->employee_id !== $user->employee?->id) {
+            $leaveRequest->loadMissing('employee.department');
+            if (!$leaveRequest->employee || !$leaveRequest->employee->isManagedBy($user->employee_id)) {
+                return response()->json(['error' => 'You can only cancel requests for employees in your department.'], 403);
+            }
+        }
+
         // Employees may only cancel their own pending requests. Cancelling an
         // already-approved leave (with balance/attendance reversal) is
         // reserved for admin/hr/manager, matching the UI.
@@ -589,14 +620,30 @@ class LeaveController extends Controller
             return response()->json(['error' => 'Only admin, HR, or manager can cancel an approved leave request.'], 403);
         }
 
+        if ($leaveRequest->status === LeaveRequest::APPROVED) {
+            $conflicts = app(\App\Services\PayrollRequestConflictService::class);
+            if ($conflicts->payrollGeneratedForRange(
+                $leaveRequest->employee_id,
+                $leaveRequest->start_date->toDateString(),
+                $leaveRequest->end_date->toDateString()
+            )) {
+                return response()->json([
+                    'error' => 'Cannot cancel — payroll has already been generated for part of this leave period. An Admin must reopen the payroll period before this request can be changed.',
+                ], 422);
+            }
+        }
+
         $data = $request->validate([
             'cancellation_reason' => ['nullable', 'string', 'max:500'],
         ]);
 
-        DB::transaction(function () use ($leaveRequest, $data) {
+        DB::transaction(function () use ($leaveRequest, $data, $user, $isReviewer) {
             $wasApproved = $leaveRequest->status === LeaveRequest::APPROVED;
 
             $leaveRequest->status = LeaveRequest::CANCELLED;
+            if ($isReviewer) {
+                $leaveRequest->approved_by = $user->id;
+            }
             if (!empty($data['cancellation_reason'])) {
                 $leaveRequest->rejection_reason = $data['cancellation_reason'];
             }
@@ -612,6 +659,120 @@ class LeaveController extends Controller
         });
 
         return response()->json(['success' => true, 'message' => 'Leave request cancelled successfully.']);
+    }
+
+    /**
+     * Edit an already-approved leave request. Reserved for admin/hr/manager
+     * (manager scoped to their own department), and only while no payroll
+     * has been generated covering either the original or the new date
+     * range. Reverses the balance/attendance effects of the original
+     * approval, applies the corrected values, then re-applies approval
+     * effects for the new dates — writing a before/after audit row either
+     * way. Mirrors AttendanceController::updateRecord()'s correction pattern.
+     */
+    public function updateApproved(Request $request, $id)
+    {
+        $user = Auth::user();
+        $leaveRequest = LeaveRequest::find($id);
+
+        if (!$leaveRequest) {
+            return response()->json(['error' => 'Leave request not found'], 404);
+        }
+
+        if ($leaveRequest->status !== LeaveRequest::APPROVED) {
+            return response()->json(['error' => 'Only approved leave requests can be edited here.'], 422);
+        }
+
+        $isReviewer = in_array($user->role, ['admin', 'hr', 'manager'], true);
+        if (!$isReviewer) {
+            return response()->json(['error' => 'Only admin, HR, or manager can edit an approved leave request.'], 403);
+        }
+
+        if ($user->role === 'manager' && $leaveRequest->employee_id !== $user->employee?->id) {
+            $leaveRequest->loadMissing('employee.department');
+            if (!$leaveRequest->employee || !$leaveRequest->employee->isManagedBy($user->employee_id)) {
+                return response()->json(['error' => 'You can only edit requests for employees in your department.'], 403);
+            }
+        }
+
+        $conflicts = app(\App\Services\PayrollRequestConflictService::class);
+        if ($conflicts->payrollGeneratedForRange(
+            $leaveRequest->employee_id,
+            $leaveRequest->start_date->toDateString(),
+            $leaveRequest->end_date->toDateString()
+        )) {
+            return response()->json([
+                'error' => 'Cannot edit — payroll has already been generated for part of this leave period. An Admin must reopen the payroll period before this request can be changed.',
+            ], 422);
+        }
+
+        $data = $request->validate([
+            'leave_type' => ['required', 'string', 'in:' . implode(',', $this->leaveTypes)],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'days_requested' => ['required', 'numeric', 'min:0.5'],
+            'reason' => ['nullable', 'string', 'max:1000'],
+            'correction_reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        // The new range might land inside a different, already-generated period
+        // even if the original range didn't.
+        if ($conflicts->payrollGeneratedForRange($leaveRequest->employee_id, $data['start_date'], $data['end_date'])) {
+            return response()->json([
+                'error' => 'Cannot edit — payroll has already been generated for the new dates. An Admin must reopen that payroll period first.',
+            ], 422);
+        }
+
+        $overlaps = $this->getOverlappingLeaves(
+            $leaveRequest->employee_id,
+            $data['start_date'],
+            $data['end_date'],
+            $leaveRequest->id
+        )->filter(fn ($leave) => $leave->status === 'approved');
+
+        if ($overlaps->count() > 0) {
+            return response()->json([
+                'error' => 'The corrected dates overlap with another approved leave request for this employee.',
+            ], 422);
+        }
+
+        $auditFields = ['leave_type', 'start_date', 'end_date', 'days_requested', 'reason'];
+        $originalValues = $leaveRequest->only($auditFields);
+
+        DB::transaction(function () use ($leaveRequest, $data, $originalValues, $auditFields, $user) {
+            // Reverse the effects of the original approval before touching dates.
+            $this->restoreCancelledLeaveBalance($leaveRequest);
+            $this->clearAttendanceForLeave($leaveRequest);
+
+            $leaveRequest->fill([
+                'leave_type' => $data['leave_type'],
+                'start_date' => $data['start_date'],
+                'end_date' => $data['end_date'],
+                'days_requested' => $data['days_requested'],
+                'reason' => $data['reason'] ?? $leaveRequest->reason,
+            ]);
+            $leaveRequest->save();
+
+            // Re-apply approval effects using the corrected values.
+            $this->applyApprovedLeaveToBalance($leaveRequest);
+            $this->populateAttendanceForLeave($leaveRequest);
+
+            DB::table('request_corrections')->insert([
+                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'request_type' => 'leave',
+                'request_id' => $leaveRequest->id,
+                'corrected_by' => $user->id,
+                'reason' => $data['correction_reason'],
+                'original_values' => json_encode($originalValues),
+                'corrected_values' => json_encode($leaveRequest->fresh()->only($auditFields)),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        $this->notifyRequester($leaveRequest);
+
+        return response()->json(['success' => true, 'message' => 'Approved leave request corrected successfully.']);
     }
 
     public function getLeaveBalance(Request $request)
@@ -795,6 +956,10 @@ class LeaveController extends Controller
             $query->where('employee_id', $user->employee->id);
         } elseif ($request->filled('employee_id')) {
             $query->where('employee_id', $request->employee_id);
+        }
+
+        if ($user->role === 'manager') {
+            $query->whereHas('employee.department', fn ($dept) => $dept->where('manager_id', $user->employee_id));
         }
 
         if ($request->filled('department_id')) {

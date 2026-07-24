@@ -23,7 +23,7 @@ class Department extends Model
         'budget',
         'company_id',
         'archived_at',
-        'supervisor_id',
+        'manager_id',
     ];
 
     protected $casts = [
@@ -65,9 +65,9 @@ class Department extends Model
         return $this->belongsTo(Company::class);
     }
 
-    public function supervisor(): BelongsTo
+    public function manager(): BelongsTo
     {
-        return $this->belongsTo(Employee::class, 'supervisor_id');
+        return $this->belongsTo(Employee::class, 'manager_id');
     }
 
     /**
@@ -111,11 +111,11 @@ class Department extends Model
     }
 
     /**
-     * Determine if the department currently has a supervisor/head assigned
+     * Determine if the department currently has a manager assigned
      */
-    public function hasSupervisor(): bool
+    public function hasManager(): bool
     {
-        return !is_null($this->supervisor_id);
+        return !is_null($this->manager_id);
     }
 
 

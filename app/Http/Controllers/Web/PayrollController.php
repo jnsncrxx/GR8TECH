@@ -163,6 +163,16 @@ class PayrollController extends Controller
             $query->where('latest_payrolls.employee_id', $user->employee->id);
         }
 
+        // Managers get a view-only, department-scoped payroll list (payroll.team
+        // route). Mirrors Employee::scopeManagedBy() used for OB/Leave/Overtime
+        // approval scoping, applied here via a join since this query is built
+        // on the DB facade rather than Eloquent.
+        $isReadOnly = $user && $user->role === 'manager' && $user->employee;
+        if ($isReadOnly) {
+            $query->join('departments as manager_scope_departments', 'employees.department_id', '=', 'manager_scope_departments.id')
+                ->where('manager_scope_departments.manager_id', $user->employee->id);
+        }
+
         // Default to the current month if no date filter was given, so this
         // page never silently lists every payroll ever created.
         if (!$request->filled('start_date') || !$request->filled('end_date')) {
@@ -322,10 +332,16 @@ class PayrollController extends Controller
         if ($user && $user->role === 'employee' && $user->employee) {
             $employeesQuery->where('id', $user->employee->id);
         }
+        // Restrict to own department's employees if user is a manager
+        if ($isReadOnly) {
+            $employeesQuery->managedBy($user->employee->id);
+        }
         $employees = $employeesQuery->get();
 
-        // Get departments for the filter
-        $departments = Department::all();
+        // Get departments for the filter (managers only see their own)
+        $departments = $isReadOnly
+            ? Department::where('manager_id', $user->employee->id)->get()
+            : Department::all();
 
         // Calculate summary statistics - get ALL payrolls for the period (using same logic)
         $summaryQuery = Payroll::query();
@@ -339,6 +355,11 @@ class PayrollController extends Controller
         if ($currentCompany) {
             $summaryQuery->whereHas('employee', function ($q) use ($currentCompany) {
                 $q->where('company_id', $currentCompany->id);
+            });
+        }
+        if ($isReadOnly) {
+            $summaryQuery->whereHas('employee', function ($q) use ($user) {
+                $q->managedBy($user->employee->id);
             });
         }
 
@@ -363,7 +384,7 @@ class PayrollController extends Controller
 
         $payrollTemplates = \App\Models\PayrollTemplate::all();
         
-        return view('payroll.index', compact('payrolls', 'employees', 'summary', 'departments', 'payrollTemplates', 'lockedRuns', 'selectedRun'));
+        return view('payroll.index', compact('payrolls', 'employees', 'summary', 'departments', 'payrollTemplates', 'lockedRuns', 'selectedRun', 'isReadOnly'));
     }
 
     public function checkDuplicatePayroll(Request $request)

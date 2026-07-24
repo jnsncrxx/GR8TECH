@@ -120,11 +120,11 @@
         @if($user->role === 'admin' || $user->role === 'hr' || $user->role === 'manager')
         <!-- Payroll Dropdown -->
         <div class="relative" x-data="{ 
-            open: {{ in_array($activeRoute, ['payroll.index', 'payroll.runs', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'true' : 'false' }}
+            open: {{ in_array($activeRoute, ['payroll.index', 'payroll.team', 'payroll.runs', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'true' : 'false' }}
         }">
-            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, ['payroll.index', 'payroll.runs', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, ['payroll.index', 'payroll.team', 'payroll.runs', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
                 <div class="flex items-center">
-                    <i class="fas fa-money-bill-wave mr-3 text-lg {{ in_array($activeRoute, ['payroll.index', 'payroll.runs', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
+                    <i class="fas fa-money-bill-wave mr-3 text-lg {{ in_array($activeRoute, ['payroll.index', 'payroll.team', 'payroll.runs', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
                     <span>Payroll</span>
                 </div>
                 <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }"></i>
@@ -140,6 +140,7 @@
                  x-transition:leave-end="opacity-0 transform scale-95"
                  class="ml-8 mt-2 space-y-1 bg-gray-50 rounded-lg p-2 border border-gray-200">
                 
+                @if($user->role === 'admin' || $user->role === 'hr')
                 <!-- Payroll Index -->
                 <a href="{{ route('payroll.index') }}" 
                    class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'payroll.index' ? 'bg-white text-blue-600' : '' }}">
@@ -159,6 +160,14 @@
                     <i class="fas fa-file-invoice mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ in_array($activeRoute, ['payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'text-blue-600' : '' }}"></i>
                     <span>Payroll Templates</span>
                 </a>
+                @else
+                <!-- Manager: view-only, own department only -->
+                <a href="{{ route('payroll.team') }}" 
+                   class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'payroll.team' ? 'bg-white text-blue-600' : '' }}">
+                    <i class="fas fa-eye mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'payroll.team' ? 'text-blue-600' : '' }}"></i>
+                    <span>My Team's Payroll</span>
+                </a>
+                @endif
                 
             </div>
         </div>
@@ -230,11 +239,13 @@
                     <span>My Schedule</span>
                 </a>
                 @else
+                @if(in_array($user->role, ['admin', 'hr', 'manager']))
                 <a href="{{ route('schedule-v2.index') }}" 
                    class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'schedule-v2.index' ? 'bg-white text-blue-600' : '' }}">
                     <i class="fas fa-calendar-plus mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'schedule-v2.index' ? 'text-blue-600' : '' }}"></i>
                     <span>Schedule Management</span>
                 </a>
+                @endif
                 @endif
                 
                 <!-- Overtime -->
@@ -259,14 +270,12 @@
                 </a>
                 
                 <!-- Period Management -->
-                @if($user->role !== 'employee')
+                @if(in_array($user->role, ['admin', 'hr']))
                 <a href="{{ route('attendance.period-management.index') }}" 
                    class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'attendance.period-management.index' ? 'bg-white text-blue-600' : '' }}">
                     <i class="fas fa-calendar-week mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'attendance.period-management.index' ? 'text-blue-600' : '' }}"></i>
                     <span>Period Management</span>
-                    @if($user->role !== 'employee')
                     <span class="ml-auto bg-purple-100 text-purple-600 text-xs px-2 py-1 rounded-full">New</span>
-                    @endif
                 </a>
                 @endif
                 

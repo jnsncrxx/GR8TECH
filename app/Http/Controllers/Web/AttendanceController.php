@@ -51,6 +51,19 @@ class AttendanceController extends Controller
                 ->orderBy('first_name')
                 ->paginate(15);
 
+        } elseif ($userRole === 'manager' && $user->employee_id) {
+            // === MANAGER: Sariling department/team lang ===
+            $allEmployees = Employee::with('department')
+                ->managedBy($user->employee_id)
+                ->orderBy('first_name')
+                ->get()
+                ->values();
+
+            $employees = Employee::with('department')
+                ->managedBy($user->employee_id)
+                ->orderBy('first_name')
+                ->paginate(15);
+
         } else {
             // === EMPLOYEE: Sarili lang ===
             $employee = Employee::find($user->employee_id);
@@ -230,6 +243,7 @@ class AttendanceController extends Controller
         }
 
         $isHrOrAdmin = in_array($userRole, ['admin', 'hr']);
+        $isManager = $userRole === 'manager';
 
         // Default to last 30 days
         $dateFrom = $request->query('date_from') ? Carbon::parse($request->query('date_from')) : Carbon::now()->subDays(30);
@@ -238,15 +252,20 @@ class AttendanceController extends Controller
         $baseQuery = AttendanceRecord::whereDate('date', '>=', $dateFrom->toDateString())
             ->whereDate('date', '<=', $dateTo->toDateString());
 
-        // If employee (not HR/Admin), filter by their own employee_id
-        if (!$isHrOrAdmin) {
+        if ($isManager && $user->employee_id) {
+            // Manager sees their own department/team only
+            $baseQuery->whereHas('employee', function ($query) use ($user) {
+                $query->managedBy($user->employee_id);
+            });
+        } elseif (!$isHrOrAdmin) {
+            // Employee: filter by their own employee_id
             $employee = Employee::find($user->employee_id);
             if ($employee) {
                 $baseQuery->where('employee_id', $employee->id);
             }
         }
 
-        if ($request->filled('employee_id') && $isHrOrAdmin) {
+        if ($request->filled('employee_id') && ($isHrOrAdmin || $isManager)) {
             $baseQuery->where('employee_id', $request->employee_id);
         }
 
@@ -307,9 +326,14 @@ class AttendanceController extends Controller
             ['path' => $request->url(), 'query' => $request->query()]
         );
 
-        // Get employees for filter (HR/Admin only)
+        // Get employees for filter (HR/Admin sees everyone, manager sees own team)
         if ($isHrOrAdmin) {
             $employees = Employee::with('department')
+                ->orderBy('first_name')
+                ->get();
+        } elseif ($isManager && $user->employee_id) {
+            $employees = Employee::with('department')
+                ->managedBy($user->employee_id)
                 ->orderBy('first_name')
                 ->get();
         } else {
@@ -317,7 +341,9 @@ class AttendanceController extends Controller
             $employees = $employee ? collect([$employee]) : collect();
         }
 
-        $departments = \App\Models\Department::orderBy('name')->get();
+        $departments = $isManager && $user->employee_id
+            ? \App\Models\Department::where('manager_id', $user->employee_id)->orderBy('name')->get()
+            : \App\Models\Department::orderBy('name')->get();
 
         // Calculate summary statistics
         $summary = [
@@ -918,8 +944,16 @@ class AttendanceController extends Controller
         }
 
 
+        $conflicts = app(\App\Services\PayrollRequestConflictService::class);
+
+        if ($conflicts->payrollGeneratedForDate($validated['employee_id'], $validated['date'])) {
+            return redirect()->back()->withInput()->with(
+                'error',
+                'Cannot add a record — payroll has already been generated for this date. An Admin must reopen the payroll period before this date can be edited.'
+            );
+        }
+
         if ($isOfficialBusiness) {
-            $conflicts = app(\App\Services\PayrollRequestConflictService::class);
             if ($conflicts->leaveOnDate($validated['employee_id'], $validated['date'])) {
                 return redirect()->back()->withInput()->with(
                     'error',
@@ -1125,6 +1159,17 @@ class AttendanceController extends Controller
 
         $attendanceRecord = AttendanceRecord::findOrFail($id);
         $date = Carbon::parse($validated['date'])->toDateString();
+
+        $conflicts = app(\App\Services\PayrollRequestConflictService::class);
+        $originalDate = Carbon::parse($attendanceRecord->date)->toDateString();
+        if ($conflicts->payrollGeneratedForDate($validated['employee_id'], $originalDate)
+            || ($date !== $originalDate && $conflicts->payrollGeneratedForDate($validated['employee_id'], $date))) {
+            return redirect()->back()->withInput()->with(
+                'error',
+                'Cannot edit this record — payroll has already been generated for this date. An Admin must reopen the payroll period first.'
+            );
+        }
+
         $toDateTime = static fn (?string $time) => $time ? Carbon::parse("{$date} {$time}") : null;
         $timeIn = $toDateTime($validated['time_in'] ?? null);
         $timeOut = $toDateTime($validated['time_out'] ?? null);
