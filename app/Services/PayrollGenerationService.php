@@ -1103,38 +1103,52 @@ class PayrollGenerationService
         if ($payroll->allowances > 0) {
             $html .= '<tr><td>Allowances</td><td>₱' . number_format($payroll->allowances, 2) . '</td></tr>';
         }
-
-        $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($payroll->gross_pay, 2) . '</td></tr>
+$html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($payroll->gross_pay, 2) . '</td></tr>
         </table>
-        
+
         <table class="table">
             <tr><th>Deductions</th><th>Amount</th></tr>';
 
-        if ($payroll->deductions > 0) {
-            $html .= '<tr><td>Deductions</td><td>₱' . number_format($payroll->deductions, 2) . '</td></tr>';
+        if (($payroll->unpaid_leave_deduction ?? 0) > 0) {
+            $html .= '<tr><td>Unpaid Leave</td><td>₱' . number_format($payroll->unpaid_leave_deduction, 2) . '</td></tr>';
         }
-        if ($payroll->tax_amount > 0) {
-            $html .= '<tr><td>Tax</td><td>₱' . number_format($payroll->tax_amount, 2) . '</td></tr>';
+        if (($payroll->late_deduction ?? 0) > 0) {
+            $html .= '<tr><td>Late (' . (int) ($payroll->late_minutes ?? 0) . ' min)</td><td>₱' . number_format($payroll->late_deduction, 2) . '</td></tr>';
         }
-        if ($payroll->sss > 0) {
+        if (($payroll->undertime_deduction ?? 0) > 0) {
+            $html .= '<tr><td>Undertime (' . (int) ($payroll->undertime_minutes ?? 0) . ' min)</td><td>₱' . number_format($payroll->undertime_deduction, 2) . '</td></tr>';
+        }
+        if (($payroll->absence_deduction ?? 0) > 0) {
+            $html .= '<tr><td>Absence</td><td>₱' . number_format($payroll->absence_deduction, 2) . '</td></tr>';
+        }
+        if (($payroll->loan_deduction ?? 0) > 0) {
+            $html .= '<tr><td>Loan Amortization</td><td>₱' . number_format($payroll->loan_deduction, 2) . '</td></tr>';
+        }
+        if (($payroll->other_deductions ?? 0) > 0) {
+            $html .= '<tr><td>Other Deductions</td><td>₱' . number_format($payroll->other_deductions, 2) . '</td></tr>';
+        }
+        if (($payroll->sss ?? 0) > 0) {
             $html .= '<tr><td>SSS</td><td>₱' . number_format($payroll->sss, 2) . '</td></tr>';
         }
-        if ($payroll->phic > 0) {
+        if (($payroll->phic ?? 0) > 0) {
             $html .= '<tr><td>PhilHealth</td><td>₱' . number_format($payroll->phic, 2) . '</td></tr>';
         }
-        if ($payroll->hdmf > 0) {
+        if (($payroll->hdmf ?? 0) > 0) {
             $html .= '<tr><td>Pag-IBIG</td><td>₱' . number_format($payroll->hdmf, 2) . '</td></tr>';
         }
+        if (($payroll->tax_amount ?? 0) > 0) {
+            $html .= '<tr><td>Tax</td><td>₱' . number_format($payroll->tax_amount, 2) . '</td></tr>';
+        }
 
-        $totalDeductions = $payroll->deductions + $payroll->tax_amount + ($payroll->sss ?? 0) + ($payroll->phic ?? 0) + ($payroll->hdmf ?? 0);
+        $totalDeductions = ($payroll->deductions ?? 0) + ($payroll->tax_amount ?? 0);
 
-        $html .= '<tr class="total"><td>Total Deductions</td><td>₱' . number_format($totalDeductions, 2) . '</td></tr>
+       $html .= '<tr class="total"><td>Total Deductions</td><td>₱' . number_format($totalDeductions, 2) . '</td></tr>
         </table>
-        
+
         <div style="text-align: center; padding: 20px; border: 2px solid #000; margin: 20px 0;">
             <h2>NET PAY: ₱' . number_format($payroll->net_pay, 2) . '</h2>
         </div>
-        
+
         <div style="text-align: center; font-size: 12px; margin-top: 40px;">
             <p>Generated on ' . $today . '</p>
         </div>
@@ -2443,6 +2457,7 @@ class PayrollGenerationService
             'hdmf' => $components['hdmf'],
             'deductions_details' => [
                 'total_late_minutes' => $components['late_minutes'] ?? 0,
+                'undertime_minutes' => $components['undertime_minutes'] ?? 0,
                 'late_days_count' => collect($employeeRecords)
                     ->filter(fn ($record) => (int) ($record['late_minutes'] ?? 0) > 0)
                     ->count(),
@@ -2458,11 +2473,12 @@ class PayrollGenerationService
                 'scheduled' => $components['scheduled_deductions'] ?? $components['total_deductions'],
                 'deferred' => $components['deferred_deductions'] ?? 0,
             ],
-            'earnings_details' => [
+           'earnings_details' => [
                 'basic_salary' => $components['basic_salary'] ?? 0,
                 'allowances' => max(0, ($components['allowances'] ?? 0) - ($components['sick_leave_pay'] ?? 0)),
                 'paid_leave' => $components['sick_leave_pay'] ?? 0,
                 'overtime' => $components['overtime_pay'] ?? 0,
+                'overtime_hours' => $components['overtime_hours'] ?? 0,
                 'night_differential' => $components['night_differential_pay'] ?? 0,
                 'holiday_pay' => $components['holiday_pay'] ?? 0,
                 'rest_day_premium' => $components['rest_day_premium_pay'] ?? 0,

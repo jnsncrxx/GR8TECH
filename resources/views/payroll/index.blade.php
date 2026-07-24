@@ -81,6 +81,7 @@
                                 id="dateRangeButton" 
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors text-left flex items-center justify-between">
                             <span id="dateRangeText">{{ date('M d, Y') }} - {{ date('M d, Y') }}</span>
+                            <span id="legacyPeriodDisplay" class="hidden"></span>
                             <i class="fas fa-calendar-alt text-gray-400"></i>
                         </button>
                         
@@ -600,6 +601,7 @@
                                         'employee_code' => $payroll->employee->employee_id ?? 'N/A',
                                         'department' => $payroll->employee->department->name ?? 'N/A',
                                         'position' => $payroll->employee->position?->name ?? 'N/A',
+                                        'period' => \Carbon\Carbon::parse($payroll->pay_period_start)->format('M j, Y') . ' - ' . \Carbon\Carbon::parse($payroll->pay_period_end)->format('M j, Y'),
                                         'basic_salary' => $payroll->basic_salary,
                                         'overtime_hours' => $payroll->overtime_hours ?? 0,
                                         'overtime_pay' => $payroll->overtime_pay ?? 0,
@@ -618,6 +620,8 @@
                                         'late_deduction' => $payroll->late_deduction ?? 0,
                                         'undertime_deduction' => $payroll->undertime_deduction ?? 0,
                                         'absence_deduction' => $payroll->absence_deduction ?? 0,
+                                        'loan_deduction' => $payroll->loan_deduction ?? 0,
+                                        'other_deductions' => $payroll->other_deductions ?? 0,
                                         'total_deductions' => ($payroll->deductions ?? 0) + ($payroll->tax_amount ?? 0),
                                         'net_pay' => $payroll->net_pay
                                     ];
@@ -748,15 +752,27 @@
                             'employee_code' => $payroll->employee->employee_id ?? 'N/A',
                             'department' => $payroll->employee->department->name ?? 'N/A',
                             'position' => $payroll->employee->position?->name ?? 'N/A',
+                            'period' => \Carbon\Carbon::parse($payroll->pay_period_start)->format('M j, Y') . ' - ' . \Carbon\Carbon::parse($payroll->pay_period_end)->format('M j, Y'),
                             'basic_salary' => $payroll->basic_salary,
+                            'overtime_hours' => $payroll->overtime_hours ?? 0,
                             'overtime_pay' => $payroll->overtime_pay,
+                            'regular_holiday_pay' => ($payroll->holiday_basic_pay ?? 0) + ($payroll->holiday_premium ?? 0),
+                            'special_holiday_pay' => $payroll->special_holiday_premium ?? 0,
+                            'night_differential_pay' => $payroll->night_differential_pay ?? 0,
+                            'rest_day_premium_pay' => $payroll->rest_day_premium_pay ?? 0,
                             'allowances' => $payroll->allowances,
+                            'bonuses' => $payroll->bonuses ?? 0,
                             'total_earnings' => $payroll->gross_pay ?? ($payroll->basic_salary + $payroll->overtime_pay + $payroll->allowances),
                             'sss' => $payroll->sss,
                             'phic' => $payroll->phic,
                             'pagibig' => $payroll->hdmf,
                             'tax' => $payroll->tax_amount,
                             'unpaid_leave_deduction' => $payroll->unpaid_leave_deduction,
+                            'late_deduction' => $payroll->late_deduction ?? 0,
+                            'undertime_deduction' => $payroll->undertime_deduction ?? 0,
+                            'absence_deduction' => $payroll->absence_deduction ?? 0,
+                            'loan_deduction' => $payroll->loan_deduction ?? 0,
+                            'other_deductions' => $payroll->other_deductions ?? 0,
                             'total_deductions' => $payroll->deductions + $payroll->tax_amount,
                             'net_pay' => $payroll->net_pay
                         ];
@@ -855,15 +871,27 @@
                                     'employee_code' => $payroll->employee->employee_id ?? 'N/A',
                                     'department' => $payroll->employee->department->name ?? 'N/A',
                                     'position' => $payroll->employee->position?->name ?? 'N/A',
+                                    'period' => \Carbon\Carbon::parse($payroll->pay_period_start)->format('M j, Y') . ' - ' . \Carbon\Carbon::parse($payroll->pay_period_end)->format('M j, Y'),
                                     'basic_salary' => $payroll->basic_salary,
+                                    'overtime_hours' => $payroll->overtime_hours ?? 0,
                                     'overtime_pay' => $payroll->overtime_pay,
+                                    'regular_holiday_pay' => ($payroll->holiday_basic_pay ?? 0) + ($payroll->holiday_premium ?? 0),
+                                    'special_holiday_pay' => $payroll->special_holiday_premium ?? 0,
+                                    'night_differential_pay' => $payroll->night_differential_pay ?? 0,
+                                    'rest_day_premium_pay' => $payroll->rest_day_premium_pay ?? 0,
                                     'allowances' => $payroll->allowances,
+                                    'bonuses' => $payroll->bonuses ?? 0,
                                     'total_earnings' => $payroll->gross_pay ?? ($payroll->basic_salary + $payroll->overtime_pay + $payroll->allowances),
                                     'sss' => $payroll->sss,
                                     'phic' => $payroll->phic,
                                     'pagibig' => $payroll->hdmf,
                                     'tax' => $payroll->tax_amount,
                                     'unpaid_leave_deduction' => $payroll->unpaid_leave_deduction,
+                                    'late_deduction' => $payroll->late_deduction ?? 0,
+                                    'undertime_deduction' => $payroll->undertime_deduction ?? 0,
+                                    'absence_deduction' => $payroll->absence_deduction ?? 0,
+                                    'loan_deduction' => $payroll->loan_deduction ?? 0,
+                                    'other_deductions' => $payroll->other_deductions ?? 0,
                                     'total_deductions' => $payroll->deductions + $payroll->tax_amount,
                                     'net_pay' => $payroll->net_pay
                                 ];
@@ -1303,6 +1331,10 @@ async function exportPayrollWithCalculations() {
                             <span class="text-gray-500">Position:</span>
                             <span id="modal-emp-pos" class="ml-2 font-medium"></span>
                         </div>
+                        <div class="col-span-2">
+                            <span class="text-gray-500">Pay Period:</span>
+                            <span id="modal-emp-period" class="ml-2 font-medium text-blue-700"></span>
+                        </div>
                     </div>
                 </div>
 
@@ -1368,6 +1400,14 @@ async function exportPayrollWithCalculations() {
                         <div class="flex justify-between">
                             <span>Absence / Other Attendance Deduction</span>
                             <span id="modal-ded-attendance" class="font-medium text-red-600"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Loan Amortization</span>
+                            <span id="modal-ded-loan" class="font-medium text-red-600"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Other Deductions</span>
+                            <span id="modal-ded-other" class="font-medium text-red-600"></span>
                         </div>
                         <div class="flex justify-between">
                             <span>SSS Contribution</span>
@@ -2153,6 +2193,7 @@ function openPayrollModal(payrollId, dataStr) {
             document.getElementById('modal-emp-id').textContent = data.employee_code;
             document.getElementById('modal-emp-dept').textContent = data.department;
             document.getElementById('modal-emp-pos').textContent = data.position;
+            document.getElementById('modal-emp-period').textContent = data.period;
             
             document.getElementById('modal-earn-basic').textContent = formatMoney(data.basic_salary);
             document.getElementById('modal-earn-ot').textContent = formatMoney(data.overtime_pay);
@@ -2165,15 +2206,17 @@ function openPayrollModal(payrollId, dataStr) {
             document.getElementById('modal-earn-bonus').textContent = formatMoney(data.bonuses);
             document.getElementById('modal-earn-total').textContent = formatMoney(data.total_earnings);
             
-            // Calculate Attendance Penalties (Total Deductions - Statutory - Unpaid)
-            const statutory = parseFloat(data.sss || 0) + parseFloat(data.phic || 0) + parseFloat(data.pagibig || 0) + parseFloat(data.tax || 0);
-            const unpaid = parseFloat(data.unpaid_leave_deduction || 0);
-            const attendancePenalties = Math.max(0, parseFloat(data.total_deductions || 0) - statutory - unpaid);
-
-            document.getElementById('modal-ded-unpaid').textContent = formatMoney(unpaid);
+            // Each deduction is now passed through explicitly from its own payroll
+            // column, so display each one directly under its matching label rather
+            // than reconstructing any of them — a reconstructed "catch-all" here
+            // previously double-counted late/undertime/other/loan deductions
+            // whenever absence_deduction was legitimately 0 (falsy in JS).
+            document.getElementById('modal-ded-unpaid').textContent = formatMoney(data.unpaid_leave_deduction);
             document.getElementById('modal-ded-late').textContent = formatMoney(data.late_deduction);
             document.getElementById('modal-ded-undertime').textContent = formatMoney(data.undertime_deduction);
-            document.getElementById('modal-ded-attendance').textContent = formatMoney(data.absence_deduction || attendancePenalties);
+            document.getElementById('modal-ded-attendance').textContent = formatMoney(data.absence_deduction);
+            document.getElementById('modal-ded-loan').textContent = formatMoney(data.loan_deduction);
+            document.getElementById('modal-ded-other').textContent = formatMoney(data.other_deductions);
             document.getElementById('modal-ded-sss').textContent = formatMoney(data.sss);
             document.getElementById('modal-ded-phic').textContent = formatMoney(data.phic);
             document.getElementById('modal-ded-hdmf').textContent = formatMoney(data.pagibig);
@@ -2585,8 +2628,14 @@ function formatDateForDisplay(date) {
 }
 
 function updatePeriodDisplay() {
-    const periodDisplay = document.getElementById('periodDisplay');
-    
+    // This targets the legacy (hidden, unused) calendar widget's own display span —
+    // NOT the "Selected Run" banner (#periodDisplay), which is server-rendered from
+    // $selectedRun and must reflect the locked cutoff dropdown, not this widget.
+    const periodDisplay = document.getElementById('legacyPeriodDisplay');
+    if (!periodDisplay) {
+        return;
+    }
+
     if (selectedFromDate && selectedToDate) {
         periodDisplay.textContent = `${formatDateForDisplay(selectedFromDate)} - ${formatDateForDisplay(selectedToDate)}`;
     } else if (selectedFromDate) {

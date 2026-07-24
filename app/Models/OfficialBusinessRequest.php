@@ -23,12 +23,14 @@ class OfficialBusinessRequest extends Model
     public const APPROVED = 'approved';
     public const REJECTED = 'rejected';
     public const EXPIRED = 'expired';
+    public const CANCELLED = 'cancelled';
 
     public const STATUSES = [
         self::PENDING,
         self::APPROVED,
         self::REJECTED,
         self::EXPIRED,
+        self::CANCELLED,
     ];
 
     protected $fillable = [
@@ -186,6 +188,11 @@ class OfficialBusinessRequest extends Model
         return $this->status === self::EXPIRED;
     }
 
+    public function isCancelled(): bool
+    {
+        return $this->status === self::CANCELLED;
+    }
+
     // isPastDeadline() and scopePastDeadline() now come from HasExpiryWindow.
 
     public function scopePending($query)
@@ -206,5 +213,10 @@ class OfficialBusinessRequest extends Model
     public function scopeExpired($query)
     {
         return $query->where('status', self::EXPIRED);
+    }
+
+    public function scopeCancelled($query)
+    {
+        return $query->where('status', self::CANCELLED);
     }
 }

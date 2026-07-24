@@ -229,10 +229,13 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Reason
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Status
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Reviewed By
+                        </th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Actions
                         </th>
                     </tr>
@@ -259,6 +262,26 @@
                                 'bereavement' => 'bg-gray-100 text-gray-800',
                                 'study' => 'bg-teal-100 text-teal-800'
                             ];
+
+                            // Same reviewer display pattern used by the OB/OT tables.
+                            $reviewerName = trim(
+                                ($leaveRequest->approver?->employee?->first_name ?? '') . ' ' .
+                                ($leaveRequest->approver?->employee?->last_name ?? '')
+                            );
+
+                            // Fallback when the account is not linked to an employee profile.
+                            if ($reviewerName === '') {
+                                $reviewerName = trim(
+                                    ($leaveRequest->approver?->first_name ?? '') . ' ' .
+                                    ($leaveRequest->approver?->last_name ?? '')
+                                );
+                            }
+
+                            if ($reviewerName === '') {
+                                $reviewerName = $leaveRequest->approver?->name
+                                    ?? $leaveRequest->approver?->username
+                                    ?? '';
+                            }
                         @endphp
                     <tr class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 whitespace-nowrap">
@@ -291,17 +314,35 @@
                         <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">{{ Str::limit($leaveRequest->reason, 30) }}</div>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $statusColors[$leaveRequest->status] ?? 'bg-gray-100 text-gray-800' }}">
-                                    @if($leaveRequest->status == 'pending' || $leaveRequest->status == 'approved')
-                                        <div class="w-1.5 h-1.5 rounded-full mr-1.5 {{ $leaveRequest->status == 'pending' ? 'bg-yellow-400' : 'bg-green-400' }}"></div>
-                                    @endif
-                                    {{ ucfirst($leaveRequest->status) }}
-                            </span>
-                                @if($leaveRequest->status == 'rejected' && $leaveRequest->rejection_reason)
-                                    <div class="text-xs text-red-600 mt-1 max-w-[200px]"><span class="font-medium">Admin Reason:</span> {{ Str::limit($leaveRequest->rejection_reason, 30) }}</div>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <span class="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium {{ $statusColors[$leaveRequest->status] ?? 'bg-gray-100 text-gray-800' }} min-w-[80px]">
+                                @if($leaveRequest->status == 'pending' || $leaveRequest->status == 'approved')
+                                    <div class="w-1.5 h-1.5 rounded-full mr-1.5 {{ $leaveRequest->status == 'pending' ? 'bg-yellow-400' : 'bg-green-400' }}"></div>
                                 @endif
+                                {{ ucfirst($leaveRequest->status) }}
+                            </span>
+
+                            @if($leaveRequest->status === 'rejected' && $leaveRequest->rejection_reason)
+                                <div class="text-xs text-red-600 mt-1 max-w-[220px] mx-auto"
+                                     title="{{ $leaveRequest->rejection_reason }}">
+                                    <span class="font-medium">Admin Reason:</span>
+                                    {{ Str::limit($leaveRequest->rejection_reason, 40) }}
+                                </div>
+                            @elseif($leaveRequest->status === 'cancelled' && $leaveRequest->rejection_reason)
+                                <div class="text-xs text-gray-600 mt-1 max-w-[220px] mx-auto"
+                                     title="{{ $leaveRequest->rejection_reason }}">
+                                    <span class="font-medium">Cancellation Reason:</span>
+                                    {{ Str::limit($leaveRequest->rejection_reason, 40) }}
+                                </div>
+                            @endif
                         </td>
+
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-gray-900">
+                                {{ $reviewerName !== '' ? $reviewerName : '—' }}
+                            </div>
+                        </td>
+
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                             <div class="flex justify-center items-center space-x-2">
                                     @if(in_array($user->role, ['admin', 'hr', 'manager']) && $leaveRequest->status == 'pending')
@@ -310,6 +351,10 @@
                                         </button>
                                         <button data-leave-id="{{ $leaveRequest->id }}" data-action="reject" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors" title="Reject">
                                             <i class="fas fa-times"></i>
+                                        </button>
+                                    @elseif(in_array($user->role, ['admin', 'hr', 'manager']) && $leaveRequest->status == 'approved')
+                                        <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel approved leave">
+                                            <i class="fas fa-ban"></i>
                                         </button>
                                     @elseif($leaveRequest->status == 'pending' && ($user->role == 'employee' && $leaveRequest->employee_id == $user->employee?->id))
                                         <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel">
@@ -325,7 +370,7 @@
                     </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">No leave requests found.</td>
+                            <td colspan="9" class="px-6 py-4 text-center text-sm text-gray-500">No leave requests found.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -362,6 +407,25 @@
                             'bereavement' => 'bg-gray-100 text-gray-800',
                             'study' => 'bg-teal-100 text-teal-800'
                         ];
+
+                        // Same reviewer display pattern used by the OB/OT tables.
+                        $reviewerName = trim(
+                            ($leaveRequest->approver?->employee?->first_name ?? '') . ' ' .
+                            ($leaveRequest->approver?->employee?->last_name ?? '')
+                        );
+
+                        if ($reviewerName === '') {
+                            $reviewerName = trim(
+                                ($leaveRequest->approver?->first_name ?? '') . ' ' .
+                                ($leaveRequest->approver?->last_name ?? '')
+                            );
+                        }
+
+                        if ($reviewerName === '') {
+                            $reviewerName = $leaveRequest->approver?->name
+                                ?? $leaveRequest->approver?->username
+                                ?? '';
+                        }
                     @endphp
                 <div class="border border-gray-200 rounded-lg p-4">
                     <div class="flex items-center justify-between mb-3">
@@ -383,6 +447,8 @@
                                 </span>
                                 @if($leaveRequest->status == 'rejected' && $leaveRequest->rejection_reason)
                                     <div class="text-xs text-red-600 mt-1 max-w-[140px]"><span class="font-medium">Admin Reason:</span> {{ Str::limit($leaveRequest->rejection_reason, 50) }}</div>
+                                @elseif($leaveRequest->status == 'cancelled' && $leaveRequest->rejection_reason)
+                                    <div class="text-xs text-gray-600 mt-1 max-w-[140px]"><span class="font-medium">Cancellation Reason:</span> {{ Str::limit($leaveRequest->rejection_reason, 50) }}</div>
                                 @endif
                             </div>
                     </div>
@@ -406,8 +472,12 @@
                         </div>
                         <div>
                             <div class="text-gray-500">Type</div>
-                                <div class="font-medium">{{ \App\Models\LeaveRequest::labelFor($leaveRequest->leave_type) }}</div>
-                            </div>
+                            <div class="font-medium">{{ \App\Models\LeaveRequest::labelFor($leaveRequest->leave_type) }}</div>
+                        </div>
+                        <div class="col-span-2">
+                            <div class="text-gray-500">Reviewed By</div>
+                            <div class="font-medium">{{ $reviewerName !== '' ? $reviewerName : '—' }}</div>
+                        </div>
                     </div>
                     <div class="text-sm mb-3">
                         <div class="text-gray-500">Reason</div>
@@ -420,6 +490,10 @@
                                 </button>
                                 <button data-leave-id="{{ $leaveRequest->id }}" data-action="reject" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors" title="Reject">
                                     <i class="fas fa-times"></i>
+                                </button>
+                            @elseif(in_array($user->role, ['admin', 'hr', 'manager']) && $leaveRequest->status == 'approved')
+                                <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel approved leave">
+                                    <i class="fas fa-ban"></i>
                                 </button>
                             @elseif($leaveRequest->status == 'pending' && ($user->role == 'employee' && $leaveRequest->employee_id == $user->employee?->id))
                                 <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel">
@@ -908,11 +982,26 @@ function updateLeaveStatus(leaveRequestId, status, rejectionReason = null) {
     });
 }
 
-function cancelLeaveRequest(leaveRequestId) {
-    if (!confirm('Are you sure you want to cancel this leave request?')) {
-        return;
-    }
+function openCancelLeaveModal(leaveRequestId) {
+    currentLeaveActionId = leaveRequestId;
+    document.getElementById('cancelLeaveReason').value = '';
+    document.getElementById('cancelLeaveModal').classList.remove('hidden');
+}
 
+function closeCancelLeaveModal() {
+    currentLeaveActionId = null;
+    document.getElementById('cancelLeaveModal').classList.add('hidden');
+}
+
+function confirmCancelLeave() {
+    if (!currentLeaveActionId) return;
+    const reason = document.getElementById('cancelLeaveReason').value.trim();
+    const leaveRequestId = currentLeaveActionId;
+    closeCancelLeaveModal();
+    cancelLeaveRequest(leaveRequestId, reason);
+}
+
+function cancelLeaveRequest(leaveRequestId, cancellationReason = '') {
     const url = '{{ route("attendance.leave-management.cancel", ["id" => ":id"]) }}'.replace(':id', leaveRequestId);
 
     fetch(url, {
@@ -920,7 +1009,8 @@ function cancelLeaveRequest(leaveRequestId) {
         headers: {
             'Content-Type': 'application/json',
             'X-CSRF-TOKEN': '{{ csrf_token() }}'
-        }
+        },
+        body: JSON.stringify({ cancellation_reason: cancellationReason || null })
     })
     .then(response => response.json())
     .then(data => {
@@ -953,7 +1043,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } else if (action === 'reject') {
             openRejectLeaveModal(leaveId);
         } else if (action === 'cancel') {
-            cancelLeaveRequest(leaveId);
+            openCancelLeaveModal(leaveId);
         }
     });
     });
@@ -1007,6 +1097,35 @@ document.addEventListener('DOMContentLoaded', function() {
             <button type="button" onclick="confirmRejectLeave()"
                     class="px-4 py-2 bg-red-600 border border-transparent rounded-lg text-white hover:bg-red-700 transition-colors">
                 <i class="fas fa-times mr-2"></i>Reject Request
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Cancel Leave Request Modal -->
+<div id="cancelLeaveModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden z-50 flex items-center justify-center px-4">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">Cancel Leave Request</h3>
+            <button onclick="closeCancelLeaveModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="px-6 py-5">
+            <p class="text-sm text-gray-600 mb-4">Are you sure you want to cancel this leave request? If it was already approved, the employee's leave balance and any linked attendance will be restored.</p>
+            <label for="cancelLeaveReason" class="block text-sm font-medium text-gray-700 mb-2">Cancellation reason <span class="text-gray-400 font-normal">(optional)</span></label>
+            <textarea id="cancelLeaveReason" rows="3" maxlength="500"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      placeholder="Add a note about why this request is being cancelled..."></textarea>
+        </div>
+        <div class="flex justify-end space-x-3 px-6 py-4 border-t border-gray-200">
+            <button type="button" onclick="closeCancelLeaveModal()"
+                    class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                Keep Request
+            </button>
+            <button type="button" onclick="confirmCancelLeave()"
+                    class="px-4 py-2 bg-orange-600 border border-transparent rounded-lg text-white hover:bg-orange-700 transition-colors">
+                <i class="fas fa-ban mr-2"></i>Cancel Request
             </button>
         </div>
     </div>

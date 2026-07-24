@@ -297,6 +297,22 @@ class AttendanceRecord extends Model
 
     public function hasInvalidTimeSpan(): bool
     {
+        // An audited HR correction intentionally supersedes imported/raw time
+        // entries (see calculateTotalHours() above). Once corrected, only the
+        // corrected pair itself should be able to trip this check — otherwise
+        // a stale bad punch left behind in timeEntries keeps the record
+        // flagged as "Invalid Duration" forever, even after the fix is saved.
+        if ($this->corrected_at) {
+            if (!$this->time_in || !$this->time_out) {
+                return false;
+            }
+
+            return !$this->isPlausibleWorkSpan(
+                Carbon::parse($this->time_in),
+                Carbon::parse($this->time_out)
+            );
+        }
+
         $pairs = collect();
 
         if ($this->time_in && $this->time_out) {

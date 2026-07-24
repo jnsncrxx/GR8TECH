@@ -180,59 +180,164 @@
 
     <!-- Filters -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-        <form method="GET" action="{{ route('attendance.overtime') }}" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            @if($user->role !== 'employee')
-            <div>
-                <label for="employee" class="block text-sm font-medium text-gray-700 mb-2">Employee</label>
-                <select id="employee" name="employee_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
-                    <option value="" style="color: #111827 !important;">All Employees</option>
-                    @foreach($employees as $employee)
-                        <option value="{{ $employee->id }}" {{ request('employee_id') == $employee->id ? 'selected' : '' }} style="color: #111827 !important;">
-                            {{ $employee->full_name }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <label for="department" class="block text-sm font-medium text-gray-700 mb-2">Department</label>
-                <select id="department" name="department_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
-                    <option value="" style="color: #111827 !important;">All Departments</option>
-                    @foreach($departments as $department)
-                        <option value="{{ $department->id }}" {{ request('department_id') == $department->id ? 'selected' : '' }} style="color: #111827 !important;">
-                            {{ $department->name }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <label for="status" class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                <select id="status" name="status" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
-                    <option value="" style="color: #111827 !important;">All Status</option>
-                    <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }} style="color: #111827 !important;">Pending</option>
-                    <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }} style="color: #111827 !important;">Approved</option>
-                    <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }} style="color: #111827 !important;">Rejected</option>
-                    <option value="expired" {{ request('status') == 'expired' ? 'selected' : '' }} style="color: #111827 !important;">Expired</option>
-                </select>
-            </div>
+        <form method="GET"
+              action="{{ route('attendance.overtime') }}"
+              class="space-y-4">
+
+            @if($isReviewer)
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div>
+                        <label for="department_id" class="block text-sm font-medium text-gray-700 mb-2">
+                            Department
+                        </label>
+                        <select id="department_id"
+                                name="department_id"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">All Departments</option>
+                            @foreach($departments as $department)
+                                <option value="{{ $department->id }}"
+                                        {{ request('department_id') == $department->id ? 'selected' : '' }}>
+                                    {{ $department->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="employee_id" class="block text-sm font-medium text-gray-700 mb-2">
+                            Employee
+                        </label>
+                        <select id="employee_id"
+                                name="employee_id"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">All Employees</option>
+                            @foreach($employees as $employee)
+                                <option value="{{ $employee->id }}"
+                                        data-department-id="{{ $employee->department_id }}"
+                                        {{ request('employee_id') == $employee->id ? 'selected' : '' }}>
+                                    {{ $employee->full_name }}
+                                    @if($employee->department)
+                                        - {{ $employee->department->name }}
+                                    @endif
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="status" class="block text-sm font-medium text-gray-700 mb-2">
+                            Status
+                        </label>
+                        <select id="status"
+                                name="status"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">All Statuses</option>
+                            <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Pending</option>
+                            <option value="approved" {{ request('status') === 'approved' ? 'selected' : '' }}>Approved</option>
+                            <option value="rejected" {{ request('status') === 'rejected' ? 'selected' : '' }}>Rejected</option>
+                            <option value="expired" {{ request('status') === 'expired' ? 'selected' : '' }}>Expired</option>
+                            <option value="canceled" {{ request('status') === 'canceled' ? 'selected' : '' }}>Canceled</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="date_from" class="block text-sm font-medium text-gray-700 mb-2">
+                            From Date
+                        </label>
+                        <input type="date"
+                               id="date_from"
+                               name="date_from"
+                               value="{{ request('date_from') }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+
+                    <div>
+                        <label for="date_to" class="block text-sm font-medium text-gray-700 mb-2">
+                            To Date
+                        </label>
+                        <input type="date"
+                               id="date_to"
+                               name="date_to"
+                               value="{{ request('date_to') }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                </div>
+            @else
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label for="status" class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                        <select id="status" name="status"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">All Statuses</option>
+                            <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Pending</option>
+                            <option value="approved" {{ request('status') === 'approved' ? 'selected' : '' }}>Approved</option>
+                            <option value="rejected" {{ request('status') === 'rejected' ? 'selected' : '' }}>Rejected</option>
+                            <option value="expired" {{ request('status') === 'expired' ? 'selected' : '' }}>Expired</option>
+                            <option value="canceled" {{ request('status') === 'canceled' ? 'selected' : '' }}>Canceled</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="date_from" class="block text-sm font-medium text-gray-700 mb-2">From Date</label>
+                        <input type="date" id="date_from" name="date_from" value="{{ request('date_from') }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label for="date_to" class="block text-sm font-medium text-gray-700 mb-2">To Date</label>
+                        <input type="date" id="date_to" name="date_to" value="{{ request('date_to') }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                </div>
             @endif
-            <div>
-                <label for="dateFrom" class="block text-sm font-medium text-gray-700 mb-2">From Date</label>
-                <input type="date" id="dateFrom" name="date_from" value="{{ request('date_from') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
-            </div>
-            <div>
-                <label for="dateTo" class="block text-sm font-medium text-gray-700 mb-2">To Date</label>
-                <input type="date" id="dateTo" name="date_to" value="{{ request('date_to') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
-            </div>
-            <div class="flex flex-col sm:flex-row sm:justify-end gap-3 sm:col-span-2 lg:col-span-5">
-                <a href="{{ route('attendance.overtime') }}" class="inline-flex items-center justify-center px-6 py-2 border border-gray-300 text-gray-700 rounded-lg bg-white hover:bg-gray-50 transition-colors text-center">
-                    <i class="fas fa-times mr-2"></i>Clear Filters
+
+            <div class="flex flex-col sm:flex-row sm:justify-end gap-3">
+                <a href="{{ route('attendance.overtime') }}"
+                   class="inline-flex items-center justify-center px-6 py-2 border border-gray-300 text-gray-700 rounded-lg bg-white hover:bg-gray-50 transition-colors">
+                    <i class="fas fa-times mr-2"></i>
+                    Clear Filters
                 </a>
-                <button type="submit" class="inline-flex items-center justify-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                    <i class="fas fa-search mr-2"></i>Apply
+                <button type="submit"
+                        class="inline-flex items-center justify-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+                    <i class="fas fa-search mr-2"></i>
+                    Apply Filters
                 </button>
             </div>
         </form>
     </div>
+
+    @if($isReviewer)
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const departmentSelect = document.getElementById('department_id');
+                const employeeSelect = document.getElementById('employee_id');
+
+                if (!departmentSelect || !employeeSelect) {
+                    return;
+                }
+
+                const filterEmployees = () => {
+                    const selectedDepartment = departmentSelect.value;
+
+                    Array.from(employeeSelect.options).forEach((option, index) => {
+                        if (index === 0) {
+                            option.hidden = false;
+                            return;
+                        }
+
+                        option.hidden = selectedDepartment !== ''
+                            && option.dataset.departmentId !== selectedDepartment;
+                    });
+
+                    const selectedEmployee = employeeSelect.options[employeeSelect.selectedIndex];
+                    if (selectedEmployee && selectedEmployee.hidden) {
+                        employeeSelect.value = '';
+                    }
+                };
+
+                departmentSelect.addEventListener('change', filterEmployees);
+                filterEmployees();
+            });
+        </script>
+    @endif
 
     <!-- Overtime Records -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -252,8 +357,14 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Date
                         </th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Time In
+                        </th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Time Out
+                        </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Overtime Hours
+                            Total Hours
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Rate
@@ -292,7 +403,8 @@
                                   'pending' => 'bg-yellow-100 text-yellow-800',
                                   'approved' => 'bg-green-100 text-green-800',
                                   'rejected' => 'bg-red-100 text-red-800',
-                                  'expired' => 'bg-gray-100 text-gray-600'
+                                  'expired' => 'bg-gray-100 text-gray-600',
+                                  'canceled' => 'bg-gray-200 text-gray-700'
                               ];
                               $statusColor = $statusColors[$displayStatus] ?? 'bg-gray-100 text-gray-800';
                               $reviewerName = trim(($request->approver?->employee?->first_name ?? '') . ' ' . ($request->approver?->employee?->last_name ?? ''));
@@ -314,9 +426,18 @@
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">{{ \Carbon\Carbon::parse($request->date)->format('M d, Y') }}</div>
                             </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                <div class="text-sm font-medium text-gray-900">
+                                    {{ $request->start_time ? \Carbon\Carbon::parse($request->start_time)->format('h:i A') : '—' }}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                <div class="text-sm font-medium text-gray-900">
+                                    {{ $request->end_time ? \Carbon\Carbon::parse($request->end_time)->format('h:i A') : '—' }}
+                                </div>
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm font-medium text-gray-900">{{ \App\Helpers\TimezoneHelper::formatHours($request->hours) }}</div>
-                                <div class="text-xs text-gray-500 mt-0.5">{{ \Carbon\Carbon::parse($request->start_time)->format('h:i A') }} - {{ \Carbon\Carbon::parse($request->end_time)->format('h:i A') }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">{{ $request->rate_multiplier }}x</div>
@@ -355,6 +476,12 @@
                                         <i class="fas fa-times"></i>
                                     </button>
                                 </div>
+                                @elseif($displayStatus === 'approved')
+                                <div class="flex justify-center">
+                                    <button onclick="cancelOvertime('{{ $request->id }}')" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel approved overtime">
+                                        <i class="fas fa-ban"></i>
+                                    </button>
+                                </div>
                                 @else
                                     <span class="text-gray-400 font-bold text-lg">&mdash;</span>
                                 @endif
@@ -363,7 +490,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ in_array($user->role, ['admin', 'hr', 'manager']) ? 9 : 8 }}" class="px-6 py-4 text-center">
+                            <td colspan="{{ in_array($user->role, ['admin', 'hr', 'manager']) ? 11 : 10 }}" class="px-6 py-4 text-center">
                                 <div class="flex flex-col items-center justify-center py-8">
                                     <i class="fas fa-clock text-gray-400 text-4xl mb-4"></i>
                                     <p class="text-gray-500 text-lg font-medium mb-2">No overtime requests found</p>
@@ -425,7 +552,8 @@
                             'pending' => 'bg-yellow-100 text-yellow-800',
                             'approved' => 'bg-green-100 text-green-800',
                             'rejected' => 'bg-red-100 text-red-800',
-                            'expired' => 'bg-gray-100 text-gray-600'
+                            'expired' => 'bg-gray-100 text-gray-600',
+                            'canceled' => 'bg-gray-200 text-gray-700'
                         ];
                         $statusColor = $statusColors[$displayStatus] ?? 'bg-gray-100 text-gray-800';
                         $reviewerName = trim(($request->approver?->employee?->first_name ?? '') . ' ' . ($request->approver?->employee?->last_name ?? ''));
@@ -451,9 +579,20 @@
                                 <div class="font-medium">{{ \Carbon\Carbon::parse($request->date)->format('M d, Y') }}</div>
                             </div>
                             <div>
-                                <div class="text-gray-500">Overtime Hours</div>
+                                <div class="text-gray-500">Time In</div>
+                                <div class="font-medium">
+                                    {{ $request->start_time ? \Carbon\Carbon::parse($request->start_time)->format('h:i A') : '—' }}
+                                </div>
+                            </div>
+                            <div>
+                                <div class="text-gray-500">Time Out</div>
+                                <div class="font-medium">
+                                    {{ $request->end_time ? \Carbon\Carbon::parse($request->end_time)->format('h:i A') : '—' }}
+                                </div>
+                            </div>
+                            <div>
+                                <div class="text-gray-500">Total Hours</div>
                                 <div class="font-medium">{{ \App\Helpers\TimezoneHelper::formatHours($request->hours) }}</div>
-                                <div class="text-xs text-gray-400">{{ \Carbon\Carbon::parse($request->start_time)->format('h:i A') }} - {{ \Carbon\Carbon::parse($request->end_time)->format('h:i A') }}</div>
                             </div>
                             <div>
                                 <div class="text-gray-500">Rate</div>
@@ -488,6 +627,12 @@
                             </button>
                             <button onclick="rejectOvertime('{{ $request->id }}')" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors" title="Reject">
                                 <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        @elseif(in_array($user->role, ['admin', 'hr', 'manager']) && $displayStatus === 'approved')
+                        <div class="flex justify-end">
+                            <button onclick="cancelOvertime('{{ $request->id }}')" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel approved overtime">
+                                <i class="fas fa-ban"></i>
                             </button>
                         </div>
                         @endif
@@ -627,6 +772,40 @@
                             class="px-4 py-2 bg-red-600 border border-transparent rounded-lg text-white hover:bg-red-700 transition-colors">
                         <i class="fas fa-times mr-2"></i>
                         Reject Request
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Overtime Cancel Modal -->
+<div id="overtimeCancelModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999;" onclick="closeCancelModal()">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" style="max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium text-gray-900">Cancel Overtime Request</h3>
+                <button onclick="closeCancelModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="overtimeCancelForm" class="space-y-4">
+                <div>
+                    <p class="text-sm text-gray-600 mb-4">Cancel this approved overtime request? This reverses it.</p>
+                    <label for="cancelReason" class="block text-sm font-medium text-gray-700 mb-2">Cancellation reason <span class="text-gray-400 font-normal">(optional)</span></label>
+                    <textarea id="cancelReason" rows="3" maxlength="500"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
+                              placeholder="Add a note about why this request is being cancelled..."></textarea>
+                </div>
+                <div class="flex justify-end space-x-3 pt-4">
+                    <button type="button" onclick="closeCancelModal()"
+                            class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                        Keep Request
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 bg-orange-600 border border-transparent rounded-lg text-white hover:bg-orange-700 transition-colors">
+                        <i class="fas fa-ban mr-2"></i>
+                        Cancel Request
                     </button>
                 </div>
             </form>
@@ -859,6 +1038,39 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    const cancelForm = document.getElementById('overtimeCancelForm');
+    if (cancelForm) {
+        cancelForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            if (!currentCancelId) return;
+            const reason = document.getElementById('cancelReason').value.trim();
+            try {
+                const cancelUrl = '{{ route("attendance.overtime.cancel", ["id" => ":id"]) }}'.replace(':id', currentCancelId);
+                const response = await fetch(cancelUrl, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ cancellation_reason: reason || null })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showSuccess(data.message || 'Overtime request cancelled successfully');
+                    closeCancelModal();
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    showError(data.error || 'Failed to cancel overtime request.');
+                }
+            } catch (error) {
+                console.error('Error cancelling overtime:', error);
+                showError('An error occurred while cancelling the overtime request.');
+            }
+        });
+    }
 });
 
 let currentApproveId = null;
@@ -892,6 +1104,24 @@ function rejectOvertime(requestId) {
 
 function closeRejectModal() {
     const modal = document.getElementById('overtimeRejectModal');
+    if (modal) modal.style.display = 'none';
+}
+
+let currentCancelId = null;
+function cancelOvertime(requestId) {
+    currentCancelId = requestId;
+    const modal = document.getElementById('overtimeCancelModal');
+    const reasonField = document.getElementById('cancelReason');
+    if (reasonField) reasonField.value = '';
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
+    }
+}
+
+function closeCancelModal() {
+    const modal = document.getElementById('overtimeCancelModal');
     if (modal) modal.style.display = 'none';
 }
 

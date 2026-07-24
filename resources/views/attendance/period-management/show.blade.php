@@ -209,8 +209,10 @@
 
         @if(isset($scheduleExceptions) && $scheduleExceptions->isNotEmpty())
             @php
+                $warningOnlyIssues = ['Rest Day Duty Review'];
                 $hasBlockingScheduleExceptions = $scheduleExceptions->contains(
-                    fn ($exception) => ($exception['validation_issue'] ?? null) !== 'Rest Day Duty Review'
+                    fn ($exception) => collect($exception['validation_issues'] ?? [])
+                        ->contains(fn ($issue) => !in_array($issue, $warningOnlyIssues, true))
                 );
                 $exceptionTone = $hasBlockingScheduleExceptions ? 'red' : 'amber';
             @endphp
@@ -238,11 +240,30 @@
                                 <th class="px-4 py-3 text-left font-medium text-gray-600">Date</th>
                                 <th class="px-4 py-3 text-left font-medium text-gray-600">Schedule</th>
                                 <th class="px-4 py-3 text-left font-medium text-gray-600">Actual Log</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Issue</th>
+                                <th class="px-4 py-3 text-left font-medium text-gray-600">Issue(s)</th>
+                                <th class="px-4 py-3 text-left font-medium text-gray-600">Review</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 bg-white">
+                            @php
+                                // Where each issue type gets resolved. Attendance/schedule-shape
+                                // issues live in Timekeeping; the rest belong to their own module.
+                                $issueRouteMap = [
+                                    'Leave Conflict' => 'attendance.leave-management',
+                                    'OT Without Attendance' => 'attendance.overtime',
+                                    'OT Before Required Hours' => 'attendance.overtime',
+                                    'OT Overlaps Leave' => 'attendance.overtime',
+                                    'Unverified Official Business' => 'attendance.official-business',
+                                ];
+                            @endphp
                             @foreach($scheduleExceptions->take(100) as $exception)
+                                @php
+                                    $issues = $exception['validation_issues'] ?? (
+                                        !empty($exception['validation_issue']) ? [$exception['validation_issue']] : []
+                                    );
+                                    $primaryIssue = $issues[0] ?? null;
+                                    $reviewRoute = $issueRouteMap[$primaryIssue] ?? 'attendance.timekeeping';
+                                @endphp
                                 <tr>
                                     <td class="px-4 py-3 text-gray-900">
                                         {{ $exception['employee_code'] ?? '—' }} - {{ $exception['employee_name'] ?? 'Unknown' }}
@@ -251,9 +272,24 @@
                                     <td class="px-4 py-3 text-gray-700">{{ $exception['schedule_in_out'] ?? '—' }}</td>
                                     <td class="px-4 py-3 text-gray-700">{{ $exception['actual_in_out'] ?? '—' }}</td>
                                     <td class="px-4 py-3">
-                                        <span class="inline-flex rounded-full bg-{{ ($exception['validation_issue'] ?? null) === 'Rest Day Duty Review' ? 'amber' : 'red' }}-100 px-2.5 py-1 text-xs font-semibold text-{{ ($exception['validation_issue'] ?? null) === 'Rest Day Duty Review' ? 'amber' : 'red' }}-700">
-                                            {{ $exception['validation_issue'] }}
-                                        </span>
+                                        <div class="flex flex-wrap gap-1.5">
+                                            @foreach($issues as $issue)
+                                                @php
+                                                    $isWarning = in_array($issue, $warningOnlyIssues, true);
+                                                @endphp
+                                                <span class="inline-flex rounded-full bg-{{ $isWarning ? 'amber' : 'red' }}-100 px-2.5 py-1 text-xs font-semibold text-{{ $isWarning ? 'amber' : 'red' }}-700">
+                                                    {{ $issue }}
+                                                </span>
+                                            @endforeach
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        @if(\Illuminate\Support\Facades\Route::has($reviewRoute))
+                                            <a href="{{ route($reviewRoute, ['date_from' => $exception['date'] ?? null, 'date_to' => $exception['date'] ?? null]) }}"
+                                               class="text-sm font-medium text-blue-600 hover:text-blue-800">
+                                                Review
+                                            </a>
+                                        @endif
                                     </td>
                                 </tr>
                             @endforeach

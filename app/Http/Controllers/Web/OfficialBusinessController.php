@@ -763,7 +763,19 @@ class OfficialBusinessController extends Controller
     }
 
     /**
-     * Cancel a pending OB request.
+     * Cancel a pending OB request, or reverse an already-approved one.
+     *
+     * Pending: any owner or reviewer can withdraw it outright (row is deleted,
+     * matching the original behavior — nothing was ever applied to attendance).
+     *
+     * Approved: reviewers only (admin/hr/manager). This walks back what
+     * updateStatus() applied on approval: the request is marked cancelled,
+     * and recalculateAttendanceWithOfficialBusiness() is re-run so the
+     * attendance record's hours reflect only what's still actually approved
+     * for that date (it re-queries approved OB requests directly from the
+     * DB, so excluding this one is automatic). If that leaves the attendance
+     * record with no real clock-in and zero credited hours — i.e. it only
+     * ever existed to carry this OB's time — the now-stale record is removed.
      */
     public function cancel(
         Request $request,
@@ -780,9 +792,11 @@ class OfficialBusinessController extends Controller
             $obRequest->employee_id
             === $this->currentEmployeeId();
 
+        $isReviewer = $this->isReviewer();
+
         if (
             !$ownsRequest
-            && !$this->isReviewer()
+            && !$isReviewer
         ) {
             abort(
                 403,
@@ -790,18 +804,63 @@ class OfficialBusinessController extends Controller
             );
         }
 
-        if (!$obRequest->isPending()) {
+        if ($obRequest->isPending()) {
+            $obRequest->delete();
+
             return back()->with(
-                'error',
-                'Only pending requests can be cancelled.'
+                'success',
+                'OB request cancelled.'
             );
         }
 
-        $obRequest->delete();
+        if ($obRequest->isApproved()) {
+            if (!$isReviewer) {
+                return back()->with(
+                    'error',
+                    'Only admin, HR, or manager can cancel an approved Official Business request.'
+                );
+            }
+
+            $validated = $request->validate([
+                'cancellation_reason' => ['nullable', 'string', 'max:500'],
+            ]);
+
+            DB::transaction(function () use ($obRequest, $validated) {
+                $attendanceRecord = $obRequest->attendanceRecord;
+
+                $obRequest->update([
+                    'status' => OfficialBusinessRequest::CANCELLED,
+                    'rejection_reason' => $validated['cancellation_reason'] ?? null,
+                ]);
+
+                if (!$attendanceRecord) {
+                    return;
+                }
+
+                $this->recalculateAttendanceWithOfficialBusiness($attendanceRecord);
+                $attendanceRecord->refresh();
+
+                // Only delete a record that never had a real clock-in and no
+                // longer carries any credited hours — i.e. it existed solely
+                // to hold this OB's time and nothing still justifies it.
+                if (
+                    is_null($attendanceRecord->time_in)
+                    && (float) $attendanceRecord->total_hours === 0.0
+                ) {
+                    $obRequest->update(['attendance_record_id' => null]);
+                    $attendanceRecord->delete();
+                }
+            });
+
+            return back()->with(
+                'success',
+                'Approved OB request cancelled. Attendance hours were recalculated.'
+            );
+        }
 
         return back()->with(
-            'success',
-            'OB request cancelled.'
+            'error',
+            'Only pending or approved requests can be cancelled.'
         );
     }
 
