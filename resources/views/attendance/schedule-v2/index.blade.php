@@ -586,6 +586,14 @@
         // Auto-submit the filter form when department changes
         this.form.submit();
     });
+    document.getElementById('month').addEventListener('change', function() {
+        // Auto-submit the filter form when month changes
+        this.form.submit();
+    });
+    document.getElementById('year').addEventListener('change', function() {
+        // Auto-submit the filter form when year changes
+        this.form.submit();
+    });
 
     // Global variables for bulk modal
     let allEmployees = @json($allEmployees);
