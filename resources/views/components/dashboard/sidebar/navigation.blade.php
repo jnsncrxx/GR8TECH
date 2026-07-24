@@ -55,7 +55,7 @@
                     <span>Employee List</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                                        <i class="fas fa-id-card mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <i class="fas fa-id-card mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Employee Info</span>
                 </a>
                 <a href="{{ route('employees.other-employee-info') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'employees.other-employee-info' ? 'bg-white text-blue-600' : '' }}">
@@ -71,7 +71,7 @@
                     <span>Previous Employer & Other</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                                        <i class="fas fa-file-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <i class="fas fa-file-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Documents</span>
                 </a>
                 <a href="{{ route('employees.ytd-info') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'employees.ytd-info' ? 'bg-white text-blue-600' : '' }}">
@@ -292,39 +292,39 @@
                     <!-- Timekeeping Reports Submenu -->
                     <div class="timekeepingReportSubMenu hidden flex-col pl-4 mt-1 space-y-1 py-2">
                         <a href="{{ route('attendance.timekeeping') }}" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
-                                                        <i class="fas fa-hourglass-half mr-3 text-gray-400"></i>
+                            <i class="fas fa-hourglass-half mr-3 text-gray-400"></i>
                             <span>Time Summary</span>
                         </a>
                         <a href="{{ route('attendance.timekeeping') }}" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
-                                                        <i class="fas fa-id-card mr-3 text-gray-400"></i>
+                            <i class="fas fa-id-card mr-3 text-gray-400"></i>
                             <span>Time Card</span>
                         </a>
                         <a href="{{ route('attendance.timekeeping') }}" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
-                                                        <i class="fas fa-list mr-3 text-gray-400"></i>
+                            <i class="fas fa-list mr-3 text-gray-400"></i>
                             <span>Time Sheets</span>
                         </a>
                         <a href="{{ route('attendance.timekeeping', ['exception' => 'missing_schedule']) }}" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
-                                                        <i class="fas fa-user-slash mr-3 text-gray-400"></i>
+                            <i class="fas fa-user-slash mr-3 text-gray-400"></i>
                             <span>Absences</span>
                         </a>
                         <a href="{{ route('attendance.timekeeping', ['exception' => 'possible_wrong_schedule']) }}" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
-                                                        <i class="fas fa-exclamation-triangle mr-3 text-gray-400"></i>
+                            <i class="fas fa-exclamation-triangle mr-3 text-gray-400"></i>
                             <span>Undertime & Tardiness</span>
                         </a>
                         <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
-                                                        <i class="fas fa-chart-line mr-3 text-gray-400"></i>
+                            <i class="fas fa-chart-line mr-3 text-gray-400"></i>
                             <span>Overtime Report</span>
                         </a>
                         <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
-                                                        <i class="fas fa-users mr-3 text-gray-400"></i>
+                            <i class="fas fa-users mr-3 text-gray-400"></i>
                             <span>Employee Reports</span>
                         </a>
                         <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
-                                                        <i class="fas fa-calendar-check mr-3 text-gray-400"></i>
+                            <i class="fas fa-calendar-check mr-3 text-gray-400"></i>
                             <span>Balance of Leaves</span>
                         </a>
                         <a href="#" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg group hover:text-blue-600 transition-colors">
-                                                        <i class="fas fa-file-contract mr-3 text-gray-400"></i>
+                            <i class="fas fa-file-contract mr-3 text-gray-400"></i>
                             <span>Employee Filings</span>
                         </a>
                     </div>
@@ -387,63 +387,63 @@
                     <span>Payroll Reports</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                                        <i class="fas fa-receipt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <i class="fas fa-receipt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Payslips</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                                        <i class="fas fa-university mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <i class="fas fa-university mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Bank Remittance</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                                        <i class="fas fa-coins mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <i class="fas fa-coins mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Denominations</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                                        <i class="fas fa-list mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <i class="fas fa-list mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Received List</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                                        <i class="fas fa-gift mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <i class="fas fa-gift mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Allowances</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                                        <i class="fas fa-star mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <i class="fas fa-star mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Allowance Special Report</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                                        <i class="fas fa-piggy-bank mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <i class="fas fa-piggy-bank mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Loan Balances</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                                        <i class="fas fa-book mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <i class="fas fa-book mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Deduction Register</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                                        <i class="fas fa-file-pdf mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <i class="fas fa-file-pdf mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>SSS Report</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                                        <i class="fas fa-heartbeat mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <i class="fas fa-heartbeat mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Philhealth Report & RF-1</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                                        <i class="fas fa-percent mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <i class="fas fa-percent mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Tax Report</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                                        <i class="fas fa-shield-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <i class="fas fa-shield-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Pag Ibig Report</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                                        <i class="fas fa-ledger mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <i class="fas fa-ledger mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Account Entries</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                                        <i class="fas fa-file-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <i class="fas fa-file-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Text File Reports</span>
                 </a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                                        <i class="fas fa-print mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <i class="fas fa-print mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                     <span>Print Undeducted Items</span>
                 </a>
             </div>
@@ -599,6 +599,52 @@
             <span>Help & Support</span>
             <span class="ml-auto text-xs font-semibold px-2 py-0.5 bg-green-500 text-white rounded-full">NEW</span>
         </a>
+
+        <!-- Developer -->
+        <div class="relative" x-data="{ 
+            open: {{ in_array($activeRoute, ['developer.accounts.index', 'developer.accounts.edit']) ? 'true' : 'false' }}
+        }">
+            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, ['developer.accounts.index', 'developer.accounts.edit']) ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+                <div class="flex items-center">
+                    <i class="fas fa-code mr-3 text-lg {{ in_array($activeRoute, ['developer.accounts.index', 'developer.accounts.edit']) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
+                    <span>Developer</span>
+                </div>
+                <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }"></i>
+            </button>
+
+            <div x-show="open"
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 transform scale-95"
+                 x-transition:enter-end="opacity-100 transform scale-100"
+                 x-transition:leave="transition ease-in duration-150"
+                 x-transition:leave-start="opacity-100 transform scale-100"
+                 x-transition:leave-end="opacity-0 transform scale-95"
+                 class="ml-8 mt-2 space-y-1 bg-gray-50 rounded-lg p-2 border border-gray-200">
+                
+                <a href="{{ route('developer.accounts.index') }}" 
+                   class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ in_array($activeRoute, ['developer.accounts.index', 'developer.accounts.edit']) ? 'bg-white text-blue-600' : '' }}">
+                    <i class="fas fa-user-cog mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ in_array($activeRoute, ['developer.accounts.index', 'developer.accounts.edit']) ? 'text-blue-600' : '' }}"></i>
+                    <span>User Account CRUD</span>
+                </a>
+                
+                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
+                    <i class="fas fa-user-shield mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <span>Role & Permission Mapping</span>
+                </a>
+                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
+                    <i class="fas fa-link mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <span>Link Account to Employee</span>
+                </a>
+                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
+                    <i class="fas fa-key mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <span>Password / Reset Handling</span>
+                </a>
+                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
+                    <i class="fas fa-ban mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                    <span>Restrict Admin Access by Role</span>
+                </a>
+            </div>
+        </div>
         @endif
     </div>
 </nav>
