@@ -316,10 +316,33 @@
                                 <i class="fas fa-lock mr-2"></i>Lock Payroll
                             </button>
                         </form>
+
+                        @if((auth()->user()->role ?? null) === 'admin')
+                            <form id="reopen-period-form-{{ $periodModel->id }}" method="POST" action="{{ route('payroll.periods.reopen', $periodModel->id) }}" class="flex gap-2">
+                                @csrf
+                                <input type="text" name="reopen_reason" required maxlength="1000"
+                                       placeholder="Reason for reopening"
+                                       class="rounded-lg border-gray-300 text-sm">
+                                <button type="button" onclick="openAppConfirmationModal('reopen-period-form-{{ $periodModel->id }}', 'Reopen this period?', 'This resets any approved/processed payroll back to Pending and returns the period to Ready, so Attendance, Schedule, Overtime, OB, and Leave records become editable again. Blocked if any payroll here is already Paid.', 'Reopen Period', 'red')" class="px-4 py-2 rounded-lg border-2 border-red-800 bg-red-100 text-red-800 font-bold hover:bg-red-200">
+                                    <i class="fas fa-unlock mr-2"></i>Reopen Period
+                                </button>
+                            </form>
+                        @endif
                     @elseif($periodModel->status === \App\Models\Period::STATUS_LOCKED)
                         <span class="inline-flex items-center px-4 py-2 rounded-lg border border-gray-300 bg-gray-100 text-gray-800 font-medium">
                             <i class="fas fa-lock mr-2"></i> Locked — View/Export Only
                         </span>
+
+                        @if((auth()->user()->role ?? null) === 'admin')
+                            <form id="unlock-payroll-form-{{ $periodModel->id }}" method="POST" action="{{ route('payroll.periods.unlock', $periodModel->id) }}">
+                                @csrf
+                                <button type="button"
+                                        onclick="openAppConfirmationModal('unlock-payroll-form-{{ $periodModel->id }}', 'Unlock this payroll?', 'This returns the period to Finalized. Attendance, Schedule, Overtime, OB, and Leave records will still stay locked for editing until you also Reopen the period afterward.', 'Unlock Payroll', 'amber')"
+                                        class="inline-flex items-center px-4 py-2 rounded-lg border-2 border-amber-800 bg-amber-100 text-amber-900 font-bold hover:bg-amber-200">
+                                    <i class="fas fa-unlock mr-2"></i>Unlock Payroll
+                                </button>
+                            </form>
+                        @endif
                     @endif
                 </div>
             </div>

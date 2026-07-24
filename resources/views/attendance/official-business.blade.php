@@ -1156,7 +1156,7 @@ function approveOb(requestId) {
     const modal = document.getElementById('obApproveModal');
     const form = document.getElementById('obApproveForm');
     if (!modal || !form) return;
-    form.action = `{{ url('attendance/official-business') }}/${requestId}/status`;
+    form.action = '{{ route("attendance.official-business.update-status", ["id" => ":id"]) }}'.replace(':id', requestId);
     modal.style.display = 'flex';
     modal.style.alignItems = 'center';
     modal.style.justifyContent = 'center';
@@ -1171,7 +1171,7 @@ function rejectOb(requestId) {
     const modal = document.getElementById('obRejectModal');
     const form = document.getElementById('obRejectForm');
     if (!modal || !form) return;
-    form.action = `{{ url('attendance/official-business') }}/${requestId}/status`;
+    form.action = '{{ route("attendance.official-business.update-status", ["id" => ":id"]) }}'.replace(':id', requestId);
     modal.style.display = 'flex';
     modal.style.alignItems = 'center';
     modal.style.justifyContent = 'center';

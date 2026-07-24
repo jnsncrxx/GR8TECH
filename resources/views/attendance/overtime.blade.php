@@ -982,10 +982,12 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             if (!currentApproveId) return;
             try {
-                const response = await fetch(`{{ url('attendance/overtime') }}/${currentApproveId}/status`, {
+                const approveUrl = '{{ route("attendance.overtime.update-status", ["id" => ":id"]) }}'.replace(':id', currentApproveId);
+                const response = await fetch(approveUrl, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
+                        'Accept': 'application/json',
                         'X-CSRF-TOKEN': '{{ csrf_token() }}'
                     },
                     body: JSON.stringify({ status: 'approved' })
@@ -1014,10 +1016,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!currentRejectId) return;
             const reason = document.getElementById('rejectionReason').value;
             try {
-                const response = await fetch(`{{ url('attendance/overtime') }}/${currentRejectId}/status`, {
+                const rejectUrl = '{{ route("attendance.overtime.update-status", ["id" => ":id"]) }}'.replace(':id', currentRejectId);
+                const response = await fetch(rejectUrl, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
+                        'Accept': 'application/json',
                         'X-CSRF-TOKEN': '{{ csrf_token() }}'
                     },
                     body: JSON.stringify({ status: 'rejected', rejection_reason: reason })

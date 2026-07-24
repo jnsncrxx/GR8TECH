@@ -118,6 +118,10 @@ class OfficialBusinessController extends Controller
             return $query;
         }
 
+        if ((Auth::user()->role ?? null) === 'manager') {
+            $query->whereHas('employee.department', fn ($dept) => $dept->where('manager_id', $this->currentEmployeeId()));
+        }
+
         if ($request->filled('department_id')) {
             $departmentId = $request->query('department_id');
 
@@ -195,11 +199,16 @@ class OfficialBusinessController extends Controller
             'expired' => (clone $summaryBase)->expired()->count(),
         ];
 
-        $departments = Department::orderBy('name')->get();
-        $employees = Employee::with('department')
+        $departments = $reviewerRole === 'manager'
+            ? Department::where('manager_id', $user->employee_id)->orderBy('name')->get()
+            : Department::orderBy('name')->get();
+        $employeesQuery = Employee::with('department')
             ->orderBy('first_name')
-            ->orderBy('last_name')
-            ->get();
+            ->orderBy('last_name');
+        if ($reviewerRole === 'manager') {
+            $employeesQuery->managedBy($user->employee_id);
+        }
+        $employees = $employeesQuery->get();
 
 
         $calendarRequests = collect();
@@ -573,6 +582,13 @@ class OfficialBusinessController extends Controller
             );
         }
 
+        if ((Auth::user()->role ?? null) === 'manager') {
+            $obRequest->loadMissing('employee.department');
+            if (!$obRequest->employee || !$obRequest->employee->isManagedBy($this->currentEmployeeId())) {
+                abort(403, 'You can only review Official Business requests for employees in your department.');
+            }
+        }
+
         $reviewerRole = Auth::user()->role ?? null;
 
         if (
@@ -586,6 +602,9 @@ class OfficialBusinessController extends Controller
             }
             if ($conflicts->overtimeOnDate($obRequest->employee_id, $date)) {
                 return back()->with('error', 'Cannot approve Official Business because this date has overtime.');
+            }
+            if ($conflicts->payrollGeneratedForDate($obRequest->employee_id, $date)) {
+                return back()->with('error', 'Cannot approve — payroll has already been generated for this date. An Admin must reopen the payroll period first.');
             }
 
             DB::transaction(
@@ -804,6 +823,13 @@ class OfficialBusinessController extends Controller
             );
         }
 
+        if (!$ownsRequest && (Auth::user()->role ?? null) === 'manager') {
+            $obRequest->loadMissing('employee.department');
+            if (!$obRequest->employee || !$obRequest->employee->isManagedBy($this->currentEmployeeId())) {
+                abort(403, 'You can only cancel requests for employees in your department.');
+            }
+        }
+
         if ($obRequest->isPending()) {
             $obRequest->delete();
 
@@ -821,6 +847,14 @@ class OfficialBusinessController extends Controller
                 );
             }
 
+            $conflicts = app(\App\Services\PayrollRequestConflictService::class);
+            if ($conflicts->payrollGeneratedForDate($obRequest->employee_id, $this->normalizeDate($obRequest->date))) {
+                return back()->with(
+                    'error',
+                    'Cannot cancel — payroll has already been generated for this date. An Admin must reopen the payroll period before this request can be changed.'
+                );
+            }
+
             $validated = $request->validate([
                 'cancellation_reason' => ['nullable', 'string', 'max:500'],
             ]);
@@ -830,6 +864,7 @@ class OfficialBusinessController extends Controller
 
                 $obRequest->update([
                     'status' => OfficialBusinessRequest::CANCELLED,
+                    'reviewed_by' => Auth::id(),
                     'rejection_reason' => $validated['cancellation_reason'] ?? null,
                 ]);
 
@@ -862,6 +897,152 @@ class OfficialBusinessController extends Controller
             'error',
             'Only pending or approved requests can be cancelled.'
         );
+    }
+
+    /**
+     * Edit an already-approved Official Business request. Reserved for
+     * admin/hr/manager (manager scoped to their department), and only while
+     * no payroll has been generated for the original or new date. Detaches
+     * from the old date's attendance record and re-runs
+     * recalculateAttendanceWithOfficialBusiness() there (same cleanup cancel()
+     * uses), then attaches/creates the attendance record for the new date and
+     * recalculates it too. Writes a before/after audit row either way.
+     */
+    public function updateApproved(Request $request, $id)
+    {
+        $obRequest = OfficialBusinessRequest::findOrFail($id);
+
+        if (!$obRequest->isApproved()) {
+            return back()->with('error', 'Only approved Official Business requests can be edited here.');
+        }
+
+        if (!$this->isReviewer()) {
+            abort(403, 'Only admin, HR, or manager can edit an approved Official Business request.');
+        }
+
+        if ((Auth::user()->role ?? null) === 'manager' && $obRequest->employee_id !== $this->currentEmployeeId()) {
+            $obRequest->loadMissing('employee.department');
+            if (!$obRequest->employee || !$obRequest->employee->isManagedBy($this->currentEmployeeId())) {
+                abort(403, 'You can only edit requests for employees in your department.');
+            }
+        }
+
+        $conflicts = app(\App\Services\PayrollRequestConflictService::class);
+        $originalDate = $this->normalizeDate($obRequest->date);
+
+        if ($conflicts->payrollGeneratedForDate($obRequest->employee_id, $originalDate)) {
+            return back()->with(
+                'error',
+                'Cannot edit — payroll has already been generated for this date. An Admin must reopen the payroll period before this request can be changed.'
+            );
+        }
+
+        $validated = $request->validate([
+            'date' => ['required', 'date'],
+            'is_full_day' => ['required', 'boolean'],
+            'ob_start_time' => ['nullable', 'required_if:is_full_day,0', 'date_format:H:i'],
+            'ob_end_time' => ['nullable', 'required_if:is_full_day,0', 'date_format:H:i', 'after:ob_start_time'],
+            'reason' => ['required', 'string', 'max:1000'],
+            'correction_reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        $newDate = $this->normalizeDate($validated['date']);
+
+        if ($conflicts->payrollGeneratedForDate($obRequest->employee_id, $newDate)) {
+            return back()->with(
+                'error',
+                'Cannot edit — payroll has already been generated for the new date. An Admin must reopen that payroll period first.'
+            );
+        }
+
+        if ($newDate !== $originalDate) {
+            if ($conflicts->leaveOnDate($obRequest->employee_id, $newDate)) {
+                return back()->with('error', 'Cannot move this OB — the new date is covered by leave.');
+            }
+            if ($conflicts->overtimeOnDate($obRequest->employee_id, $newDate)) {
+                return back()->with('error', 'Cannot move this OB — the new date already has overtime.');
+            }
+        }
+
+        $auditFields = ['date', 'is_full_day', 'ob_start_time', 'ob_end_time', 'reason', 'credited_hours'];
+        $originalValues = $obRequest->only($auditFields);
+        $oldAttendanceRecord = $obRequest->attendanceRecord;
+
+        DB::transaction(function () use ($obRequest, $validated, $newDate, $originalDate, $oldAttendanceRecord, $originalValues, $auditFields) {
+            // Detach from the old date's attendance record and let the
+            // recalculation re-derive it without this OB's contribution —
+            // same cleanup cancel() does.
+            if ($oldAttendanceRecord) {
+                $obRequest->update(['attendance_record_id' => null]);
+                $this->recalculateAttendanceWithOfficialBusiness($oldAttendanceRecord);
+                $oldAttendanceRecord->refresh();
+
+                if (
+                    $newDate !== $originalDate
+                    && is_null($oldAttendanceRecord->time_in)
+                    && (float) $oldAttendanceRecord->total_hours === 0.0
+                ) {
+                    $oldAttendanceRecord->delete();
+                }
+            }
+
+            $obRequest->fill([
+                'date' => $newDate,
+                'is_full_day' => $validated['is_full_day'],
+                'ob_start_time' => $validated['ob_start_time'] ?? null,
+                'ob_end_time' => $validated['ob_end_time'] ?? null,
+                'reason' => $validated['reason'],
+            ]);
+            $obHours = $obRequest->computeCreditedHours();
+
+            $attendanceRecord = AttendanceRecord::query()
+                ->where('employee_id', $obRequest->employee_id)
+                ->whereDate('date', $newDate)
+                ->first();
+
+            if (!$attendanceRecord) {
+                $attendanceRecord = AttendanceRecord::create([
+                    'employee_id' => $obRequest->employee_id,
+                    'date' => $newDate,
+                    'status' => AttendanceRecord::OFFICIAL_BUSINESS,
+                    'notes' => 'Corrected OB: ' . $obRequest->reason . ' (' . number_format($obHours, 2) . ' hrs)',
+                    'time_in' => null,
+                    'time_out' => null,
+                    'break_start' => null,
+                    'break_end' => null,
+                    'total_hours' => 0,
+                    'regular_hours' => 0,
+                    'overtime_hours' => 0,
+                ]);
+            } else {
+                $notes = $attendanceRecord->notes ? $attendanceRecord->notes . PHP_EOL : '';
+                $notes .= 'Corrected OB: ' . $obRequest->reason . ' (' . number_format($obHours, 2) . ' hrs)';
+                $attendanceRecord->update(['notes' => trim($notes)]);
+            }
+
+            $obRequest->update([
+                'attendance_record_id' => $attendanceRecord->id,
+                'credited_hours' => $obHours,
+            ]);
+
+            $this->recalculateAttendanceWithOfficialBusiness($attendanceRecord);
+
+            DB::table('request_corrections')->insert([
+                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'request_type' => 'official_business',
+                'request_id' => $obRequest->id,
+                'corrected_by' => Auth::id(),
+                'reason' => $validated['correction_reason'],
+                'original_values' => json_encode($originalValues),
+                'corrected_values' => json_encode($obRequest->fresh()->only($auditFields)),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        $this->notifyRequester($obRequest->fresh());
+
+        return back()->with('success', 'Approved Official Business request corrected. Attendance hours were recalculated.');
     }
 
     /**
