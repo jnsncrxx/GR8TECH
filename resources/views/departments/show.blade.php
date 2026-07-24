@@ -61,42 +61,42 @@
                     </p>
                 </div>
 
-                <!-- Department Head / Supervisor -->
+                <!-- Manager -->
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                     <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-lg font-medium text-gray-900">Department Head / Supervisor</h3>
-                        <button type="button" onclick="openSupervisorModal()" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-900 transition-colors">
+                        <h3 class="text-lg font-medium text-gray-900">Manager</h3>
+                        <button type="button" onclick="openManagerModal()" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-900 transition-colors">
                             <i class="fas fa-user-tag mr-1"></i>
-                            {{ $department->supervisor ? 'Change' : 'Assign' }}
+                            {{ $department->manager ? 'Change' : 'Assign' }}
                         </button>
                     </div>
 
-                    @if($department->supervisor)
+                    @if($department->manager)
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-3">
                                 <div class="flex-shrink-0 h-10 w-10">
                                     <div class="h-10 w-10 rounded-full bg-gradient-to-r from-purple-500 to-purple-600 flex items-center justify-center">
                                         <span class="text-sm font-medium text-white">
-                                            {{ strtoupper(substr($department->supervisor->first_name, 0, 1) . substr($department->supervisor->last_name, 0, 1)) }}
+                                            {{ strtoupper(substr($department->manager->first_name, 0, 1) . substr($department->manager->last_name, 0, 1)) }}
                                         </span>
                                     </div>
                                 </div>
                                 <div>
-                                    <p class="text-sm font-medium text-gray-900">{{ $department->supervisor->full_name }}</p>
-                                    <p class="text-xs text-gray-500">{{ $department->supervisor->position?->name ?? 'Department Head' }}</p>
+                                    <p class="text-sm font-medium text-gray-900">{{ $department->manager->full_name }}</p>
+                                    <p class="text-xs text-gray-500">{{ $department->manager->position?->name ?? 'Manager' }}</p>
                                 </div>
                             </div>
-                            <form method="POST" action="{{ route('departments.supervisor.update', $department) }}">
+                            <form method="POST" action="{{ route('departments.manager.update', $department) }}">
                                 @csrf
                                 @method('PUT')
                                 <input type="hidden" name="employee_id" value="">
-                                <button type="submit" title="Remove supervisor" class="text-red-500 hover:text-red-700 transition-colors">
+                                <button type="submit" title="Remove manager" class="text-red-500 hover:text-red-700 transition-colors">
                                     <i class="fas fa-times-circle"></i>
                                 </button>
                             </form>
                         </div>
                     @else
-                        <p class="text-sm text-gray-500">No supervisor assigned yet.</p>
+                        <p class="text-sm text-gray-500">No manager assigned yet.</p>
                     @endif
                 </div>
 
@@ -235,24 +235,24 @@ document.getElementById('removeModal').addEventListener('click', function(e) {
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         closeRemoveModal();
-        closeSupervisorModal();
+        closeManagerModal();
     }
 });
 
-// Supervisor Modal Functions
-function openSupervisorModal() {
-    document.getElementById('supervisorModal').classList.remove('hidden');
+// Manager Modal Functions
+function openManagerModal() {
+    document.getElementById('managerModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
 }
 
-function closeSupervisorModal() {
-    document.getElementById('supervisorModal').classList.add('hidden');
+function closeManagerModal() {
+    document.getElementById('managerModal').classList.add('hidden');
     document.body.style.overflow = 'auto';
 }
 
-document.getElementById('supervisorModal').addEventListener('click', function(e) {
+document.getElementById('managerModal').addEventListener('click', function(e) {
     if (e.target === this) {
-        closeSupervisorModal();
+        closeManagerModal();
     }
 });
 </script>
@@ -306,11 +306,11 @@ document.getElementById('supervisorModal').addEventListener('click', function(e)
     </div>
 </div>
 
-<!-- Set Supervisor Modal -->
-<div id="supervisorModal" class="fixed inset-0 z-50 hidden overflow-y-auto">
+<!-- Set Manager Modal -->
+<div id="managerModal" class="fixed inset-0 z-50 hidden overflow-y-auto">
     <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
         <!-- Background overlay -->
-        <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onclick="closeSupervisorModal()"></div>
+        <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onclick="closeManagerModal()"></div>
 
         <!-- Modal panel -->
         <div class="inline-block w-full max-w-md p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
@@ -321,29 +321,29 @@ document.getElementById('supervisorModal').addEventListener('click', function(e)
 
             <!-- Modal content -->
             <div class="text-center mb-6">
-                <h3 class="text-lg font-medium text-gray-900 mb-2">Set Department Supervisor</h3>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">Set Department Manager</h3>
                 <p class="text-sm text-gray-500">
-                    Choose an employee from {{ $department->name }} to act as the department head / supervisor.
+                    Choose an employee from {{ $department->name }} to act as the manager.
                 </p>
             </div>
 
             @if($department->employees->count() > 0)
-                <form method="POST" action="{{ route('departments.supervisor.update', $department) }}">
+                <form method="POST" action="{{ route('departments.manager.update', $department) }}">
                     @csrf
                     @method('PUT')
                     <div class="text-left mb-6">
-                        <label for="supervisor_employee_id" class="block text-sm font-medium text-gray-700 mb-1">Supervisor</label>
-                        <select id="supervisor_employee_id" name="employee_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
-                            <option value="">No supervisor</option>
+                        <label for="manager_employee_id" class="block text-sm font-medium text-gray-700 mb-1">Manager</label>
+                        <select id="manager_employee_id" name="employee_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
+                            <option value="">No manager</option>
                             @foreach($department->employees as $employee)
-                                <option value="{{ $employee->id }}" @selected($department->supervisor_id === $employee->id)>
+                                <option value="{{ $employee->id }}" @selected($department->manager_id === $employee->id)>
                                     {{ $employee->full_name }}{{ $employee->position?->name ? ' — ' . $employee->position->name : '' }}
                                 </option>
                             @endforeach
                         </select>
                     </div>
                     <div class="flex flex-col sm:flex-row gap-3">
-                        <button type="button" onclick="closeSupervisorModal()"
+                        <button type="button" onclick="closeManagerModal()"
                             class="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors">
                             Cancel
                         </button>
@@ -354,8 +354,8 @@ document.getElementById('supervisorModal').addEventListener('click', function(e)
                     </div>
                 </form>
             @else
-                <p class="text-sm text-gray-500 mb-6">This department doesn't have any employees yet. Add employees before assigning a supervisor.</p>
-                <button type="button" onclick="closeSupervisorModal()"
+                <p class="text-sm text-gray-500 mb-6">This department doesn't have any employees yet. Add employees before assigning a manager.</p>
+                <button type="button" onclick="closeManagerModal()"
                     class="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors">
                     Close
                 </button>

@@ -123,6 +123,34 @@ class Employee extends Model
         return $query->where('company_id', $companyId);
     }
 
+    /**
+     * Whether the given manager (by employee id) is this employee's
+     * manager for approval-scoping purposes — i.e. this employee's
+     * department currently has that manager assigned as its manager.
+     * Used to restrict Manager-role Approve/Reject/Cancel actions to
+     * their own team.
+     */
+    public function isManagedBy(?string $managerEmployeeId): bool
+    {
+        if (!$managerEmployeeId) {
+            return false;
+        }
+
+        return $this->department && $this->department->manager_id === $managerEmployeeId;
+    }
+
+    /**
+     * Scope to employees whose department's manager is the given manager
+     * employee id. Query-builder counterpart to isManagedBy(), for
+     * list/index filtering.
+     */
+    public function scopeManagedBy($query, string $managerEmployeeId)
+    {
+        return $query->whereHas('department', function ($department) use ($managerEmployeeId) {
+            $department->where('manager_id', $managerEmployeeId);
+        });
+    }
+
     public function payrolls(): HasMany
     {
         return $this->hasMany(Payroll::class);

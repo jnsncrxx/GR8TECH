@@ -67,12 +67,12 @@
 
             <!-- Department Details -->
             <div class="p-6 space-y-4 flex-1">
-                <!-- Supervisor -->
+                <!-- Manager -->
                 <div>
-                    <h4 class="text-sm font-medium text-gray-700 mb-1">Department Head</h4>
+                    <h4 class="text-sm font-medium text-gray-700 mb-1">Manager</h4>
                     <p class="text-sm text-gray-600 flex items-center">
                         <i class="fas fa-user-tag mr-2 text-gray-400"></i>
-                        {{ $department->supervisor?->full_name ?: 'Not assigned' }}
+                        {{ $department->manager?->full_name ?: 'Not assigned' }}
                     </p>
                 </div>
 

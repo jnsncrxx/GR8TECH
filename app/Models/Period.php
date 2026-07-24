@@ -39,6 +39,45 @@ class Period extends Model
         'overtime',
     ];
 
+    /**
+     * Statuses reached only after payroll generation has run for a period
+     * (Ready -> Processing is the generation step itself). Any request
+     * touching attendance/leave/OB/overtime data for a date inside a period
+     * in one of these statuses would desync already-computed payroll.
+     */
+    public const GENERATED_STATUSES = [
+        self::STATUS_PROCESSING,
+        self::STATUS_FOR_REVIEW,
+        self::STATUS_FINALIZED,
+        self::STATUS_LOCKED,
+    ];
+
+    /**
+     * Whether payroll has already been generated for any period (in this
+     * company) that overlaps the given date range. Used to block edits to
+     * approved Leave/OB/Overtime requests once the payroll built from that
+     * data exists, so a cancellation or edit can't silently desync a
+     * period that's already been processed, reviewed, finalized, or locked.
+     */
+    public static function hasGeneratedPayrollOverlapping(string $companyId, string $startDate, string $endDate): bool
+    {
+        return static::query()
+            ->where('company_id', $companyId)
+            ->whereDate('start_date', '<=', $endDate)
+            ->whereDate('end_date', '>=', $startDate)
+            ->whereIn('status', self::GENERATED_STATUSES)
+            ->exists();
+    }
+
+    /**
+     * Single-date convenience wrapper around hasGeneratedPayrollOverlapping,
+     * for request types (OB, Overtime) that carry one date rather than a range.
+     */
+    public static function hasGeneratedPayrollForDate(string $companyId, string $date): bool
+    {
+        return self::hasGeneratedPayrollOverlapping($companyId, $date, $date);
+    }
+
     protected $keyType = 'string';
     public $incrementing = false;
 
@@ -80,6 +119,12 @@ class Period extends Model
 
         'locked_at',
         'locked_by',
+
+        'unlocked_at',
+        'unlocked_by',
+        'reopened_at',
+        'reopened_by',
+        'reopen_reason',
     ];
 
     protected $casts = [
@@ -101,6 +146,8 @@ class Period extends Model
         'finalized_at' => 'datetime',
 
         'locked_at' => 'datetime',
+        'unlocked_at' => 'datetime',
+        'reopened_at' => 'datetime',
     ];
 
     protected static function boot()

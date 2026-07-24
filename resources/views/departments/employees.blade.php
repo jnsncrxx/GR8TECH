@@ -124,9 +124,9 @@
                                 <div class="ml-4">
                                     <div class="text-sm font-medium text-gray-900 flex items-center">
                                         {{ $employee->full_name }}
-                                        @if($department->supervisor_id === $employee->id)
+                                        @if($department->manager_id === $employee->id)
                                             <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                                <i class="fas fa-user-tag mr-1"></i>Supervisor
+                                                <i class="fas fa-user-tag mr-1"></i>Manager
                                             </span>
                                         @endif
                                     </div>
@@ -169,11 +169,11 @@
                                 <a href="{{ route('employees.payroll', $employee) }}" class="text-green-600 hover:text-green-900 transition-colors">
                                     <i class="fas fa-money-bill-wave"></i>
                                 </a>
-                                <form method="POST" action="{{ route('departments.supervisor.update', $department) }}">
+                                <form method="POST" action="{{ route('departments.manager.update', $department) }}">
                                     @csrf
                                     @method('PUT')
-                                    <input type="hidden" name="employee_id" value="{{ $department->supervisor_id === $employee->id ? '' : $employee->id }}">
-                                    <button type="submit" title="{{ $department->supervisor_id === $employee->id ? 'Remove as supervisor' : 'Set as supervisor' }}" class="{{ $department->supervisor_id === $employee->id ? 'text-purple-600 hover:text-purple-900' : 'text-gray-400 hover:text-purple-600' }} transition-colors">
+                                    <input type="hidden" name="employee_id" value="{{ $department->manager_id === $employee->id ? '' : $employee->id }}">
+                                    <button type="submit" title="{{ $department->manager_id === $employee->id ? 'Remove as manager' : 'Set as manager' }}" class="{{ $department->manager_id === $employee->id ? 'text-purple-600 hover:text-purple-900' : 'text-gray-400 hover:text-purple-600' }} transition-colors">
                                         <i class="fas fa-user-tag"></i>
                                     </button>
                                 </form>
@@ -216,9 +216,9 @@
                         <div class="min-w-0 flex-1">
                             <div class="text-sm font-medium text-gray-900 truncate flex items-center">
                                 {{ $employee->full_name }}
-                                @if($department->supervisor_id === $employee->id)
+                                @if($department->manager_id === $employee->id)
                                     <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                        <i class="fas fa-user-tag mr-1"></i>Supervisor
+                                        <i class="fas fa-user-tag mr-1"></i>Manager
                                     </span>
                                 @endif
                             </div>
@@ -260,12 +260,12 @@
                     <a href="{{ route('employees.payroll', $employee) }}" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-green-600 hover:text-green-900 transition-colors">
                         <i class="fas fa-money-bill-wave mr-1"></i>Payroll
                     </a>
-                    <form method="POST" action="{{ route('departments.supervisor.update', $department) }}">
+                    <form method="POST" action="{{ route('departments.manager.update', $department) }}">
                         @csrf
                         @method('PUT')
-                        <input type="hidden" name="employee_id" value="{{ $department->supervisor_id === $employee->id ? '' : $employee->id }}">
-                        <button type="submit" class="inline-flex items-center px-3 py-1.5 text-xs font-medium {{ $department->supervisor_id === $employee->id ? 'text-purple-600 hover:text-purple-900' : 'text-gray-500 hover:text-purple-600' }} transition-colors">
-                            <i class="fas fa-user-tag mr-1"></i>{{ $department->supervisor_id === $employee->id ? 'Remove' : 'Set as Head' }}
+                        <input type="hidden" name="employee_id" value="{{ $department->manager_id === $employee->id ? '' : $employee->id }}">
+                        <button type="submit" class="inline-flex items-center px-3 py-1.5 text-xs font-medium {{ $department->manager_id === $employee->id ? 'text-purple-600 hover:text-purple-900' : 'text-gray-500 hover:text-purple-600' }} transition-colors">
+                            <i class="fas fa-user-tag mr-1"></i>{{ $department->manager_id === $employee->id ? 'Remove' : 'Set as Manager' }}
                         </button>
                     </form>
                 </div>

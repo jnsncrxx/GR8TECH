@@ -13,7 +13,7 @@ class DepartmentController extends Controller
     {
         $currentCompany = CompanyHelper::getCurrentCompany();
 
-        $query = Department::withCount('employees')->with('supervisor')->active();
+        $query = Department::withCount('employees')->with('manager')->active();
 
         // Filter by current company if set
         if ($currentCompany) {
@@ -58,7 +58,7 @@ class DepartmentController extends Controller
 
     public function show(Department $department)
     {
-        $department->load(['employees.position', 'supervisor']);
+        $department->load(['employees.position', 'manager']);
         $user = auth()->user();
         return view('departments.show', compact('department', 'user'));
     }
@@ -96,7 +96,7 @@ class DepartmentController extends Controller
     {
         $currentCompany = CompanyHelper::getCurrentCompany();
 
-        $query = Department::withCount('employees')->with('supervisor')->archived();
+        $query = Department::withCount('employees')->with('manager')->archived();
 
         // Filter by current company if set
         if ($currentCompany) {
@@ -143,7 +143,7 @@ class DepartmentController extends Controller
         return view('departments.employees', compact('department', 'employees', 'user'));
     }
 
-    public function updateSupervisor(Request $request, Department $department)
+    public function updateManager(Request $request, Department $department)
     {
         $validated = $request->validate([
             'employee_id' => 'nullable|uuid|exists:employees,id',
@@ -156,10 +156,10 @@ class DepartmentController extends Controller
                 ->with('error', 'The selected employee does not belong to this department.');
         }
 
-        $department->supervisor_id = $employeeId;
+        $department->manager_id = $employeeId;
         $department->save();
 
         return redirect()->back()
-            ->with('success', $employeeId ? 'Department supervisor updated successfully.' : 'Department supervisor removed successfully.');
+            ->with('success', $employeeId ? 'Department manager updated successfully.' : 'Department manager removed successfully.');
     }
 }

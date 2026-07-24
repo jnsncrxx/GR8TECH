@@ -632,7 +632,7 @@
                                     <i class="fas fa-eye"></i>
                                 </button>
                                 
-                                @if($payroll->status === 'approved')
+                                @if($payroll->status === 'approved' && !($isReadOnly ?? false))
                                     <form id="pay-one-form-{{ $payroll->id }}" method="POST" action="{{ route('payrolls.pay-one', $payroll->id) }}" class="inline">
                                         @csrf
                                         <button type="button"
@@ -935,7 +935,9 @@
         </div>
     </div>
 
-<!-- Payroll Actions -->
+<!-- Payroll Actions - money-moving bulk actions are admin/hr only, and
+     never shown at all in the manager's read-only team view. -->
+@if(!($isReadOnly ?? false) && in_array(auth()->user()->role ?? '', ['admin', 'hr']))
 <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
     <h3 class="text-lg font-medium text-gray-900 mb-4">Bulk Actions</h3>
     
@@ -955,7 +957,7 @@
             Selected net: <strong id="selectedPayrollNet" class="ml-2 text-gray-900">₱0.00</strong>
         </div>
 
-        <!-- Generate Payslips - Only for admin/hr/manager -->
+        <!-- Generate Payslips - admin/hr only -->
         @if(!in_array(auth()->user()->role ?? '', ['employee']))
         <div class="flex items-center space-x-2">
             <!-- Generate Payslips Button -->
@@ -1058,6 +1060,7 @@
     />
 
 </div>
+@endif
 
 @include('components.selected-payment-modal')
 
