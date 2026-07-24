@@ -347,7 +347,7 @@ class PeriodManagementController extends Controller
         );
 
         $scheduleExceptions = collect($comprehensiveData)
-            ->filter(fn ($record) => !empty($record['validation_issue']))
+            ->filter(fn ($record) => !empty($record['validation_issues']))
             ->values();
 
         $validationSummary = [
@@ -689,11 +689,13 @@ class PeriodManagementController extends Controller
                 $errors[] = 'No attendance data was found for the cutoff.';
             }
 
-            $missingSchedules = $records->where('validation_issue', 'No Schedule')->count();
-            $incompleteLogs = $records->where('validation_issue', 'Incomplete Log')->count();
-            $invalidDurations = $records->where('validation_issue', 'Invalid Duration')->count();
-            $possibleWrongSchedules = $records->where('validation_issue', 'Possible Wrong Schedule')->count();
-            $restDayDutyReviews = $records->where('validation_issue', 'Rest Day Duty Review')->count();
+            $hasIssue = fn ($record, string $issue) => in_array($issue, $record['validation_issues'] ?? [], true);
+
+            $missingSchedules = $records->filter(fn ($r) => $hasIssue($r, 'No Schedule'))->count();
+            $incompleteLogs = $records->filter(fn ($r) => $hasIssue($r, 'Incomplete Log'))->count();
+            $invalidDurations = $records->filter(fn ($r) => $hasIssue($r, 'Invalid Duration'))->count();
+            $possibleWrongSchedules = $records->filter(fn ($r) => $hasIssue($r, 'Possible Wrong Schedule'))->count();
+            $restDayDutyReviews = $records->filter(fn ($r) => $hasIssue($r, 'Rest Day Duty Review'))->count();
 
             if ($missingSchedules > 0) {
                 $errors[] = "$missingSchedules employee-day record(s) have no assigned schedule. Assign or correct the schedule before validating attendance.";
@@ -715,13 +717,7 @@ class PeriodManagementController extends Controller
                 $warnings[] = "$restDayDutyReviews rest-day attendance record(s) require manager review and the applicable approved duty/overtime filing.";
             }
 
-            $presentWithoutWorkedHours = $records->filter(function ($record) {
-                return in_array($record['attendance_status'] ?? null, [
-                    'Present',
-                    'Late',
-                    'Half Day',
-                ], true) && $this->convertHoursToDecimal($record['worked_hours'] ?? 0) <= 0;
-            })->count();
+            $presentWithoutWorkedHours = $records->filter(fn ($r) => $hasIssue($r, 'Zero Worked Hours'))->count();
 
             if ($presentWithoutWorkedHours > 0) {
                 $errors[] = "$presentWithoutWorkedHours present attendance record(s) have zero or invalid computed working hours.";
@@ -737,10 +733,7 @@ class PeriodManagementController extends Controller
                 $warnings[] = "$assumedAbsences scheduled working day(s) have no bio, leave, or OB and will be treated as absent for payroll.";
             }
 
-            $orphanOfficialBusiness = $records->filter(function ($record) {
-                return ($record['attendance_record_status'] ?? null) === AttendanceRecord::OFFICIAL_BUSINESS
-                    && ($record['attendance_status'] ?? null) !== 'Official Business';
-            })->count();
+            $orphanOfficialBusiness = $records->filter(fn ($r) => $hasIssue($r, 'Unverified Official Business'))->count();
 
             if ($orphanOfficialBusiness > 0) {
                 $errors[] = "$orphanOfficialBusiness attendance record(s) are marked Official Business without a matching approved OB request.";
@@ -757,60 +750,36 @@ class PeriodManagementController extends Controller
                 $errors[] = "$invalidRestDayHours day-off/rest-day schedule(s) still contain required hours. Set required hours to zero or mark the schedule Working.";
             }
         } elseif ($component === 'leave') {
-            $leaveConflicts = $records->filter(function ($record) {
-                if (empty($record['approved_leave_type'])) {
-                    return false;
-                }
+            $hasIssue = fn ($record, string $issue) => in_array($issue, $record['validation_issues'] ?? [], true);
 
-                return $this->convertHoursToDecimal($record['worked_hours'] ?? 0) > 0
-                    || ($record['attendance_status'] ?? null) === 'Official Business'
-                    || (float) ($record['overtime'] ?? 0) > 0;
-            })->count();
+            $leaveConflicts = $records->filter(fn ($r) => $hasIssue($r, 'Leave Conflict'))->count();
 
             if ($leaveConflicts > 0) {
                 $errors[] = "$leaveConflicts approved leave day(s) overlap worked attendance, approved OB, or approved overtime. Correct or cancel the conflicting request before validating leave.";
             }
         } elseif ($component === 'ob') {
-            $orphanOfficialBusiness = $records->filter(function ($record) {
-                return ($record['attendance_record_status'] ?? null) === AttendanceRecord::OFFICIAL_BUSINESS
-                    && ($record['attendance_status'] ?? null) !== 'Official Business';
-            })->count();
+            $hasIssue = fn ($record, string $issue) => in_array($issue, $record['validation_issues'] ?? [], true);
+
+            $orphanOfficialBusiness = $records->filter(fn ($r) => $hasIssue($r, 'Unverified Official Business'))->count();
 
             if ($orphanOfficialBusiness > 0) {
                 $errors[] = "$orphanOfficialBusiness attendance record(s) are marked Official Business without a matching approved OB request.";
             }
         } elseif ($component === 'overtime') {
-            $otWithoutAttendance = $records->filter(function ($record) {
-                $ot = (float) ($record['overtime'] ?? $record['post_shift_overtime'] ?? 0);
-                return $ot > 0 && (empty($record['time_in']) || empty($record['time_out']));
-            })->count();
+            $hasIssue = fn ($record, string $issue) => in_array($issue, $record['validation_issues'] ?? [], true);
+
+            $otWithoutAttendance = $records->filter(fn ($r) => $hasIssue($r, 'OT Without Attendance'))->count();
             if ($otWithoutAttendance > 0) {
                 $errors[] = "$otWithoutAttendance overtime record(s) do not have complete attendance logs.";
             }
 
-            $otBeforeRequiredHours = $records->filter(function ($record) {
-                if ((float) ($record['overtime'] ?? 0) <= 0) {
-                    return false;
-                }
-
-                if (in_array($record['schedule_status'] ?? null, ['Day Off', 'Rest Day'], true)) {
-                    return false;
-                }
-
-                $required = $this->convertHoursToDecimal($record['scheduled_hours'] ?? 0);
-                $worked = $this->convertHoursToDecimal($record['worked_hours'] ?? 0);
-
-                return $required > 0 && $worked < $required;
-            })->count();
+            $otBeforeRequiredHours = $records->filter(fn ($r) => $hasIssue($r, 'OT Before Required Hours'))->count();
 
             if ($otBeforeRequiredHours > 0) {
                 $errors[] = "$otBeforeRequiredHours approved overtime record(s) were filed before the employee completed the required working hours.";
             }
 
-            $overtimeOnLeave = $records->filter(function ($record) {
-                return !empty($record['approved_leave_type'])
-                    && (float) ($record['overtime'] ?? 0) > 0;
-            })->count();
+            $overtimeOnLeave = $records->filter(fn ($r) => $hasIssue($r, 'OT Overlaps Leave'))->count();
 
             if ($overtimeOnLeave > 0) {
                 $errors[] = "$overtimeOnLeave approved overtime record(s) overlap approved leave.";

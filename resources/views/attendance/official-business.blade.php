@@ -305,6 +305,7 @@
                             <option value="approved" {{ request('status') === 'approved' ? 'selected' : '' }}>Approved</option>
                             <option value="rejected" {{ request('status') === 'rejected' ? 'selected' : '' }}>Rejected</option>
                             <option value="expired" {{ request('status') === 'expired' ? 'selected' : '' }}>Expired</option>
+                            <option value="cancelled" {{ request('status') === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
                         </select>
                     </div>
 
@@ -344,6 +345,7 @@
                             <option value="approved" {{ request('status') === 'approved' ? 'selected' : '' }}>Approved</option>
                             <option value="rejected" {{ request('status') === 'rejected' ? 'selected' : '' }}>Rejected</option>
                             <option value="expired" {{ request('status') === 'expired' ? 'selected' : '' }}>Expired</option>
+                            <option value="cancelled" {{ request('status') === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
                         </select>
                     </div>
 
@@ -456,6 +458,7 @@
                                 'approved' => 'bg-green-100 text-green-800',
                                 'rejected' => 'bg-red-100 text-red-800',
                                 'expired' => 'bg-gray-200 text-gray-600',
+                                'cancelled' => 'bg-gray-100 text-gray-800',
                             ];
                             $obStatus = $ob->status;
                             $statusColor = $statusColors[$obStatus] ?? 'bg-gray-100 text-gray-600';
@@ -507,6 +510,11 @@
                                         <span class="font-medium">Admin Reason:</span>
                                         {{ \Illuminate\Support\Str::limit($ob->rejection_reason, 40) }}
                                     </div>
+                                @elseif($obStatus === 'cancelled' && $ob->rejection_reason)
+                                    <div class="text-xs text-gray-600 mt-1 max-w-[220px] mx-auto" title="{{ $ob->rejection_reason }}">
+                                        <span class="font-medium">Cancellation Reason:</span>
+                                        {{ \Illuminate\Support\Str::limit($ob->rejection_reason, 40) }}
+                                    </div>
                                 @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
@@ -528,16 +536,17 @@
                                     @elseif($ob->isPending() && $isReviewer)
                                         <span class="text-xs text-gray-400 italic">Your own request</span>
                                     @elseif($ob->isPending())
-                                        <form method="POST" action="{{ route('attendance.official-business.cancel', $ob->id) }}"
-                                              onsubmit="return confirm('Cancel this OB request?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit"
-                                                    class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors"
-                                                    title="Cancel">
-                                                <i class="fas fa-ban"></i>
-                                            </button>
-                                        </form>
+                                        <button onclick="cancelOb('{{ $ob->id }}', false)"
+                                                class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors"
+                                                title="Cancel">
+                                            <i class="fas fa-ban"></i>
+                                        </button>
+                                    @elseif($ob->isApproved() && $isReviewer)
+                                        <button onclick="cancelOb('{{ $ob->id }}', true)"
+                                                class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors"
+                                                title="Cancel approved OB">
+                                            <i class="fas fa-ban"></i>
+                                        </button>
                                     @else
                                         <span class="inline-block w-8 h-px bg-gray-300 rounded-full"></span>
                                     @endif
@@ -601,6 +610,7 @@
                             'approved' => 'bg-green-100 text-green-800',
                             'rejected' => 'bg-red-100 text-red-800',
                             'expired' => 'bg-gray-200 text-gray-600',
+                            'cancelled' => 'bg-gray-100 text-gray-800',
                         ];
                         $obStatus = $ob->status;
                         $statusColor = $statusColors[$obStatus] ?? 'bg-gray-100 text-gray-600';
@@ -625,6 +635,11 @@
                                 @if($obStatus === 'rejected' && $ob->rejection_reason)
                                     <div class="text-xs text-red-600 mt-1 max-w-[180px]">
                                         <span class="font-medium">Admin Reason:</span>
+                                        {{ \Illuminate\Support\Str::limit($ob->rejection_reason, 35) }}
+                                    </div>
+                                @elseif($obStatus === 'cancelled' && $ob->rejection_reason)
+                                    <div class="text-xs text-gray-600 mt-1 max-w-[180px]">
+                                        <span class="font-medium">Cancellation Reason:</span>
                                         {{ \Illuminate\Support\Str::limit($ob->rejection_reason, 35) }}
                                     </div>
                                 @endif
@@ -661,9 +676,9 @@
                             <div class="text-gray-500">Reason</div>
                             <div class="font-medium">{{ \Illuminate\Support\Str::limit($ob->reason, 50) }}</div>
                         </div>
-                        @if($ob->isPending())
+                        @if($ob->isPending() || ($ob->isApproved() && $isReviewer))
                         <div class="flex justify-end items-center space-x-2">
-                            @if($isReviewer && $ob->employee_id !== $currentEmployeeId)
+                            @if($ob->isPending() && $isReviewer && $ob->employee_id !== $currentEmployeeId)
                                 <button onclick="approveOb('{{ $ob->id }}')"
                                         class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
                                         title="Approve">
@@ -674,19 +689,20 @@
                                         title="Reject">
                                     <i class="fas fa-times"></i>
                                 </button>
-                            @elseif($isReviewer)
+                            @elseif($ob->isPending() && $isReviewer)
                                 <span class="text-xs text-gray-400 italic">Your own request</span>
-                            @else
-                                <form method="POST" action="{{ route('attendance.official-business.cancel', $ob->id) }}"
-                                      onsubmit="return confirm('Cancel this OB request?');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit"
-                                            class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors"
-                                            title="Cancel">
-                                        <i class="fas fa-ban"></i>
-                                    </button>
-                                </form>
+                            @elseif($ob->isPending())
+                                <button onclick="cancelOb('{{ $ob->id }}', false)"
+                                        class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors"
+                                        title="Cancel">
+                                    <i class="fas fa-ban"></i>
+                                </button>
+                            @elseif($ob->isApproved() && $isReviewer)
+                                <button onclick="cancelOb('{{ $ob->id }}', true)"
+                                        class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors"
+                                        title="Cancel approved OB">
+                                    <i class="fas fa-ban"></i>
+                                </button>
                             @endif
                         </div>
                         @endif
@@ -869,6 +885,42 @@
     </div>
 </div>
 @endif
+
+<!-- Cancel OB Modal (shared by pending-cancel and approved-cancel) -->
+<div id="obCancelModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999;" onclick="closeObCancelModal()">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" style="max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium text-gray-900">Cancel OB Request</h3>
+                <button onclick="closeObCancelModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="obCancelForm" method="POST" class="space-y-4">
+                @csrf
+                @method('DELETE')
+                <div>
+                    <p id="obCancelModalMessage" class="text-sm text-gray-600 mb-4">Are you sure you want to cancel this OB request?</p>
+                    <label for="obCancellationReason" class="block text-sm font-medium text-gray-700 mb-2">Cancellation reason <span class="text-gray-400 font-normal">(optional)</span></label>
+                    <textarea id="obCancellationReason" name="cancellation_reason" rows="3" maxlength="500"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
+                              placeholder="Add a note about why this request is being cancelled..."></textarea>
+                </div>
+                <div class="flex justify-end space-x-3 pt-4">
+                    <button type="button" onclick="closeObCancelModal()"
+                            class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                        Keep Request
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 bg-orange-600 border border-transparent rounded-lg text-white hover:bg-orange-700 transition-colors">
+                        <i class="fas fa-ban mr-2"></i>
+                        Cancel Request
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>
@@ -1105,5 +1157,30 @@ function closeRejectModal() {
     if (modal) modal.style.display = 'none';
 }
 @endif
+
+function cancelOb(requestId, isApproved) {
+    const modal = document.getElementById('obCancelModal');
+    const form = document.getElementById('obCancelForm');
+    const reasonField = document.getElementById('obCancellationReason');
+    const messageEl = document.getElementById('obCancelModalMessage');
+    if (!modal || !form) return;
+
+    form.action = '{{ route("attendance.official-business.cancel", ["id" => ":id"]) }}'.replace(':id', requestId);
+    if (reasonField) reasonField.value = '';
+    if (messageEl) {
+        messageEl.textContent = isApproved
+            ? 'Cancel this approved OB request? Attendance hours for that date will be recalculated.'
+            : 'Cancel this OB request?';
+    }
+
+    modal.style.display = 'flex';
+    modal.style.alignItems = 'center';
+    modal.style.justifyContent = 'center';
+}
+
+function closeObCancelModal() {
+    const modal = document.getElementById('obCancelModal');
+    if (modal) modal.style.display = 'none';
+}
 </script>
 @endsection

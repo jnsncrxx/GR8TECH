@@ -212,6 +212,7 @@
                     <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }} style="color: #111827 !important;">Approved</option>
                     <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }} style="color: #111827 !important;">Rejected</option>
                     <option value="expired" {{ request('status') == 'expired' ? 'selected' : '' }} style="color: #111827 !important;">Expired</option>
+                    <option value="canceled" {{ request('status') == 'canceled' ? 'selected' : '' }} style="color: #111827 !important;">Canceled</option>
                 </select>
             </div>
             @endif
@@ -292,7 +293,8 @@
                                   'pending' => 'bg-yellow-100 text-yellow-800',
                                   'approved' => 'bg-green-100 text-green-800',
                                   'rejected' => 'bg-red-100 text-red-800',
-                                  'expired' => 'bg-gray-100 text-gray-600'
+                                  'expired' => 'bg-gray-100 text-gray-600',
+                                  'canceled' => 'bg-gray-200 text-gray-700'
                               ];
                               $statusColor = $statusColors[$displayStatus] ?? 'bg-gray-100 text-gray-800';
                               $reviewerName = trim(($request->approver?->employee?->first_name ?? '') . ' ' . ($request->approver?->employee?->last_name ?? ''));
@@ -353,6 +355,12 @@
                                     </button>
                                     <button onclick="rejectOvertime('{{ $request->id }}')" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors" title="Reject">
                                         <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                @elseif($displayStatus === 'approved')
+                                <div class="flex justify-center">
+                                    <button onclick="cancelOvertime('{{ $request->id }}')" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel approved overtime">
+                                        <i class="fas fa-ban"></i>
                                     </button>
                                 </div>
                                 @else
@@ -425,7 +433,8 @@
                             'pending' => 'bg-yellow-100 text-yellow-800',
                             'approved' => 'bg-green-100 text-green-800',
                             'rejected' => 'bg-red-100 text-red-800',
-                            'expired' => 'bg-gray-100 text-gray-600'
+                            'expired' => 'bg-gray-100 text-gray-600',
+                            'canceled' => 'bg-gray-200 text-gray-700'
                         ];
                         $statusColor = $statusColors[$displayStatus] ?? 'bg-gray-100 text-gray-800';
                         $reviewerName = trim(($request->approver?->employee?->first_name ?? '') . ' ' . ($request->approver?->employee?->last_name ?? ''));
@@ -488,6 +497,12 @@
                             </button>
                             <button onclick="rejectOvertime('{{ $request->id }}')" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors" title="Reject">
                                 <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        @elseif(in_array($user->role, ['admin', 'hr', 'manager']) && $displayStatus === 'approved')
+                        <div class="flex justify-end">
+                            <button onclick="cancelOvertime('{{ $request->id }}')" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel approved overtime">
+                                <i class="fas fa-ban"></i>
                             </button>
                         </div>
                         @endif
@@ -627,6 +642,40 @@
                             class="px-4 py-2 bg-red-600 border border-transparent rounded-lg text-white hover:bg-red-700 transition-colors">
                         <i class="fas fa-times mr-2"></i>
                         Reject Request
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Overtime Cancel Modal -->
+<div id="overtimeCancelModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999;" onclick="closeCancelModal()">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" style="max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium text-gray-900">Cancel Overtime Request</h3>
+                <button onclick="closeCancelModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="overtimeCancelForm" class="space-y-4">
+                <div>
+                    <p class="text-sm text-gray-600 mb-4">Cancel this approved overtime request? This reverses it.</p>
+                    <label for="cancelReason" class="block text-sm font-medium text-gray-700 mb-2">Cancellation reason <span class="text-gray-400 font-normal">(optional)</span></label>
+                    <textarea id="cancelReason" rows="3" maxlength="500"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
+                              placeholder="Add a note about why this request is being cancelled..."></textarea>
+                </div>
+                <div class="flex justify-end space-x-3 pt-4">
+                    <button type="button" onclick="closeCancelModal()"
+                            class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                        Keep Request
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 bg-orange-600 border border-transparent rounded-lg text-white hover:bg-orange-700 transition-colors">
+                        <i class="fas fa-ban mr-2"></i>
+                        Cancel Request
                     </button>
                 </div>
             </form>
@@ -859,6 +908,39 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    const cancelForm = document.getElementById('overtimeCancelForm');
+    if (cancelForm) {
+        cancelForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            if (!currentCancelId) return;
+            const reason = document.getElementById('cancelReason').value.trim();
+            try {
+                const cancelUrl = '{{ route("attendance.overtime.cancel", ["id" => ":id"]) }}'.replace(':id', currentCancelId);
+                const response = await fetch(cancelUrl, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ cancellation_reason: reason || null })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showSuccess(data.message || 'Overtime request cancelled successfully');
+                    closeCancelModal();
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    showError(data.error || 'Failed to cancel overtime request.');
+                }
+            } catch (error) {
+                console.error('Error cancelling overtime:', error);
+                showError('An error occurred while cancelling the overtime request.');
+            }
+        });
+    }
 });
 
 let currentApproveId = null;
@@ -892,6 +974,24 @@ function rejectOvertime(requestId) {
 
 function closeRejectModal() {
     const modal = document.getElementById('overtimeRejectModal');
+    if (modal) modal.style.display = 'none';
+}
+
+let currentCancelId = null;
+function cancelOvertime(requestId) {
+    currentCancelId = requestId;
+    const modal = document.getElementById('overtimeCancelModal');
+    const reasonField = document.getElementById('cancelReason');
+    if (reasonField) reasonField.value = '';
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
+    }
+}
+
+function closeCancelModal() {
+    const modal = document.getElementById('overtimeCancelModal');
     if (modal) modal.style.display = 'none';
 }
 

@@ -182,16 +182,16 @@
                         <tr id="payroll-breakdown-{{ $payroll->id }}" data-payroll-breakdown class="hidden bg-gray-50">
                             <td colspan="8" class="px-6 py-5">
                                 @php
-                                    $earningComponents = [
-                                        'Basic Salary' => $payroll->basic_salary,
-                                        'Allowance' => $payroll->allowances,
-                                        'Bonuses' => $payroll->bonuses,
-                                        'Regular Holiday' => $payroll->holiday_basic_pay + $payroll->holiday_premium,
-                                        'Special Holiday' => $payroll->special_holiday_premium,
-                                        'Overtime' => $payroll->overtime_pay,
-                                        'Night Differential' => $payroll->night_differential_pay,
-                                        'Rest Day Premium' => $payroll->rest_day_premium_pay,
-                                        'Other Earnings' => $payroll->other_earnings,
+                                   $earningComponents = [
+                                        'Basic Salary' => ['amount' => $payroll->basic_salary, 'note' => null],
+                                        'Allowance' => ['amount' => $payroll->allowances, 'note' => null],
+                                        'Bonuses' => ['amount' => $payroll->bonuses, 'note' => null],
+                                        'Regular Holiday' => ['amount' => $payroll->holiday_basic_pay + $payroll->holiday_premium, 'note' => null],
+                                        'Special Holiday' => ['amount' => $payroll->special_holiday_premium, 'note' => null],
+                                        'Overtime' => ['amount' => $payroll->overtime_pay, 'note' => number_format($payroll->overtime_hours, 2) . ' hrs'],
+                                        'Night Differential' => ['amount' => $payroll->night_differential_pay, 'note' => null],
+                                        'Rest Day Premium' => ['amount' => $payroll->rest_day_premium_pay, 'note' => null],
+                                        'Other Earnings' => ['amount' => $payroll->other_earnings, 'note' => null],
                                     ];
                                     $deductionComponents = [
                                         'Late' => ['amount' => $payroll->late_deduction, 'note' => $payroll->late_minutes . ' min'],
@@ -206,14 +206,8 @@
                                         'Other Deductions' => ['amount' => $payroll->other_deductions, 'note' => null],
                                     ];
                                 @endphp
-                                <div class="flex items-center justify-between mb-4">
-                                    <div>
-                                        <h3 class="text-sm font-semibold text-gray-900">{{ $payroll->employee->full_name }} — Pay breakdown</h3>
-                                        <p class="text-xs text-gray-500">Zero-value components are hidden for easier review.</p>
-                                    </div>
-                                    <button type="button" onclick="toggleZeroComponents('{{ $payroll->id }}', this)" class="text-xs font-medium text-gray-600 hover:text-gray-900">
-                                        Show zero components
-                                    </button>
+                               <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-sm font-semibold text-gray-900">{{ $payroll->employee->full_name }} — Pay breakdown</h3>
                                 </div>
                                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                     <div class="bg-white rounded-lg border border-green-200 overflow-hidden">
@@ -222,10 +216,10 @@
                                             <span class="text-sm font-bold text-green-900">₱{{ number_format($payroll->gross_pay, 2) }}</span>
                                         </div>
                                         <dl class="divide-y divide-gray-100">
-                                            @foreach($earningComponents as $label => $amount)
-                                                <div data-zero-for="{{ $payroll->id }}" class="flex justify-between px-4 py-2.5 text-sm {{ (float) $amount == 0.0 ? 'hidden' : '' }}" data-is-zero="{{ (float) $amount == 0.0 ? 'true' : 'false' }}">
-                                                    <dt class="text-gray-600">{{ $label }}</dt>
-                                                    <dd class="font-medium text-gray-900">₱{{ number_format($amount, 2) }}</dd>
+                                            @foreach($earningComponents as $label => $component)
+                                                <div class="flex justify-between px-4 py-2.5 text-sm">
+                                                    <dt class="text-gray-600">{{ $label }} @if($component['note'])<span class="text-xs text-gray-400">({{ $component['note'] }})</span>@endif</dt>
+                                                    <dd class="font-medium text-gray-900">₱{{ number_format($component['amount'], 2) }}</dd>
                                                 </div>
                                             @endforeach
                                         </dl>
@@ -237,7 +231,7 @@
                                         </div>
                                         <dl class="divide-y divide-gray-100">
                                             @foreach($deductionComponents as $label => $component)
-                                                <div data-zero-for="{{ $payroll->id }}" class="flex justify-between px-4 py-2.5 text-sm {{ (float) $component['amount'] == 0.0 ? 'hidden' : '' }}" data-is-zero="{{ (float) $component['amount'] == 0.0 ? 'true' : 'false' }}">
+                                                <div class="flex justify-between px-4 py-2.5 text-sm">
                                                     <dt class="text-gray-600">{{ $label }} @if($component['note'])<span class="text-xs text-gray-400">({{ $component['note'] }})</span>@endif</dt>
                                                     <dd class="font-medium text-gray-900">₱{{ number_format($component['amount'], 2) }}</dd>
                                                 </div>
@@ -367,12 +361,12 @@ function togglePayrollBreakdown(id, button) {
     }
 }
 
-function toggleZeroComponents(id, button) {
+/*function toggleZeroComponents(id, button) {
     const zeroRows = Array.from(document.querySelectorAll('[data-zero-for="' + id + '"][data-is-zero="true"]'));
     const willShow = zeroRows.some(row => row.classList.contains('hidden'));
     zeroRows.forEach(row => row.classList.toggle('hidden', !willShow));
     button.textContent = willShow ? 'Hide zero components' : 'Show zero components';
-}
+}*/
 
 // Auto-refresh every 30 seconds if there are pending payrolls
 @if($payrolls->where('status', 'pending')->count() > 0)

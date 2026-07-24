@@ -186,9 +186,20 @@ class OvertimeController extends Controller
     public function updateStatus(Request $request, $id) 
     { 
         try {
+            $user = Auth::user();
+            $isReviewer = in_array($user->role ?? null, ['admin', 'hr', 'manager'], true);
+
+            if (!$isReviewer) {
+                return response()->json(['error' => 'You are not authorized to review overtime requests.'], 403);
+            }
+
             $request->validate(['status' => 'required|in:approved,rejected']);
             
             $overtime = \App\Models\OvertimeRequest::findOrFail($id);
+
+            if ($user->employee_id && $overtime->employee_id === $user->employee_id) {
+                return response()->json(['error' => 'You cannot approve or reject your own overtime request.'], 403);
+            }
             
             if ($overtime->isPastDeadline()) {
                 return response()->json(['error' => 'Cannot update an expired request.'], 403);
@@ -245,6 +256,54 @@ class OvertimeController extends Controller
         ));
     }
 
-    public function cancel(Request $request, $id) { return back(); }
+    /**
+     * Cancel a pending overtime request, or reverse an already-approved one.
+     *
+     * Unlike Leave/OB, approving overtime never touches AttendanceRecord —
+     * updateStatus() only writes to the overtime request's own columns — so
+     * reversal here is just a status flip, with no attendance recalculation
+     * to cascade.
+     */
+    public function cancel(Request $request, $id)
+    {
+        try {
+            $user = Auth::user();
+            $overtime = \App\Models\OvertimeRequest::findOrFail($id);
+
+            $isReviewer = in_array($user->role ?? null, ['admin', 'hr', 'manager'], true);
+            $ownsRequest = $user->employee_id && $overtime->employee_id === $user->employee_id;
+
+            if (!$ownsRequest && !$isReviewer) {
+                return response()->json(['error' => 'You are not authorized to cancel this request.'], 403);
+            }
+
+            if (!in_array($overtime->status, [\App\Models\OvertimeRequest::PENDING, \App\Models\OvertimeRequest::APPROVED], true)) {
+                return response()->json(['error' => 'Only pending or approved requests can be cancelled.'], 422);
+            }
+
+            if ($overtime->status === \App\Models\OvertimeRequest::APPROVED && !$isReviewer) {
+                return response()->json(['error' => 'Only admin, HR, or manager can cancel an approved overtime request.'], 403);
+            }
+
+            $request->validate([
+                'cancellation_reason' => ['nullable', 'string', 'max:500'],
+            ]);
+
+            $overtime->update([
+                'status' => \App\Models\OvertimeRequest::CANCELED,
+                'rejection_reason' => $request->input('cancellation_reason'),
+            ]);
+
+            $this->notifyRequester($overtime);
+
+            return response()->json([
+                'message' => 'Overtime request cancelled successfully.',
+                'overtime' => $overtime,
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error cancelling overtime: ' . $e->getMessage());
+            return response()->json(['error' => 'Error cancelling overtime request: ' . $e->getMessage()], 500);
+        }
+    }
     public function getStatistics(Request $request) { return response()->json([]); }
 }

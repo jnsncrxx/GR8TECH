@@ -346,6 +346,10 @@ class LeaveController extends Controller
             return response()->json(['error' => 'Leave request not found'], 404);
         }
 
+        if ($user->employee?->id && $leaveRequest->employee_id === $user->employee->id) {
+            return response()->json(['error' => 'You cannot approve or reject your own leave request.'], 403);
+        }
+
         // Flip past-deadline pending requests to expired before any other check.
         if ($leaveRequest->isPastDeadline()) {
             $leaveRequest->update(['status' => LeaveRequest::EXPIRED]);
@@ -563,7 +567,7 @@ class LeaveController extends Controller
         }
     }
 
-    public function cancel($id)
+    public function cancel(Request $request, $id)
     {
         $user = Auth::user();
         $leaveRequest = LeaveRequest::find($id);
@@ -576,10 +580,26 @@ class LeaveController extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        DB::transaction(function () use ($leaveRequest) {
+        $isReviewer = in_array($user->role, ['admin', 'hr', 'manager'], true);
+
+        // Employees may only cancel their own pending requests. Cancelling an
+        // already-approved leave (with balance/attendance reversal) is
+        // reserved for admin/hr/manager, matching the UI.
+        if (!$isReviewer && $leaveRequest->status !== LeaveRequest::PENDING) {
+            return response()->json(['error' => 'Only admin, HR, or manager can cancel an approved leave request.'], 403);
+        }
+
+        $data = $request->validate([
+            'cancellation_reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        DB::transaction(function () use ($leaveRequest, $data) {
             $wasApproved = $leaveRequest->status === LeaveRequest::APPROVED;
 
             $leaveRequest->status = LeaveRequest::CANCELLED;
+            if (!empty($data['cancellation_reason'])) {
+                $leaveRequest->rejection_reason = $data['cancellation_reason'];
+            }
             $leaveRequest->save();
 
             if ($wasApproved) {

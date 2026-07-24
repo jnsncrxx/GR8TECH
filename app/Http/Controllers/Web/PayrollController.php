@@ -108,12 +108,23 @@ class PayrollController extends Controller
                 'p1.pay_period_end',
                 'p1.status',
                 'p1.basic_salary',
+                'p1.overtime_hours',
                 'p1.overtime_pay',
+                'p1.holiday_basic_pay',
+                'p1.holiday_premium',
+                'p1.special_holiday_premium',
                 'p1.night_differential_hours',
                 'p1.night_differential_rate',
                 'p1.night_differential_pay',
+                'p1.rest_day_premium_pay',
                 'p1.allowances',
+                'p1.bonuses',
                 'p1.deductions',
+                'p1.late_deduction',
+                'p1.undertime_deduction',
+                'p1.absence_deduction',
+                'p1.loan_deduction',
+                'p1.other_deductions',
                 'p1.sss',
                 'p1.phic',
                 'p1.hdmf',
@@ -257,12 +268,23 @@ class PayrollController extends Controller
                 'pay_period_end' => $item->pay_period_end,
                 'status' => $item->status,
                 'basic_salary' => $item->basic_salary,
+                'overtime_hours' => $item->overtime_hours,
                 'overtime_pay' => $item->overtime_pay,
+                'holiday_basic_pay' => $item->holiday_basic_pay,
+                'holiday_premium' => $item->holiday_premium,
+                'special_holiday_premium' => $item->special_holiday_premium,
                 'night_differential_hours' => $item->night_differential_hours,
                 'night_differential_rate' => $item->night_differential_rate,
                 'night_differential_pay' => $item->night_differential_pay,
+                'rest_day_premium_pay' => $item->rest_day_premium_pay,
                 'allowances' => $item->allowances,
+                'bonuses' => $item->bonuses,
                 'deductions' => $item->deductions,
+                'late_deduction' => $item->late_deduction,
+                'undertime_deduction' => $item->undertime_deduction,
+                'absence_deduction' => $item->absence_deduction,
+                'loan_deduction' => $item->loan_deduction,
+                'other_deductions' => $item->other_deductions,
                 'sss' => $item->sss,
                 'phic' => $item->phic,
                 'hdmf' => $item->hdmf,
@@ -3980,6 +4002,11 @@ class PayrollController extends Controller
 
                 $overtime = collect($overtimeEntries)->sum('hours');
 
+                // Kept available outside the Working-day branch below so the
+                // OT-before-required-hours check can compare against it
+                // regardless of which branch actually ran.
+                $scheduledHoursValue = 0.0;
+
                 // Calculate ordinary scheduled work and holiday attendance.
                 if (in_array($scheduleStatus, ['Working', 'Regular Holiday', 'Special Holiday'])) {
 
@@ -4086,12 +4113,73 @@ class PayrollController extends Controller
                 // No richer status text exists anywhere else in the codebase,
                 // so this currently mirrors $attendanceStatus verbatim.
                 $combinedStatus = $attendanceStatus;
-                $validationIssue = $this->scheduleAttendanceValidationIssue(
+
+                // Single source of truth for every blocking/warning issue a
+                // day-record can have. This used to be split between this
+                // method (schedule/log-shape issues only, via
+                // scheduleAttendanceValidationIssue()) and a second, separate
+                // set of checks duplicated in
+                // PeriodManagementController::inspectValidationComponent().
+                // That split meant several blocking errors (zero worked
+                // hours, unverified OB, leave conflicts, OT conflicts) were
+                // enforced on Confirm Validation but never surfaced in the
+                // Schedule & Attendance Exceptions table. Both consumers now
+                // read from this single array instead.
+                $validationIssues = [];
+
+                $shapeIssue = $this->scheduleAttendanceValidationIssue(
                     $attendanceRecord,
                     $schedule,
                     $hasApprovedOb,
                     $hasApprovedLeave
                 );
+                if ($shapeIssue !== null) {
+                    $validationIssues[] = $shapeIssue;
+                }
+
+                $workedHoursNumeric = is_numeric($workedHours) ? (float) $workedHours : 0.0;
+
+                if (
+                    in_array($attendanceStatus, ['Present', 'Late', 'Half Day'], true)
+                    && $workedHoursNumeric <= 0
+                ) {
+                    $validationIssues[] = 'Zero Worked Hours';
+                }
+
+                if (
+                    $attendanceRecord
+                    && $attendanceRecord->status === AttendanceRecord::OFFICIAL_BUSINESS
+                    && $attendanceStatus !== 'Official Business'
+                ) {
+                    $validationIssues[] = 'Unverified Official Business';
+                }
+
+                if (
+                    $hasApprovedLeave
+                    && ($workedHoursNumeric > 0 || $attendanceStatus === 'Official Business' || $overtime > 0)
+                ) {
+                    $validationIssues[] = 'Leave Conflict';
+                }
+
+                if ($overtime > 0 && (empty($attendanceRecord?->time_in) || empty($attendanceRecord?->time_out))) {
+                    $validationIssues[] = 'OT Without Attendance';
+                }
+
+                if (
+                    $overtime > 0
+                    && !in_array($scheduleStatus, ['Day Off', 'Rest Day'], true)
+                    && $scheduledHoursValue > 0
+                    && $workedHoursNumeric < $scheduledHoursValue
+                ) {
+                    $validationIssues[] = 'OT Before Required Hours';
+                }
+
+                if ($hasApprovedLeave && $overtime > 0) {
+                    $validationIssues[] = 'OT Overlaps Leave';
+                }
+
+                // Kept for any existing callers still reading a single value.
+                $validationIssue = $validationIssues[0] ?? null;
 
                 // Add to comprehensive data
                 $comprehensiveData[] = [
@@ -4110,6 +4198,7 @@ class PayrollController extends Controller
                     'combined_status' => $combinedStatus,
                     'attendance_status' => $attendanceStatus,
                     'validation_issue' => $validationIssue,
+                    'validation_issues' => $validationIssues,
                     'has_attendance_record' => $attendanceRecord !== null,
                     'attendance_record_status' => $attendanceRecord?->status,
                     'approved_leave_type' => $approvedLeaveRequest?->leave_type,
@@ -4169,7 +4258,17 @@ class PayrollController extends Controller
             return 'Rest Day Duty Review';
         }
 
-        if ($schedule->status === 'Working' && $schedule->time_in) {
+        if (
+            $schedule->status === 'Working'
+            && $schedule->time_in
+            && !$attendanceRecord->corrected_at
+        ) {
+            // Once HR has reviewed and saved an audited correction (with a
+            // reason), that review is the resolution for this advisory flag
+            // — the time gap was already looked at and confirmed. Unlike
+            // Rest Day Duty Review (a pay-rate fact that doesn't change),
+            // this check exists purely to prompt a human look, so it should
+            // not keep firing after that look already happened.
             $date = Carbon::parse($attendanceRecord->date)->format('Y-m-d');
             $scheduledIn = Carbon::parse($date . ' ' . Carbon::parse($schedule->time_in)->format('H:i:s'));
             $actualIn = Carbon::parse($attendanceRecord->time_in);
