@@ -861,6 +861,11 @@ class AttendanceController extends Controller
      */
     public function createRecord(Request $request)
     {
+        $userRole = Auth::user()->role ?? null;
+        if (!in_array($userRole, ['admin', 'hr'], true)) {
+            return redirect()->route('dashboard')->with('error', 'Unauthorized access.');
+        }
+
         $employees = Employee::with('department')
             ->orderBy('first_name')
             ->get();
@@ -876,6 +881,11 @@ class AttendanceController extends Controller
      */
     public function storeRecord(Request $request)
     {
+        $userRole = Auth::user()->role ?? null;
+        if (!in_array($userRole, ['admin', 'hr'], true)) {
+            return redirect()->route('dashboard')->with('error', 'Unauthorized access.');
+        }
+
         $validated = $request->validate([
             'employee_id' => 'required|exists:employees,id',
             'date' => 'required|date',
@@ -1071,6 +1081,11 @@ class AttendanceController extends Controller
      */
     public function editRecord(Request $request, $id)
     {
+        $userRole = Auth::user()->role ?? null;
+        if (!in_array($userRole, ['admin', 'hr'], true)) {
+            return redirect()->route('dashboard')->with('error', 'Unauthorized access.');
+        }
+
         $attendanceRecord = AttendanceRecord::with('employee.department')->findOrFail($id);
         $employees = Employee::with('department')
             ->orderBy('first_name')
@@ -1091,6 +1106,11 @@ class AttendanceController extends Controller
      */
     public function updateRecord(Request $request, $id)
     {
+        $userRole = Auth::user()->role ?? null;
+        if (!in_array($userRole, ['admin', 'hr'], true)) {
+            return redirect()->route('dashboard')->with('error', 'Unauthorized access.');
+        }
+
         $validated = $request->validate([
             'employee_id' => ['required', 'exists:employees,id'],
             'date' => ['required', 'date'],
@@ -1156,6 +1176,54 @@ class AttendanceController extends Controller
         return redirect()
             ->route('attendance.daily', ['date' => $date])
             ->with('success', 'Attendance correction saved with an audit trail.');
+    }
+
+    /**
+     * Delete an attendance record with audit trail (Admin/HR only)
+     */
+    public function deleteRecord(Request $request, $id)
+    {
+        $userRole = Auth::user()->role ?? null;
+        if (!in_array($userRole, ['admin', 'hr'], true)) {
+            if ($request->wantsJson()) {
+                return response()->json(['error' => 'Unauthorized access.'], 403);
+            }
+            return redirect()->back()->with('error', 'Unauthorized access.');
+        }
+
+        try {
+            $record = AttendanceRecord::with('employee')->findOrFail($id);
+            $employeeName = $record->employee?->full_name ?? 'Employee';
+            $dateStr = $record->date ? Carbon::parse($record->date)->format('M d, Y') : '';
+
+            DB::transaction(function () use ($record) {
+                if (Schema::hasTable('attendance_corrections')) {
+                    DB::table('attendance_corrections')->insert([
+                        'id' => (string) Str::uuid(),
+                        'attendance_record_id' => $record->id,
+                        'corrected_by' => Auth::id(),
+                        'reason' => 'Attendance record deleted',
+                        'original_values' => json_encode($record->toArray()),
+                        'corrected_values' => json_encode(['deleted' => true]),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+
+                $record->delete();
+            });
+
+            if ($request->wantsJson()) {
+                return response()->json(['message' => "Attendance record for {$employeeName} on {$dateStr} deleted successfully."]);
+            }
+
+            return redirect()->back()->with('success', "Attendance record for {$employeeName} on {$dateStr} deleted successfully.");
+        } catch (\Exception $e) {
+            if ($request->wantsJson()) {
+                return response()->json(['error' => 'Failed to delete attendance record: ' . $e->getMessage()], 500);
+            }
+            return redirect()->back()->with('error', 'Failed to delete attendance record: ' . $e->getMessage());
+        }
     }
 
     /**

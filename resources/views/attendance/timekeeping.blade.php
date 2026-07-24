@@ -330,8 +330,13 @@
                                 } }}">
                                     {{ $record->exception_label }}
                                 </span>
-                                @if(in_array($user->role, ['admin', 'hr', 'manager']))
-                                    <a href="{{ route('attendance.edit-record', $record->id) }}" class="ml-2 text-xs font-medium text-blue-600 hover:text-blue-800">Review</a>
+                                @if(in_array($user->role, ['admin', 'hr']))
+                                    <a href="{{ route('attendance.edit-record', $record->id) }}" class="ml-2 text-xs font-medium text-blue-600 hover:text-blue-800">Edit</a>
+                                    <form action="{{ route('attendance.delete-record', $record->id) }}" method="POST" class="inline-block ml-2" onsubmit="return confirm('Are you sure you want to delete this attendance record?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="text-xs font-medium text-red-600 hover:text-red-800">Delete</button>
+                                    </form>
                                 @endif
                             </td>
                         </tr>
