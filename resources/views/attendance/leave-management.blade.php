@@ -229,10 +229,13 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Reason
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Status
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Reviewed By
+                        </th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Actions
                         </th>
                     </tr>
@@ -259,6 +262,26 @@
                                 'bereavement' => 'bg-gray-100 text-gray-800',
                                 'study' => 'bg-teal-100 text-teal-800'
                             ];
+
+                            // Same reviewer display pattern used by the OB/OT tables.
+                            $reviewerName = trim(
+                                ($leaveRequest->approver?->employee?->first_name ?? '') . ' ' .
+                                ($leaveRequest->approver?->employee?->last_name ?? '')
+                            );
+
+                            // Fallback when the account is not linked to an employee profile.
+                            if ($reviewerName === '') {
+                                $reviewerName = trim(
+                                    ($leaveRequest->approver?->first_name ?? '') . ' ' .
+                                    ($leaveRequest->approver?->last_name ?? '')
+                                );
+                            }
+
+                            if ($reviewerName === '') {
+                                $reviewerName = $leaveRequest->approver?->name
+                                    ?? $leaveRequest->approver?->username
+                                    ?? '';
+                            }
                         @endphp
                     <tr class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 whitespace-nowrap">
@@ -291,19 +314,35 @@
                         <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">{{ Str::limit($leaveRequest->reason, 30) }}</div>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $statusColors[$leaveRequest->status] ?? 'bg-gray-100 text-gray-800' }}">
-                                    @if($leaveRequest->status == 'pending' || $leaveRequest->status == 'approved')
-                                        <div class="w-1.5 h-1.5 rounded-full mr-1.5 {{ $leaveRequest->status == 'pending' ? 'bg-yellow-400' : 'bg-green-400' }}"></div>
-                                    @endif
-                                    {{ ucfirst($leaveRequest->status) }}
-                            </span>
-                                @if($leaveRequest->status == 'rejected' && $leaveRequest->rejection_reason)
-                                    <div class="text-xs text-red-600 mt-1 max-w-[200px]"><span class="font-medium">Admin Reason:</span> {{ Str::limit($leaveRequest->rejection_reason, 30) }}</div>
-                                @elseif($leaveRequest->status == 'cancelled' && $leaveRequest->rejection_reason)
-                                    <div class="text-xs text-gray-600 mt-1 max-w-[200px]"><span class="font-medium">Cancellation Reason:</span> {{ Str::limit($leaveRequest->rejection_reason, 30) }}</div>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <span class="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium {{ $statusColors[$leaveRequest->status] ?? 'bg-gray-100 text-gray-800' }} min-w-[80px]">
+                                @if($leaveRequest->status == 'pending' || $leaveRequest->status == 'approved')
+                                    <div class="w-1.5 h-1.5 rounded-full mr-1.5 {{ $leaveRequest->status == 'pending' ? 'bg-yellow-400' : 'bg-green-400' }}"></div>
                                 @endif
+                                {{ ucfirst($leaveRequest->status) }}
+                            </span>
+
+                            @if($leaveRequest->status === 'rejected' && $leaveRequest->rejection_reason)
+                                <div class="text-xs text-red-600 mt-1 max-w-[220px] mx-auto"
+                                     title="{{ $leaveRequest->rejection_reason }}">
+                                    <span class="font-medium">Admin Reason:</span>
+                                    {{ Str::limit($leaveRequest->rejection_reason, 40) }}
+                                </div>
+                            @elseif($leaveRequest->status === 'cancelled' && $leaveRequest->rejection_reason)
+                                <div class="text-xs text-gray-600 mt-1 max-w-[220px] mx-auto"
+                                     title="{{ $leaveRequest->rejection_reason }}">
+                                    <span class="font-medium">Cancellation Reason:</span>
+                                    {{ Str::limit($leaveRequest->rejection_reason, 40) }}
+                                </div>
+                            @endif
                         </td>
+
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-gray-900">
+                                {{ $reviewerName !== '' ? $reviewerName : '—' }}
+                            </div>
+                        </td>
+
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                             <div class="flex justify-center items-center space-x-2">
                                     @if(in_array($user->role, ['admin', 'hr', 'manager']) && $leaveRequest->status == 'pending')
@@ -331,7 +370,7 @@
                     </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">No leave requests found.</td>
+                            <td colspan="9" class="px-6 py-4 text-center text-sm text-gray-500">No leave requests found.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -368,6 +407,25 @@
                             'bereavement' => 'bg-gray-100 text-gray-800',
                             'study' => 'bg-teal-100 text-teal-800'
                         ];
+
+                        // Same reviewer display pattern used by the OB/OT tables.
+                        $reviewerName = trim(
+                            ($leaveRequest->approver?->employee?->first_name ?? '') . ' ' .
+                            ($leaveRequest->approver?->employee?->last_name ?? '')
+                        );
+
+                        if ($reviewerName === '') {
+                            $reviewerName = trim(
+                                ($leaveRequest->approver?->first_name ?? '') . ' ' .
+                                ($leaveRequest->approver?->last_name ?? '')
+                            );
+                        }
+
+                        if ($reviewerName === '') {
+                            $reviewerName = $leaveRequest->approver?->name
+                                ?? $leaveRequest->approver?->username
+                                ?? '';
+                        }
                     @endphp
                 <div class="border border-gray-200 rounded-lg p-4">
                     <div class="flex items-center justify-between mb-3">
@@ -414,8 +472,12 @@
                         </div>
                         <div>
                             <div class="text-gray-500">Type</div>
-                                <div class="font-medium">{{ \App\Models\LeaveRequest::labelFor($leaveRequest->leave_type) }}</div>
-                            </div>
+                            <div class="font-medium">{{ \App\Models\LeaveRequest::labelFor($leaveRequest->leave_type) }}</div>
+                        </div>
+                        <div class="col-span-2">
+                            <div class="text-gray-500">Reviewed By</div>
+                            <div class="font-medium">{{ $reviewerName !== '' ? $reviewerName : '—' }}</div>
+                        </div>
                     </div>
                     <div class="text-sm mb-3">
                         <div class="text-gray-500">Reason</div>

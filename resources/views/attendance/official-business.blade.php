@@ -432,12 +432,17 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Date
                         </th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Time In
+                        </th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Time Out
+                        </th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Total Hours
+                        </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Reason
-                        </th>
-
-                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            OB Hours
                         </th>
                         <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Status
@@ -482,24 +487,37 @@
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">{{ $ob->date->format('M d, Y') }}</div>
                             </td>
-                            <td class="px-6 py-4">
-                                <div class="text-sm text-gray-900 max-w-xs truncate" title="{{ $ob->reason }}">
-                                    {{ \Illuminate\Support\Str::limit($ob->reason, 30) }}
-                                </div>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                @if($ob->ob_start_time)
+                                    <div class="text-sm font-medium text-gray-900">
+                                        {{ \Carbon\Carbon::parse($ob->ob_start_time)->format('h:i A') }}
+                                    </div>
+                                @else
+                                    <span class="text-gray-400">—</span>
+                                @endif
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                @if($ob->ob_end_time)
+                                    <div class="text-sm font-medium text-gray-900">
+                                        {{ \Carbon\Carbon::parse($ob->ob_end_time)->format('h:i A') }}
+                                    </div>
+                                @else
+                                    <span class="text-gray-400">—</span>
+                                @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
                                 @if($ob->ob_start_time && $ob->ob_end_time)
                                     <div class="text-sm font-semibold {{ $obStatus === 'approved' ? 'text-green-700' : 'text-gray-700' }}">
                                         {{ number_format((float) ($ob->credited_hours ?? $ob->computeCreditedHours()), 2) }} hrs
                                     </div>
-                                    <div class="text-xs text-gray-500">
-                                        {{ \Carbon\Carbon::parse($ob->ob_start_time)->format('h:i A') }}
-                                        -
-                                        {{ \Carbon\Carbon::parse($ob->ob_end_time)->format('h:i A') }}
-                                    </div>
                                 @else
                                     <span class="text-gray-400">—</span>
                                 @endif
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="text-sm text-gray-900 max-w-xs truncate" title="{{ $ob->reason }}">
+                                    {{ \Illuminate\Support\Str::limit($ob->reason, 30) }}
+                                </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
                                 <span class="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium {{ $statusColor }} min-w-[80px]">
@@ -555,7 +573,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-6 py-4 text-center">
+                            <td colspan="9" class="px-6 py-4 text-center">
                                 <div class="flex flex-col items-center justify-center py-8">
                                     <i class="fas fa-briefcase text-gray-400 text-4xl mb-4"></i>
                                     <p class="text-gray-500 text-lg font-medium mb-2">No official business requests found</p>
@@ -652,15 +670,22 @@
                                 <div class="font-medium">{{ $ob->date->format('M d, Y') }}</div>
                             </div>
                             <div>
-                                <div class="text-gray-500">OB Hours</div>
+                                <div class="text-gray-500">Time In</div>
+                                <div class="font-medium">
+                                    {{ $ob->ob_start_time ? \Carbon\Carbon::parse($ob->ob_start_time)->format('h:i A') : '—' }}
+                                </div>
+                            </div>
+                            <div>
+                                <div class="text-gray-500">Time Out</div>
+                                <div class="font-medium">
+                                    {{ $ob->ob_end_time ? \Carbon\Carbon::parse($ob->ob_end_time)->format('h:i A') : '—' }}
+                                </div>
+                            </div>
+                            <div>
+                                <div class="text-gray-500">Total Hours</div>
                                 @if($ob->ob_start_time && $ob->ob_end_time)
                                     <div class="font-semibold {{ $obStatus === 'approved' ? 'text-green-700' : 'text-gray-900' }}">
                                         {{ number_format((float) ($ob->credited_hours ?? $ob->computeCreditedHours()), 2) }} hrs
-                                    </div>
-                                    <div class="text-xs text-gray-500">
-                                        {{ \Carbon\Carbon::parse($ob->ob_start_time)->format('h:i A') }}
-                                        -
-                                        {{ \Carbon\Carbon::parse($ob->ob_end_time)->format('h:i A') }}
                                     </div>
                                 @else
                                     <div class="font-medium">—</div>
