@@ -995,12 +995,14 @@ class DtrImportService
             }
             
             // Check for duplicate records
-            $existingRecord = \App\Models\AttendanceRecord::where('employee_id', $employee?->id)
-                ->where('date', $record['date'])
-                ->first();
-            
-            if ($existingRecord) {
-                $warnings->push("Row " . ($index + 1) . ": Attendance record already exists for {$employee?->first_name} {$employee?->last_name} on {$record['date']}");
+            if ($employee) {
+                $existingRecord = \App\Models\AttendanceRecord::where('employee_id', $employee->id)
+                    ->where('date', $record['date'])
+                    ->first();
+                
+                if ($existingRecord) {
+                    $warnings->push("Row " . ($index + 1) . ": Attendance record already exists for {$employee->first_name} {$employee->last_name} on {$record['date']} (Will update existing record)");
+                }
             }
             
             // Check for invalid time ranges

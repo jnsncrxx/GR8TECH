@@ -15,9 +15,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        DB::statement(
-            "ALTER TABLE overtime_requests MODIFY COLUMN status ENUM('pending','approved','rejected','expired','canceled') NOT NULL DEFAULT 'pending'"
-        );
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement(
+                "ALTER TABLE overtime_requests MODIFY COLUMN status ENUM('pending','approved','rejected','expired','canceled') NOT NULL DEFAULT 'pending'"
+            );
+        }
     }
 
     /**
@@ -30,8 +32,10 @@ return new class extends Migration
      */
     public function down(): void
     {
-        DB::statement(
-            "ALTER TABLE overtime_requests MODIFY COLUMN status ENUM('pending','approved','rejected','expired') NOT NULL DEFAULT 'pending'"
-        );
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement(
+                "ALTER TABLE overtime_requests MODIFY COLUMN status ENUM('pending','approved','rejected','expired') NOT NULL DEFAULT 'pending'"
+            );
+        }
     }
 };
