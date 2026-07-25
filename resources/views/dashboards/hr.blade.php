@@ -152,17 +152,16 @@
                             <div class="flex items-center space-x-2">
                                 <span class="text-sm text-gray-500 dark:text-gray-400">{{ $dept->employees_count }} employees</span>
                                 <div class="w-16 bg-gray-200 dark:bg-slate-700 rounded-full h-2">
-                                    <div class="bg-blue-500 dark:bg-blue-400 h-2 rounded-full" style="width: {{ $dept->employees_count > 0 ? ($dept->employees_count / $stats['total_employees']) * 100 : 0 }}%"></div>
+                                    <div class="bg-blue-500 dark:bg-blue-400 h-2 rounded-full" style="width: {{ $dept->employees_count > 0 ? ($dept->employees_count / max($stats['total_employees'], 1)) * 100 : 0 }}%"></div>
                                 </div>
                             </div>
                         </div>
                         @endforeach
                     </div>
                 </div>
-                </div>
 
                 <!-- Recent Activity -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+                <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-4 sm:p-6">
                     <div class="flex items-center justify-between mb-4 sm:mb-6">
                         <h3 class="text-base sm:text-lg font-semibold text-gray-900">Recent Activity</h3>
                         <a href="{{ route('employees.index') }}" class="text-blue-600 hover:text-blue-700 text-xs sm:text-sm font-medium">View All</a>
@@ -199,139 +198,153 @@
                 </div>
             </div>
 
-            <!-- Recent Payroll Section -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 sm:mb-8">
-                <div class="px-4 sm:px-6 py-4 border-b border-gray-200">
-                    <div class="flex items-center justify-between">
-                        <h3 class="text-base sm:text-lg font-semibold text-gray-900">Recent Payroll</h3>
-                        <a href="{{ route('payroll.index') }}" class="text-blue-600 hover:text-blue-700 text-xs sm:text-sm font-medium">View All</a>
+            <!-- Recent Payroll Runs Section -->
+            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 mb-6">
+                <div class="px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-slate-700">
+                    <div class="flex items-center justify-between gap-4">
+                        <div>
+                            <h3 class="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Recent Payroll Runs</h3>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Latest payroll periods from Period Management</p>
+                        </div>
+                        <a href="{{ route('attendance.period-management.index') }}"
+                           class="shrink-0 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-xs sm:text-sm font-medium">
+                            View All
+                        </a>
                     </div>
                 </div>
-                
+
                 <!-- Desktop Table -->
                 <div class="hidden lg:block overflow-x-auto">
-                    <table class="min-w-[900px] w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
+                    <table class="w-full table-auto divide-y divide-gray-200 dark:divide-slate-700">
+                        <thead class="bg-gray-50 dark:bg-slate-800/70">
                             <tr>
-                                <th class="z-20 min-w-64 bg-gray-50 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style="position: sticky; left: 0;">Employee</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gross Pay</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deductions</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net Pay</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Payroll Period</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Employees</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Gross Payroll</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Net Payroll</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Payroll Date</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Action</th>
                             </tr>
                         </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            <tr class="group hover:bg-gray-50">
-                                <td class="z-10 bg-white px-6 py-4 whitespace-nowrap group-hover:bg-gray-50" style="position: sticky; left: 0;">
-                                    <div class="flex items-center">
-                                        <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                            <span class="text-xs font-medium text-blue-600">JS</span>
+                        <tbody class="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
+                            @forelse($recent_payroll_runs as $run)
+                                @php
+                                    $statusClasses = match($run->dashboard_status) {
+                                        'paid' => 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+                                        'locked' => 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
+                                        'finalized' => 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+                                        'for_review' => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+                                        'processing' => 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
+                                        'ready' => 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300',
+                                        default => 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-gray-300',
+                                    };
+                                @endphp
+                                <tr class="hover:bg-gray-50 dark:hover:bg-slate-800/60">
+                                    <td class="px-6 py-4 min-w-[240px]">
+                                        <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $run->name }}</div>
+                                        <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                            {{ $run->start_date?->format('M d, Y') ?? 'N/A' }} – {{ $run->end_date?->format('M d, Y') ?? 'N/A' }}
                                         </div>
-                                        <div class="ml-3">
-                                            <div class="text-sm font-medium text-gray-900">John Smith</div>
-                                            <div class="text-sm text-gray-500">IT Department</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Dec 1-15, 2024</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱30,500</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱4,200</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">₱26,300</td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                        <div class="w-1.5 h-1.5 rounded-full mr-1.5 bg-yellow-400"></div>
-                                        Pending
-                                    </span>
-                                </td>
-                            </tr>
-                            <tr class="hover:bg-gray-50">
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="flex items-center">
-                                        <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                                            <span class="text-xs font-medium text-green-600">SJ</span>
-                                        </div>
-                                        <div class="ml-3">
-                                            <div class="text-sm font-medium text-gray-900">Sarah Johnson</div>
-                                            <div class="text-sm text-gray-500">HR Department</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Dec 1-15, 2024</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱24,700</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱3,800</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">₱20,900</td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                        <div class="w-1.5 h-1.5 rounded-full mr-1.5 bg-green-400"></div>
-                                        Approved
-                                    </span>
-                                </td>
-                            </tr>
-                            <tr class="hover:bg-gray-50">
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="flex items-center">
-                                        <div class="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                                            <span class="text-xs font-medium text-purple-600">MB</span>
-                                        </div>
-                                        <div class="ml-3">
-                                            <div class="text-sm font-medium text-gray-900">Michael Brown</div>
-                                            <div class="text-sm text-gray-500">Finance Department</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Dec 1-15, 2024</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱33,300</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱5,100</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">₱28,200</td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                        <div class="w-1.5 h-1.5 rounded-full mr-1.5 bg-blue-400"></div>
-                                        Paid
-                                    </span>
-                                </td>
-                            </tr>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
+                                        {{ number_format($run->payrolls_count) }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
+                                        ₱{{ number_format($run->payrolls_sum_gross_pay ?? 0, 2) }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                                        ₱{{ number_format($run->payrolls_sum_net_pay ?? 0, 2) }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium {{ $statusClasses }}">
+                                            {{ $run->dashboard_status_label }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                        {{ $run->payroll_date?->format('M d, Y') ?? 'N/A' }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                                        <a href="{{ route('attendance.period-management.show', $run->id) }}"
+                                           class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium">
+                                            View
+                                        </a>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="7" class="px-6 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                                        No payroll runs found.
+                                    </td>
+                                </tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>
-                
+
                 <!-- Mobile Cards -->
-                <div class="lg:hidden">
-                    <div class="p-4 space-y-4">
-                        <div class="border border-gray-200 rounded-lg p-4">
-                            <div class="flex items-center justify-between mb-3">
-                                <div class="flex items-center space-x-3">
-                                    <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                        <span class="text-xs font-medium text-blue-600">JS</span>
-                                    </div>
-                                    <div>
-                                        <div class="font-medium text-gray-900">John Smith</div>
-                                        <div class="text-sm text-gray-500">IT Department</div>
+                <div class="lg:hidden divide-y divide-gray-200 dark:divide-slate-700">
+                    @forelse($recent_payroll_runs as $run)
+                        @php
+                            $statusClasses = match($run->dashboard_status) {
+                                'paid' => 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+                                'locked' => 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
+                                'finalized' => 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+                                'for_review' => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+                                'processing' => 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
+                                'ready' => 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300',
+                                default => 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-gray-300',
+                            };
+                        @endphp
+                        <div class="p-4">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ $run->name }}</div>
+                                    <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                        {{ $run->start_date?->format('M d, Y') ?? 'N/A' }} – {{ $run->end_date?->format('M d, Y') ?? 'N/A' }}
                                     </div>
                                 </div>
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                    <div class="w-1.5 h-1.5 rounded-full mr-1 bg-yellow-400"></div>
-                                    Pending
+                                <span class="shrink-0 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $statusClasses }}">
+                                    {{ $run->dashboard_status_label }}
                                 </span>
                             </div>
-                            <div class="grid grid-cols-2 gap-4 text-sm">
+
+                            <div class="grid grid-cols-2 gap-4 mt-4 text-sm">
                                 <div>
-                                    <div class="text-gray-500">Period</div>
-                                    <div class="font-medium">Dec 1-15, 2024</div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">Employees</div>
+                                    <div class="mt-1 font-medium text-gray-900 dark:text-white">{{ number_format($run->payrolls_count) }}</div>
                                 </div>
                                 <div>
-                                    <div class="text-gray-500">Net Pay</div>
-                                    <div class="font-medium">₱26,300</div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">Payroll Date</div>
+                                    <div class="mt-1 font-medium text-gray-900 dark:text-white">{{ $run->payroll_date?->format('M d, Y') ?? 'N/A' }}</div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">Gross Payroll</div>
+                                    <div class="mt-1 font-medium text-gray-900 dark:text-white">₱{{ number_format($run->payrolls_sum_gross_pay ?? 0, 2) }}</div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">Net Payroll</div>
+                                    <div class="mt-1 font-medium text-gray-900 dark:text-white">₱{{ number_format($run->payrolls_sum_net_pay ?? 0, 2) }}</div>
                                 </div>
                             </div>
+
+                            <a href="{{ route('attendance.period-management.show', $run->id) }}"
+                               class="mt-4 inline-flex items-center text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
+                                View payroll run
+                                <i class="fas fa-arrow-right ml-2 text-xs"></i>
+                            </a>
                         </div>
-                    </div>
+                    @empty
+                        <div class="px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                            No payroll runs found.
+                        </div>
+                    @endforelse
                 </div>
             </div>
 
             <!-- Recent Employees Table -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-                <div class="px-4 sm:px-6 py-4 border-b border-gray-200">
+            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700">
+                <div class="px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-slate-700">
                     <div class="flex items-center justify-between">
                         <h3 class="text-base sm:text-lg font-semibold text-gray-900">Recent Employees</h3>
                         <button class="text-blue-600 hover:text-blue-700 text-xs sm:text-sm font-medium">View All</button>
@@ -340,8 +353,8 @@
                 
                 <!-- Desktop Table -->
                 <div class="hidden lg:block overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
+                    <table class="w-full min-w-full table-auto divide-y divide-gray-200 dark:divide-slate-700">
+                        <thead class="bg-gray-50 dark:bg-slate-800">
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
@@ -350,7 +363,7 @@
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hire Date</th>
                             </tr>
                         </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
+                        <tbody class="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
                             @foreach($recent_employees as $employee)
                             <tr class="hover:bg-gray-50">
                                 <td class="px-6 py-4 whitespace-nowrap">

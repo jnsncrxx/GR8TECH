@@ -7,6 +7,8 @@ use App\Models\Department;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
 
 class HrController extends Controller
 {
@@ -144,24 +146,61 @@ class HrController extends Controller
     {
         $user = Auth::user();
         $employee = $user->employee;
-        $departments = Department::all();
+        $canManageHrSettings = in_array($user->role, ['admin', 'hr'], true);
 
-        return view('hr.settings', compact('user', 'employee', 'departments'));
+        // Employees may view their own account settings, but they must not
+        // receive company-wide HR configuration data.
+        $departments = $canManageHrSettings
+            ? Department::orderBy('name')->get()
+            : collect();
+
+        return view('hr.settings', compact(
+            'user',
+            'employee',
+            'departments',
+            'canManageHrSettings'
+        ));
     }
 
     public function updateSettings(Request $request)
     {
-        $validated = $request->validate([
-            'first_name' => 'nullable|string|max:255',
-            'last_name' => 'nullable|string|max:255',
-            'email' => 'nullable|string|email|max:255',
-            'phone' => 'nullable|string|max:20',
-            'timezone' => 'nullable|string|max:255',
-            'date_format' => 'nullable|string|max:20',
-            'dark_mode' => 'sometimes|accepted',
-            'email_notifications' => 'sometimes|accepted',
-            'auto_save' => 'sometimes|accepted',
-        ]);
+        $user = Auth::user();
+        $employee = $user->employee;
+        $canManageHrSettings = in_array($user->role, ['admin', 'hr'], true);
+
+        $rules = [
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', 'unique:accounts,email,' . $user->id],
+            'phone' => ['nullable', 'string', 'max:20'],
+            'timezone' => ['nullable', 'string', 'max:255'],
+            'date_format' => ['nullable', 'string', 'max:20'],
+            'dark_mode' => ['nullable', 'boolean'],
+            'email_notifications' => ['nullable', 'boolean'],
+            'auto_save' => ['nullable', 'boolean'],
+        ];
+
+        if ($canManageHrSettings) {
+            $rules['department_id'] = ['nullable', 'exists:departments,id'];
+        }
+
+        $validated = $request->validate($rules);
+
+        if ($employee) {
+            $employeeData = [
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'],
+                'phone' => $validated['phone'] ?? null,
+            ];
+
+            if ($canManageHrSettings && array_key_exists('department_id', $validated)) {
+                $employeeData['department_id'] = $validated['department_id'];
+            }
+
+            $employee->update($employeeData);
+        }
+
+        $user->update(['email' => $validated['email']]);
 
         $preferences = [
             'timezone' => $request->input('timezone', 'Asia/Manila'),
@@ -173,12 +212,35 @@ class HrController extends Controller
 
         session(['user_preferences' => $preferences]);
 
-        return redirect()->back()->with('success', 'Settings saved successfully.');
+        return redirect()->back()->with('success', 'Account settings saved successfully.');
     }
 
     public function updatePassword(Request $request)
     {
-        return response()->json(['message' => 'Update password not yet implemented'], 501);
+        $validated = $request->validate([
+            'current_password' => ['required', 'string'],
+            'password' => [
+                'required',
+                'confirmed',
+                Password::min(8),
+                'different:current_password',
+            ],
+        ]);
+
+        $user = Auth::user();
+
+        if (! $user->verifyPassword($validated['current_password'])) {
+            return back()->withErrors([
+                'current_password' => 'The current password is incorrect.',
+            ])->withInput();
+        }
+
+        // Account casts password as hashed, so assigning the plain new value
+        // stores it securely without double hashing.
+        $user->password = $validated['password'];
+        $user->save();
+
+        return back()->with('success', 'Password updated successfully.');
     }
 
     public function exportData(Request $request)
