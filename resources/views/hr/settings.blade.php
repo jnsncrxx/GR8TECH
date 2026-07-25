@@ -10,7 +10,7 @@
     ]);
 @endphp
 
-@section('title', 'HR Settings')
+@section('title', $canManageHrSettings ? 'HR Settings' : 'Account Settings')
 
 @section('content')
 <div class="space-y-6">
@@ -19,9 +19,13 @@
         <div>
             <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center">
                 <i class="fas fa-cog mr-3 text-blue-600"></i>
-                HR Settings
+                {{ $canManageHrSettings ? 'HR Settings' : 'Account Settings' }}
             </h1>
-            <p class="mt-1 text-sm text-gray-600">Manage your HR system preferences and configurations</p>
+            <p class="mt-1 text-sm text-gray-600">
+                {{ $canManageHrSettings
+                    ? 'Manage HR system preferences and configurations'
+                    : 'Manage your personal information, preferences, and password' }}
+            </p>
         </div>
     </div>
 
@@ -44,11 +48,13 @@
                     <i class="fas fa-shield-alt mr-2"></i>
                     Security
                 </button>
+                @if($canManageHrSettings)
                 <button class="py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300" 
                         onclick="showTab('system')" id="system-tab">
                     <i class="fas fa-server mr-2"></i>
                     System
                 </button>
+                @endif
             </nav>
         </div>
 
@@ -83,15 +89,23 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Department</label>
-                            <select name="department_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                <option value="">Select Department</option>
-                                @foreach($departments as $department)
-                                    <option value="{{ $department->id }}" 
+                            @if($canManageHrSettings)
+                                <select name="department_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="">Select Department</option>
+                                    @foreach($departments as $department)
+                                        <option value="{{ $department->id }}"
                                             {{ $employee && $employee->department_id == $department->id ? 'selected' : '' }}>
-                                        {{ $department->name }}
-                                    </option>
-                                @endforeach
-                            </select>
+                                            {{ $department->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            @else
+                                <input type="text"
+                                       value="{{ $employee?->department?->name ?? 'Not assigned' }}"
+                                       class="w-full px-3 py-2 border border-gray-200 bg-gray-100 text-gray-600 rounded-lg"
+                                       readonly>
+                                <p class="mt-1 text-xs text-gray-500">Contact HR to request a department change.</p>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -366,6 +380,7 @@
         </div>
 
         <!-- System Settings Tab -->
+        @if($canManageHrSettings)
         <div id="system-content" class="tab-content p-6 hidden">
             <div class="space-y-6">
                 <h3 class="text-lg font-medium text-gray-900">System Configuration</h3>
@@ -419,6 +434,7 @@
                 </div>
             </div>
         </div>
+        @endif
     </div>
 </div>
 
