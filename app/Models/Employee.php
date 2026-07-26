@@ -18,9 +18,12 @@ class Employee extends Model
 
     protected $fillable = [
         'employee_id',
+        'profile_photo',
         'first_name',
         'last_name',
+        'middle_name',
         'phone',
+        'sex',
         'department_id',
         'position_id',
         'created_by',
@@ -28,6 +31,8 @@ class Employee extends Model
         'salary',
         'payroll_template_id',
         'hire_date',
+        'employee_status',
+        'contract_end_date',
         'company_id',
         'date_of_birth',
         'civil_status',
@@ -64,6 +69,7 @@ class Employee extends Model
         'salary' => 'decimal:2',
         'hire_date' => 'date',
         'date_of_birth' => 'date',
+        'contract_end_date' => 'date',
         'loan_start_date' => 'date',
         'loan_end_date' => 'date',
         'loan_total_amount' => 'decimal:2',
@@ -90,9 +96,27 @@ class Employee extends Model
             }
             // Only auto-generate employee_id if none was provided
             if (empty($model->employee_id)) {
-                $model->employee_id = 'EMP-' . str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT);
+                $model->employee_id = static::generateNextEmployeeNumber();
             }
         });
+    }
+
+    /**
+     * Generate the next sequential employee number (EMP-0001, EMP-0002, ...).
+     */
+    public static function generateNextEmployeeNumber(): string
+    {
+        // Find the highest existing EMP-NNNN number
+        $last = static::where('employee_id', 'like', 'EMP-%')
+            ->orderByRaw('CAST(SUBSTRING(employee_id, 5) AS UNSIGNED) DESC')
+            ->value('employee_id');
+
+        $nextNumber = 1;
+        if ($last && preg_match('/^EMP-(\d+)$/', $last, $m)) {
+            $nextNumber = (int) $m[1] + 1;
+        }
+
+        return 'EMP-' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
     }
 
     public function newUniqueId()
@@ -357,6 +381,13 @@ class Employee extends Model
     public function hasAccount(): bool
     {
         return $this->account()->exists();
+    }
+
+
+
+    public function info()
+    {
+        return $this->hasOne(EmployeeInfo::class);
     }
 
     public function documents()

@@ -28,11 +28,11 @@
                 : \App\Models\Employee::count();
         @endphp
         <div class="relative" x-data="{ 
-            open: {{ in_array($activeRoute, ['employees.index', 'employees.other-employee-info', 'employees.education-training-rating', 'employees.prev-emp-oth', 'employees.ytd-info', 'employees.bio-zk']) ? 'true' : 'false' }}
+            open: {{ in_array($activeRoute, ['employees.index', 'employees.info', 'employees.other-employee-info', 'employees.education-training-rating', 'employees.prev-emp-oth', 'employees.documents', 'employees.ytd-info', 'employees.bio-zk']) ? 'true' : 'false' }}
         }">
-            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, ['employees.index', 'employees.other-employee-info', 'employees.education-training-rating', 'employees.prev-emp-oth', 'employees.ytd-info', 'employees.bio-zk']) ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, ['employees.index', 'employees.info', 'employees.other-employee-info', 'employees.education-training-rating', 'employees.prev-emp-oth', 'employees.documents', 'employees.ytd-info', 'employees.bio-zk']) ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
                 <div class="flex items-center">
-                    <i class="fas fa-users mr-3 text-lg {{ in_array($activeRoute, ['employees.index', 'employees.other-employee-info', 'employees.education-training-rating', 'employees.prev-emp-oth', 'employees.ytd-info', 'employees.bio-zk']) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
+                    <i class="fas fa-users mr-3 text-lg {{ in_array($activeRoute, ['employees.index', 'employees.info', 'employees.other-employee-info', 'employees.education-training-rating', 'employees.prev-emp-oth', 'employees.documents', 'employees.ytd-info', 'employees.bio-zk']) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
                     <span>Employees</span>
                 </div>
                 <div class="flex items-center gap-2">
@@ -54,8 +54,8 @@
                     <i class="fas fa-list mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'employees.index' ? 'text-blue-600' : '' }}"></i>
                     <span>Employee List</span>
                 </a>
-                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-id-card mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                <a href="{{ route('employees.info') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'employees.info' ? 'bg-white text-blue-600' : '' }}">
+                    <i class="fas fa-id-card mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'employees.info' ? 'text-blue-600' : '' }}"></i>
                     <span>Employee Info</span>
                 </a>
                 <a href="{{ route('employees.other-employee-info') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'employees.other-employee-info' ? 'bg-white text-blue-600' : '' }}">
@@ -70,8 +70,8 @@
                     <i class="fas fa-briefcase mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'employees.prev-emp-oth' ? 'text-blue-600' : '' }}"></i>
                     <span>Previous Employer & Other</span>
                 </a>
-                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-file-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                <a href="{{ route('employees.documents') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'employees.documents' ? 'bg-white text-blue-600' : '' }}">
+                    <i class="fas fa-file-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'employees.documents' ? 'text-blue-600' : '' }}"></i>
                     <span>Documents</span>
                 </a>
                 <a href="{{ route('employees.ytd-info') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'employees.ytd-info' ? 'bg-white text-blue-600' : '' }}">
