@@ -283,8 +283,9 @@ class EmployeeController extends Controller
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'email' => 'required|email|unique:accounts,email,' . ($employee->account?->id ?? ''),
-            'phone' => 'required|string|max:20',
+            'phone' => 'nullable|string|max:20',
             'mobile_number' => 'nullable|string|max:20',
+            'profile_photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072',
             'position_id' => 'required|exists:positions,id',
             'department_id' => 'required|exists:departments,id',
             'salary' => 'required|numeric|min:0',
@@ -313,6 +314,15 @@ class EmployeeController extends Controller
         ]);
 
         $currentCompany = CompanyHelper::getCurrentCompany();
+
+        // Handle profile photo
+        if ($request->hasFile('profile_photo')) {
+            if ($employee->profile_photo && Storage::disk('public')->exists($employee->profile_photo)) {
+                Storage::disk('public')->delete($employee->profile_photo);
+            }
+            $employee->profile_photo = $request->file('profile_photo')->store('employee-photos', 'public');
+            $employee->save();
+        }
 
         // Update employee
         $employee->update([
@@ -536,11 +546,6 @@ class EmployeeController extends Controller
 
         $currentCompany = CompanyHelper::getCurrentCompany();
 
-        if (!Schema::hasTable('employee_other_infos')) {
-            return redirect()->route('employees.other-employee-info', ['employee_id' => $request->input('employee_id')])
-                ->with('error', 'Other employee info table is not ready yet. Please run database migrations first.');
-        }
-
         $validated = $request->validate([
             'employee_id' => 'required|uuid|exists:employees,id',
             'photo' => 'required|image|mimes:jpg,jpeg,png,webp|max:3072',
@@ -552,15 +557,12 @@ class EmployeeController extends Controller
         }
         $employee = $employeeQuery->firstOrFail();
 
-        $otherInfo = $employee->otherInfo()->firstOrNew([]);
-        $otherInfo->employee_id = $employee->id;
-
-        if ($otherInfo->photo_path && Storage::disk('public')->exists($otherInfo->photo_path)) {
-            Storage::disk('public')->delete($otherInfo->photo_path);
+        if ($employee->profile_photo && Storage::disk('public')->exists($employee->profile_photo)) {
+            Storage::disk('public')->delete($employee->profile_photo);
         }
 
-        $otherInfo->photo_path = $request->file('photo')->store('employee-photos', 'public');
-        $otherInfo->save();
+        $employee->profile_photo = $request->file('photo')->store('employee-photos', 'public');
+        $employee->save();
 
         return redirect()->route('employees.other-employee-info', ['employee_id' => $employee->id])
             ->with('success', 'Employee photo uploaded successfully.');
@@ -577,11 +579,6 @@ class EmployeeController extends Controller
 
         $currentCompany = CompanyHelper::getCurrentCompany();
 
-        if (!Schema::hasTable('employee_other_infos')) {
-            return redirect()->route('employees.other-employee-info', ['employee_id' => $request->input('employee_id')])
-                ->with('error', 'Other employee info table is not ready yet. Please run database migrations first.');
-        }
-
         $validated = $request->validate([
             'employee_id' => 'required|uuid|exists:employees,id',
         ]);
@@ -592,14 +589,12 @@ class EmployeeController extends Controller
         }
         $employee = $employeeQuery->firstOrFail();
 
-        $otherInfo = $employee->otherInfo;
-        if ($otherInfo && $otherInfo->photo_path) {
-            if (Storage::disk('public')->exists($otherInfo->photo_path)) {
-                Storage::disk('public')->delete($otherInfo->photo_path);
-            }
-            $otherInfo->photo_path = null;
-            $otherInfo->save();
+        if ($employee->profile_photo && Storage::disk('public')->exists($employee->profile_photo)) {
+            Storage::disk('public')->delete($employee->profile_photo);
         }
+        
+        $employee->profile_photo = null;
+        $employee->save();
 
         return redirect()->route('employees.other-employee-info', ['employee_id' => $employee->id])
             ->with('success', 'Employee photo removed successfully.');
@@ -713,12 +708,18 @@ class EmployeeController extends Controller
         $user = Auth::user();
         $employees = Employee::orderBy('last_name')->orderBy('first_name')->get();
         $selectedEmployee = null;
+        $employeeBalance = null;
 
         if ($request->has('employee_id')) {
             $selectedEmployee = Employee::with('info')->find($request->employee_id);
+            if ($selectedEmployee) {
+                $employeeBalance = \App\Models\LeaveBalance::where('employee_id', $selectedEmployee->id)
+                    ->where('year', now()->year)
+                    ->first();
+            }
         }
 
-        return view('employees.info', compact('user', 'employees', 'selectedEmployee'));
+        return view('employees.info', compact('user', 'employees', 'selectedEmployee', 'employeeBalance'));
     }
 
     public function employeeInfoSearch(Request $request)
@@ -744,6 +745,35 @@ class EmployeeController extends Controller
         
         // Use updateOrCreate on the info() relation
         $data = $request->except(['_token', 'employee_id']);
+        
+        // Extract max leave balances
+        $leaveFields = [
+            'max_sick' => 'sick_days_total',
+            'max_vacation' => 'vacation_days_total',
+            'max_sl' => 'bereavement_days_total', // SIL
+            'max_spl' => 'spl_days_total',
+            'max_pl' => 'paternity_days_total',
+            'max_vawc' => 'vawc_days_total',
+            'max_ml' => 'maternity_days_total',
+            'max_bl' => 'bl_days_total', // Need to add to leave balance if missing or just use existing
+            'max_el' => 'emergency_days_total',
+        ];
+
+        $leaveBalanceUpdates = [];
+        foreach ($leaveFields as $requestKey => $dbKey) {
+            if (isset($data[$requestKey]) && $data[$requestKey] !== '') {
+                $leaveBalanceUpdates[$dbKey] = $data[$requestKey];
+            }
+            // Keep them in info for backward compatibility, or remove them
+            // We keep them so that info.blade.php doesn't break if it reads from both
+        }
+
+        if (!empty($leaveBalanceUpdates)) {
+            \App\Models\LeaveBalance::updateOrCreate(
+                ['employee_id' => $employee->id, 'year' => now()->year],
+                $leaveBalanceUpdates
+            );
+        }
         
         // Handle checkboxes (if not present in request, set to false)
         $checkboxes = [

@@ -624,68 +624,72 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             @php
                 $leaveTypes = [
-                    'vacation' => ['label' => 'Vacation Leave', 'color' => 'blue'],
-                    'sick' => ['label' => 'Sick Leave', 'color' => 'red'],
-                    'personal' => ['label' => 'Personal Leave/Leave Without Pay', 'color' => 'purple'],
-                    'emergency' => ['label' => 'Emergency Leave', 'color' => 'yellow'],
-                    'maternity' => ['label' => 'Maternity Leave', 'color' => 'pink'],
-                    'paternity' => ['label' => 'Paternity Leave', 'color' => 'indigo'],
-                    'bereavement' => ['label' => 'SIL (Service Incentive Leave)', 'color' => 'gray'],
+                    'vacation'    => ['label' => 'Vacation Leave',                    'color' => 'blue'],
+                    'sick'        => ['label' => 'Sick Leave',                        'color' => 'red'],
+                    'sil'         => ['label' => 'SIL (Service Incentive Leave)',     'color' => 'gray'],
+                    'personal'    => ['label' => 'Personal Leave / Leave Without Pay','color' => 'purple'],
+                    'emergency'   => ['label' => 'Emergency Leave',                   'color' => 'yellow'],
+                    'maternity'   => ['label' => 'Maternity Leave',                   'color' => 'pink'],
+                    'paternity'   => ['label' => 'Paternity Leave',                   'color' => 'indigo'],
+                    'spl'         => ['label' => 'Solo Parent Leave',                 'color' => 'green'],
+                    'vawc'        => ['label' => 'VAWC Leave',                        'color' => 'red'],
+                    'bl'          => ['label' => 'Bereavement Leave',                 'color' => 'gray'],
                 ];
-                // Personal and Emergency leave are incremental: usage keeps
-                // accruing but no total cap blocks new requests, so they get
-                // a simple usage count instead of a capped progress bar.
-                $incrementalTypes = \App\Models\LeaveRequest::UNCAPPED_LEAVE_TYPES;
-                // SIL is a standard statutory entitlement, so always surface
-                // it (even at 0/unset) rather than hiding it like the
-                // optional maternity/paternity cards.
-                $alwaysVisibleTypes = array_merge($incrementalTypes, ['bereavement']);
+                // VL, SL, and SIL are capped and always visible (even at 0)
+                $alwaysVisibleTypes = ['vacation', 'sick', 'sil'];
+                
+                $colorClasses = [
+                    'blue'   => 'bg-blue-600',
+                    'red'    => 'bg-red-600',
+                    'green'  => 'bg-green-600',
+                    'yellow' => 'bg-yellow-600',
+                    'pink'   => 'bg-pink-600',
+                    'indigo' => 'bg-indigo-600',
+                    'gray'   => 'bg-gray-600',
+                    'purple' => 'bg-purple-600',
+                ];
             @endphp
             @foreach($leaveTypes as $type => $config)
                 @php
-                    $totalField = $type . '_days_total';
-                    $usedField = $type . '_days_used';
-                    $total = $selectedEmployeeBalance->$totalField ?? 0;
-                    $used = $selectedEmployeeBalance->$usedField ?? 0;
-                    $remaining = $total - $used;
-                    $percentage = $total > 0 ? ($used / $total) * 100 : 0;
-                    $widthPercentage = min((float)$percentage, 100);
-                    $colorClasses = [
-                        'blue' => 'bg-blue-600',
-                        'red' => 'bg-red-600',
-                        'green' => 'bg-green-600',
-                        'yellow' => 'bg-yellow-600',
-                        'pink' => 'bg-pink-600',
-                        'indigo' => 'bg-indigo-600',
-                        'gray' => 'bg-gray-600',
-                        'purple' => 'bg-purple-600',
-                    ];
-                    $barColor = $colorClasses[$config['color']] ?? 'bg-blue-600';
-                    $isIncremental = in_array($type, $incrementalTypes, true);
+                    $totalField      = $type . '_days_total';
+                    $usedField       = $type . '_days_used';
+                    $total           = $selectedEmployeeBalance->$totalField ?? 0;
+                    $used            = $selectedEmployeeBalance->$usedField  ?? 0;
+                    $isCapped        = in_array($type, $alwaysVisibleTypes, true);
                 @endphp
-                @if($total > 0 || in_array($type, $alwaysVisibleTypes, true))
+                
+                
             <div class="border border-gray-200 rounded-lg p-4">
                 <div class="flex items-center justify-between mb-2">
-                        <h4 class="font-medium text-gray-900">{{ $config['label'] }}</h4>
-                        <span class="text-sm text-gray-500">{{ $isIncremental ? 'Incremental' : $total . ' days' }}</span>
+                    <h4 class="font-medium text-gray-900 text-sm">{{ $config['label'] }}</h4>
+                    @if($isCapped)
+                        <span class="text-sm text-gray-500">{{ $total }} days</span>
+                    @endif
                 </div>
-                @if($isIncremental)
+                
+                @if(!$isCapped)
                 <div class="text-xs text-gray-500 mt-1">
-                    <span class="font-medium">{{ $used }}</span> days used &mdash; no cap enforced
+                    <span class="font-medium text-gray-900">{{ $used }}</span> days used
                 </div>
                 @else
+                @php
+                    $remaining       = $total - $used;
+                    $percentage      = $total > 0 ? ($used / $total) * 100 : 0;
+                    $widthPercentage = min((float)$percentage, 100);
+                    $barColor        = $colorClasses[$config['color']] ?? 'bg-blue-600';
+                @endphp
                 <div class="w-full bg-gray-200 rounded-full h-2">
-                    <div class="{{ $barColor }} h-2 rounded-full transition-all" style="--width: {{ $widthPercentage }}%; width: var(--width)"></div>
+                    <div class="{{ $barColor }} h-2 rounded-full transition-all" style="width: {{ $widthPercentage }}%"></div>
                 </div>
                 <div class="text-xs text-gray-500 mt-1">
-                    <span class="font-medium">{{ $used }}</span> days used,
-                    <span class="font-medium text-green-600">{{ $remaining }}</span> remaining
+                    <span class="font-medium text-gray-900">{{ $used }}</span> days used,
+                    <span class="font-medium text-green-600">{{ max($remaining, 0) }}</span> remaining
                 </div>
                 @endif
-                </div>
-                @endif
+            </div>
+            
             @endforeach
-                </div>
+        </div>
         @else
         <div class="text-center py-8 text-gray-500">
             <i class="fas fa-info-circle text-4xl mb-4 text-gray-400"></i>
