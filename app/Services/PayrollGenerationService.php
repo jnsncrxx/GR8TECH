@@ -1226,7 +1226,7 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
         }
 
         // Calculate statutory deductions (SSS, PHIC, HDMF)
-        $statutoryDeductions = $this->calculateStatutoryDeductions($employee, $monthlyRate);
+        $statutoryDeductions = $this->calculateStatutoryDeductions($employee, $monthlyRate, $daysInPeriod);
         if ($template) {
             if ($template->sss !== null) {
                 $statutoryDeductions['sss'] = (float) $template->sss;
@@ -1818,14 +1818,25 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
     /**
      * Calculate statutory deductions based on Excel values
      */
-    private function calculateStatutoryDeductions(Employee $employee, $monthlyRate): array
-    {
-        return [
-            'sss' => $this->calculateSssContribution($monthlyRate),
-            'phic' => $this->calculatePhilHealthContribution($monthlyRate),
-            'hdmf' => $this->calculateHdmfContribution($monthlyRate),
-        ];
+   private function calculateStatutoryDeductions(Employee $employee, $monthlyRate, ?int $daysInPeriod = null): array
+{
+    $sss = $this->calculateSssContribution($monthlyRate);
+    $phic = $this->calculatePhilHealthContribution($monthlyRate);
+    $hdmf = $this->calculateHdmfContribution($monthlyRate);
+
+    $isSemiMonthly = $daysInPeriod !== null && $daysInPeriod < 25;
+    if ($isSemiMonthly) {
+        $sss = round($sss / 2, 2);
+        $phic = round($phic / 2, 2);
+        $hdmf = round($hdmf / 2, 2);
     }
+
+    return [
+        'sss' => $sss,
+        'phic' => $phic,
+        'hdmf' => $hdmf,
+    ];
+}
 
     /**
      * Employee share of SSS contribution (2026 table).
