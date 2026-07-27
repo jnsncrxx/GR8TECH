@@ -245,6 +245,7 @@
                     @if($expectedHoursToday)
                         @php
                             $isFlexibleSchedule = $todaySchedule && $todaySchedule->isFlexible();
+                            $lateWidthPct = 0;
 
                             if ($isFlexibleSchedule) {
                                 // flexible has no fixed end time, so hours-worked-vs-required is the only sensible measure
@@ -260,11 +261,23 @@
                                 $shiftSpanMinutes = max(1, ($shiftEnd->timestamp - $shiftStart->timestamp) / 60);
                                 $elapsedMinutes = max(0, ($now->timestamp - $shiftStart->timestamp) / 60);
                                 $progressPct = min(100, max(0, round(($elapsedMinutes / $shiftSpanMinutes) * 100)));
+
+                                // red segment: the part of the shift where they simply weren't clocked in yet
+                                if ($todayAttendance->time_in) {
+                                    $actualTimeIn = \Carbon\Carbon::parse($todayAttendance->time_in);
+                                    if ($actualTimeIn->gt($shiftStart)) {
+                                        $lateMinutesRaw = min($shiftSpanMinutes, ($actualTimeIn->timestamp - $shiftStart->timestamp) / 60);
+                                        $lateWidthPct = round(($lateMinutesRaw / $shiftSpanMinutes) * 100);
+                                    }
+                                }
                             }
                         @endphp
                         <div class="mt-3">
-                            <div class="w-full bg-white bg-opacity-20 rounded-full h-1.5 overflow-hidden">
-                                <div id="hours-progress-bar" class="bg-white h-1.5 rounded-full transition-all" style="width: {{ $progressPct }}%"></div>
+                            <div class="w-full bg-white bg-opacity-20 rounded-full h-1.5 overflow-hidden flex">
+                                @if(!$isFlexibleSchedule && $lateWidthPct > 0)
+                                    <div id="hours-late-bar" class="bg-red-500 h-1.5" style="width: {{ $lateWidthPct }}%"></div>
+                                @endif
+                                <div id="hours-progress-bar" class="bg-white h-1.5 transition-all" style="width: {{ max(0, $progressPct - $lateWidthPct) }}%"></div>
                             </div>
                             <div class="flex justify-between text-xs opacity-75 mt-1">
                                 <span id="hours-progress-text">{{ number_format($completedHoursToday, 1) }}h of {{ number_format($expectedHoursToday, 1) }}h</span>
@@ -278,6 +291,7 @@
                             @if(!$isFlexibleSchedule)
                                 window.scheduledStartTime = "{{ $todaySchedule->time_in ?? '08:00:00' }}";
                                 window.scheduledEndTime = "{{ $todaySchedule->time_out ?? '17:00:00' }}";
+                                window.actualClockInTime = "{{ $todayAttendance->time_in ? \Carbon\Carbon::parse($todayAttendance->time_in)->toIso8601String() : '' }}";
                             @endif
                         </script>
                     @endif
@@ -767,15 +781,19 @@ function updateWorkingTime() {
 
     // real hours worked = banked hours from earlier sessions today + live
     // elapsed time on the current session (not just time since page load)
+    // real hours worked = banked hours from earlier sessions today + live
+    // elapsed time on the current session (not just time since page load)
     if (window.expectedHoursToday) {
         const priorHours = window.completedHoursBeforeSession || 0;
         const totalHours = priorHours + (diffMs / (1000 * 60 * 60));
 
         const bar = document.getElementById('hours-progress-bar');
+        const lateBar = document.getElementById('hours-late-bar');
         const text = document.getElementById('hours-progress-text');
         const pctLabel = document.getElementById('hours-progress-pct');
 
-        let pct;
+        if (text) text.textContent = `${totalHours.toFixed(1)}h of ${window.expectedHoursToday.toFixed(1)}h`;
+
         if (window.isFixedSchedule && window.scheduledStartTime && window.scheduledEndTime) {
             // fixed: bar tracks wall-clock time across the scheduled shift window
             const [startH, startM] = window.scheduledStartTime.split(':').map(Number);
@@ -788,15 +806,27 @@ function updateWorkingTime() {
 
             const totalShiftMinutes = Math.max(1, (shiftEnd - shiftStart) / 60000);
             const elapsedMinutes = Math.max(0, (now - shiftStart) / 60000);
-            pct = Math.min(100, Math.max(0, Math.round((elapsedMinutes / totalShiftMinutes) * 100)));
-        } else {
-            // flexible: bar tracks hours worked vs required hours
-            pct = Math.min(100, Math.max(0, Math.round((totalHours / window.expectedHoursToday) * 100)));
-        }
+            const pct = Math.min(100, Math.max(0, Math.round((elapsedMinutes / totalShiftMinutes) * 100)));
 
-        if (bar) bar.style.width = `${pct}%`;
-        if (text) text.textContent = `${totalHours.toFixed(1)}h of ${window.expectedHoursToday.toFixed(1)}h`;
-        if (pctLabel) pctLabel.textContent = `${pct}%`;
+            // red segment: the part of the shift where they simply weren't clocked in yet
+            let lateWidthPct = 0;
+            if (window.actualClockInTime) {
+                const actualClockIn = new Date(window.actualClockInTime);
+                if (actualClockIn > shiftStart) {
+                    const lateMinutes = Math.min(totalShiftMinutes, (actualClockIn - shiftStart) / 60000);
+                    lateWidthPct = Math.round((lateMinutes / totalShiftMinutes) * 100);
+                }
+            }
+
+            if (lateBar) lateBar.style.width = `${lateWidthPct}%`;
+            if (bar) bar.style.width = `${Math.max(0, pct - lateWidthPct)}%`;
+            if (pctLabel) pctLabel.textContent = `${pct}%`;
+        } else {
+            // flexible: bar tracks hours worked vs required hours (never late - no fixed start time to be late against)
+            const pct = Math.min(100, Math.max(0, Math.round((totalHours / window.expectedHoursToday) * 100)));
+            if (bar) bar.style.width = `${pct}%`;
+            if (pctLabel) pctLabel.textContent = `${pct}%`;
+        }
     }
 }
 
