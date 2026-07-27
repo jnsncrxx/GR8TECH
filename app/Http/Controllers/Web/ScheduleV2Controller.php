@@ -116,13 +116,21 @@ class ScheduleV2Controller extends Controller
                     } elseif ($record && $record->hasInvalidTimeSpan()) {
                         $history = ['label' => 'Invalid Duration', 'tone' => 'red'];
                     } elseif ($record && $record->time_in && $record->time_out) {
-                        $history = ['label' => $record->status === \App\Models\AttendanceRecord::LATE ? 'Late' : 'Present', 'tone' => $record->status === \App\Models\AttendanceRecord::LATE ? 'amber' : 'green'];
+                        $history = ['label' => $record->isLate() ? 'Late' : 'Present', 'tone' => $record->isLate() ? 'amber' : 'green'];
                     } elseif ($date->isToday()) {
                         $history = ['label' => 'Not Yet Recorded', 'tone' => 'gray'];
                     } elseif ($schedule?->status === 'Working') {
                         $history = ['label' => 'Absent', 'tone' => 'red'];
                     } else {
                         continue;
+                    }
+
+                    // late can happen on top of any of the labels above (e.g.
+                    // clocked in late AND hasn't clocked out yet) - shown as
+                    // its own separate badge instead of fighting for priority
+                    if ($record && $record->isLate()) {
+                        $history['is_late'] = true;
+                        $history['late_minutes_formatted'] = $record->getLateMinutesFormatted();
                     }
 
                     $attendanceHistory->put($key, $history);

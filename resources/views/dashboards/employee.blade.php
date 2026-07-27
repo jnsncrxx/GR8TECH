@@ -162,7 +162,7 @@
                     <p class="mt-2">
                         @if($todayAttendance->isLate())
                             <span class="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-100 px-2 py-1 rounded-full">
-                                <i class="fas fa-exclamation-circle"></i> Late by {{ $todayAttendance->getLateMinutes() }}m
+                                <i class="fas fa-exclamation-circle"></i> Late by {{ $todayAttendance->getLateMinutesFormatted() }}
                             </span>
                         @else
                             <span class="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-100 px-2 py-1 rounded-full">
