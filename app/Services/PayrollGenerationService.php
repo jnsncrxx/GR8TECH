@@ -1343,8 +1343,8 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             'allowances' => $allowances['total'],
             'bonuses' => 0,
             'other_earnings' => 0,
-            'sick_leave_days' => $leaveData['sick_leave_days'] ?? 0,
-            'sick_leave_pay' => $leaveData['sick_leave_pay'] ?? 0,
+            'paid_leave_days' => $leaveData['paid_leave_days'] ?? 0,
+            'paid_leave_pay' => $leaveData['paid_leave_pay'] ?? 0,
             'unpaid_leave_days' => $leaveData['unpaid_leave_days'] ?? 0,
             'unpaid_leave_deduction' => $appliedUnpaidLeaveDeduction,
             'total_deductions' => $totalDeductions,
@@ -1674,13 +1674,13 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
         // employees' gross pay even when no leave was approved.
         $incentiveLeaveDays = 0;
         $incentiveLeavePay = 0;
-        $sickLeavePay = $leaveData['sick_leave_pay'] ?? 0;
-        $totalAllowance = $incentiveLeavePay + $sickLeavePay;
+        $paidLeavePay = $leaveData['paid_leave_pay'] ?? 0;
+        $totalAllowance = $incentiveLeavePay + $paidLeavePay;
 
         return [
             'incentive_leave_days' => $incentiveLeaveDays,
-            'sick_leave_days' => $leaveData['sick_leave_days'] ?? 0,
-            'sick_leave_pay' => $sickLeavePay,
+            'paid_leave_days' => $leaveData['paid_leave_days'] ?? 0,
+            'paid_leave_pay' => $paidLeavePay,
             'incentive_leave_pay' => round($incentiveLeavePay, 2),
             'total' => round($totalAllowance, 2)
         ];
@@ -1808,9 +1808,8 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
         }
 
         return [
-            // sick_leave_days / sick_leave_pay kept for DB column compatibility.
-            'sick_leave_days'       => $paidLeaveDays,
-            'sick_leave_pay'        => round($paidLeaveDays * $dailyRate, 2),
+            'paid_leave_days'       => $paidLeaveDays,
+            'paid_leave_pay'        => round($paidLeaveDays * $dailyRate, 2),
             'unpaid_leave_days'     => $unpaidLeaveDays,
             'unpaid_leave_deduction'=> round($unpaidLeaveDays * $dailyRate, 2),
         ];
@@ -2428,8 +2427,8 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             'allowances' => $components['allowances'],
             'bonuses' => $components['bonuses'],
             'other_earnings' => $components['other_earnings'] ?? 0,
-            'sick_leave_days' => $components['sick_leave_days'],
-            'sick_leave_pay' => $components['sick_leave_pay'],
+            'paid_leave_days' => $components['paid_leave_days'],
+            'paid_leave_pay' => $components['paid_leave_pay'],
             'unpaid_leave_days' => $components['unpaid_leave_days'] ?? 0,
             'unpaid_leave_deduction' => $components['unpaid_leave_deduction'] ?? 0,
             'late_minutes' => $components['late_minutes'] ?? 0,
@@ -2475,8 +2474,8 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             ],
            'earnings_details' => [
                 'basic_salary' => $components['basic_salary'] ?? 0,
-                'allowances' => max(0, ($components['allowances'] ?? 0) - ($components['sick_leave_pay'] ?? 0)),
-                'paid_leave' => $components['sick_leave_pay'] ?? 0,
+                'allowances' => max(0, ($components['allowances'] ?? 0) - ($components['paid_leave_pay'] ?? 0)),
+                'paid_leave' => $components['paid_leave_pay'] ?? 0,
                 'overtime' => $components['overtime_pay'] ?? 0,
                 'overtime_hours' => $components['overtime_hours'] ?? 0,
                 'night_differential' => $components['night_differential_pay'] ?? 0,
@@ -2576,8 +2575,8 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
                 'allowances' => $components['allowances'],
                 'bonuses' => $components['bonuses'],
                 'other_earnings' => $components['other_earnings'] ?? 0,
-                'sick_leave_days' => $components['sick_leave_days'] ?? 0,
-                'sick_leave_pay' => $components['sick_leave_pay'] ?? 0,
+                'paid_leave_days' => $components['paid_leave_days'] ?? 0,
+                'paid_leave_pay' => $components['paid_leave_pay'] ?? 0,
                 'unpaid_leave_days' => $components['unpaid_leave_days'] ?? 0,
                 'unpaid_leave_deduction' => $components['unpaid_leave_deduction'] ?? 0,
                 'deductions' => $components['total_deductions'],
