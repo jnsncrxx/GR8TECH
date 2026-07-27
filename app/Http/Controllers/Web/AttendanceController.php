@@ -690,6 +690,11 @@ class AttendanceController extends Controller
      */
     public function importDtr(Request $request)
     {
+        $userRole = Auth::user()->role ?? null;
+        if (!in_array($userRole, ['admin', 'hr'], true)) {
+            return redirect()->route('dashboard')->with('error', 'Unauthorized access.');
+        }
+
         return view('attendance.import-dtr', [
             'user' => Auth::user(),
             'recentImports' => collect([])
@@ -701,6 +706,11 @@ class AttendanceController extends Controller
      */
     public function processImportDtr(Request $request)
     {
+        $userRole = Auth::user()->role ?? null;
+        if (!in_array($userRole, ['admin', 'hr'], true)) {
+            return redirect()->route('dashboard')->with('error', 'Unauthorized access.');
+        }
+
         $request->validate([
             'dtr_file' => 'required|file|mimes:csv,xlsx,xls|max:10240',
         ]);
@@ -742,6 +752,11 @@ class AttendanceController extends Controller
      */
     public function reviewImportDtr(Request $request)
     {
+        $userRole = Auth::user()->role ?? null;
+        if (!in_array($userRole, ['admin', 'hr'], true)) {
+            return redirect()->route('dashboard')->with('error', 'Unauthorized access.');
+        }
+
         $importedRecords = session('imported_records', []);
         $validation = session('import_validation', ['errors' => collect(), 'warnings' => collect(), 'is_valid' => true]);
         $filePath = session('import_file_path', '');
@@ -769,6 +784,11 @@ class AttendanceController extends Controller
      */
     public function confirmImportDtr(Request $request)
     {
+        $userRole = Auth::user()->role ?? null;
+        if (!in_array($userRole, ['admin', 'hr'], true)) {
+            return redirect()->route('dashboard')->with('error', 'Unauthorized access.');
+        }
+
         try {
             $importedRecords = session('imported_records', []);
 
