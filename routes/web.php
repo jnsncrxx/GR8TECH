@@ -78,8 +78,6 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
         Route::post('/{period}/return-to-processing', [PeriodManagementController::class, 'returnToProcessing'])->name('return-to-processing');
         Route::post('/{period}/finalize', [PeriodManagementController::class, 'finalizePayroll'])->name('finalize');
         Route::post('/{period}/lock', [PeriodManagementController::class, 'lockPayroll'])->name('lock');
-        Route::post('/{period}/unlock', [PeriodManagementController::class, 'unlockPayroll'])->name('unlock')->middleware('role:admin');
-        Route::post('/{period}/reopen', [PeriodManagementController::class, 'reopenPeriod'])->name('reopen')->middleware('role:admin');
         Route::get('/{period}/export', [PeriodManagementController::class, 'exportPayroll'])->name('export');
     });
 
@@ -89,6 +87,9 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
     // Employee routes
     Route::get('/employees/bio-zk', [EmployeeController::class, 'bioZk'])->name('employees.bio-zk')->middleware('role:admin,hr');
     Route::get('/employees/ytd-info', [EmployeeController::class, 'ytdInfo'])->name('employees.ytd-info')->middleware('role:admin,hr');
+    Route::get('/employees/info', [EmployeeController::class, 'employeeInfo'])->name('employees.info')->middleware('role:admin,hr');
+    Route::get('/employees/info/search', [EmployeeController::class, 'employeeInfoSearch'])->name('employees.info.search')->middleware('role:admin,hr');
+    Route::post('/employees/info/save', [EmployeeController::class, 'saveEmployeeInfo'])->name('employees.info.save')->middleware('role:admin,hr');
     Route::get('/employees/education-training-rating', [EmployeeController::class, 'educationTrainingRating'])->name('employees.education-training-rating')->middleware('role:admin,hr');
     Route::get('/employees/other-employee-info', [EmployeeController::class, 'otherEmployeeInfo'])->name('employees.other-employee-info')->middleware('role:admin,hr');
     Route::post('/employees/other-employee-info', [EmployeeController::class, 'saveOtherEmployeeInfo'])->name('employees.other-employee-info.save')->middleware('role:admin,hr');
@@ -96,6 +97,8 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
     Route::post('/employees/other-employee-info/photo/clear', [EmployeeController::class, 'clearOtherEmployeePhoto'])->name('employees.other-employee-info.photo.clear')->middleware('role:admin,hr');
     Route::get('/employees/prev-emp-oth', [EmployeeController::class, 'prevEmpOth'])->name('employees.prev-emp-oth')->middleware('role:admin,hr');
     Route::post('/employees/prev-emp-oth', [EmployeeController::class, 'savePrevEmpOth'])->name('employees.prev-emp-oth.save')->middleware('role:admin,hr');
+    Route::get('/employees/documents', [EmployeeController::class, 'documents'])->name('employees.documents')->middleware('role:admin,hr');
+    Route::post('/employees/documents', [EmployeeController::class, 'saveDocuments'])->name('employees.documents.save')->middleware('role:admin,hr');
     Route::resource('employees', EmployeeController::class);
     Route::get('/employees/{employee}/payroll', [EmployeeController::class, 'payroll'])->name('employees.payroll');
 

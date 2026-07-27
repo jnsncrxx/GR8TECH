@@ -154,6 +154,12 @@ class OvertimeController extends Controller
                 return response()->json(['error' => 'You already have a pending or approved overtime request for this date. Please choose another day.'], 422);
             }
 
+            if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($user->employee_id, $request->date)) {
+                return response()->json([
+                    'error' => 'Overtime cannot be filed for a date covered by a locked payroll period.',
+                ], 422);
+            }
+
             $conflicts = app(\App\Services\PayrollRequestConflictService::class);
             if ($conflicts->leaveOnDate($user->employee_id, $request->date)) {
                 return response()->json(['error' => 'Overtime cannot be filed on a date covered by pending or approved leave.'], 422);
@@ -227,6 +233,15 @@ class OvertimeController extends Controller
                 return response()->json(['error' => 'Only pending requests can be updated.'], 403);
             }
 
+            if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate(
+                $overtime->employee_id,
+                $overtime->date->toDateString()
+            )) {
+                return response()->json([
+                    'error' => 'This overtime request belongs to a locked payroll period and can no longer be reviewed or changed.',
+                ], 422);
+            }
+
             if ($request->status === 'approved') {
                 $conflicts = app(\App\Services\PayrollRequestConflictService::class);
                 if ($conflicts->leaveOnDate($overtime->employee_id, $overtime->date->toDateString())) {
@@ -234,9 +249,6 @@ class OvertimeController extends Controller
                 }
                 if ($conflicts->officialBusinessOnDate($overtime->employee_id, $overtime->date->toDateString())) {
                     return response()->json(['error' => 'Cannot approve overtime because this date has Official Business.'], 422);
-                }
-                if ($conflicts->payrollGeneratedForDate($overtime->employee_id, $overtime->date->toDateString())) {
-                    return response()->json(['error' => 'Cannot approve — payroll has already been generated for this date. An Admin must reopen the payroll period first.'], 422);
                 }
             }
             
@@ -315,9 +327,9 @@ class OvertimeController extends Controller
 
             if ($overtime->status === \App\Models\OvertimeRequest::APPROVED) {
                 $conflicts = app(\App\Services\PayrollRequestConflictService::class);
-                if ($conflicts->payrollGeneratedForDate($overtime->employee_id, $overtime->date->toDateString())) {
+                if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($overtime->employee_id, $overtime->date->toDateString())) {
                     return response()->json([
-                        'error' => 'Cannot cancel — payroll has already been generated for this date. An Admin must reopen the payroll period before this request can be changed.',
+                        'error' => 'Cannot cancel — payroll has already been generated for this date. The payroll period is locked and this request can no longer be changed.',
                     ], 422);
                 }
             }
@@ -376,9 +388,9 @@ class OvertimeController extends Controller
             $conflicts = app(\App\Services\PayrollRequestConflictService::class);
             $originalDate = $overtime->date->toDateString();
 
-            if ($conflicts->payrollGeneratedForDate($overtime->employee_id, $originalDate)) {
+            if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($overtime->employee_id, $originalDate)) {
                 return response()->json([
-                    'error' => 'Cannot edit — payroll has already been generated for this date. An Admin must reopen the payroll period before this request can be changed.',
+                    'error' => 'Cannot edit — payroll has already been generated for this date. The payroll period is locked and this request can no longer be changed.',
                 ], 422);
             }
 
@@ -394,9 +406,9 @@ class OvertimeController extends Controller
 
             $newDate = \Carbon\Carbon::parse($validated['date'])->toDateString();
 
-            if ($conflicts->payrollGeneratedForDate($overtime->employee_id, $newDate)) {
+            if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($overtime->employee_id, $newDate)) {
                 return response()->json([
-                    'error' => 'Cannot edit — payroll has already been generated for the new date. An Admin must reopen that payroll period first.',
+                    'error' => 'Cannot edit — payroll has already been generated for the new date. That payroll period is locked and can no longer be modified.',
                 ], 422);
             }
 

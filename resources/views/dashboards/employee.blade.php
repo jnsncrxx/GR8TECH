@@ -156,6 +156,21 @@
                 @elseif($todaySchedule->isFlexible() && in_array($todaySchedule->status, ['Working', 'Overtime']))
                     <p class="mt-1 text-sm text-blue-800">Flexible · {{ \App\Helpers\TimezoneHelper::formatHours((float) $todaySchedule->required_hours) }} required</p>
                 @endif
+
+                {{-- late/on-time indicator, only makes sense for fixed shifts --}}
+                @if($todayAttendance && $todayAttendance->time_in && !$todaySchedule->isFlexible())
+                    <p class="mt-2">
+                        @if($todayAttendance->isLate())
+                            <span class="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-100 px-2 py-1 rounded-full">
+                                <i class="fas fa-exclamation-circle"></i> Late by {{ $todayAttendance->getLateMinutesFormatted() }}
+                            </span>
+                        @else
+                            <span class="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-100 px-2 py-1 rounded-full">
+                                <i class="fas fa-check-circle"></i> On Time
+                            </span>
+                        @endif
+                    </p>
+                @endif
             @else
                 <p class="mt-2 font-semibold text-red-700">No schedule assigned</p>
                 <p class="mt-1 text-xs text-red-600">Contact HR before recording attendance.</p>
@@ -229,7 +244,23 @@
 
                     @if($expectedHoursToday)
                         @php
-                            $progressPct = min(100, round(($completedHoursToday / max(0.01, $expectedHoursToday)) * 100));
+                            $isFlexibleSchedule = $todaySchedule && $todaySchedule->isFlexible();
+
+                            if ($isFlexibleSchedule) {
+                                // flexible has no fixed end time, so hours-worked-vs-required is the only sensible measure
+                                $progressPct = min(100, round(($completedHoursToday / max(0.01, $expectedHoursToday)) * 100));
+                            } else {
+                                // fixed: track wall-clock time through the scheduled shift window instead -
+                                // clocking in early or skipping a break shouldn't hit 100% before the shift actually ends
+                                $dateStr = \Carbon\Carbon::parse($todayAttendance->date)->format('Y-m-d');
+                                $shiftStart = \Carbon\Carbon::parse($dateStr . ' ' . ($todaySchedule->time_in ?? '08:00:00'));
+                                $shiftEnd = \Carbon\Carbon::parse($dateStr . ' ' . ($todaySchedule->time_out ?? '17:00:00'));
+                                $now = \App\Helpers\TimezoneHelper::now();
+
+                                $shiftSpanMinutes = max(1, ($shiftEnd->timestamp - $shiftStart->timestamp) / 60);
+                                $elapsedMinutes = max(0, ($now->timestamp - $shiftStart->timestamp) / 60);
+                                $progressPct = min(100, max(0, round(($elapsedMinutes / $shiftSpanMinutes) * 100)));
+                            }
                         @endphp
                         <div class="mt-3">
                             <div class="w-full bg-white bg-opacity-20 rounded-full h-1.5 overflow-hidden">
@@ -243,6 +274,11 @@
                         <script>
                             window.completedHoursBeforeSession = {{ (float) $completedHoursToday }};
                             window.expectedHoursToday = {{ (float) $expectedHoursToday }};
+                            window.isFixedSchedule = {{ $isFlexibleSchedule ? 'false' : 'true' }};
+                            @if(!$isFlexibleSchedule)
+                                window.scheduledStartTime = "{{ $todaySchedule->time_in ?? '08:00:00' }}";
+                                window.scheduledEndTime = "{{ $todaySchedule->time_out ?? '17:00:00' }}";
+                            @endif
                         </script>
                     @endif
                 </div>
@@ -734,11 +770,29 @@ function updateWorkingTime() {
     if (window.expectedHoursToday) {
         const priorHours = window.completedHoursBeforeSession || 0;
         const totalHours = priorHours + (diffMs / (1000 * 60 * 60));
-        const pct = Math.min(100, Math.max(0, Math.round((totalHours / window.expectedHoursToday) * 100)));
 
         const bar = document.getElementById('hours-progress-bar');
         const text = document.getElementById('hours-progress-text');
         const pctLabel = document.getElementById('hours-progress-pct');
+
+        let pct;
+        if (window.isFixedSchedule && window.scheduledStartTime && window.scheduledEndTime) {
+            // fixed: bar tracks wall-clock time across the scheduled shift window
+            const [startH, startM] = window.scheduledStartTime.split(':').map(Number);
+            const [endH, endM] = window.scheduledEndTime.split(':').map(Number);
+
+            const shiftStart = new Date(timeIn);
+            shiftStart.setHours(startH, startM, 0, 0);
+            const shiftEnd = new Date(timeIn);
+            shiftEnd.setHours(endH, endM, 0, 0);
+
+            const totalShiftMinutes = Math.max(1, (shiftEnd - shiftStart) / 60000);
+            const elapsedMinutes = Math.max(0, (now - shiftStart) / 60000);
+            pct = Math.min(100, Math.max(0, Math.round((elapsedMinutes / totalShiftMinutes) * 100)));
+        } else {
+            // flexible: bar tracks hours worked vs required hours
+            pct = Math.min(100, Math.max(0, Math.round((totalHours / window.expectedHoursToday) * 100)));
+        }
 
         if (bar) bar.style.width = `${pct}%`;
         if (text) text.textContent = `${totalHours.toFixed(1)}h of ${window.expectedHoursToday.toFixed(1)}h`;

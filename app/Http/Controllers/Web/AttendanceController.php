@@ -966,10 +966,10 @@ class AttendanceController extends Controller
 
         $conflicts = app(\App\Services\PayrollRequestConflictService::class);
 
-        if ($conflicts->payrollGeneratedForDate($validated['employee_id'], $validated['date'])) {
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($validated['employee_id'], $validated['date'])) {
             return redirect()->back()->withInput()->with(
                 'error',
-                'Cannot add a record — payroll has already been generated for this date. An Admin must reopen the payroll period before this date can be edited.'
+                'Cannot add a record — payroll has already been generated for this date. The payroll period is locked and this date can no longer be edited.'
             );
         }
 
@@ -1182,11 +1182,11 @@ class AttendanceController extends Controller
 
         $conflicts = app(\App\Services\PayrollRequestConflictService::class);
         $originalDate = Carbon::parse($attendanceRecord->date)->toDateString();
-        if ($conflicts->payrollGeneratedForDate($validated['employee_id'], $originalDate)
-            || ($date !== $originalDate && $conflicts->payrollGeneratedForDate($validated['employee_id'], $date))) {
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($validated['employee_id'], $originalDate)
+            || ($date !== $originalDate && app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($validated['employee_id'], $date))) {
             return redirect()->back()->withInput()->with(
                 'error',
-                'Cannot edit this record — payroll has already been generated for this date. An Admin must reopen the payroll period first.'
+                'Cannot edit this record — payroll has already been generated for this date. The payroll period is locked and can no longer be modified.'
             );
         }
 
@@ -1260,6 +1260,19 @@ class AttendanceController extends Controller
             $record = AttendanceRecord::with('employee')->findOrFail($id);
             $employeeName = $record->employee?->full_name ?? 'Employee';
             $dateStr = $record->date ? Carbon::parse($record->date)->format('M d, Y') : '';
+
+            if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate(
+                $record->employee_id,
+                $record->date
+            )) {
+                $message = 'Cannot delete this attendance record because its date belongs to a locked payroll period.';
+
+                if ($request->wantsJson()) {
+                    return response()->json(['error' => $message], 422);
+                }
+
+                return redirect()->back()->with('error', $message);
+            }
 
             DB::transaction(function () use ($record) {
                 if (Schema::hasTable('attendance_corrections')) {

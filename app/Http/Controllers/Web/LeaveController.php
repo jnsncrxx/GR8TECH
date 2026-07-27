@@ -266,6 +266,16 @@ class LeaveController extends Controller
             return back()->with('error', 'Employee not found.');
         }
 
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForRange(
+            $employee->id,
+            $data['start_date'],
+            $data['end_date']
+        )) {
+            return back()->withInput()->with(
+                'error',
+                'Cannot file leave because part of the selected date range belongs to a locked payroll period.'
+            );
+        }
 
         $timeConflict = app(\App\Services\PayrollRequestConflictService::class)
             ->timeRequestWithinLeaveRange($employee->id, $data['start_date'], $data['end_date']);
@@ -378,6 +388,16 @@ class LeaveController extends Controller
             return response()->json(['error' => 'This request has already been reviewed.'], 422);
         }
 
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForRange(
+            $leaveRequest->employee_id,
+            $leaveRequest->start_date->toDateString(),
+            $leaveRequest->end_date->toDateString()
+        )) {
+            return response()->json([
+                'error' => 'This leave request belongs to a locked payroll period and can no longer be reviewed or changed.',
+            ], 422);
+        }
+
         // Check if there are overlapping approved leaves before approving
         if ($request->status === 'approved') {
             $leaveConflicts = app(\App\Services\PayrollRequestConflictService::class);
@@ -390,16 +410,6 @@ class LeaveController extends Controller
             if ($timeConflict) {
                 return response()->json([
                     'error' => "Cannot approve leave because the selected dates contain pending or approved {$timeConflict}.",
-                ], 422);
-            }
-
-            if ($leaveConflicts->payrollGeneratedForRange(
-                $leaveRequest->employee_id,
-                $leaveRequest->start_date->toDateString(),
-                $leaveRequest->end_date->toDateString()
-            )) {
-                return response()->json([
-                    'error' => 'Cannot approve — payroll has already been generated for part of this leave period. An Admin must reopen the payroll period first.',
                 ], 422);
             }
 
@@ -622,13 +632,13 @@ class LeaveController extends Controller
 
         if ($leaveRequest->status === LeaveRequest::APPROVED) {
             $conflicts = app(\App\Services\PayrollRequestConflictService::class);
-            if ($conflicts->payrollGeneratedForRange(
+            if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForRange(
                 $leaveRequest->employee_id,
                 $leaveRequest->start_date->toDateString(),
                 $leaveRequest->end_date->toDateString()
             )) {
                 return response()->json([
-                    'error' => 'Cannot cancel — payroll has already been generated for part of this leave period. An Admin must reopen the payroll period before this request can be changed.',
+                    'error' => 'Cannot cancel — payroll has already been generated for part of this leave period. The payroll period is locked and this request can no longer be changed.',
                 ], 422);
             }
         }
@@ -696,13 +706,13 @@ class LeaveController extends Controller
         }
 
         $conflicts = app(\App\Services\PayrollRequestConflictService::class);
-        if ($conflicts->payrollGeneratedForRange(
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForRange(
             $leaveRequest->employee_id,
             $leaveRequest->start_date->toDateString(),
             $leaveRequest->end_date->toDateString()
         )) {
             return response()->json([
-                'error' => 'Cannot edit — payroll has already been generated for part of this leave period. An Admin must reopen the payroll period before this request can be changed.',
+                'error' => 'Cannot edit — payroll has already been generated for part of this leave period. The payroll period is locked and this request can no longer be changed.',
             ], 422);
         }
 
@@ -717,9 +727,9 @@ class LeaveController extends Controller
 
         // The new range might land inside a different, already-generated period
         // even if the original range didn't.
-        if ($conflicts->payrollGeneratedForRange($leaveRequest->employee_id, $data['start_date'], $data['end_date'])) {
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForRange($leaveRequest->employee_id, $data['start_date'], $data['end_date'])) {
             return response()->json([
-                'error' => 'Cannot edit — payroll has already been generated for the new dates. An Admin must reopen that payroll period first.',
+                'error' => 'Cannot edit — payroll has already been generated for the new dates. That payroll period is locked and can no longer be modified.',
             ], 422);
         }
 

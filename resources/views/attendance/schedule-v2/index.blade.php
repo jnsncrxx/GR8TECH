@@ -282,6 +282,11 @@
                                             'indigo' => 'text-indigo-700',
                                             default => 'text-gray-600',
                                         } }}">{{ $history['label'] }}</div>
+                                        @if($history['is_late'] ?? false)
+                                            <div class="text-[10px] font-semibold text-amber-700">
+                                                <i class="fas fa-clock"></i> Late {{ $history['late_minutes_formatted'] }}
+                                            </div>
+                                        @endif
                                     @endif
                                     <div class="mt-1">
                                         <a href="{{ route('schedule-v2.edit', array_merge(['schedule' => $schedule], array_filter(['department_id' => $selectedDepartment, 'month' => $selectedMonth, 'year' => $selectedYear, 'search' => $searchQuery]))) }}" class="text-blue-600 hover:text-blue-900 text-xs">

@@ -578,7 +578,17 @@ class AttendanceRecord extends Model
 
         $minutes = $scheduled->diffInMinutes($actual);
 
-        return $minutes > self::GRACE_PERIOD_MINUTES ? $minutes : 0;
+        return $minutes > self::GRACE_PERIOD_MINUTES ? $minutes - self::GRACE_PERIOD_MINUTES : 0;
+    }
+
+    // shows late minutes as "Xh Ym" instead of just a big minute count
+    public function getLateMinutesFormatted(): string
+    {
+        $minutes = $this->getLateMinutes();
+        $hours = intdiv($minutes, 60);
+        $mins = $minutes % 60;
+
+        return "{$hours}h {$mins}m";
     }
 
     // Check if employee left before their scheduled end time. Doesn't apply to flexible schedules.
