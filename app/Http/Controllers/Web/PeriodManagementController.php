@@ -44,9 +44,44 @@ class PeriodManagementController extends Controller
             ->orderByDesc('created_at')
             ->get();
 
+        $calendarYears = $periods
+            ->pluck('period_year')
+            ->filter()
+            ->map(fn ($year) => (int) $year)
+            ->unique()
+            ->sort()
+            ->values();
+
+        if ($calendarYears->isEmpty()) {
+            $calendarYears = collect([now()->year]);
+        }
+
+        // Keep the yearly status matrix readable while still including the
+        // current year and the most recent configured payroll years.
+        $calendarYears = $calendarYears
+            ->push(now()->year)
+            ->unique()
+            ->sortDesc()
+            ->take(2)
+            ->sort()
+            ->values();
+
+        $periodCalendar = [];
+        foreach ($calendarYears as $year) {
+            foreach (range(1, 12) as $month) {
+                foreach (range(1, 5) as $periodNo) {
+                    $periodCalendar[$year][$month][$periodNo] = $periods->first(function (Period $period) use ($year, $month, $periodNo) {
+                        return (int) $period->period_year === (int) $year
+                            && (int) $period->period_month === $month
+                            && (int) $period->period_no === $periodNo;
+                    });
+                }
+            }
+        }
+
         return view(
             'attendance.period-management.index',
-            compact('user', 'periods', 'currentCompany')
+            compact('user', 'periods', 'currentCompany', 'calendarYears', 'periodCalendar')
         );
     }
 
@@ -80,9 +115,31 @@ class PeriodManagementController extends Controller
             ->orderBy('last_name')
             ->get();
 
+        // Provide all existing periods so the create form can show the
+        // chronologically correct previous cutoff for the selected month and
+        // period number. The previous period is not simply the latest row.
+        $periodOptions = Period::query()
+            ->when($currentCompany, fn ($query) => $query->where('company_id', $currentCompany->id))
+            ->orderBy('period_year')
+            ->orderBy('period_month')
+            ->orderBy('period_no')
+            ->get()
+            ->map(fn (Period $period) => [
+                'id' => $period->id,
+                'name' => $period->name,
+                'period_year' => (int) $period->period_year,
+                'period_month' => (int) $period->period_month,
+                'period_no' => (int) $period->period_no,
+                'start_date' => optional($period->start_date)->format('Y-m-d'),
+                'end_date' => optional($period->end_date)->format('Y-m-d'),
+                'working_days' => (int) ($period->working_days ?? 0),
+                'status_label' => $period->status_label,
+            ])
+            ->values();
+
         return view(
             'attendance.period-management.create',
-            compact('user', 'departments', 'employees', 'currentCompany')
+            compact('user', 'departments', 'employees', 'currentCompany', 'periodOptions')
         );
     }
 
@@ -1280,110 +1337,6 @@ class PeriodManagementController extends Controller
         ]);
 
         return back()->with('success', 'Payroll period locked. Payroll records are now view/export only.');
-    }
-
-    /**
-     * Reverse a lock. Brings a Locked period back to Finalized — view/export
-     * restrictions are lifted, but the period is still "generated" (payroll
-     * data is untouched and Leave/OB/Overtime edits remain blocked). This is
-     * the lightweight half of correcting a mistake; reopenPeriod() is the
-     * heavier half that actually unblocks editing.
-     */
-    public function unlockPayroll(Request $request, $period)
-    {
-        if ((auth()->user()->role ?? null) !== 'admin') {
-            abort(403, 'Only an Admin can unlock a payroll period.');
-        }
-
-        $periodModel = Period::findOrFail($period);
-
-        if ($periodModel->status !== Period::STATUS_LOCKED) {
-            return back()->with('error', 'Only a locked payroll period can be unlocked.');
-        }
-
-        $periodModel->update([
-            'status' => Period::STATUS_FINALIZED,
-            'unlocked_at' => now(),
-            'unlocked_by' => auth()->id(),
-        ]);
-
-        return back()->with('success', 'Payroll period unlocked and returned to Finalized.');
-    }
-
-    /**
-     * Wind a Finalized or Locked period back to Ready — before payroll
-     * generation — so Admin/HR/Manager can edit approved Leave/OB/Overtime
-     * requests again and the Admin can regenerate payroll afterward.
-     *
-     * Blocked outright if any payroll for the period has already been
-     * marked Paid: money has moved, so that data can no longer be silently
-     * recalculated and needs manual reconciliation instead.
-     */
-    public function reopenPeriod(Request $request, $period)
-    {
-        if ((auth()->user()->role ?? null) !== 'admin') {
-            abort(403, 'Only an Admin can reopen a payroll period.');
-        }
-
-        $periodModel = Period::findOrFail($period);
-
-        if (!in_array($periodModel->status, [Period::STATUS_FINALIZED, Period::STATUS_LOCKED], true)) {
-            return back()->with('error', 'Only a finalized or locked payroll period can be reopened.');
-        }
-
-        $validated = $request->validate([
-            'reopen_reason' => ['required', 'string', 'max:1000'],
-        ]);
-
-        $payrolls = $this->payrollsForPeriod($periodModel);
-
-        if ($payrolls->contains(fn ($payroll) => $payroll->status === 'paid')) {
-            return back()->with(
-                'error',
-                'Cannot reopen — one or more payroll records for this period are already marked Paid. Those require manual reconciliation instead of a reopen.'
-            );
-        }
-
-        DB::transaction(function () use ($periodModel, $payrolls, $validated) {
-            // If still locked, lift the lock first — Payroll::assertLockedPeriodUpdateIsAllowed()
-            // only permits a locked payroll to move to "paid", so the period
-            // must leave Locked status before payroll rows below can be reset.
-            if ($periodModel->status === Period::STATUS_LOCKED) {
-                $periodModel->update([
-                    'status' => Period::STATUS_FINALIZED,
-                    'unlocked_at' => now(),
-                    'unlocked_by' => auth()->id(),
-                ]);
-            }
-
-            foreach ($payrolls as $payroll) {
-                if (in_array($payroll->status, ['approved', 'processed'], true)) {
-                    $payroll->update([
-                        'status' => 'pending',
-                        'approved_by' => null,
-                        'approved_at' => null,
-                    ]);
-                }
-            }
-
-            $periodModel->update([
-                'status' => Period::STATUS_READY,
-                'reviewed_at' => null,
-                'reviewed_by' => null,
-                'finalized_at' => null,
-                'finalized_by' => null,
-                'locked_at' => null,
-                'locked_by' => null,
-                'reopened_at' => now(),
-                'reopened_by' => auth()->id(),
-                'reopen_reason' => $validated['reopen_reason'],
-            ]);
-        });
-
-        return back()->with(
-            'success',
-            'Payroll period reopened. Approved Leave/OB/Overtime requests can now be corrected, then regenerate and re-lock payroll when ready.'
-        );
     }
 
     /**

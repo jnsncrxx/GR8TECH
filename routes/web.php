@@ -78,8 +78,6 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
         Route::post('/{period}/return-to-processing', [PeriodManagementController::class, 'returnToProcessing'])->name('return-to-processing');
         Route::post('/{period}/finalize', [PeriodManagementController::class, 'finalizePayroll'])->name('finalize');
         Route::post('/{period}/lock', [PeriodManagementController::class, 'lockPayroll'])->name('lock');
-        Route::post('/{period}/unlock', [PeriodManagementController::class, 'unlockPayroll'])->name('unlock')->middleware('role:admin');
-        Route::post('/{period}/reopen', [PeriodManagementController::class, 'reopenPeriod'])->name('reopen')->middleware('role:admin');
         Route::get('/{period}/export', [PeriodManagementController::class, 'exportPayroll'])->name('export');
     });
 

@@ -415,6 +415,13 @@ class OfficialBusinessController extends Controller
             }
 
 
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($employeeId, $obDate)) {
+            return back()->withInput()->with(
+                'error',
+                'Official Business cannot be filed for a date covered by a locked payroll period.'
+            );
+        }
+
         $conflicts = app(\App\Services\PayrollRequestConflictService::class);
         if ($conflicts->leaveOnDate($employeeId, $obDate)) {
             return back()->withInput()->with(
@@ -590,6 +597,14 @@ class OfficialBusinessController extends Controller
         }
 
         $reviewerRole = Auth::user()->role ?? null;
+        $reviewDate = $this->normalizeDate($obRequest->date);
+
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate(
+            $obRequest->employee_id,
+            $reviewDate
+        )) {
+            return back()->with('error', 'This Official Business request belongs to a locked payroll period and can no longer be reviewed or changed.');
+        }
 
         if (
             $validated['status']
@@ -602,9 +617,6 @@ class OfficialBusinessController extends Controller
             }
             if ($conflicts->overtimeOnDate($obRequest->employee_id, $date)) {
                 return back()->with('error', 'Cannot approve Official Business because this date has overtime.');
-            }
-            if ($conflicts->payrollGeneratedForDate($obRequest->employee_id, $date)) {
-                return back()->with('error', 'Cannot approve — payroll has already been generated for this date. An Admin must reopen the payroll period first.');
             }
 
             DB::transaction(
@@ -848,10 +860,10 @@ class OfficialBusinessController extends Controller
             }
 
             $conflicts = app(\App\Services\PayrollRequestConflictService::class);
-            if ($conflicts->payrollGeneratedForDate($obRequest->employee_id, $this->normalizeDate($obRequest->date))) {
+            if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($obRequest->employee_id, $this->normalizeDate($obRequest->date))) {
                 return back()->with(
                     'error',
-                    'Cannot cancel — payroll has already been generated for this date. An Admin must reopen the payroll period before this request can be changed.'
+                    'Cannot cancel — payroll has already been generated for this date. The payroll period is locked and this request can no longer be changed.'
                 );
             }
 
@@ -930,10 +942,10 @@ class OfficialBusinessController extends Controller
         $conflicts = app(\App\Services\PayrollRequestConflictService::class);
         $originalDate = $this->normalizeDate($obRequest->date);
 
-        if ($conflicts->payrollGeneratedForDate($obRequest->employee_id, $originalDate)) {
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($obRequest->employee_id, $originalDate)) {
             return back()->with(
                 'error',
-                'Cannot edit — payroll has already been generated for this date. An Admin must reopen the payroll period before this request can be changed.'
+                'Cannot edit — payroll has already been generated for this date. The payroll period is locked and this request can no longer be changed.'
             );
         }
 
@@ -948,10 +960,10 @@ class OfficialBusinessController extends Controller
 
         $newDate = $this->normalizeDate($validated['date']);
 
-        if ($conflicts->payrollGeneratedForDate($obRequest->employee_id, $newDate)) {
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($obRequest->employee_id, $newDate)) {
             return back()->with(
                 'error',
-                'Cannot edit — payroll has already been generated for the new date. An Admin must reopen that payroll period first.'
+                'Cannot edit — payroll has already been generated for the new date. That payroll period is locked and can no longer be modified.'
             );
         }
 
