@@ -223,10 +223,10 @@ class ScheduleV2Controller extends Controller
         $employee = \App\Models\Employee::findOrFail($validated['employee_id']);
         $this->assertEmployeeManageable($employee);
 
-        if (app(\App\Services\PayrollRequestConflictService::class)->payrollGeneratedForDate($validated['employee_id'], $validated['date'])) {
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($validated['employee_id'], $validated['date'])) {
             return redirect()->back()->withInput()->with(
                 'error',
-                'Cannot set a schedule — payroll has already been generated for this date. An Admin must reopen the payroll period first.'
+                'Cannot set a schedule — payroll has already been generated for this date. The payroll period is locked and can no longer be modified.'
             );
         }
 
@@ -288,10 +288,10 @@ class ScheduleV2Controller extends Controller
 
         foreach ($validated['employee_schedules'] as $entry) {
             foreach ($entry['dates'] as $date) {
-                if ($conflicts->payrollGeneratedForDate($entry['employee_id'], $date)) {
+                if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($entry['employee_id'], $date)) {
                     return response()->json([
                         'success' => false,
-                        'message' => "Cannot save — payroll has already been generated for {$date}. An Admin must reopen the payroll period first.",
+                        'message' => "Cannot save — payroll has already been generated for {$date}. The payroll period is locked and can no longer be modified.",
                     ], 422);
                 }
             }
@@ -351,10 +351,10 @@ class ScheduleV2Controller extends Controller
         foreach ($validated['employee_ids'] as $employeeId) {
             $this->assertEmployeeManageable(\App\Models\Employee::findOrFail($employeeId));
 
-            if ($conflicts->payrollGeneratedForRange($employeeId, $validated['start_date'], $validated['end_date'])) {
+            if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForRange($employeeId, $validated['start_date'], $validated['end_date'])) {
                 return redirect()->back()->withInput()->with(
                     'error',
-                    'Cannot save — payroll has already been generated for part of this date range. An Admin must reopen the payroll period first.'
+                    'Cannot save — payroll has already been generated for part of this date range. The payroll period is locked and can no longer be modified.'
                 );
             }
         }
@@ -401,10 +401,10 @@ class ScheduleV2Controller extends Controller
             if ($schedule->employee) {
                 $this->assertEmployeeManageable($schedule->employee);
             }
-            if ($conflicts->payrollGeneratedForDate($schedule->employee_id, $schedule->date->toDateString())) {
+            if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($schedule->employee_id, $schedule->date->toDateString())) {
                 return response()->json([
                     'success' => false,
-                    'message' => "Cannot delete — payroll has already been generated for {$schedule->date->toDateString()}. An Admin must reopen the payroll period first.",
+                    'message' => "Cannot delete — payroll has already been generated for {$schedule->date->toDateString()}. The payroll period is locked and can no longer be modified.",
                 ], 422);
             }
         }
@@ -450,10 +450,10 @@ class ScheduleV2Controller extends Controller
             $this->assertEmployeeManageable($schedule->employee);
         }
 
-        if (app(\App\Services\PayrollRequestConflictService::class)->payrollGeneratedForDate($schedule->employee_id, $schedule->date->toDateString())) {
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($schedule->employee_id, $schedule->date->toDateString())) {
             return redirect()->back()->withInput()->with(
                 'error',
-                'Cannot edit this schedule — payroll has already been generated for this date. An Admin must reopen the payroll period first.'
+                'Cannot edit this schedule — payroll has already been generated for this date. The payroll period is locked and can no longer be modified.'
             );
         }
 
@@ -482,10 +482,10 @@ class ScheduleV2Controller extends Controller
             $this->assertEmployeeManageable($schedule->employee);
         }
 
-        if (app(\App\Services\PayrollRequestConflictService::class)->payrollGeneratedForDate($schedule->employee_id, $schedule->date->toDateString())) {
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($schedule->employee_id, $schedule->date->toDateString())) {
             return redirect()->back()->with(
                 'error',
-                'Cannot delete this schedule — payroll has already been generated for this date. An Admin must reopen the payroll period first.'
+                'Cannot delete this schedule — payroll has already been generated for this date. The payroll period is locked and can no longer be modified.'
             );
         }
 
