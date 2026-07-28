@@ -20,16 +20,8 @@ class LeaveRequest extends Model
     public const CANCELLED = 'cancelled';
     public const EXPIRED = 'expired';
 
-    // Leave types that are incremental (no hard balance cap enforced).
-    // Per supervisor policy: only Vacation, Sick, and SIL carry a settable,
-    // enforced balance. Everything else auto-increments with no cap.
     public const UNCAPPED_LEAVE_TYPES = [
-        'personal',
-        'emergency',
-        'maternity',
-        'paternity',
-        'bereavement',
-        'study',
+        // All leave types are now capped and require balances to be set.
     ];
 
     // Display labels for each stored leave_type value. Centralized here so
@@ -44,6 +36,8 @@ class LeaveRequest extends Model
         'maternity' => 'Maternity Leave',
         'paternity' => 'Paternity Leave',
         'bereavement' => 'Bereavement Leave',
+        'spl' => 'Solo Parent Leave',
+        'vawc' => 'VAWC Leave',
         'study' => 'Others',
     ];
 

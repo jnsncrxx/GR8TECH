@@ -35,6 +35,12 @@ class LeaveBalance extends Model
         'bereavement_days_used',
         'study_days_total',
         'study_days_used',
+        'spl_days_total',
+        'spl_days_used',
+        'vawc_days_total',
+        'vawc_days_used',
+        'bl_days_total',
+        'bl_days_used',
     ];
 
     protected static function boot()

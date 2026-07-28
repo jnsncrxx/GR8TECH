@@ -92,22 +92,28 @@
         @csrf
         <input type="hidden" name="employee_id" value="{{ $selectedEmployee->id }}">
         
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <!-- Left Panel -->
-            <div class="space-y-4">
-                
-                <!-- Identification Block -->
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                    <div class="grid grid-cols-2 gap-4 mb-3">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+            
+            <!-- Identification Block -->
+            <div class="emp-card sec-personal lg:order-1">
+                    <div class="emp-card-header">
+                        <div class="section-icon"><i class="fas fa-id-card"></i></div>
                         <div>
-                            <label class="block text-xs text-gray-600 mb-1">Employee No.</label>
-                            <input type="text" value="{{ $selectedEmployee->employee_id }}" class="w-full text-sm border border-gray-300 rounded px-2 py-1.5 bg-gray-100" readonly>
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-600 mb-1">ID Card No.</label>
-                            <input type="text" name="id_card_no" value="{{ data_get($selectedEmployee, 'info.id_card_no') }}" class="w-full text-sm border border-gray-300 rounded px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" :readonly="!allowChanges" :class="{'bg-gray-100': !allowChanges}">
+                            <h3>Identification</h3>
+                            <p>Basic employee identification</p>
                         </div>
                     </div>
+                    <div class="emp-card-body">
+                        <div class="grid grid-cols-2 gap-4 mb-3">
+                            <div>
+                                <label class="form-label">Employee No.</label>
+                                <input type="text" value="{{ $selectedEmployee->employee_id }}" class="form-control bg-gray-100" readonly>
+                            </div>
+                            <div>
+                                <label class="form-label">ID Card No.</label>
+                                <input type="text" name="id_card_no" value="{{ data_get($selectedEmployee, 'info.id_card_no') }}" class="form-control" :readonly="!allowChanges" :class="{'bg-gray-100': !allowChanges}">
+                            </div>
+                        </div>
                     
                     <div class="mb-3">
                         <label class="block text-xs text-gray-600 mb-1">Control No.</label>
@@ -160,9 +166,18 @@
                         </select>
                     </div>
                 </div>
+                </div>
 
                 <!-- Banking & IDs Block -->
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-2">
+                <div class="emp-card sec-account lg:order-3">
+                    <div class="emp-card-header">
+                        <div class="section-icon"><i class="fas fa-university"></i></div>
+                        <div>
+                            <h3>Banking & IDs</h3>
+                            <p>Bank and statutory identification numbers</p>
+                        </div>
+                    </div>
+                    <div class="emp-card-body space-y-3">
                     @php
                         $bankingFields = [
                             ['label' => 'Payment', 'name' => 'payment_method', 'type' => 'select', 'options' => ['Bank', 'Cash', 'Cheque']],
@@ -195,14 +210,18 @@
                     </div>
                     @endforeach
                 </div>
-                
-            </div>
-
-            <!-- Right Panel -->
-            <div class="space-y-4">
+                </div>
                 
                 <!-- Employment Block -->
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <div class="emp-card sec-work lg:order-2">
+                    <div class="emp-card-header">
+                        <div class="section-icon"><i class="fas fa-briefcase"></i></div>
+                        <div>
+                            <h3>Employment Details</h3>
+                            <p>Status, dates, and payroll information</p>
+                        </div>
+                    </div>
+                    <div class="emp-card-body">
                     <div class="flex gap-2 items-center mb-2">
                         <label class="w-28 text-xs text-gray-600">Employee Status</label>
                         <select name="employee_status" class="flex-1 text-sm border border-gray-300 rounded px-2 py-1 focus:border-blue-500" :disabled="!allowChanges" :class="{'bg-gray-100': !allowChanges}">
@@ -296,9 +315,18 @@
                         </div>
                     </div>
                 </div>
+                </div>
 
                 <!-- Tabs Block -->
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <div class="emp-card sec-details lg:order-4">
+                    <div class="emp-card-header">
+                        <div class="section-icon"><i class="fas fa-layer-group"></i></div>
+                        <div>
+                            <h3>Additional Information</h3>
+                            <p>Position, groups, allowances and limits</p>
+                        </div>
+                    </div>
+                    <div class="emp-card-body">
                     <!-- Tab Headers -->
                     <div class="flex gap-2 border-b border-gray-200 mb-4 overflow-x-auto text-xs pb-1">
                         <button type="button" @click="activeTab = 'position_dept'" class="px-2 py-1 font-medium transition-colors whitespace-nowrap" :class="activeTab === 'position_dept' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'">Position.Dept</button>
@@ -359,11 +387,28 @@
                                 <span class="text-xs text-gray-700">Allow Flexible Time</span>
                             </label>
                         </div>
-                        <div class="space-y-1 text-xs">
-                            @foreach([['Max Sick', 'max_sick'], ['Max Vacation', 'max_vacation'], ['Max SL', 'max_sl'], ['Max SPL', 'max_spl'], ['Max PL', 'max_pl'], ['Max VAWC', 'max_vawc'], ['Max ML', 'max_ml'], ['Max BL', 'max_bl'], ['Max EL', 'max_el']] as $m)
+                        <div class="space-y-2 text-xs">
+                            @php
+                                $leaveFields = [
+                                    ['Max Sick', 'max_sick', 'sick_days_total'],
+                                    ['Max Vacation', 'max_vacation', 'vacation_days_total'],
+                                    ['Max SL (SIL)', 'max_sl', 'sil_days_total'],
+                                    ['Max SPL', 'max_spl', 'spl_days_total'],
+                                    ['Max PL', 'max_pl', 'paternity_days_total'],
+                                    ['Max VAWC', 'max_vawc', 'vawc_days_total'],
+                                    ['Max ML', 'max_ml', 'maternity_days_total'],
+                                    ['Max BL', 'max_bl', 'bl_days_total'],
+                                    ['Max EL', 'max_el', 'emergency_days_total'],
+                                ];
+                            @endphp
+                            @foreach($leaveFields as $m)
+                            @php
+                                $val = $employeeBalance ? $employeeBalance->{$m[2]} : null;
+                                $displayVal = $val !== null ? $val : 'N/A';
+                            @endphp
                             <div class="flex items-center">
-                                <label class="w-24 text-gray-600">{{ $m[0] }}</label>
-                                <input type="text" name="{{ $m[1] }}" value="{{ data_get($selectedEmployee, 'info.'.$m[1]) }}" class="w-16 text-right px-1 py-0.5 border border-gray-300 rounded bg-gray-50" readonly>
+                                <label class="w-32 text-gray-600 font-medium">{{ $m[0] }}</label>
+                                <input type="text" name="{{ $m[1] }}" value="{{ $displayVal }}" class="w-20 text-right px-2 py-1 border border-gray-300 rounded focus:border-blue-500" :readonly="!allowChanges" :class="{'bg-gray-100 text-gray-500': !allowChanges}">
                             </div>
                             @endforeach
                         </div>

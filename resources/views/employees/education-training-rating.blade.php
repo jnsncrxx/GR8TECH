@@ -4,16 +4,31 @@
 
 @section('content')
 <div class="max-w-5xl mx-auto space-y-6">
-    <div>
-        <h1 class="text-2xl font-bold text-gray-900">Education/Training/Rating</h1>
-        <p class="mt-1 text-sm text-gray-500">Employee education details</p>
+
+    <!-- Header -->
+    <div class="flex items-center gap-3 mb-2">
+        <div style="width:38px;height:38px;border-radius:10px;background:#eff6ff;color:#2563eb;display:flex;align-items:center;justify-content:center;font-size:1rem;">
+            <i class="fas fa-graduation-cap"></i>
+        </div>
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Education / Training / Rating</h1>
+            <p class="text-sm text-gray-500">Employee academic and development records</p>
+        </div>
     </div>
 
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
+    <div class="emp-card sec-personal">
+        <div class="emp-card-header">
+            <div class="section-icon"><i class="fas fa-user-graduate"></i></div>
+            <div>
+                <h3>Employee Selection</h3>
+                <p>Select employee to view and manage education details</p>
+            </div>
+        </div>
+        <div class="emp-card-body">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="md:col-span-2">
-                <label for="employee_name" class="block text-sm font-medium text-gray-700 mb-2">Employee Name</label>
-                <select id="employee_name" class="w-full h-10 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <label for="employee_name" class="form-label">Employee Name</label>
+                <select id="employee_name" class="form-control">
                     <option value="">Select employee</option>
                     @foreach($employees as $emp)
                         <option value="{{ data_get($emp, 'id') }}" data-empno="{{ data_get($emp, 'employee_id') }}">{{ data_get($emp, 'first_name') }} {{ data_get($emp, 'last_name') }}</option>
@@ -21,12 +36,22 @@
                 </select>
             </div>
             <div>
-                <label for="empno" class="block text-sm font-medium text-gray-700 mb-2">Empno</label>
-                <input type="text" id="empno" class="w-full h-10 px-3 border border-gray-300 rounded-lg bg-gray-50" placeholder="Auto-filled Empno" readonly>
+                <label for="empno" class="form-label">Empno</label>
+                <input type="text" id="empno" class="form-control bg-gray-50" placeholder="Auto-filled Empno" readonly>
             </div>
         </div>
+        </div>
+    </div>
 
-        <div class="space-y-4">
+    <div class="emp-card sec-details">
+        <div class="emp-card-header">
+            <div class="section-icon"><i class="fas fa-book-open"></i></div>
+            <div>
+                <h3>Education Background</h3>
+                <p>Academic history and qualifications</p>
+            </div>
+        </div>
+        <div class="emp-card-body space-y-4">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
                 <label class="text-sm font-medium text-gray-700">Highschool</label>
                 <input type="text" class="w-full h-10 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Enter Highschool">
@@ -64,10 +89,17 @@
                 </div>
             </div>
         </div>
+    </div>
 
-        <div class="border border-gray-200 rounded-lg p-5">
-            <h2 class="text-lg font-semibold text-gray-900 mb-4">Training/Seminar/Conferences</h2>
-
+    <div class="emp-card sec-mfg">
+        <div class="emp-card-header">
+            <div class="section-icon"><i class="fas fa-chalkboard-teacher"></i></div>
+            <div>
+                <h3>Training / Seminar / Conferences</h3>
+                <p>Development activities and certifications</p>
+            </div>
+        </div>
+        <div class="emp-card-body">
             <div class="overflow-x-auto">
                 <table class="min-w-full border border-gray-200 text-sm">
                     <thead class="bg-gray-50">
