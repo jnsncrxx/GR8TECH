@@ -118,7 +118,7 @@
                 </a>
                 <a href="{{ route('employees.education-training-rating') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'employees.education-training-rating' ? 'bg-white text-blue-600' : '' }}">
                     <i class="fas fa-book mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'employees.education-training-rating' ? 'text-blue-600' : '' }}"></i>
-                    <span>Education/Training/Rating</span>
+                    <span>Education/ Training/ Rating</span>
                 </a>
                 <a href="{{ route('employees.prev-emp-oth') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'employees.prev-emp-oth' ? 'bg-white text-blue-600' : '' }}">
                     <i class="fas fa-briefcase mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'employees.prev-emp-oth' ? 'text-blue-600' : '' }}"></i>
