@@ -10,6 +10,14 @@
         $todayAttendance = $user->employee->getTodayAttendance();
         $isCurrentlyTimedIn = $todayAttendance && $todayAttendance->hasActiveTimeEntry();
     }
+
+    $myWorkspaceActive = request()->query('scope') === 'mine'
+        || in_array($activeRoute, [
+            'attendance.time-in-out',
+            'attendance.my',
+            'employee.schedule',
+            'employee.payroll.history',
+        ], true);
 @endphp
 
 <nav class="brand-sidebar-nav mt-8 px-4 pb-4">
@@ -19,6 +27,52 @@
             <i class="fas fa-tachometer-alt mr-3 text-lg {{ $activeRoute === 'dashboard' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
             <span>Dashboard</span>
         </a>
+
+        @if($user->employee && $user->role !== 'employee')
+        <div class="my-4 border-t border-gray-200"></div>
+        <div class="relative" x-data="{ open: {{ $myWorkspaceActive ? 'true' : 'false' }} }">
+            <button @click="open = !open"
+                    class="group flex w-full items-center justify-between rounded-lg px-4 py-3 text-sm font-medium transition-all duration-200 {{ $myWorkspaceActive ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }}">
+                <span class="flex items-center">
+                    <i class="fas fa-user-circle mr-3 text-lg {{ $myWorkspaceActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
+                    <span>My Workspace</span>
+                </span>
+                <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200"
+                   :class="{ 'rotate-180': open }"></i>
+            </button>
+        <div x-show="open"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 transform scale-95"
+             x-transition:enter-end="opacity-100 transform scale-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100 transform scale-100"
+             x-transition:leave-end="opacity-0 transform scale-95"
+             class="ml-8 mt-2 space-y-1 rounded-lg border border-gray-200 bg-gray-50 p-2">
+            <a href="{{ route('attendance.time-in-out') }}" class="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-white hover:text-blue-600">
+                <i class="fas fa-sign-in-alt mr-3 text-sm text-gray-400"></i><span>Clock In / Out</span>
+            </a>
+            <a href="{{ route('attendance.my') }}" class="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-white hover:text-blue-600">
+                <i class="fas fa-calendar-check mr-3 text-sm text-gray-400"></i><span>My Attendance</span>
+            </a>
+            <a href="{{ route('employee.schedule') }}" class="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-white hover:text-blue-600">
+                <i class="fas fa-calendar-alt mr-3 text-sm text-gray-400"></i><span>My Schedule</span>
+            </a>
+            <a href="{{ route('attendance.overtime', ['scope' => 'mine']) }}" class="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-white hover:text-blue-600">
+                <i class="fas fa-clock mr-3 text-sm text-gray-400"></i><span>My Overtime</span>
+            </a>
+            <a href="{{ route('attendance.leave-management', ['scope' => 'mine']) }}" class="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-white hover:text-blue-600">
+                <i class="fas fa-calendar-times mr-3 text-sm text-gray-400"></i><span>My Leave</span>
+            </a>
+            <a href="{{ route('attendance.official-business', ['scope' => 'mine']) }}" class="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-white hover:text-blue-600">
+                <i class="fas fa-briefcase mr-3 text-sm text-gray-400"></i><span>My Official Business</span>
+            </a>
+            <a href="{{ route('employee.payroll.history') }}" class="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-white hover:text-blue-600">
+                <i class="fas fa-receipt mr-3 text-sm text-gray-400"></i><span>My Payslips</span>
+            </a>
+        </div>
+        </div>
+        <div class="my-4 border-t border-gray-200"></div>
+        @endif
         
         @if($user->role === 'admin' || $user->role === 'hr')
         <!-- Employees Dropdown -->

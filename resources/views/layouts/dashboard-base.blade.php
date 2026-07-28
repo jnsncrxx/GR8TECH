@@ -142,7 +142,7 @@
         <!-- Main Content -->
         <div class="hris-workspace lg:ml-72">
             <!-- Top Navigation -->
-            <x-dashboard.header :title="trim($__env->yieldContent('title', 'Dashboard'))" :user="$user" />
+            <x-dashboard.header :title="html_entity_decode(trim($__env->yieldContent('title', 'Dashboard')), ENT_QUOTES | ENT_HTML5, 'UTF-8')" :user="$user" />
 
             <!-- Dashboard Content -->
             <main class="hris-content p-3 sm:p-4 lg:p-6 xl:p-8">
