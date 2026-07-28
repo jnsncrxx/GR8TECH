@@ -1310,14 +1310,6 @@ class AttendanceController extends Controller
     public function myAttendance(Request $request)
     {
         $user = Auth::user();
-        $userRole = $user->role ?? 'employee';
-
-        // Only employees can access this - HR/Admin redirect to main attendance
-        if (in_array($userRole, ['admin', 'hr'])) {
-            return redirect()->route('attendance.daily')
-                ->with('info', 'HR and Admin should use the main attendance page.');
-        }
-
         $employee = Employee::find($user->employee_id);
 
         if (!$employee) {
@@ -1376,12 +1368,10 @@ class AttendanceController extends Controller
     public function mySchedule(Request $request)
     {
         $user = Auth::user();
-        abort_unless(($user->role ?? null) === 'employee', 403);
-
         $employee = Employee::with(['department', 'position'])->find($user->employee_id);
 
         if (!$employee) {
-            return redirect()->route('employee.dashboard')
+            return redirect()->route('dashboard')
                 ->with('error', 'No employee record found. Please contact HR.');
         }
 

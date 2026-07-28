@@ -1,6 +1,6 @@
 @extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'attendance.overtime'])
 
-@section('title', 'Overtime Management')
+@section('title', ($personalMode ?? false) ? 'My Overtime' : 'Overtime Management')
 
 @section('content')
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -59,7 +59,7 @@
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Overtime Management</h1>
-            @if($user->role === 'employee')
+            @if(!$isReviewer)
             <p class="mt-1 text-sm text-gray-600">Apply for overtime and track your requests</p>
             @else
             <p class="mt-1 text-sm text-gray-600">Track and manage employee overtime hours</p>
@@ -87,7 +87,7 @@
                     </div>
                 </div>
             </div>
-            @if($user->role === 'employee')
+            @if(!$isReviewer)
             <button id="applyOvertimeBtn" onclick="openOvertimeModal()" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
                 <i class="fas fa-plus mr-2"></i>
                 Apply for Overtime
@@ -381,7 +381,7 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Reviewed By
                         </th>
-                        @if(in_array($user->role, ['admin', 'hr', 'manager']))
+                        @if($isReviewer)
                         <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Actions
                         </th>
@@ -465,7 +465,7 @@
                                     <div class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($request->approved_at)->format('M d, Y h:i A') }}</div>
                                 @endif
                             </td>
-                            @if(in_array($user->role, ['admin', 'hr', 'manager']))
+                            @if($isReviewer)
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                                 @if($displayStatus === 'pending')
                                 <div class="flex space-x-2 justify-center">
@@ -490,7 +490,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ in_array($user->role, ['admin', 'hr', 'manager']) ? 11 : 10 }}" class="px-6 py-4 text-center">
+                            <td colspan="{{ $isReviewer ? 11 : 10 }}" class="px-6 py-4 text-center">
                                 <div class="flex flex-col items-center justify-center py-8">
                                     <i class="fas fa-clock text-gray-400 text-4xl mb-4"></i>
                                     <p class="text-gray-500 text-lg font-medium mb-2">No overtime requests found</p>
@@ -620,7 +620,7 @@
                                 <div class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($request->approved_at)->format('M d, Y h:i A') }}</div>
                             @endif
                         </div>
-                        @if(in_array($user->role, ['admin', 'hr', 'manager']) && $displayStatus === 'pending')
+                        @if($isReviewer && $displayStatus === 'pending')
                         <div class="flex justify-end space-x-2">
                             <button onclick="approveOvertime('{{ $request->id }}')" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors" title="Approve">
                                 <i class="fas fa-check"></i>
@@ -629,7 +629,7 @@
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
-                        @elseif(in_array($user->role, ['admin', 'hr', 'manager']) && $displayStatus === 'approved')
+                        @elseif($isReviewer && $displayStatus === 'approved')
                         <div class="flex justify-end">
                             <button onclick="cancelOvertime('{{ $request->id }}')" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel approved overtime">
                                 <i class="fas fa-ban"></i>
@@ -716,7 +716,7 @@
     </div>
 </div>
 
-@if(in_array($user->role, ['admin', 'hr', 'manager']))
+@if($isReviewer)
 <!-- Overtime Approve Modal -->
 <div id="overtimeApproveModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999;" onclick="closeApproveModal()">
     <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" style="max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
@@ -817,7 +817,7 @@
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const overtimeDates = @json($user->role === 'employee' ? $employeeOvertimeDates : new \stdClass());
+    const overtimeDates = @json(!$isReviewer ? $employeeOvertimeDates : new \stdClass());
 
     flatpickr("#overtimeDate", {
         dateFormat: "Y-m-d",

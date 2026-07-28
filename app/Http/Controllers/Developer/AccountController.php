@@ -33,7 +33,7 @@ class AccountController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'employee_id' => 'nullable|exists:employees,id',
+            'employee_id' => ['nullable', 'exists:employees,id', Rule::unique('accounts', 'employee_id')],
             'email' => 'required|email|unique:accounts,email',
             'role' => 'required|in:admin,hr,manager,employee',
             'password' => 'required|min:8',
@@ -53,7 +53,11 @@ class AccountController extends Controller
     public function update(Request $request, Account $account)
     {
         $request->validate([
-            'employee_id' => 'nullable|exists:employees,id',
+            'employee_id' => [
+                'nullable',
+                'exists:employees,id',
+                Rule::unique('accounts', 'employee_id')->ignore($account->id),
+            ],
             'email' => ['required', 'email', Rule::unique('accounts')->ignore($account->id)],
             'role' => 'required|in:admin,hr,manager,employee',
             'password' => 'nullable|min:8',

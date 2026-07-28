@@ -152,8 +152,13 @@ class OfficialBusinessController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        $isReviewer = $this->isReviewer();
         $employeeId = $this->currentEmployeeId();
+        $personalRequested = $request->query('scope') === 'mine';
+        if ($personalRequested && !$employeeId) {
+            return redirect()->route('dashboard')->with('error', 'No employee record is linked to this account.');
+        }
+        $personalMode = $personalRequested;
+        $isReviewer = $this->isReviewer() && !$personalMode;
 
         if (!$isReviewer && $employeeId) {
             $this->expirePendingRequestsForEmployee($employeeId);
@@ -234,6 +239,7 @@ class OfficialBusinessController extends Controller
             'activeRoute' => 'attendance.official-business',
             'pageTitle' => 'Official Business',
             'isReviewer' => $isReviewer,
+            'personalMode' => $personalMode,
             'reviewerRole' => $reviewerRole,
             'currentEmployeeId' => $employeeId,
             'cutoffDays' => config('attendance_cutoff.cutoff_days', [10, 25]),

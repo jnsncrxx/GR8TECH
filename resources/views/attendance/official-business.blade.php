@@ -1,6 +1,6 @@
 @extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'attendance.official-business'])
 
-@section('title', 'Official Business')
+@section('title', ($personalMode ?? false) ? 'My Official Business' : 'Official Business')
 
 @section('content')
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">

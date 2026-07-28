@@ -530,7 +530,6 @@ Route::middleware(['auth', 'verified'])->prefix('employee')->name('employee.')->
     Route::get('/payslip/download/{payrollId}', [EmployeeDashboardController::class, 'downloadPayslip'])->name('payslip.download');
     Route::get('/payroll-history', [EmployeeDashboardController::class, 'payrollHistory'])->name('payroll.history');
     Route::get('/my-schedule', [App\Http\Controllers\Web\AttendanceController::class, 'mySchedule'])
-        ->middleware('role:employee')
         ->name('schedule');
     // Dashboard data
     Route::get('/dashboard/data', [EmployeeDashboardController::class, 'getDashboardData'])->name('dashboard.data');

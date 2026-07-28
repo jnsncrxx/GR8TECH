@@ -38,6 +38,12 @@ class LeaveController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
+        $personalRequested = $request->query('scope') === 'mine';
+        if ($personalRequested && !$user->employee_id) {
+            return redirect()->route('dashboard')->with('error', 'No employee record is linked to this account.');
+        }
+        $personalMode = $personalRequested;
+        $isReviewer = in_array($user->role, ['admin', 'hr', 'manager'], true) && !$personalMode;
 
         $query = $this->applyFilters(LeaveRequest::with(['employee', 'approver']), $request, $user);
         $leaveRequests = $query->orderBy('created_at', 'desc')->paginate(10)->withQueryString();
@@ -71,6 +77,8 @@ class LeaveController extends Controller
             'departments' => $departments,
             'statusList' => ['pending', 'approved', 'rejected', 'cancelled'],
             'hasEmployeesWithoutBalances' => $hasEmployeesWithoutBalances,
+            'isReviewer' => $isReviewer,
+            'personalMode' => $personalMode,
         ]);
     }
 
@@ -113,15 +121,16 @@ class LeaveController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
-    public function create()
+    public function create(Request $request)
     {
         $user = Auth::user();
+        $personalMode = $request->query('scope') === 'mine' && (bool) $user->employee_id;
         $employee = $user->employee;
         $employees = [];
         $leaveBalance = null;
         $availableDays = [];
 
-        if (in_array($user->role, ['admin', 'hr'], true)) {
+        if (in_array($user->role, ['admin', 'hr'], true) && !$personalMode) {
             $employees = Employee::with('department')->get();
         }
 
@@ -143,6 +152,7 @@ class LeaveController extends Controller
             'employees' => $employees,
             'leaveBalance' => $leaveBalance,
             'availableDays' => $availableDays,
+            'personalMode' => $personalMode,
         ]);
     }
 
@@ -217,6 +227,7 @@ class LeaveController extends Controller
     {
         $user = Auth::user();
         $role = $user->role;
+        $personalMode = $request->input('scope') === 'mine' && (bool) $user->employee_id;
 
         $rules = [
             'leave_type'       => ['required', 'in:' . implode(',', $this->leaveTypes)],
@@ -228,11 +239,11 @@ class LeaveController extends Controller
         ];
 
         // Employees cannot file backdated leave requests.
-        if (!in_array($role, ['admin', 'hr'], true)) {
+        if (!in_array($role, ['admin', 'hr'], true) || $personalMode) {
             $rules['start_date'][] = 'after_or_equal:today';
         }
 
-        if (!in_array($role, ['admin', 'hr'], true)) {
+        if (!in_array($role, ['admin', 'hr'], true) || $personalMode) {
             $employee = $user->employee;
             if (!$employee) {
                 return back()->with('error', 'Employee record not found.');
@@ -962,13 +973,15 @@ class LeaveController extends Controller
 
     private function applyFilters($query, Request $request, $user)
     {
-        if ($user->role === 'employee' && $user->employee) {
+        $personalMode = $request->query('scope') === 'mine' && $user->employee;
+
+        if (($user->role === 'employee' || $personalMode) && $user->employee) {
             $query->where('employee_id', $user->employee->id);
         } elseif ($request->filled('employee_id')) {
             $query->where('employee_id', $request->employee_id);
         }
 
-        if ($user->role === 'manager') {
+        if ($user->role === 'manager' && !$personalMode) {
             $query->whereHas('employee.department', fn ($dept) => $dept->where('manager_id', $user->employee_id));
         }
 

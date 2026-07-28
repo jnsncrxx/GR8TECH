@@ -2,18 +2,19 @@
 
 @php use Illuminate\Support\Str; @endphp
 
-@section('title', 'Leave Management')
+@section('title', ($personalMode ?? false) ? 'My Leave' : 'Leave Management')
 
 @section('content')
 <div class="space-y-6">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Leave Management</h1>
-            <p class="mt-1 text-sm text-gray-600">Manage employee leave requests and balances</p>
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">{{ ($personalMode ?? false) ? 'My Leave' : 'Leave Management' }}</h1>
+            <p class="mt-1 text-sm text-gray-600">{{ ($personalMode ?? false) ? 'Review and submit your leave requests' : 'Manage employee leave requests and balances' }}</p>
         </div>
         <div class="mt-4 sm:mt-0 flex space-x-3">
             <!-- Export Dropdown -->
+            @if($isReviewer)
             <div class="relative" x-data="{ open: false }">
                 <button @click="open = !open" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
                     <i class="fas fa-download mr-2"></i>
@@ -34,13 +35,14 @@
                     </div>
                 </div>
             </div>
-            @if(in_array($user->role, ['admin', 'hr', 'manager']) && ($hasEmployeesWithoutBalances ?? true))
+            @endif
+            @if($isReviewer && ($hasEmployeesWithoutBalances ?? true))
             <button onclick="openSetLeaveBalanceModal()" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium" title="Set Leave Balance">
                 <i class="fas fa-calendar-plus mr-2"></i><span class="hidden sm:inline">Set Leave Balance</span><span class="sm:hidden">Set Balance</span>
             </button>
             @endif
-            @if($user->role === 'employee')
-            <a href="{{ route('attendance.leave-management.create') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+            @if(!$isReviewer)
+            <a href="{{ route('attendance.leave-management.create', ['scope' => 'mine']) }}" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
                 <i class="fas fa-plus mr-2"></i>
                 New Leave Request
             </a>
@@ -124,7 +126,7 @@
     <!-- Filters -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            @if($user->role !== 'employee')
+            @if($isReviewer)
             <div>
                 <label for="department" class="block text-sm font-medium text-gray-700 mb-2">Department</label>
                 <select id="department" name="department_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
@@ -345,18 +347,18 @@
 
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                             <div class="flex justify-center items-center space-x-2">
-                                    @if(in_array($user->role, ['admin', 'hr', 'manager']) && $leaveRequest->status == 'pending')
+                                    @if($isReviewer && $leaveRequest->status == 'pending')
                                         <button data-leave-id="{{ $leaveRequest->id }}" data-action="approve" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors" title="Approve">
                                             <i class="fas fa-check"></i>
                                         </button>
                                         <button data-leave-id="{{ $leaveRequest->id }}" data-action="reject" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors" title="Reject">
                                             <i class="fas fa-times"></i>
                                         </button>
-                                    @elseif(in_array($user->role, ['admin', 'hr', 'manager']) && $leaveRequest->status == 'approved')
+                                    @elseif($isReviewer && $leaveRequest->status == 'approved')
                                         <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel approved leave">
                                             <i class="fas fa-ban"></i>
                                         </button>
-                                    @elseif($leaveRequest->status == 'pending' && ($user->role == 'employee' && $leaveRequest->employee_id == $user->employee?->id))
+                                    @elseif($leaveRequest->status == 'pending' && (!$isReviewer && $leaveRequest->employee_id == $user->employee?->id))
                                         <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel">
                                             <i class="fas fa-ban"></i>
                                         </button>
@@ -484,18 +486,18 @@
                             <div class="font-medium">{{ Str::limit($leaveRequest->reason, 50) }}</div>
                     </div>
                     <div class="flex justify-center space-x-2">
-                            @if(in_array($user->role, ['admin', 'hr', 'manager']) && $leaveRequest->status == 'pending')
+                            @if($isReviewer && $leaveRequest->status == 'pending')
                                 <button data-leave-id="{{ $leaveRequest->id }}" data-action="approve" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors" title="Approve">
                                     <i class="fas fa-check"></i>
                                 </button>
                                 <button data-leave-id="{{ $leaveRequest->id }}" data-action="reject" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors" title="Reject">
                                     <i class="fas fa-times"></i>
                                 </button>
-                            @elseif(in_array($user->role, ['admin', 'hr', 'manager']) && $leaveRequest->status == 'approved')
+                            @elseif($isReviewer && $leaveRequest->status == 'approved')
                                 <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel approved leave">
                                     <i class="fas fa-ban"></i>
                                 </button>
-                            @elseif($leaveRequest->status == 'pending' && ($user->role == 'employee' && $leaveRequest->employee_id == $user->employee?->id))
+                            @elseif($leaveRequest->status == 'pending' && (!$isReviewer && $leaveRequest->employee_id == $user->employee?->id))
                                 <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel">
                                     <i class="fas fa-ban"></i>
                                 </button>
@@ -527,7 +529,7 @@
         $selectedEmployee = null;
 
         // For employees, always show their own balance
-        if ($user->role === 'employee' && $user->employee) {
+        if (!$isReviewer && $user->employee) {
             $showLeaveBalances = true;
             $selectedEmployee = $user->employee;
             // Always refresh balance from database to ensure we have latest data
@@ -564,7 +566,7 @@
             }
         }
         // For HR/Admin, only show when a specific employee is selected (not "All Employees")
-        elseif (in_array($user->role, ['admin', 'hr', 'manager']) && $selectedEmployeeId && $selectedEmployeeId !== '') {
+        elseif ($isReviewer && $selectedEmployeeId && $selectedEmployeeId !== '') {
             // Find employee from the filtered employees collection (respects company filtering)
             // Use firstWhere with string comparison to handle UUID properly
             $selectedEmployee = $employees->first(function($emp) use ($selectedEmployeeId) {
@@ -615,7 +617,7 @@
         <div class="flex items-center justify-between mb-4">
             <h3 class="text-lg font-medium text-gray-900">
                 Leave Balances
-                @if($user->role !== 'employee' && $selectedEmployee)
+                @if($isReviewer && $selectedEmployee)
                     - {{ $selectedEmployee->full_name }}
                 @endif
             </h3>

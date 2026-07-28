@@ -13,7 +13,12 @@ class OvertimeController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        $isReviewer = in_array($user->role, ['admin', 'hr', 'manager'], true);
+        $personalRequested = $request->query('scope') === 'mine';
+        if ($personalRequested && !$user->employee_id) {
+            return redirect()->route('dashboard')->with('error', 'No employee record is linked to this account.');
+        }
+        $personalMode = $personalRequested;
+        $isReviewer = in_array($user->role, ['admin', 'hr', 'manager'], true) && !$personalMode;
 
         // Keep displayed and filtered statuses authoritative between scheduled
         // expiry sweeps, matching the Official Business reviewer portal.
@@ -22,7 +27,11 @@ class OvertimeController extends Controller
             'updated_at' => now(),
         ]);
 
-        $applyFilters = function ($query) use ($request, $user, $isReviewer) {
+        $applyFilters = function ($query) use ($request, $user, $isReviewer, $personalMode) {
+            if ($personalMode) {
+                return $query->where('employee_id', $user->employee_id);
+            }
+
             if (!$isReviewer) {
                 $user->employee_id
                     ? $query->where('employee_id', $user->employee_id)
@@ -93,7 +102,7 @@ class OvertimeController extends Controller
         $employees = $employeesQuery->get();
 
         $employeeOvertimeDates = collect();
-        if ($user->role === 'employee' && $user->employee_id) {
+        if (!$isReviewer && $user->employee_id) {
             $employeeOvertimeDates = clone $summaryQuery;
             $employeeOvertimeDates = $employeeOvertimeDates->whereIn('status', ['pending', 'approved'])
                 ->get(['date', 'status'])
@@ -114,6 +123,7 @@ class OvertimeController extends Controller
             "employees" => $employees,
             "employeeOvertimeDates" => $employeeOvertimeDates,
             "isReviewer" => $isReviewer,
+            "personalMode" => $personalMode,
             "currentEmployeeId" => $user->employee_id,
         ]);
     }
