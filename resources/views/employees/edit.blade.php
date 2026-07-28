@@ -1,6 +1,6 @@
 @extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'employees.index'])
 
-@section('title', 'Add Employee')
+@section('title', 'Edit Employee')
 
 @section('content')
 <style>

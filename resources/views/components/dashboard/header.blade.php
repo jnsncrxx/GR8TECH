@@ -8,6 +8,33 @@
         $todayAttendance = $user->employee->getTodayAttendance();
         $isCurrentlyTimedIn = $todayAttendance && $todayAttendance->time_in && !$todayAttendance->time_out;
     }
+
+    $isDashboard = str_ends_with($title, 'Dashboard');
+    $moduleDescription = match ($title) {
+        'Official Business' => 'Review and manage employee OB requests.',
+        'Overtime Management' => 'Review and manage employee overtime requests.',
+        'Leave Management' => 'Review and manage employee leave requests.',
+        'Employees' => 'Manage employee records and account information.',
+        'Departments', 'Archived Departments' => 'Organize departments and employee assignments.',
+        'Positions' => 'Manage company positions, levels, and salary ranges.',
+        'Companies' => 'Manage company profiles and active organizations.',
+        'Payroll Payments' => 'Process and monitor employee payroll payments.',
+        'Payroll Runs' => 'Generate, review, finalize, and lock payroll runs.',
+        'Payroll Period Management' => 'Manage payroll cutoff periods and workflow status.',
+        'Payroll Templates' => 'Configure reusable payroll calculation templates.',
+        'Payroll Summary Report', 'Monthly Payroll Report' => 'Review summarized payroll results and trends.',
+        'Attendance Records Report', 'Attendance Reports', 'Daily Attendance Report' => 'Review and export employee attendance data.',
+        'Daily Attendance', 'My Attendance', 'Timekeeping' => 'Monitor employee attendance and time records.',
+        'Schedule Management', 'Schedule Management V2', 'Schedule Templates' => 'Manage employee schedules and work patterns.',
+        'Import DTR', 'Review DTR Import' => 'Import and validate employee time records.',
+        'Tax Brackets Management' => 'Manage tax brackets and deduction rates.',
+        'Reports', 'Report Results' => 'Generate and review HR and payroll reports.',
+        'HR Contact Management', 'Messages from Employees' => 'Review and respond to employee concerns.',
+        'Help & Support' => 'Find guidance and support for system features.',
+        'Attendance Settings' => 'Configure attendance rules and company policies.',
+        'Login Logs' => 'Review account access and authentication activity.',
+        default => 'View and manage '.str($title)->lower().'.',
+    };
 @endphp
 
 <header class="brand-top-header bg-white backdrop-blur-sm shadow-sm border-b border-gray-200 sticky top-0 z-40 dark:bg-slate-900 dark:border-slate-700">
@@ -17,16 +44,22 @@
                 <i class="fas fa-bars text-lg sm:text-xl"></i>
             </button>
             <div class="ml-2 sm:ml-4 lg:ml-0 min-w-0 flex-1">
-                <h1 class="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">{{ $title }}</h1>
-                <div class="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-4">
-                    <p class="text-xs sm:text-sm text-gray-500 truncate">Welcome back, {{ $user->full_name }}</p>
-                    <div class="flex items-center text-xs text-gray-400">
-                        <i class="fas fa-clock mr-1"></i>
-                        <span id="current-time-desktop" class="hidden sm:inline">{{ \App\Helpers\TimezoneHelper::now()->format('M d, Y g:i A') }}</span>
-                        <span id="current-time-mobile" class="sm:hidden">{{ \App\Helpers\TimezoneHelper::now()->format('g:i A') }}</span>
-                        <span class="ml-1 text-blue-600">PHT</span>
+                <h1 id="page-header-title" class="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">{{ $title }}</h1>
+                @if($isDashboard)
+                    <div class="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-4">
+                        <p class="text-xs sm:text-sm text-gray-500 truncate">Welcome back, {{ $user->full_name }}</p>
+                        <div class="flex items-center text-xs text-gray-400">
+                            <i class="fas fa-clock mr-1"></i>
+                            <span id="current-time-desktop" class="hidden sm:inline">{{ \App\Helpers\TimezoneHelper::now()->format('M d, Y g:i A') }}</span>
+                            <span id="current-time-mobile" class="sm:hidden">{{ \App\Helpers\TimezoneHelper::now()->format('g:i A') }}</span>
+                            <span class="ml-1 text-blue-600">PHT</span>
+                        </div>
                     </div>
-                </div>
+                @else
+                    <p id="page-header-description" class="text-xs sm:text-sm text-gray-500 truncate">
+                        {{ $moduleDescription }}
+                    </p>
+                @endif
             </div>
         </div>
         <div class="flex items-center space-x-1 sm:space-x-2 lg:space-x-3 flex-shrink-0">

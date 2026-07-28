@@ -1,6 +1,6 @@
 @extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'employees.education-training-rating'])
 
-@section('title', 'Education/Training/Rating')
+@section('title', 'Education / Training / Rating')
 
 @section('content')
 <div class="max-w-5xl mx-auto space-y-6">

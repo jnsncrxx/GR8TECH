@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\CompanyHelper;
 use App\Models\Department;
 use App\Models\PayrollTemplate;
 use App\Models\Position;
@@ -15,7 +16,7 @@ class PositionController extends Controller
 {
     public function index(Request $request): View
     {
-        $companyId = Auth::user()?->company_id;
+        $companyId = CompanyHelper::getCurrentCompanyId();
         $status = $request->input('status', 'active');
 
         $baseQuery = Position::query();
@@ -63,10 +64,18 @@ class PositionController extends Controller
 
     public function create(Request $request): View
     {
+        $companyId = CompanyHelper::getCurrentCompanyId();
+
         return view('positions.form', [
             'user' => Auth::user(),
-            'payrollTemplates' => PayrollTemplate::orderBy('name')->get(),
-            'departments' => Department::orderBy('name')->get(),
+            'payrollTemplates' => PayrollTemplate::query()
+                ->when($companyId, fn ($query) => $query->where('company_id', $companyId))
+                ->orderBy('name')
+                ->get(),
+            'departments' => Department::query()
+                ->when($companyId, fn ($query) => $query->where('company_id', $companyId))
+                ->orderBy('name')
+                ->get(),
         ]);
     }
 
@@ -83,6 +92,7 @@ class PositionController extends Controller
 
     public function show(Position $position): View
     {
+        $this->ensurePositionBelongsToCurrentCompany($position);
         $position->load(['department', 'company', 'payrollTemplate', 'employees']);
 
         return view('positions.show', [
@@ -93,16 +103,26 @@ class PositionController extends Controller
 
     public function edit(Position $position): View
     {
+        $this->ensurePositionBelongsToCurrentCompany($position);
+        $companyId = CompanyHelper::getCurrentCompanyId();
+
         return view('positions.form', [
             'position' => $position,
             'user' => Auth::user(),
-            'payrollTemplates' => PayrollTemplate::orderBy('name')->get(),
-            'departments' => Department::orderBy('name')->get(),
+            'payrollTemplates' => PayrollTemplate::query()
+                ->when($companyId, fn ($query) => $query->where('company_id', $companyId))
+                ->orderBy('name')
+                ->get(),
+            'departments' => Department::query()
+                ->when($companyId, fn ($query) => $query->where('company_id', $companyId))
+                ->orderBy('name')
+                ->get(),
         ]);
     }
 
     public function update(Request $request, Position $position): RedirectResponse
     {
+        $this->ensurePositionBelongsToCurrentCompany($position);
         $validated = $this->validatePosition($request, $position);
 
         $position->update($this->payload($request, $validated));
@@ -120,6 +140,8 @@ class PositionController extends Controller
      */
     public function destroy(Position $position): RedirectResponse
     {
+        $this->ensurePositionBelongsToCurrentCompany($position);
+
         if (! $position->is_active) {
             return redirect()
                 ->route('positions.index', ['status' => 'archived'])
@@ -144,6 +166,8 @@ class PositionController extends Controller
      */
     public function restore(Position $position): RedirectResponse
     {
+        $this->ensurePositionBelongsToCurrentCompany($position);
+
         if ($position->is_active) {
             return redirect()
                 ->route('positions.index')
@@ -161,18 +185,30 @@ class PositionController extends Controller
 
     private function validatePosition(Request $request, ?Position $position = null): array
     {
+        $companyId = CompanyHelper::getCurrentCompanyId();
+
         return $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'code' => [
                 'required',
                 'string',
                 'max:10',
-                Rule::unique('positions', 'code')->ignore($position?->id),
+                Rule::unique('positions', 'code')
+                    ->when($companyId, fn ($rule) => $rule->where('company_id', $companyId))
+                    ->ignore($position?->id),
             ],
             'description' => ['nullable', 'string'],
             'level' => ['required', Rule::in(['Entry', 'Mid', 'Senior', 'Lead'])],
-            'department_id' => ['required', 'exists:departments,id'],
-            'payroll_template_id' => ['nullable', 'exists:payroll_templates,id'],
+            'department_id' => [
+                'required',
+                Rule::exists('departments', 'id')
+                    ->when($companyId, fn ($rule) => $rule->where('company_id', $companyId)),
+            ],
+            'payroll_template_id' => [
+                'nullable',
+                Rule::exists('payroll_templates', 'id')
+                    ->when($companyId, fn ($rule) => $rule->where('company_id', $companyId)),
+            ],
             'min_salary' => ['required', 'numeric', 'min:0'],
             'max_salary' => ['required', 'numeric', 'gte:min_salary'],
             'requirements' => ['nullable', 'array'],
@@ -191,7 +227,7 @@ class PositionController extends Controller
             'description' => $validated['description'] ?? null,
             'level' => $validated['level'],
             'department_id' => $validated['department_id'],
-            'company_id' => Auth::user()?->company_id,
+            'company_id' => CompanyHelper::getCurrentCompanyId(),
             'payroll_template_id' => $validated['payroll_template_id'] ?? null,
             'min_salary' => $validated['min_salary'],
             'max_salary' => $validated['max_salary'],
@@ -210,5 +246,12 @@ class PositionController extends Controller
             ),
             static fn ($item) => $item !== null && $item !== ''
         ));
+    }
+
+    private function ensurePositionBelongsToCurrentCompany(Position $position): void
+    {
+        $companyId = CompanyHelper::getCurrentCompanyId();
+
+        abort_if($companyId && $position->company_id !== $companyId, 404);
     }
 }

@@ -1,6 +1,6 @@
 @extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'employees.bio-zk'])
 
-@section('title', 'Bio ZK')
+@section('title', 'Bio-ZK')
 
 @section('content')
 <div class="max-w-4xl mx-auto space-y-6">

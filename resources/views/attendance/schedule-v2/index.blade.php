@@ -25,23 +25,6 @@
             }
         }
     </style>
-    <!-- Header -->
-    <div class="bg-white shadow-sm border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="py-8">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h1 class="text-3xl font-bold text-gray-900 flex items-center">
-                            <i class="fas fa-calendar-alt mr-3 text-blue-600"></i>
-                            Employee Schedule Management
-                        </h1>
-                        <p class="mt-2 text-sm text-gray-600">Manage employee work schedules and time allocations efficiently</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Filters -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div class="bg-white rounded-lg shadow-sm border border-gray-200">

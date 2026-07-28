@@ -7,7 +7,7 @@
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Attendance Records</h1>
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Daily Attendance</h1>
             <p class="mt-1 text-sm text-gray-600">View daily attendance records</p>
         </div>
         <div class="mt-4 sm:mt-0">

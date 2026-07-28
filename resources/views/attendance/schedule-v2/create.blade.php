@@ -10,7 +10,7 @@
             <div class="py-6">
                 <div class="flex items-center justify-between">
                     <div>
-                        <h1 class="text-2xl font-bold text-gray-900">Create Employee Schedule</h1>
+                        <h1 class="text-2xl font-bold text-gray-900">Create Schedule</h1>
                         @if($employee)
                         <p class="mt-1 text-sm text-gray-600">Add a new work schedule for {{ $employee->full_name }}</p>
                         @else

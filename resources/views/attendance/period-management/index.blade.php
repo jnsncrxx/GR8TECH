@@ -180,6 +180,17 @@
                                         'locked' => 'bg-slate-200 text-slate-800',
                                         default => 'bg-gray-100 text-gray-700',
                                     };
+                                    $statusIcon = match($period->status) {
+                                        'draft' => 'fa-file-pen',
+                                        'open' => 'fa-folder-open',
+                                        'for_validation' => 'fa-magnifying-glass',
+                                        'ready' => 'fa-circle-check',
+                                        'processing' => 'fa-gears',
+                                        'for_review' => 'fa-clipboard-check',
+                                        'finalized' => 'fa-flag-checkered',
+                                        'locked' => 'fa-lock',
+                                        default => 'fa-circle-info',
+                                    };
                                     $nextStatus = in_array($period->status, ['draft', 'open'], true) ? $period->nextStatus() : null;
                                 @endphp
                                 <tr class="period-row hover:bg-gray-50"
@@ -206,16 +217,16 @@
                                         <div class="text-xs text-gray-500">{{ str($period->processing_type ?? 'regular')->replace('_', ' ')->title() }}</div>
                                     </td>
                                     <td class="px-5 py-4">
-                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium {{ $statusClasses }}">
-                                            @if($period->status === 'locked')<i class="fas fa-lock mr-1"></i>@endif
+                                        <span class="ui-status-badge inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium {{ $statusClasses }}">
+                                            <i class="fas {{ $statusIcon }}" aria-hidden="true"></i>
                                             {{ $period->status_label }}
                                         </span>
                                     </td>
                                     <td class="px-5 py-4 text-right whitespace-nowrap">
                                         <div class="inline-flex items-center gap-2">
                                             <a href="{{ route('attendance.period-management.show', $period->id) }}"
-                                               class="px-3 py-2 rounded-lg bg-green-50 text-green-700 text-sm font-medium hover:bg-green-100">
-                                                <i class="fas fa-eye mr-1"></i>View
+                                               class="ui-labeled-action px-3 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700">
+                                                <i class="fas fa-eye" aria-hidden="true"></i><span>View</span>
                                             </a>
 
                                             @if($user->role !== 'employee' && $nextStatus)
