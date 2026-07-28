@@ -53,7 +53,7 @@
                     <label for="date" class="block text-sm font-medium text-gray-700 mb-2">
                         Date <span class="text-red-500">*</span>
                     </label>
-                    <input type="date" name="date" id="date" value="{{ old('date', $attendanceRecord->date->format('Y-m-d')) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('date') border-red-500 @enderror" style="background-color: white !important; color: #111827 !important;">
+                    <input type="date" name="date" id="date" value="{{ old('date', $attendanceRecord->date->format('Y-m-d')) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('date') border-red-500 @enderror">
                     @error('date')
                         <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                     @enderror

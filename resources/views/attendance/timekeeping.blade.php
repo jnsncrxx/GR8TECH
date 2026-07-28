@@ -83,7 +83,7 @@
             @if(in_array($user->role, ['admin', 'hr', 'manager']))
             <div>
                 <label for="employee_id" class="block text-sm font-medium text-gray-700 mb-2">Employee</label>
-                <select name="employee_id" id="employee_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
+                <select name="employee_id" id="employee_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900">
                     <option value="" style="color: #111827 !important;">All Employees</option>
                     @foreach($employees as $employee)
                         <option value="{{ $employee->id }}" {{ request('employee_id') == $employee->id ? 'selected' : '' }} style="color: #111827 !important;">
@@ -94,7 +94,7 @@
             </div>
             <div>
                 <label for="department_id" class="block text-sm font-medium text-gray-700 mb-2">Department</label>
-                <select name="department_id" id="department_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
+                <select name="department_id" id="department_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900">
                     <option value="" style="color: #111827 !important;">All Departments</option>
                     @foreach($departments as $department)
                         <option value="{{ $department->id }}" {{ request('department_id') == $department->id ? 'selected' : '' }} style="color: #111827 !important;">
@@ -123,7 +123,7 @@
                     <i class="fas fa-calendar-alt mr-1 text-gray-500"></i>From Date
                 </label>
                 <div class="relative">
-                    <input type="text" name="date_from" id="date_from" value="{{ request('date_from') }}" placeholder="Select date" class="w-full px-3 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 cursor-pointer" style="background-color: white !important; color: #111827 !important;">
+                    <input type="text" name="date_from" id="date_from" value="{{ request('date_from') }}" placeholder="Select date" class="w-full px-3 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 cursor-pointer">
                     <i class="fas fa-calendar absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 cursor-pointer hover:text-gray-600 transition-colors" style="pointer-events: auto;"></i>
                 </div>
             </div>
@@ -132,7 +132,7 @@
                     <i class="fas fa-calendar-alt mr-1 text-gray-500"></i>To Date
                 </label>
                 <div class="relative">
-                    <input type="text" name="date_to" id="date_to" value="{{ request('date_to') }}" placeholder="Select date" class="w-full px-3 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 cursor-pointer" style="background-color: white !important; color: #111827 !important;">
+                    <input type="text" name="date_to" id="date_to" value="{{ request('date_to') }}" placeholder="Select date" class="w-full px-3 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 cursor-pointer">
                     <i class="fas fa-calendar absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 cursor-pointer hover:text-gray-600 transition-colors" style="pointer-events: auto;"></i>
                 </div>
             </div>
@@ -155,8 +155,8 @@
         $reviewExceptions = ($exceptionCounts['possible_wrong_schedule'] ?? 0)
             + ($exceptionCounts['rest_day_attendance'] ?? 0);
     @endphp
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <a href="{{ request()->fullUrlWithQuery(['exception' => 'blocking', 'page' => null]) }}" class="rounded-lg bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 p-4 transition-transform hover:-translate-y-0.5">
+    <div class="timekeeping-status-grid mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <a href="{{ request()->fullUrlWithQuery(['exception' => 'blocking', 'page' => null]) }}" class="timekeeping-status-card timekeeping-status-card--blocking rounded-lg border border-red-200 bg-gradient-to-r from-red-50 to-red-100 p-4 transition-transform hover:-translate-y-0.5">
             <div class="flex items-center">
                 <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-red-500 dark:bg-red-600">
                     <i class="fas fa-triangle-exclamation text-sm text-white"></i>
@@ -168,7 +168,7 @@
             </div>
             <p class="mt-2 text-xs text-red-700 dark:text-red-300">Incomplete, invalid, or missing schedule</p>
         </a>
-        <a href="{{ request()->fullUrlWithQuery(['exception' => 'manager_review', 'page' => null]) }}" class="rounded-lg bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 p-4 transition-transform hover:-translate-y-0.5">
+        <a href="{{ request()->fullUrlWithQuery(['exception' => 'manager_review', 'page' => null]) }}" class="timekeeping-status-card timekeeping-status-card--review rounded-lg border border-yellow-200 bg-gradient-to-r from-yellow-50 to-yellow-100 p-4 transition-transform hover:-translate-y-0.5">
             <div class="flex items-center">
                 <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-yellow-500 dark:bg-yellow-600">
                     <i class="fas fa-user-clock text-sm text-white"></i>
@@ -180,7 +180,7 @@
             </div>
             <p class="mt-2 text-xs text-yellow-700 dark:text-yellow-300">Possible wrong shift or rest-day duty</p>
         </a>
-        <a href="{{ request()->fullUrlWithQuery(['exception' => 'clear', 'page' => null]) }}" class="rounded-lg bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 p-4 transition-transform hover:-translate-y-0.5">
+        <a href="{{ request()->fullUrlWithQuery(['exception' => 'clear', 'page' => null]) }}" class="timekeeping-status-card timekeeping-status-card--clear rounded-lg border border-green-200 bg-gradient-to-r from-green-50 to-green-100 p-4 transition-transform hover:-translate-y-0.5">
             <div class="flex items-center">
                 <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-green-500 dark:bg-green-600">
                     <i class="fas fa-circle-check text-sm text-white"></i>
@@ -257,7 +257,7 @@
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">
                                     @if($record->getRelation('assignedSchedule') && $record->getRelation('assignedSchedule')->time_in && $record->getRelation('assignedSchedule')->time_out)
-                                        {{ \Carbon\Carbon::parse($record->getRelation('assignedSchedule')->time_in)->format('g:i A') }}–{{ \Carbon\Carbon::parse($record->getRelation('assignedSchedule')->time_out)->format('g:i A') }}
+                                        {{ \Carbon\Carbon::parse($record->getRelation('assignedSchedule')->time_in)->format('g:i A') }}â€“{{ \Carbon\Carbon::parse($record->getRelation('assignedSchedule')->time_out)->format('g:i A') }}
                                     @else
                                         <span class="text-gray-400">-</span>
                                     @endif
@@ -273,7 +273,7 @@
                                     @elseif($record->status === \App\Models\AttendanceRecord::ABSENT && !$record->time_in && !$record->time_out)
                                         <span class="font-medium text-red-700">Absent</span>
                                     @elseif($record->time_in)
-                                        {{ \Carbon\Carbon::parse($record->time_in)->format('g:i A') }}–{{ $record->time_out ? \Carbon\Carbon::parse($record->time_out)->format('g:i A') : 'Incomplete' }}
+                                        {{ \Carbon\Carbon::parse($record->time_in)->format('g:i A') }}â€“{{ $record->time_out ? \Carbon\Carbon::parse($record->time_out)->format('g:i A') : 'Incomplete' }}
                                     @else
                                         <span class="text-gray-400">-</span>
                                     @endif

@@ -30,7 +30,7 @@
                     <label for="employee_id" class="block text-sm font-medium text-gray-700 mb-2">
                         Employee <span class="text-red-500">*</span>
                     </label>
-                    <select name="employee_id" id="employee_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('employee_id') border-red-500 @enderror" style="background-color: white !important; color: #111827 !important;">
+                    <select name="employee_id" id="employee_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('employee_id') border-red-500 @enderror">
                         <option value="" style="color: #111827 !important;">Select an employee</option>
                         @foreach($employees as $employee)
                             <option value="{{ $employee->id }}" {{ old('employee_id', request('employee_id')) == $employee->id ? 'selected' : '' }} style="color: #111827 !important;">
@@ -52,7 +52,7 @@
                     <label for="date" class="block text-sm font-medium text-gray-700 mb-2">
                         Date <span class="text-red-500">*</span>
                     </label>
-                    <input type="date" name="date" id="date" value="{{ old('date', request('date', now()->format('Y-m-d'))) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('date') border-red-500 @enderror" style="background-color: white !important; color: #111827 !important;">
+                    <input type="date" name="date" id="date" value="{{ old('date', request('date', now()->format('Y-m-d'))) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('date') border-red-500 @enderror">
                     @error('date')
                         <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                     @enderror
@@ -63,7 +63,7 @@
                     <label for="status" class="block text-sm font-medium text-gray-700 mb-2">
                         Status <span class="text-red-500">*</span>
                     </label>
-                    <select name="status" id="status" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('status') border-red-500 @enderror" style="background-color: white !important; color: #111827 !important;">
+                    <select name="status" id="status" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('status') border-red-500 @enderror">
                         <option value="" style="color: #111827 !important;">Select status</option>
                         <option value="present" {{ old('status') == 'present' ? 'selected' : '' }} style="color: #111827 !important;">Present</option>
                         <option value="absent" {{ old('status') == 'absent' ? 'selected' : '' }} style="color: #111827 !important;">Absent</option>
@@ -104,7 +104,7 @@
                         <label for="time_in" id="time_in_label" class="block text-sm font-medium text-gray-700 mb-2">
                             <span id="time_in_label_text">Time In</span> <span id="time_in_required_indicator" class="text-red-500">*</span>
                         </label>
-                        <input type="time" name="time_in" id="time_in" value="{{ old('time_in') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('time_in') border-red-500 @enderror" style="background-color: white !important; color: #111827 !important;">
+                        <input type="time" name="time_in" id="time_in" value="{{ old('time_in') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('time_in') border-red-500 @enderror">
                         @error('time_in')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
@@ -115,7 +115,7 @@
                         <label for="time_out" id="time_out_label" class="block text-sm font-medium text-gray-700 mb-2">
                             <span id="time_out_label_text">Time Out</span> <span id="time_out_required_indicator" class="text-red-500 hidden">*</span>
                         </label>
-                        <input type="time" name="time_out" id="time_out" value="{{ old('time_out') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('time_out') border-red-500 @enderror" style="background-color: white !important; color: #111827 !important;">
+                        <input type="time" name="time_out" id="time_out" value="{{ old('time_out') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('time_out') border-red-500 @enderror">
                         @error('time_out')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
@@ -129,7 +129,7 @@
                         <label for="break_start" class="block text-sm font-medium text-gray-700 mb-2">
                             Break Start
                         </label>
-                        <input type="time" name="break_start" id="break_start" value="{{ old('break_start', '12:00') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('break_start') border-red-500 @enderror" style="background-color: white !important; color: #111827 !important;">
+                        <input type="time" name="break_start" id="break_start" value="{{ old('break_start', '12:00') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('break_start') border-red-500 @enderror">
                         @error('break_start')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
@@ -140,7 +140,7 @@
                         <label for="break_end" class="block text-sm font-medium text-gray-700 mb-2">
                             Break End
                         </label>
-                        <input type="time" name="break_end" id="break_end" value="{{ old('break_end', '13:00') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('break_end') border-red-500 @enderror" style="background-color: white !important; color: #111827 !important;">
+                        <input type="time" name="break_end" id="break_end" value="{{ old('break_end', '13:00') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('break_end') border-red-500 @enderror">
                         @error('break_end')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
@@ -151,7 +151,7 @@
                 <div id="ob-notice" class="sm:col-span-2 hidden">
                     <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
                         <i class="fas fa-briefcase mr-1"></i>
-                        <span id="ob-notice-text">Full-day Official Business doesn't use clock times — the employee's scheduled shift hours will be credited automatically.</span>
+                        <span id="ob-notice-text">Full-day Official Business doesn't use clock times â€” the employee's scheduled shift hours will be credited automatically.</span>
                     </div>
                 </div>
 
@@ -160,7 +160,7 @@
                     <label for="notes" class="block text-sm font-medium text-gray-700 mb-2">
                         Notes <span id="notes_required_indicator" class="text-red-500 hidden">*</span>
                     </label>
-                    <textarea name="notes" id="notes" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('notes') border-red-500 @enderror" placeholder="Optional notes about this attendance record..." style="background-color: white !important; color: #111827 !important;">{{ old('notes') }}</textarea>
+                    <textarea name="notes" id="notes" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 @error('notes') border-red-500 @enderror" placeholder="Optional notes about this attendance record...">{{ old('notes') }}</textarea>
                     @error('notes')
                         <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                     @enderror
@@ -195,7 +195,7 @@
                         <li>Break duration is automatically calculated if you provide both Time In and Time Out</li>
                         <li>Total hours will be calculated as: (Time Out - Time In) - Break Duration</li>
                         <li>You cannot add duplicate records for the same employee on the same date</li>
-                        <li>Official Business doesn't use breaks — choose Full day (scheduled shift hours are credited automatically) or Partial day (set the OB start/end time)</li>
+                        <li>Official Business doesn't use breaks â€” choose Full day (scheduled shift hours are credited automatically) or Partial day (set the OB start/end time)</li>
                     </ul>
                 </div>
             </div>

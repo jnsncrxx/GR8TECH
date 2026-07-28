@@ -704,7 +704,12 @@
                     <!-- Settings -->
                     <a href="{{ route('hr.settings') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                         <i class="fas fa-cog w-4 h-4 mr-3 text-gray-400"></i>
-                        {{ in_array($user->role, ['admin', 'hr'], true) ? 'HR Settings' : 'Account Settings' }}
+                        {{ match ($user->role) {
+                            'admin' => 'Admin Settings',
+                            'hr' => 'HR Settings',
+                            'employee' => 'Employee Settings',
+                            default => 'Account Settings',
+                        } }}
                     </a>
                     
                     <!-- Profile -->
