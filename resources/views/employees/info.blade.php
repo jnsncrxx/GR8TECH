@@ -87,10 +87,9 @@
         </div>
     @endif
 
-    @if($selectedEmployee)
     <form method="POST" action="{{ route('employees.info.save') }}">
         @csrf
-        <input type="hidden" name="employee_id" value="{{ $selectedEmployee->id }}">
+        <input type="hidden" name="employee_id" value="{{ $selectedEmployee?->id }}">
         
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
             
@@ -107,7 +106,7 @@
                         <div class="grid grid-cols-2 gap-4 mb-3">
                             <div>
                                 <label class="form-label">Employee No.</label>
-                                <input type="text" value="{{ $selectedEmployee->employee_id }}" class="form-control bg-gray-100" readonly>
+                                <input type="text" value="{{ $selectedEmployee?->employee_id }}" class="form-control bg-gray-100" readonly>
                             </div>
                             <div>
                                 <label class="form-label">ID Card No.</label>
@@ -123,15 +122,15 @@
                     <div class="space-y-2 mb-3">
                         <div class="flex gap-2 items-center">
                             <label class="w-24 text-xs text-gray-600">Last Name</label>
-                            <input type="text" name="last_name" value="{{ $selectedEmployee->last_name }}" class="flex-1 text-sm border border-gray-300 rounded px-2 py-1 bg-gray-100" readonly>
+                            <input type="text" name="last_name" value="{{ $selectedEmployee?->last_name }}" class="flex-1 text-sm border border-gray-300 rounded px-2 py-1 bg-gray-100" readonly>
                         </div>
                         <div class="flex gap-2 items-center">
                             <label class="w-24 text-xs text-gray-600">First Name</label>
-                            <input type="text" name="first_name" value="{{ $selectedEmployee->first_name }}" class="flex-1 text-sm border border-gray-300 rounded px-2 py-1 bg-gray-100" readonly>
+                            <input type="text" name="first_name" value="{{ $selectedEmployee?->first_name }}" class="flex-1 text-sm border border-gray-300 rounded px-2 py-1 bg-gray-100" readonly>
                         </div>
                         <div class="flex gap-2 items-center">
                             <label class="w-24 text-xs text-gray-600">Middle Name</label>
-                            <input type="text" name="middle_name" value="{{ $selectedEmployee->middle_name }}" class="flex-1 text-sm border border-gray-300 rounded px-2 py-1 bg-gray-100" readonly>
+                            <input type="text" name="middle_name" value="{{ $selectedEmployee?->middle_name }}" class="flex-1 text-sm border border-gray-300 rounded px-2 py-1 bg-gray-100" readonly>
                         </div>
                     </div>
                     
@@ -139,23 +138,23 @@
                         <div class="flex gap-2 items-center">
                             <label class="w-16 text-xs text-gray-600">Sex</label>
                             <select class="flex-1 text-sm border border-gray-300 rounded px-2 py-1 bg-gray-100" disabled>
-                                <option>{{ $selectedEmployee->sex }}</option>
+                                <option>{{ $selectedEmployee?->sex }}</option>
                             </select>
                         </div>
                         <div class="flex gap-2 items-center">
                             <label class="w-20 text-xs text-gray-600">Civil Status</label>
                             <select class="flex-1 text-sm border border-gray-300 rounded px-2 py-1 bg-gray-100" disabled>
-                                <option>{{ $selectedEmployee->civil_status }}</option>
+                                <option>{{ $selectedEmployee?->civil_status }}</option>
                             </select>
                         </div>
                     </div>
                     
                     <div class="flex gap-2 items-center mb-3">
                         <label class="w-24 text-xs text-gray-600">Birthday</label>
-                        <input type="text" value="{{ $selectedEmployee->date_of_birth ? $selectedEmployee->date_of_birth->format('m/d/Y') : '' }}" class="flex-1 text-sm border border-gray-300 rounded px-2 py-1 bg-gray-100" readonly>
+                        <input type="text" value="{{ $selectedEmployee?->date_of_birth ? $selectedEmployee->date_of_birth->format('m/d/Y') : '' }}" class="flex-1 text-sm border border-gray-300 rounded px-2 py-1 bg-gray-100" readonly>
                         
                         <label class="ml-2 text-xs text-gray-600">Age</label>
-                        <input type="text" value="{{ $selectedEmployee->date_of_birth ? $selectedEmployee->date_of_birth->age : '' }}" class="w-12 text-center text-sm border border-gray-300 rounded px-2 py-1 bg-gray-100" readonly>
+                        <input type="text" value="{{ $selectedEmployee?->date_of_birth ? $selectedEmployee->date_of_birth->age : '' }}" class="w-12 text-center text-sm border border-gray-300 rounded px-2 py-1 bg-gray-100" readonly>
                     </div>
 
                     <div class="mt-4 p-3 bg-gray-50 border border-gray-200 rounded text-center">
@@ -225,7 +224,7 @@
                     <div class="flex gap-2 items-center mb-2">
                         <label class="w-28 text-xs text-gray-600">Employee Status</label>
                         <select name="employee_status" class="flex-1 text-sm border border-gray-300 rounded px-2 py-1 focus:border-blue-500" :disabled="!allowChanges" :class="{'bg-gray-100': !allowChanges}">
-                            <option value="{{ $selectedEmployee->employee_status }}">{{ $selectedEmployee->employee_status }}</option>
+                            <option value="{{ $selectedEmployee?->employee_status }}">{{ $selectedEmployee?->employee_status }}</option>
                             <option value="PROBATIONARY">PROBATIONARY</option>
                             <option value="REGULAR">REGULAR</option>
                             <option value="CONTRACTUAL">CONTRACTUAL</option>
@@ -236,7 +235,7 @@
                     <div class="grid grid-cols-2 gap-2 mb-2">
                         <div class="flex gap-2 items-center">
                             <label class="w-24 text-xs text-gray-600">Date Employed</label>
-                            <input type="text" value="{{ $selectedEmployee->hire_date ? \Carbon\Carbon::parse($selectedEmployee->hire_date)->format('m/d/Y') : '' }}" class="w-24 text-sm border border-gray-300 rounded px-2 py-1 bg-gray-100" readonly>
+                            <input type="text" value="{{ $selectedEmployee?->hire_date ? \Carbon\Carbon::parse($selectedEmployee->hire_date)->format('m/d/Y') : '' }}" class="w-24 text-sm border border-gray-300 rounded px-2 py-1 bg-gray-100" readonly>
                         </div>
                         <div class="flex gap-2 items-center">
                             <label class="w-20 text-xs text-gray-600">Resigned</label>
@@ -254,7 +253,7 @@
                         <div class="flex flex-col gap-2">
                             <div class="flex gap-2 items-center">
                                 <label class="w-20 text-xs text-gray-600">Contract End</label>
-                                <input type="text" value="{{ $selectedEmployee->contract_end_date ? \Carbon\Carbon::parse($selectedEmployee->contract_end_date)->format('m/d/Y') : '' }}" class="flex-1 text-sm border border-gray-300 rounded px-2 py-1 bg-gray-100" readonly>
+                                <input type="text" value="{{ $selectedEmployee?->contract_end_date ? \Carbon\Carbon::parse($selectedEmployee->contract_end_date)->format('m/d/Y') : '' }}" class="flex-1 text-sm border border-gray-300 rounded px-2 py-1 bg-gray-100" readonly>
                             </div>
                             <div class="flex gap-2 items-center">
                                 <label class="w-20 text-xs text-gray-600">Resign Process</label>
@@ -344,11 +343,11 @@
                         <div class="space-y-2">
                             <div class="flex gap-2 items-center">
                                 <label class="w-24 text-xs text-gray-600">Position</label>
-                                <input type="text" value="{{ $selectedEmployee->position->name ?? '' }}" class="flex-1 text-sm border border-gray-300 rounded px-2 py-1 bg-gray-100" readonly>
+                                <input type="text" value="{{ $selectedEmployee?->position?->name }}" class="flex-1 text-sm border border-gray-300 rounded px-2 py-1 bg-gray-100" readonly>
                             </div>
                             <div class="flex gap-2 items-center">
                                 <label class="w-24 text-xs text-gray-600">Department</label>
-                                <input type="text" value="{{ $selectedEmployee->department->name ?? '' }}" class="flex-1 text-sm border border-gray-300 rounded px-2 py-1 bg-gray-100" readonly>
+                                <input type="text" value="{{ $selectedEmployee?->department?->name }}" class="flex-1 text-sm border border-gray-300 rounded px-2 py-1 bg-gray-100" readonly>
                             </div>
                             <div class="flex gap-2 items-center">
                                 <label class="w-24 text-xs text-gray-600">Branch</label>
@@ -594,6 +593,7 @@
         </div>
 
         <!-- Allow Changes Footer -->
+        @if($selectedEmployee)
         <div class="mt-6 flex justify-center">
             <label class="inline-flex items-center gap-2 px-6 py-2 bg-blue-100 text-blue-800 rounded-lg cursor-pointer hover:bg-blue-200 transition-colors border border-blue-300 shadow-sm">
                 <span class="font-semibold text-sm">Allow Changes</span>
@@ -604,6 +604,7 @@
                 Save Changes
             </button>
         </div>
+        @endif
 
         <!-- Update Basic Pay Modal -->
         <div x-show="showBasicPayModal" style="display: none;" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
@@ -680,12 +681,5 @@
             </div>
         </div>
     </form>
-    @else
-        <!-- No employee selected placeholder -->
-        <div class="bg-white rounded-lg shadow border border-gray-200 p-12 text-center text-gray-500 h-96 flex flex-col justify-center items-center">
-            <i class="fas fa-user-circle text-6xl mb-4 text-gray-300"></i>
-            <p class="text-lg">Please search and select an employee above to view their information.</p>
-        </div>
-    @endif
 </div>
 @endsection

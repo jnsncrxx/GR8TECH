@@ -670,20 +670,20 @@
                         <label for="payment_method" class="form-label">Payment Method</label>
                         <select name="payment_method" id="payment_method" class="form-control">
                             <option value="">— Select —</option>
-                            <option value="Cash" {{ old('payment_method', $employee->payment_method) == 'Cash'  ? 'selected' : '' }}>Cash</option>
-                            <option value="Bank" {{ old('payment_method', $employee->payment_method) == 'Bank'  ? 'selected' : '' }}>Bank</option>
-                            <option value="Cheque" {{ old('payment_method', $employee->payment_method) == 'Cheque'  ? 'selected' : '' }}>Cheque</option>
+                            <option value="Cash" {{ old('payment_method', $employee->info?->payment_method) == 'Cash'  ? 'selected' : '' }}>Cash</option>
+                            <option value="Bank" {{ old('payment_method', $employee->info?->payment_method) == 'Bank'  ? 'selected' : '' }}>Bank</option>
+                            <option value="Cheque" {{ old('payment_method', $employee->info?->payment_method) == 'Cheque'  ? 'selected' : '' }}>Cheque</option>
                         </select>
                     </div>
                     {{-- Bank Name --}}
                     <div>
-                        <label for="bank_name" class="form-label">Bank Name</label>
-                        <input type="text" name="bank_name" id="bank_name" value="{{ old('bank_name', $employee->bank_name) }}" class="form-control">
+                        <label for="bank" class="form-label">Bank Name <span id="bank_required" style="color:#ef4444;display:none;">*</span></label>
+                        <input type="text" name="bank" id="bank" value="{{ old('bank', $employee->info?->bank) }}" class="form-control">
                     </div>
                     {{-- Account No --}}
                     <div>
-                        <label for="account_no" class="form-label">Account No</label>
-                        <input type="text" name="account_no" id="account_no" value="{{ old('account_no', $employee->account_no) }}" class="form-control">
+                        <label for="account_no" class="form-label">Account No <span id="account_no_required" style="color:#ef4444;display:none;">*</span></label>
+                        <input type="text" name="account_no" id="account_no" value="{{ old('account_no', $employee->info?->account_no) }}" class="form-control">
                     </div>
                     {{-- Tax Code --}}
                     <div>
@@ -974,6 +974,26 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+
+    /* ── Payment Method → Account No. / Bank required only when "Bank" ── */
+    const paymentMethodSelect = document.getElementById('payment_method');
+    const accountNoInput      = document.getElementById('account_no');
+    const bankInput           = document.getElementById('bank');
+    const accountNoRequired   = document.getElementById('account_no_required');
+    const bankRequired        = document.getElementById('bank_required');
+
+    if (paymentMethodSelect && accountNoInput && bankInput) {
+        function togglePaymentRequiredFields() {
+            const isBank = paymentMethodSelect.value === 'Bank';
+            accountNoInput.required = isBank;
+            bankInput.required = isBank;
+            if (accountNoRequired) accountNoRequired.style.display = isBank ? 'inline' : 'none';
+            if (bankRequired) bankRequired.style.display = isBank ? 'inline' : 'none';
+        }
+
+        paymentMethodSelect.addEventListener('change', togglePaymentRequiredFields);
+        togglePaymentRequiredFields(); // in case old() has a value
+    }
 
     /* ── Profile Photo Preview ── */
     const photoInput       = document.getElementById('profile_photo');
