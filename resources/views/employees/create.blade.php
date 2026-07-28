@@ -41,6 +41,7 @@
 .sec-details  .section-icon { background:#fef9c3; color:#ca8a04; }
 .sec-emergency .section-icon { background:#fff1f2; color:#e11d48; }
 .sec-loans    .section-icon { background:#f5f3ff; color:#7c3aed; }
+.sec-payment  .section-icon { background:#ecfdf5; color:#059669; }
 .sec-account  .section-icon { background:#e0f2fe; color:#0284c7; }
 
 /* form controls */
@@ -643,7 +644,55 @@
         </div>
 
         {{-- ═══════════════════════════════════════════════
-             6. ACCOUNT INFORMATION
+             6. PAYMENT INFORMATION
+        ════════════════════════════════════════════════ --}}
+        <div class="emp-card sec-payment">
+            <div class="emp-card-header">
+                <div class="section-icon"><i class="fas fa-money-check-dollar"></i></div>
+                <div>
+                    <h3>Payment Information</h3>
+                    <p>How this employee receives their pay</p>
+                </div>
+            </div>
+            <div class="emp-card-body">
+                <div class="grid-3">
+                    {{-- Payment Method --}}
+                    <div>
+                        <label for="payment_method" class="form-label">Payment Method</label>
+                        <select name="payment_method" id="payment_method" class="form-control @error('payment_method') is-error @enderror">
+                            <option value="">Select...</option>
+                            <option value="Bank" {{ old('payment_method') == 'Bank' ? 'selected' : '' }}>Bank</option>
+                            <option value="Cash" {{ old('payment_method') == 'Cash' ? 'selected' : '' }}>Cash</option>
+                            <option value="Cheque" {{ old('payment_method') == 'Cheque' ? 'selected' : '' }}>Cheque</option>
+                        </select>
+                        @error('payment_method')
+                            <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
+                        @enderror
+                    </div>
+                    {{-- Account No. --}}
+                    <div>
+                        <label for="account_no" class="form-label">Account No. <span id="account_no_required" style="color:#ef4444;display:none;">*</span></label>
+                        <input type="text" name="account_no" id="account_no" value="{{ old('account_no') }}"
+                            class="form-control @error('account_no') is-error @enderror">
+                        @error('account_no')
+                            <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
+                        @enderror
+                    </div>
+                    {{-- Bank --}}
+                    <div>
+                        <label for="bank" class="form-label">Bank <span id="bank_required" style="color:#ef4444;display:none;">*</span></label>
+                        <input type="text" name="bank" id="bank" value="{{ old('bank') }}"
+                            class="form-control @error('bank') is-error @enderror">
+                        @error('bank')
+                            <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
+                        @enderror
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- ═══════════════════════════════════════════════
+             7. ACCOUNT INFORMATION
         ════════════════════════════════════════════════ --}}
         <div class="emp-card sec-account">
             <div class="emp-card-header">
@@ -777,6 +826,24 @@ document.addEventListener('DOMContentLoaded', function () {
 
     dobInput.addEventListener('change', computeAge);
     computeAge(); // in case old() has a value
+
+    /* ── Payment Method → Account No. / Bank required only when "Bank" ── */
+    const paymentMethodSelect = document.getElementById('payment_method');
+    const accountNoInput      = document.getElementById('account_no');
+    const bankInput           = document.getElementById('bank');
+    const accountNoRequired   = document.getElementById('account_no_required');
+    const bankRequired        = document.getElementById('bank_required');
+
+    function togglePaymentRequiredFields() {
+        const isBank = paymentMethodSelect.value === 'Bank';
+        accountNoInput.required = isBank;
+        bankInput.required = isBank;
+        accountNoRequired.style.display = isBank ? 'inline' : 'none';
+        bankRequired.style.display = isBank ? 'inline' : 'none';
+    }
+
+    paymentMethodSelect.addEventListener('change', togglePaymentRequiredFields);
+    togglePaymentRequiredFields(); // in case old() has a value
 
     /* ── Email Mirror → Login Credential ── */
     const emailInput       = document.getElementById('email');
