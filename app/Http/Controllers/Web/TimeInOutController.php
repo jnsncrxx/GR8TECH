@@ -186,6 +186,7 @@ class TimeInOutController extends Controller
                         'date',
                         $today->toDateString()
                     )
+                    ->with(['timeEntries', 'breaks'])
                     ->first();
 
             if (!$attendanceRecord) {
@@ -538,6 +539,9 @@ class TimeInOutController extends Controller
                 'can_break_end' => false,
                 'status' => 'offline',
                 'attendance_record' => null,
+                'active_time_entry' => null,
+                'time_entries' => [],
+                'entry_count' => 0,
             ];
 
             if (!$attendanceRecord) {
@@ -554,8 +558,33 @@ class TimeInOutController extends Controller
 
             $attendanceRecord->refresh();
 
-            $isClockedIn =
-                $attendanceRecord->hasActiveTimeEntry();
+            // Use the same active TimeEntry lookup as the clock-out endpoint.
+            // This keeps the dashboard, status API, and Time In/Out page in sync.
+            $activeTimeEntry =
+                $attendanceRecord->getActiveTimeEntry();
+
+            $attendanceRecord->load(['timeEntries', 'breaks']);
+            $isClockedIn = (bool) $activeTimeEntry;
+
+            $status['time_entries'] = $attendanceRecord->timeEntries
+                ->map(fn ($entry) => [
+                    'id' => $entry->id,
+                    'time_in' => $entry->time_in?->toIso8601String(),
+                    'time_out' => $entry->time_out?->toIso8601String(),
+                    'hours_worked' => (float) ($entry->hours_worked ?? 0),
+                    'entry_type' => $entry->entry_type,
+                ])
+                ->values()
+                ->toArray();
+
+            $status['entry_count'] = count($status['time_entries']);
+            $status['active_time_entry'] = $activeTimeEntry
+                ? [
+                    'id' => $activeTimeEntry->id,
+                    'time_in' => $activeTimeEntry->time_in?->toIso8601String(),
+                    'time_out' => $activeTimeEntry->time_out?->toIso8601String(),
+                ]
+                : null;
 
             $status['has_clocked_in'] =
                 (bool) $attendanceRecord->time_in;

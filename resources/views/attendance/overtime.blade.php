@@ -1,6 +1,6 @@
 @extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'attendance.overtime'])
 
-@section('title', ($personalMode ?? false) ? 'My Overtime' : 'Overtime Management')
+@section('title', 'Overtime Management')
 
 @section('content')
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">

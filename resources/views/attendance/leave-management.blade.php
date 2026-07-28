@@ -14,7 +14,6 @@
         </div>
         <div class="mt-4 sm:mt-0 flex space-x-3">
             <!-- Export Dropdown -->
-            @if($isReviewer)
             <div class="relative" x-data="{ open: false }">
                 <button @click="open = !open" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
                     <i class="fas fa-download mr-2"></i>
@@ -29,13 +28,12 @@
                         <a href="{{ route('attendance.leave-management.export', ['format' => 'csv']) . '?' . http_build_query(request()->query()) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                             <i class="fas fa-file-csv mr-2 text-green-500"></i>Export as CSV
                         </a>
-                        <a href="{{ route('attendance.leave-management.export', ['format' => 'xls']) . '?' . http_build_query(request()->query()) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                        <a href="{{ route('attendance.leave-management.export', ['format' => 'xlsx']) . '?' . http_build_query(request()->query()) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                             <i class="fas fa-file-excel mr-2 text-green-600"></i>Export as Excel
                         </a>
                     </div>
                 </div>
             </div>
-            @endif
             @if($isReviewer && ($hasEmployeesWithoutBalances ?? true))
             <button onclick="openSetLeaveBalanceModal()" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium" title="Set Leave Balance">
                 <i class="fas fa-calendar-plus mr-2"></i><span class="hidden sm:inline">Set Leave Balance</span><span class="sm:hidden">Set Balance</span>

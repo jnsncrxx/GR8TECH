@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Exports\LeaveRequestExport;
 use App\Models\AttendanceRecord;
 use App\Models\Department;
 use App\Models\Employee;
@@ -15,6 +16,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Maatwebsite\Excel\Facades\Excel;
 
 class LeaveController extends Controller
 {
@@ -82,43 +85,50 @@ class LeaveController extends Controller
         ]);
     }
 
-    public function exportLeave($format)
+    public function exportLeave(Request $request, string $format)
     {
-        $allowed = ['pdf', 'csv', 'xls'];
-        if (!in_array($format, $allowed, true)) {
+        $format = strtolower($format);
+
+        if (!in_array($format, ['pdf', 'csv', 'xlsx', 'xls'], true)) {
             return back()->with('error', 'Unsupported export format.');
         }
 
-        $leaveRequests = LeaveRequest::with(['employee'])->orderBy('created_at', 'desc')->get();
-        $fileName = 'leave-requests-' . Carbon::now()->format('YmdHis') . '.csv';
+        $user = Auth::user();
+        if ($request->query('scope') === 'mine' && !$user->employee_id) {
+            return redirect()->route('dashboard')->with('error', 'No employee record is linked to this account.');
+        }
 
-        $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
-        ];
+        $leaveRequests = $this->applyFilters(
+            LeaveRequest::with(['employee.department', 'approver.employee']),
+            $request,
+            $user
+        )->orderByDesc('created_at')->get();
 
-        $callback = function () use ($leaveRequests) {
-            $handle = fopen('php://output', 'w');
-            fputcsv($handle, ['Employee', 'Leave Type', 'Start Date', 'End Date', 'Days Requested', 'Status', 'Reason', 'Approved By', 'Approved At']);
+        $timestamp = now()->format('Ymd_His');
 
-            foreach ($leaveRequests as $request) {
-                fputcsv($handle, [
-                    $request->employee->full_name ?? 'N/A',
-                    ucfirst(str_replace('_', ' ', $request->leave_type)),
-                    $request->start_date,
-                    $request->end_date,
-                    $request->days_requested,
-                    ucfirst($request->status),
-                    $request->reason,
-                    $request->approvedBy?->email ?? '',
-                    $request->approved_at?->format('Y-m-d H:i:s') ?? '',
-                ]);
-            }
+        if ($format === 'pdf') {
+            return Pdf::loadView('attendance.exports.leave-requests-pdf', [
+                'requests' => $leaveRequests,
+                'generatedAt' => now(),
+            ])->setPaper('a4', 'landscape')
+                ->download("leave-requests_{$timestamp}.pdf");
+        }
 
-            fclose($handle);
-        };
+        $export = new LeaveRequestExport($leaveRequests);
 
-        return response()->stream($callback, 200, $headers);
+        if ($format === 'csv') {
+            return Excel::download(
+                $export,
+                "leave-requests_{$timestamp}.csv",
+                \Maatwebsite\Excel\Excel::CSV
+            );
+        }
+
+        return Excel::download(
+            $export,
+            "leave-requests_{$timestamp}.xlsx",
+            \Maatwebsite\Excel\Excel::XLSX
+        );
     }
 
     public function create(Request $request)
