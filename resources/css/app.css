@@ -372,3 +372,536 @@ html.dark .brand-top-header .text-indigo-600 {
         -webkit-overflow-scrolling: touch;
     }
 }
+
+/* --------------------------------------------------------------------------
+   GR8 HRIS 2026 interface system
+   Shared visual language for Admin, HR, Manager, and Employee portals.
+   -------------------------------------------------------------------------- */
+:root {
+    --ui-green-950: #062d1b;
+    --ui-green-900: #0a4328;
+    --ui-green-800: #12613a;
+    --ui-green-700: #1d7a48;
+    --ui-green-600: #2d9344;
+    --ui-green-500: #3eaa5b;
+    --ui-red-600: #d91f2b;
+    --ui-red-500: #ed3540;
+    --ui-ink: #12201a;
+    --ui-muted: #68756f;
+    --ui-canvas: #f2f6f3;
+    --ui-line: #dfe8e2;
+    --ui-shadow: 0 18px 44px rgba(6, 45, 27, 0.08);
+    --ui-shadow-soft: 0 8px 24px rgba(6, 45, 27, 0.06);
+}
+
+body.hris-app,
+body.auth-app {
+    font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+}
+
+.hris-shell {
+    position: relative;
+    background:
+        radial-gradient(circle at 82% 7%, rgba(45, 147, 68, 0.10), transparent 28rem),
+        radial-gradient(circle at 96% 74%, rgba(237, 28, 36, 0.055), transparent 25rem),
+        linear-gradient(145deg, #f8faf8 0%, var(--ui-canvas) 48%, #f8f5f4 100%);
+}
+
+.hris-workspace {
+    min-height: 100vh;
+}
+
+.hris-content {
+    position: relative;
+    isolation: isolate;
+}
+
+.hris-content::before {
+    content: "";
+    position: fixed;
+    z-index: -1;
+    width: 22rem;
+    height: 22rem;
+    right: 4%;
+    top: 7rem;
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(45, 147, 68, 0.08), rgba(237, 28, 36, 0.025));
+    filter: blur(1px);
+    pointer-events: none;
+}
+
+.brand-sidebar {
+    background:
+        radial-gradient(circle at 25% 4%, rgba(255, 255, 255, 0.18), transparent 14rem),
+        linear-gradient(165deg, var(--ui-green-500) 0%, var(--ui-green-800) 45%, var(--ui-green-950) 100%) !important;
+    box-shadow: 20px 0 48px rgba(6, 45, 27, 0.18) !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.14) !important;
+}
+
+.brand-sidebar::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 3px;
+    height: 100%;
+    background: linear-gradient(180deg, transparent 4%, rgba(237, 53, 64, 0.95) 38%, rgba(255, 255, 255, 0.65) 52%, transparent 86%);
+    opacity: 0.85;
+    pointer-events: none;
+}
+
+.brand-sidebar-nav a,
+.brand-sidebar-nav button {
+    border-radius: 0.8rem !important;
+    margin-inline: 0.45rem;
+    transition: transform 180ms ease, background-color 180ms ease, box-shadow 180ms ease !important;
+}
+
+.brand-sidebar-nav a:hover,
+.brand-sidebar-nav button:hover {
+    transform: translateX(3px);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.brand-sidebar-nav .bg-blue-50,
+.brand-sidebar-nav .bg-brand-green-soft,
+.brand-sidebar-nav [aria-current="page"] {
+    background: linear-gradient(110deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.10)) !important;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16), 0 8px 18px rgba(6, 45, 27, 0.16);
+}
+
+.brand-top-header {
+    min-height: 5rem;
+    background: rgba(255, 255, 255, 0.86) !important;
+    backdrop-filter: blur(18px) saturate(140%);
+    border-bottom: 1px solid rgba(18, 97, 58, 0.12) !important;
+    box-shadow: 0 10px 28px rgba(6, 45, 27, 0.065) !important;
+}
+
+.brand-top-header h1 {
+    color: var(--ui-ink) !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.035em;
+}
+
+.brand-top-header button {
+    border-radius: 0.8rem;
+}
+
+/* Global surface system for existing Blade pages */
+.hris-content .bg-white {
+    border-color: rgba(18, 97, 58, 0.11) !important;
+}
+
+.hris-content .rounded-lg.bg-white,
+.hris-content .rounded-xl.bg-white,
+.hris-content .rounded-2xl.bg-white,
+.hris-content .bg-white.rounded-lg,
+.hris-content .bg-white.rounded-xl,
+.hris-content .bg-white.rounded-2xl {
+    border-radius: 1rem !important;
+    box-shadow: var(--ui-shadow-soft);
+}
+
+.hris-content .shadow-sm,
+.hris-content .shadow {
+    box-shadow: var(--ui-shadow-soft) !important;
+}
+
+.hris-content h1,
+.hris-content h2,
+.hris-content h3 {
+    color: var(--ui-ink);
+    letter-spacing: -0.025em;
+}
+
+.hris-content h1 {
+    font-weight: 800 !important;
+}
+
+.hris-content table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.hris-content thead,
+.hris-content thead.bg-gray-50,
+.hris-content tr.bg-gray-50 {
+    background: linear-gradient(180deg, #f8fbf9 0%, #f0f6f2 100%) !important;
+}
+
+.hris-content th {
+    color: #52615a !important;
+    font-size: 0.72rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.055em;
+    text-transform: uppercase;
+}
+
+.hris-content tbody tr {
+    transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.hris-content tbody tr:hover {
+    background-color: rgba(45, 147, 68, 0.035);
+}
+
+.hris-content input:not([type="checkbox"]):not([type="radio"]),
+.hris-content select,
+.hris-content textarea {
+    border-radius: 0.75rem !important;
+    border-color: #d7e2da !important;
+    background-color: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 1px 2px rgba(6, 45, 27, 0.025);
+    transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.hris-content input:not([type="checkbox"]):not([type="radio"]):focus,
+.hris-content select:focus,
+.hris-content textarea:focus {
+    border-color: var(--ui-green-500) !important;
+    box-shadow: 0 0 0 4px rgba(45, 147, 68, 0.12) !important;
+}
+
+.hris-content button[class*="bg-green-"],
+.hris-content a[class*="bg-green-"],
+.hris-content button[class*="bg-blue-6"],
+.hris-content a[class*="bg-blue-6"] {
+    border: 0 !important;
+    border-radius: 0.75rem !important;
+    background: linear-gradient(135deg, var(--ui-green-500), var(--ui-green-800)) !important;
+    box-shadow: 0 8px 18px rgba(18, 97, 58, 0.18);
+}
+
+.hris-content button[class*="bg-green-"]:hover,
+.hris-content a[class*="bg-green-"]:hover,
+.hris-content button[class*="bg-blue-6"]:hover,
+.hris-content a[class*="bg-blue-6"]:hover {
+    background: linear-gradient(135deg, var(--ui-green-600), var(--ui-green-950)) !important;
+    transform: translateY(-1px);
+}
+
+.hris-content button[class*="bg-red-"],
+.hris-content a[class*="bg-red-"] {
+    border-radius: 0.75rem !important;
+    background: linear-gradient(135deg, var(--ui-red-500), #b81624) !important;
+    box-shadow: 0 8px 18px rgba(217, 31, 43, 0.16);
+}
+
+.hris-content .rounded-full {
+    letter-spacing: 0.01em;
+}
+
+.hris-content [class*="bg-green-50"],
+.hris-content [class*="bg-blue-50"] {
+    background: linear-gradient(135deg, rgba(45, 147, 68, 0.09), rgba(255, 255, 255, 0.88)) !important;
+}
+
+.hris-content [class*="bg-red-50"] {
+    background: linear-gradient(135deg, rgba(237, 53, 64, 0.085), rgba(255, 255, 255, 0.9)) !important;
+}
+
+/* Authentication */
+.auth-shell {
+    background:
+        radial-gradient(circle at 85% 12%, rgba(45, 147, 68, 0.16), transparent 28rem),
+        radial-gradient(circle at 94% 82%, rgba(237, 28, 36, 0.10), transparent 26rem),
+        linear-gradient(145deg, #eef7f1 0%, #f8faf9 48%, #fff5f4 100%);
+}
+
+.auth-brand-panel {
+    background:
+        radial-gradient(circle at 18% 15%, rgba(255, 255, 255, 0.18), transparent 18rem),
+        radial-gradient(circle at 84% 82%, rgba(237, 53, 64, 0.28), transparent 20rem),
+        linear-gradient(155deg, var(--ui-green-500) 0%, var(--ui-green-800) 52%, var(--ui-green-950) 100%);
+}
+
+.auth-form-panel {
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.76), rgba(255, 255, 255, 0.95)),
+        radial-gradient(circle at 85% 12%, rgba(45, 147, 68, 0.22), transparent 22rem),
+        radial-gradient(circle at 12% 88%, rgba(237, 28, 36, 0.13), transparent 18rem);
+}
+
+.auth-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 1rem;
+    color: white;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.08));
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25), 0 14px 30px rgba(6, 45, 27, 0.22);
+}
+
+.auth-card {
+    box-shadow: 0 30px 70px rgba(6, 45, 27, 0.15) !important;
+}
+
+.auth-submit {
+    background: linear-gradient(135deg, var(--ui-green-500), var(--ui-green-900));
+    box-shadow: 0 12px 24px rgba(18, 97, 58, 0.24);
+}
+
+.auth-submit:hover {
+    background: linear-gradient(135deg, var(--ui-green-700), var(--ui-green-950));
+    transform: translateY(-1px);
+    box-shadow: 0 16px 30px rgba(18, 97, 58, 0.28);
+}
+
+html.dark .hris-shell {
+    background:
+        radial-gradient(circle at 86% 8%, rgba(45, 147, 68, 0.12), transparent 28rem),
+        linear-gradient(145deg, #0b1510, #101a15 55%, #171316);
+}
+
+html.dark .brand-top-header {
+    background: rgba(10, 20, 15, 0.88) !important;
+}
+
+html.dark .hris-content .bg-white {
+    border-color: rgba(148, 163, 184, 0.15) !important;
+}
+
+@media (max-width: 1023px) {
+    .hris-content::before {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hris-app *,
+    .auth-app * {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+    }
+}
+/* --------------------------------------------------------------------------
+   Tables, typography, and icon language
+   -------------------------------------------------------------------------- */
+.hris-content {
+    font-size: 0.925rem;
+    color: var(--ui-ink);
+}
+
+@media (min-width: 640px) {
+    .hris-content [data-page-intro-actions="true"] {
+        justify-content: flex-end !important;
+    }
+}
+
+.hris-content table {
+    width: 100%;
+    font-variant-numeric: tabular-nums;
+    color: #26352e;
+}
+
+.hris-content table thead {
+    box-shadow: inset 0 -1px 0 rgba(18, 97, 58, 0.12);
+}
+
+.hris-content table th {
+    padding-top: 0.9rem !important;
+    padding-bottom: 0.9rem !important;
+    line-height: 1.35;
+    white-space: nowrap;
+}
+
+.hris-content table td {
+    padding-top: 0.9rem !important;
+    padding-bottom: 0.9rem !important;
+    line-height: 1.5;
+    vertical-align: middle;
+    border-color: rgba(18, 97, 58, 0.09) !important;
+}
+
+.hris-content table tbody tr:nth-child(even) {
+    background-color: rgba(242, 246, 243, 0.44);
+}
+
+.hris-content table tbody tr:hover {
+    background: linear-gradient(90deg, rgba(45, 147, 68, 0.07), rgba(45, 147, 68, 0.025)) !important;
+}
+
+.hris-content table td:first-child,
+.hris-content table th:first-child {
+    padding-left: 1.15rem !important;
+}
+
+.hris-content table td:last-child,
+.hris-content table th:last-child {
+    padding-right: 1.15rem !important;
+}
+
+.hris-content table td .font-medium,
+.hris-content table td .font-semibold,
+.hris-content table td.font-medium,
+.hris-content table td.font-semibold {
+    color: #17251e;
+    font-weight: 700 !important;
+}
+
+.hris-content table td .text-xs {
+    line-height: 1.45;
+}
+
+/* Labeled actions must stay wide enough for their icon and text. */
+.hris-content .ui-labeled-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    width: auto !important;
+    min-width: max-content;
+    min-height: 2.25rem;
+    color: #fff !important;
+    white-space: nowrap;
+}
+
+.hris-content .ui-labeled-action i,
+.hris-content .ui-labeled-action span {
+    color: #fff !important;
+}
+
+/* Standard icon-only table actions. */
+.hris-content table td a:has(> i:only-child):not(.ui-labeled-action),
+.hris-content table td button:has(> i:only-child):not(.ui-labeled-action) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.15rem;
+    height: 2.15rem;
+    padding: 0 !important;
+    border: 1px solid #dce7df;
+    border-radius: 0.65rem !important;
+    background: #fff;
+    box-shadow: 0 3px 10px rgba(6, 45, 27, 0.055);
+    transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.hris-content table td a:has(> i:only-child):not(.ui-labeled-action):hover,
+.hris-content table td button:has(> i:only-child):not(.ui-labeled-action):hover {
+    transform: translateY(-1px);
+    border-color: rgba(45, 147, 68, 0.35);
+    background: #f3faf5;
+    box-shadow: 0 7px 16px rgba(6, 45, 27, 0.10);
+}
+
+.hris-content table td a:has(> i:only-child):not(.ui-labeled-action) i,
+.hris-content table td button:has(> i:only-child):not(.ui-labeled-action) i {
+    margin: 0 !important;
+    font-size: 0.82rem;
+}
+
+/* Shared icon colors in headings, cards, filters, and empty states. */
+.hris-content h1 > i,
+.hris-content h2 > i,
+.hris-content h3 > i {
+    color: var(--ui-green-600);
+}
+
+.hris-content [class*="rounded"] > i[class*="fa-"]:not(.fa-chevron-down):not(.fa-chevron-up) {
+    flex-shrink: 0;
+}
+
+.hris-content .fa-file-pdf {
+    color: var(--ui-red-600) !important;
+}
+
+.hris-content .fa-file-csv,
+.hris-content .fa-file-excel,
+.hris-content .fa-download,
+.hris-content .fa-eye,
+.hris-content .fa-check,
+.hris-content .fa-check-circle {
+    color: var(--ui-green-700);
+}
+
+.hris-content button[class*="bg-green-"] i,
+.hris-content a[class*="bg-green-"] i,
+.hris-content button[class*="bg-red-"] i,
+.hris-content a[class*="bg-red-"] i,
+.hris-content button[class*="bg-blue-6"] i,
+.hris-content a[class*="bg-blue-6"] i {
+    color: currentColor !important;
+}
+
+/* System-wide status language. */
+.hris-content .ui-status-badge,
+.hris-content span.rounded-full[class*="bg-"][class*="text-"] {
+    min-height: 1.75rem;
+    border: 1px solid currentColor;
+    border-color: color-mix(in srgb, currentColor 18%, transparent);
+    box-shadow: 0 2px 7px rgba(6, 45, 27, 0.055);
+    font-weight: 700 !important;
+    line-height: 1.2;
+}
+
+.hris-content .ui-status-badge i {
+    width: 0.85rem;
+    text-align: center;
+    font-size: 0.72rem;
+    color: currentColor !important;
+}
+
+/* Consistent icon cards used throughout dashboards, summaries, and empty states. */
+.hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-"]:has(> i[class*="fa-"]) {
+    border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+    box-shadow: 0 7px 18px rgba(6, 45, 27, 0.08);
+}
+
+.hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-"] > i[class*="fa-"] {
+    color: currentColor;
+}
+
+/* Laravel and custom pagination. */
+.hris-content nav[role="navigation"] a,
+.hris-content nav[role="navigation"] span {
+    border-color: #dce7df !important;
+}
+
+.hris-content nav[role="navigation"] a:hover {
+    color: var(--ui-green-800) !important;
+    background: #f1f8f3 !important;
+}
+
+.hris-content nav[role="navigation"] [aria-current="page"] span {
+    color: #fff !important;
+    background: linear-gradient(135deg, var(--ui-green-500), var(--ui-green-800)) !important;
+    border-color: var(--ui-green-700) !important;
+}
+
+html.dark .hris-content table {
+    color: #d8e2dc;
+}
+
+html.dark .hris-content table tbody tr:nth-child(even) {
+    background-color: rgba(255, 255, 255, 0.018);
+}
+
+html.dark .hris-content table td .font-medium,
+html.dark .hris-content table td .font-semibold,
+html.dark .hris-content table td.font-medium,
+html.dark .hris-content table td.font-semibold {
+    color: #f1f5f2;
+}
+
+html.dark .hris-content table td a:has(> i:only-child):not(.ui-labeled-action),
+html.dark .hris-content table td button:has(> i:only-child):not(.ui-labeled-action) {
+    border-color: rgba(148, 163, 184, 0.22);
+    background: rgba(15, 23, 42, 0.72);
+}
+
+@media (max-width: 767px) {
+    .hris-content table {
+        font-size: 0.8rem;
+    }
+
+    .hris-content table th,
+    .hris-content table td {
+        padding-top: 0.7rem !important;
+        padding-bottom: 0.7rem !important;
+    }
+}

@@ -9,7 +9,7 @@
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+    <link href="https://fonts.bunny.net/css?family=manrope:400,500,600,700,800&display=swap" rel="stylesheet" />
 
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -134,18 +134,18 @@
     }
     </style>
 </head>
-<body class="font-sans antialiased bg-brand-surface text-brand-black">
-    <div class="min-h-screen">
+<body class="hris-app font-sans antialiased bg-brand-surface text-brand-black">
+    <div class="hris-shell min-h-screen">
         <!-- Sidebar -->
         <x-dashboard.sidebar :user="$user" :activeRoute="$activeRoute ?? 'dashboard'" />
 
         <!-- Main Content -->
-        <div class="lg:ml-72">
+        <div class="hris-workspace lg:ml-72">
             <!-- Top Navigation -->
-            <x-dashboard.header title="Dashboard" :user="$user" />
+            <x-dashboard.header :title="trim($__env->yieldContent('title', 'Dashboard'))" :user="$user" />
 
             <!-- Dashboard Content -->
-            <main class="p-3 sm:p-4 lg:p-6 xl:p-8">
+            <main class="hris-content p-3 sm:p-4 lg:p-6 xl:p-8">
                 @yield('content')
             </main>
         </div>
@@ -155,6 +155,45 @@
     </div>
 
     <script>
+    // Keep the sticky header as the single page-level title. Many legacy views
+    // also render the same H1 inside <main>; hide only exact text duplicates so
+    // distinct section headings and dynamic record titles remain visible.
+    function removeDuplicatePageTitle() {
+        const headerTitle = document.getElementById('page-header-title');
+        const main = document.querySelector('main.hris-content');
+
+        if (!headerTitle || !main) return;
+
+        const normalizeTitle = (value) => value.replace(/\s+/g, ' ').trim().toLocaleLowerCase();
+        const expectedTitle = normalizeTitle(headerTitle.textContent || '');
+
+        if (!expectedTitle) return;
+
+        const duplicateTitle = Array.from(main.querySelectorAll('h1'))
+            .find((heading) => normalizeTitle(heading.textContent || '') === expectedTitle);
+
+        if (duplicateTitle) {
+            const introCopy = duplicateTitle.parentElement;
+            const hasInteractiveContent = introCopy?.querySelector('a, button, input, select, textarea, form');
+
+            if (introCopy && !hasInteractiveContent) {
+                introCopy.hidden = true;
+                introCopy.setAttribute('aria-hidden', 'true');
+                introCopy.dataset.duplicatePageIntro = 'true';
+
+                if (introCopy.parentElement?.children.length > 1) {
+                    introCopy.parentElement.dataset.pageIntroActions = 'true';
+                }
+            } else {
+                duplicateTitle.hidden = true;
+                duplicateTitle.setAttribute('aria-hidden', 'true');
+                duplicateTitle.dataset.duplicatePageTitle = 'true';
+            }
+        }
+    }
+
+    removeDuplicatePageTitle();
+
     function toggleSidebar() {
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebar-overlay');

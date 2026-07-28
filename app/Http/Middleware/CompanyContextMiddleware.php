@@ -19,12 +19,17 @@ class CompanyContextMiddleware
     {
         // Only apply to authenticated users
         if (Auth::check()) {
-            // If no company is selected, select the first active company
-            if (!CompanyHelper::hasCompany()) {
-                $firstCompany = \App\Models\Company::where('is_active', true)->first();
+            // Replace a missing, deleted, or inactive session company with a
+            // valid active company so every downstream query has a context.
+            if (!CompanyHelper::getCurrentCompany()?->is_active) {
+                $firstCompany = \App\Models\Company::where('is_active', true)
+                    ->orderBy('name')
+                    ->first();
                 
                 if ($firstCompany) {
                     CompanyHelper::setCurrentCompany($firstCompany);
+                } else {
+                    CompanyHelper::clearCurrentCompany();
                 }
             }
         }

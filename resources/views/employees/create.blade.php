@@ -157,7 +157,7 @@
     {{-- Page Header --}}
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.5rem;gap:1rem;flex-wrap:wrap;">
         <div>
-            <h1 style="font-size:1.375rem;font-weight:700;color:#111827;margin:0;">Add New Employee</h1>
+            <h1 style="font-size:1.375rem;font-weight:700;color:#111827;margin:0;">Add Employee</h1>
             <p style="margin:.25rem 0 0;font-size:.875rem;color:#6b7280;">Fill in the details below to create a new employee record.</p>
         </div>
         <a href="{{ route('employees.index') }}" class="btn-cancel">
