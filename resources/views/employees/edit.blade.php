@@ -7,6 +7,7 @@
 /* grid helpers */
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
 .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.25rem; }
+.grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1.25rem; }
 .col-span-2 { grid-column: span 2; }
 .col-span-3 { grid-column: span 3; }
 
@@ -47,7 +48,7 @@
 .btn-save:hover { opacity: .92; transform: translateY(-1px); }
 
 @media (max-width: 768px) {
-    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
     .col-span-2, .col-span-3 { grid-column: span 1; }
     .emp-card-body { padding: 1rem; }
 }
@@ -115,7 +116,7 @@
                 </div>
 
                 {{-- Employee Number --}}
-                <div style="flex:1;min-width:220px;">
+                <div style="min-width:180px;">
                     <p class="form-label">Employee Number</p>
                     <div class="emp-num-badge">
                         <i class="fas fa-id-badge"></i>
@@ -125,22 +126,9 @@
                     {{-- Hidden field for consistency --}}
                     <input type="hidden" name="employee_number_preview" value="{{ $employee->employee_id }}">
                 </div>
-            </div>
-        </div>
 
-        {{-- ═══════════════════════════════════════════════
-             1. PERSONAL INFORMATION
-        ════════════════════════════════════════════════ --}}
-        <div class="emp-card sec-personal">
-            <div class="emp-card-header">
-                <div class="section-icon"><i class="fas fa-user"></i></div>
-                <div>
-                    <h3>Personal Information</h3>
-                    <p>Basic identification and demographic details</p>
-                </div>
-            </div>
-            <div class="emp-card-body">
-                <div class="grid-3">
+                {{-- Last Name / First Name / Middle Name --}}
+                <div style="flex:1;min-width:340px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.25rem;">
                     {{-- Last Name --}}
                     <div>
                         <label for="last_name" class="form-label">Last Name <span style="color:#ef4444;">*</span></label>
@@ -171,6 +159,83 @@
                             <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
                         @enderror
                     </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- ═══════════════════════════════════════════════
+             IDENTIFICATION & STATUS
+        ════════════════════════════════════════════════ --}}
+        <div class="emp-card sec-id">
+            <div class="emp-card-header">
+                <div class="section-icon"><i class="fas fa-id-card-clip"></i></div>
+                <div>
+                    <h3>Identification & Status</h3>
+                    <p>Internal tracking numbers and status</p>
+                </div>
+            </div>
+            <div class="emp-card-body">
+                <div class="grid-4">
+                    {{-- ID/Card No --}}
+                    <div>
+                        <label for="id_card_no" class="form-label">ID/Card No</label>
+                        <input type="text" name="id_card_no" id="id_card_no" value="{{ old('id_card_no', $employee->info?->id_card_no) }}"
+                            class="form-control @error('id_card_no') is-error @enderror">
+                        @error('id_card_no')
+                            <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
+                        @enderror
+                    </div>
+                    {{-- Control No --}}
+                    <div>
+                        <label for="control_no" class="form-label">Control No.</label>
+                        <input type="text" name="control_no" id="control_no" value="{{ old('control_no', $employee->info?->control_no) }}"
+                            class="form-control @error('control_no') is-error @enderror">
+                        @error('control_no')
+                            <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
+                        @enderror
+                    </div>
+                    {{-- Active Status --}}
+                    <div>
+                        <label for="active_status" class="form-label">Active Status</label>
+                        <select name="active_status" id="active_status" class="form-control @error('active_status') is-error @enderror">
+                            <option value="">— Select —</option>
+                            <option value="Active" {{ old('active_status', $employee->info?->active_status) == 'Active'  ? 'selected' : '' }}>Active</option>
+                            <option value="Inactive" {{ old('active_status', $employee->info?->active_status) == 'Inactive'  ? 'selected' : '' }}>Inactive</option>
+                        </select>
+                        @error('active_status')
+                            <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
+                        @enderror
+                    </div>
+                    {{-- Role --}}
+                    <div>
+                        <label for="role" class="form-label">Role <span style="color:#ef4444;">*</span></label>
+                        <select name="role" id="role" class="form-control @error('role') is-error @enderror">
+                            <option value="employee" {{ old('role', $employee->account?->role) == 'employee' ? 'selected' : '' }}>Employee</option>
+                            <option value="manager"  {{ old('role', $employee->account?->role) == 'manager'  ? 'selected' : '' }}>Manager</option>
+                            <option value="hr"       {{ old('role', $employee->account?->role) == 'hr'       ? 'selected' : '' }}>HR</option>
+                            <option value="admin"    {{ old('role', $employee->account?->role) == 'admin'    ? 'selected' : '' }}>Admin</option>
+                        </select>
+                        @error('role')
+                            <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
+                        @enderror
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- ═══════════════════════════════════════════════
+             1. PERSONAL INFORMATION
+        ════════════════════════════════════════════════ --}}
+        <div class="emp-card sec-personal">
+            <div class="emp-card-header">
+                <div class="section-icon"><i class="fas fa-user"></i></div>
+                <div>
+                    <h3>Personal Information</h3>
+                    <p>Basic identification and demographic details</p>
+                </div>
+            </div>
+            <div class="emp-card-body">
+                <div class="grid-2">
                     {{-- Sex --}}
                     <div>
                         <label for="sex" class="form-label">Sex</label>
@@ -202,7 +267,7 @@
                     {{-- Date of Birth --}}
                     <div>
                         <label for="date_of_birth" class="form-label">Date of Birth</label>
-                        <input type="date" name="date_of_birth" id="date_of_birth" value="{{ old('date_of_birth', $employee->date_of_birth) }}"
+                        <input type="date" name="date_of_birth" id="date_of_birth" value="{{ old('date_of_birth', optional($employee->date_of_birth)->format('Y-m-d')) }}"
                             class="form-control @error('date_of_birth') is-error @enderror">
                         @error('date_of_birth')
                             <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
@@ -213,53 +278,6 @@
                         <label for="age_display" class="form-label">Age</label>
                         <input type="text" id="age_display" class="form-control" readonly placeholder="Auto-computed from DOB">
                         <p class="field-hint"><i class="fas fa-calculator" style="font-size:.65rem;"></i> Calculated automatically</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {{-- ═══════════════════════════════════════════════
-             IDENTIFICATION
-        ════════════════════════════════════════════════ --}}
-        <div class="emp-card sec-id">
-            <div class="emp-card-header">
-                <div class="section-icon"><i class="fas fa-id-card-clip"></i></div>
-                <div>
-                    <h3>Identification & Status</h3>
-                    <p>Internal tracking numbers and status</p>
-                </div>
-            </div>
-            <div class="emp-card-body">
-                <div class="grid-3">
-                    {{-- ID/Card No --}}
-                    <div>
-                        <label for="id_card_no" class="form-label">ID/Card No</label>
-                        <input type="text" name="id_card_no" id="id_card_no" value="{{ old('id_card_no', $employee->id_card_no) }}"
-                            class="form-control @error('id_card_no') is-error @enderror">
-                        @error('id_card_no')
-                            <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
-                        @enderror
-                    </div>
-                    {{-- Control No --}}
-                    <div>
-                        <label for="control_no" class="form-label">Control No.</label>
-                        <input type="text" name="control_no" id="control_no" value="{{ old('control_no', $employee->control_no) }}"
-                            class="form-control @error('control_no') is-error @enderror">
-                        @error('control_no')
-                            <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
-                        @enderror
-                    </div>
-                    {{-- Active Status --}}
-                    <div>
-                        <label for="active_status" class="form-label">Active Status</label>
-                        <select name="active_status" id="active_status" class="form-control @error('active_status') is-error @enderror">
-                            <option value="">— Select —</option>
-                            <option value="Active" {{ old('active_status', $employee->active_status) == 'Active'  ? 'selected' : '' }}>Active</option>
-                            <option value="Inactive" {{ old('active_status', $employee->active_status) == 'Inactive'  ? 'selected' : '' }}>Inactive</option>
-                        </select>
-                        @error('active_status')
-                            <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
-                        @enderror
                     </div>
                 </div>
             </div>
@@ -329,7 +347,7 @@
                     {{-- Date Employed --}}
                     <div>
                         <label for="hire_date" class="form-label">Date Employed <span style="color:#ef4444;">*</span></label>
-                        <input type="date" name="hire_date" id="hire_date" value="{{ old('hire_date', $employee->hire_date) }}" required
+                        <input type="date" name="hire_date" id="hire_date" value="{{ old('hire_date', optional($employee->hire_date)->format('Y-m-d')) }}" required
                             class="form-control @error('hire_date') is-error @enderror">
                         @error('hire_date')
                             <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
@@ -338,7 +356,7 @@
                     {{-- Contract End --}}
                     <div>
                         <label for="contract_end_date" class="form-label">Contract End <span style="color:#9ca3af;font-weight:400;">(Optional)</span></label>
-                        <input type="date" name="contract_end_date" id="contract_end_date" value="{{ old('contract_end_date', $employee->contract_end_date) }}"
+                        <input type="date" name="contract_end_date" id="contract_end_date" value="{{ old('contract_end_date', optional($employee->contract_end_date)->format('Y-m-d')) }}"
                             class="form-control @error('contract_end_date') is-error @enderror">
                         @error('contract_end_date')
                             <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
@@ -544,7 +562,7 @@
                         @enderror
                     </div>
                     {{-- Home Address --}}
-                    <div class="col-span-2">
+                    <div>
                         <label for="emergency_home_address" class="form-label">Home Address</label>
                         <textarea name="emergency_home_address" id="emergency_home_address" rows="2"
                             class="form-control @error('emergency_home_address') is-error @enderror"
@@ -554,7 +572,7 @@
                         @enderror
                     </div>
                     {{-- Current Address --}}
-                    <div class="col-span-2">
+                    <div>
                         <label for="emergency_current_address" class="form-label">Current Address</label>
                         <textarea name="emergency_current_address" id="emergency_current_address" rows="2"
                             class="form-control @error('emergency_current_address') is-error @enderror"
@@ -583,16 +601,6 @@
                             <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
                         @enderror
                     </div>
-                    {{-- Facebook --}}
-                    <div>
-                        <label for="emergency_facebook_link" class="form-label"><i class="fab fa-facebook" style="color:#1877f2;"></i> Facebook Link</label>
-                        <input type="url" name="emergency_facebook_link" id="emergency_facebook_link" value="{{ old('emergency_facebook_link', $employee->emergency_facebook_link) }}"
-                            class="form-control @error('emergency_facebook_link') is-error @enderror"
-                            placeholder="https://facebook.com/...">
-                        @error('emergency_facebook_link')
-                            <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
-                        @enderror
-                    </div>
                 </div>
             </div>
         </div>
@@ -613,7 +621,7 @@
                     {{-- Start Date --}}
                     <div>
                         <label for="loan_start_date" class="form-label">Start Date</label>
-                        <input type="date" name="loan_start_date" id="loan_start_date" value="{{ old('loan_start_date', $employee->loan_start_date) }}"
+                        <input type="date" name="loan_start_date" id="loan_start_date" value="{{ old('loan_start_date', optional($employee->loan_start_date)->format('Y-m-d')) }}"
                             class="form-control @error('loan_start_date') is-error @enderror">
                         @error('loan_start_date')
                             <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
@@ -622,7 +630,7 @@
                     {{-- End Date --}}
                     <div>
                         <label for="loan_end_date" class="form-label">End Date</label>
-                        <input type="date" name="loan_end_date" id="loan_end_date" value="{{ old('loan_end_date', $employee->loan_end_date) }}"
+                        <input type="date" name="loan_end_date" id="loan_end_date" value="{{ old('loan_end_date', optional($employee->loan_end_date)->format('Y-m-d')) }}"
                             class="form-control @error('loan_end_date') is-error @enderror">
                         @error('loan_end_date')
                             <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
@@ -874,99 +882,46 @@
             </div>
         </div>
 
-        {{-- ═══════════════════════════════════════════════
-             6. ACCOUNT INFORMATION
-        ════════════════════════════════════════════════ --}}
-        <div class="emp-card sec-account">
-            <div class="emp-card-header">
-                <div class="section-icon"><i class="fas fa-shield-halved"></i></div>
-                <div>
-                    <h3>Account Information</h3>
-                    <p>System login credentials and role assignment</p>
-                </div>
-            </div>
-            <div class="emp-card-body">
-                <div class="grid-2">
-                    {{-- Role --}}
-                    <div>
-                        <label for="role" class="form-label">Role <span style="color:#ef4444;">*</span></label>
-                        <select name="role" id="role" class="form-control @error('role') is-error @enderror">
-                            <option value="employee" {{ old('role', $employee->account?->role ?? 'employee') == 'employee' ? 'selected' : '' }}>Employee</option>
-                            <option value="manager"  {{ old('role', $employee->role) == 'manager'   ? 'selected' : '' }}>Manager</option>
-                            <option value="hr"       {{ old('role', $employee->role) == 'hr'        ? 'selected' : '' }}>HR</option>
-                            <option value="admin"    {{ old('role', $employee->role) == 'admin'     ? 'selected' : '' }}>Admin</option>
-                        </select>
-                        @error('role')
-                            <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    {{-- Email (read-only, mirrors #email) --}}
-                    <div>
-                        <label for="login_email_display" class="form-label">
-                            Email Address
-                            <span style="background:#dbeafe;color:#1d4ed8;font-size:.68rem;font-weight:600;
-                                         border-radius:4px;padding:.1rem .4rem;margin-left:.35rem;letter-spacing:.02em;">
-                                LOGIN CREDENTIAL
-                            </span>
-                        </label>
-                        <input type="text" id="login_email_display" readonly
-                            class="form-control"
-                            placeholder="Will mirror the Email Address above">
-                        <p class="field-hint"><i class="fas fa-lock" style="font-size:.65rem;"></i> Synced from Additional Details → Email Address</p>
-                    </div>
-
-                    {{-- Password --}}
-                    <div>
-                        <label for="password" class="form-label">Password <span style="color:#9ca3af;font-weight:400;">(Leave blank to keep current)</span></label>
-                        <div class="pw-wrap">
-                            <input type="password" name="password" id="password"
-                                class="form-control @error('password') is-error @enderror"
-                                placeholder="Minimum 8 characters"
-                                style="padding-right:2.5rem;">
-                            <button type="button" class="pw-toggle" id="togglePassword" title="Show/hide password">
-                                <i class="fas fa-eye" id="toggleIcon"></i>
-                            </button>
-                        </div>
-                        <p class="field-hint">Must be at least 8 characters long</p>
-                        @error('password')
-                            <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    {{-- Confirm Password --}}
-                    <div>
-                        <label for="password_confirmation" class="form-label">Confirm Password <span style="color:#9ca3af;font-weight:400;">(Leave blank to keep current)</span></label>
-                        <div class="pw-wrap">
-                            <input type="password" name="password_confirmation" id="password_confirmation"
-                                class="form-control @error('password_confirmation') is-error @enderror"
-                                placeholder="Re-enter your password"
-                                style="padding-right:2.5rem;">
-                            <button type="button" class="pw-toggle" id="toggleConfirmPassword" title="Show/hide password">
-                                <i class="fas fa-eye" id="toggleConfirmIcon"></i>
-                            </button>
-                        </div>
-                        {{-- Live mismatch alert --}}
-                        <p class="field-error" id="passwordMismatchAlert" style="display:none;">
-                            <i class="fas fa-circle-exclamation"></i>
-                            Passwords do not match. Please re-enter the same password.
-                        </p>
-                        @error('password_confirmation')
-                            <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
-                        @enderror
-                    </div>
-                </div>
-            </div>
-        </div>
-
         {{-- Submit Bar --}}
-        <div class="submit-bar">
-            <a href="{{ route('employees.index') }}" class="btn-cancel">
-                <i class="fas fa-times"></i> Cancel
-            </a>
-            <button type="submit" class="btn-save" id="submitBtn">
-                <i class="fas fa-user-plus"></i> Update Employee
-            </button>
+        <div class="submit-bar" style="flex-direction:column;align-items:stretch;gap:1rem;">
+
+            <div>
+                <label class="form-label" for="edit_reason_input">Reason for this edit <span style="color:#dc2626;">*</span></label>
+                <textarea name="edit_reason" id="edit_reason_input" rows="2" class="form-control @error('edit_reason') is-error @enderror"
+                    placeholder="e.g. Corrected date of birth after employee request" style="margin-top:.4rem;resize:vertical;">{{ old('edit_reason') }}</textarea>
+                <p class="field-error" id="reasonInlineError" style="display:none;">
+                    <i class="fas fa-circle-exclamation"></i> Please provide a reason before continuing.
+                </p>
+                @error('edit_reason')
+                    <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
+                @enderror
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:1rem;flex-wrap:wrap;">
+                <div style="font-size:.875rem;line-height:1.5;">
+                    @if($employee->info?->last_edited_at)
+                        <p style="margin:0;color:#6b7280;">
+                            <span style="font-weight:700;">Last Edited:</span>
+                            <span style="font-weight:700;color:#111827;">{{ \Carbon\Carbon::parse($employee->info->last_edited_at)->format('M d, Y h:i A') }}</span>
+                        </p>
+                        @if($employee->info->last_edited_reason)
+                        <p style="margin:0;color:#dc2626;">
+                            <span style="font-weight:700;">Reason:</span>
+                            <span style="font-weight:700;">{{ $employee->info->last_edited_reason }}</span>
+                        </p>
+                        @endif
+                    @endif
+                </div>
+
+                <div style="display:flex;gap:.75rem;">
+                    <a href="{{ route('employees.index') }}" class="btn-cancel">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                    <button type="submit" class="btn-save" id="submitBtn">
+                        <i class="fas fa-user-plus"></i> Update Employee
+                    </button>
+                </div>
+            </div>
         </div>
 
     </form>
@@ -1030,62 +985,26 @@ document.addEventListener('DOMContentLoaded', function () {
     dobInput.addEventListener('change', computeAge);
     computeAge(); // in case old() has a value
 
-    /* ── Email Mirror → Login Credential ── */
-    const emailInput       = document.getElementById('email');
-    const loginEmailMirror = document.getElementById('login_email_display');
-
-    function mirrorEmail() {
-        loginEmailMirror.value = emailInput.value;
-    }
-    emailInput.addEventListener('input', mirrorEmail);
-    mirrorEmail(); // in case old() has a value
-
-    /* ── Password Toggle (main) ── */
-    document.getElementById('togglePassword').addEventListener('click', function () {
-        const pw   = document.getElementById('password');
-        const icon = document.getElementById('toggleIcon');
-        const isHidden = pw.type === 'password';
-        pw.type = isHidden ? 'text' : 'password';
-        icon.classList.toggle('fa-eye',      !isHidden);
-        icon.classList.toggle('fa-eye-slash', isHidden);
-    });
-
-    /* ── Password Toggle (confirm) ── */
-    document.getElementById('toggleConfirmPassword').addEventListener('click', function () {
-        const pw   = document.getElementById('password_confirmation');
-        const icon = document.getElementById('toggleConfirmIcon');
-        const isHidden = pw.type === 'password';
-        pw.type = isHidden ? 'text' : 'password';
-        icon.classList.toggle('fa-eye',      !isHidden);
-        icon.classList.toggle('fa-eye-slash', isHidden);
-    });
-
-    /* ── Confirm Password — live mismatch alert ── */
-    const pwInput      = document.getElementById('password');
-    const pwConfirm    = document.getElementById('password_confirmation');
-    const mismatchAlert = document.getElementById('passwordMismatchAlert');
-
-    function checkPasswordMatch() {
-        if (pwConfirm.value.length === 0) {
-            mismatchAlert.style.display = 'none';
-            pwConfirm.classList.remove('is-error');
+    /* ── Require a reason before the edit can be submitted ── */
+    document.getElementById('addEmpForm').addEventListener('submit', function (e) {
+        const reasonInput = document.getElementById('edit_reason_input');
+        const reasonError = document.getElementById('reasonInlineError');
+        if (!reasonInput.value.trim()) {
+            e.preventDefault();
+            reasonError.style.display = 'flex';
+            reasonInput.classList.add('is-error');
+            reasonInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            reasonInput.focus();
             return;
         }
-        const mismatch = pwInput.value !== pwConfirm.value;
-        mismatchAlert.style.display = mismatch ? 'flex' : 'none';
-        pwConfirm.classList.toggle('is-error', mismatch);
-    }
+        reasonError.style.display = 'none';
+        reasonInput.classList.remove('is-error');
+    });
 
-    pwInput.addEventListener('input', checkPasswordMatch);
-    pwConfirm.addEventListener('input', checkPasswordMatch);
-    pwConfirm.addEventListener('blur',  checkPasswordMatch);
-
-    /* ── Block form submit if passwords don't match ── */
-    document.getElementById('addEmpForm').addEventListener('submit', function (e) {
-        if (pwInput.value !== pwConfirm.value) {
-            e.preventDefault();
-            checkPasswordMatch();
-            pwConfirm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.getElementById('edit_reason_input').addEventListener('input', function () {
+        if (this.value.trim()) {
+            document.getElementById('reasonInlineError').style.display = 'none';
+            this.classList.remove('is-error');
         }
     });
 

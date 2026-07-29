@@ -330,11 +330,16 @@ class EmployeeController extends Controller
             'payment_method' => 'nullable|in:Bank,Cash,Cheque',
             'account_no' => 'nullable|required_if:payment_method,Bank|string|max:100',
             'bank' => 'nullable|required_if:payment_method,Bank|string|max:255',
+            'id_card_no' => 'nullable|string|max:100',
+            'control_no' => 'nullable|string|max:100',
+            'active_status' => 'nullable|in:Active,Inactive',
             'role' => 'required|in:admin,hr,manager,employee',
             'payroll_template_id' => 'nullable|exists:payroll_templates,id',
+            'edit_reason' => 'required|string|max:1000',
         ], [
             'account_no.required_if' => 'The account no. field is required when payment method is Bank.',
             'bank.required_if' => 'The bank field is required when payment method is Bank.',
+            'edit_reason.required' => 'Please provide a reason for this edit.',
         ]);
 
         $currentCompany = CompanyHelper::getCurrentCompany();
@@ -380,23 +385,38 @@ class EmployeeController extends Controller
             'payroll_template_id' => $request->payroll_template_id,
         ]);
 
-        // Payment details live on employee_infos (same table used by the
-        // Employee Info → Banking & IDs screen), keyed by employee_id.
+        // Payment details, ID tracking, and active status live on employee_infos
+        // (same table used by the Employee Info → Banking & IDs screen), keyed
+        // by employee_id.
         $employee->info()->updateOrCreate(
             ['employee_id' => $employee->id],
             [
                 'payment_method' => $request->payment_method,
                 'account_no'     => $request->account_no,
                 'bank'           => $request->bank,
+                'id_card_no'     => $request->id_card_no,
+                'control_no'     => $request->control_no,
+                'active_status'  => $request->active_status,
+                'last_edited_at'     => now(),
+                'last_edited_reason' => $request->edit_reason,
             ]
         );
 
-        // Update account if it exists
+        // Update account if it exists.
+        // NOTE: attributes are set directly (not via update([...])) so this
+        // isn't silently dropped if is_active isn't in the Account model's
+        // $fillable array.
         if ($employee->account) {
-            $employee->account->update([
-                'email' => $request->email,
-                'role' => $request->role ?? $employee->account->role,
-            ]);
+            $employee->account->email = $request->email;
+            $employee->account->role = $request->role ?? $employee->account->role;
+
+            // The Employee List status badge reads account.is_active, so
+            // keep it in sync with the Active Status field on this form.
+            if ($request->filled('active_status')) {
+                $employee->account->is_active = $request->active_status === 'Active';
+            }
+
+            $employee->account->save();
         }
 
         return redirect()->route('employees.index')
