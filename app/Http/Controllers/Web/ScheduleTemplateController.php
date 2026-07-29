@@ -109,7 +109,7 @@ class ScheduleTemplateController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'schedule_type' => ['required', 'in:fixed,flexible'],
             'time_in' => ['required_if:schedule_type,fixed', 'nullable', 'date_format:H:i'],
-            'time_out' => ['required_if:schedule_type,fixed', 'nullable', 'date_format:H:i', 'after:time_in'],
+            'time_out' => ['required_if:schedule_type,fixed', 'nullable', 'date_format:H:i'],
             'required_hours' => ['required', 'numeric', 'min:0', 'max:24'],
         ]);
     }

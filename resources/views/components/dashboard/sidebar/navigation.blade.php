@@ -299,9 +299,9 @@
                 @endphp
                 <div class="relative" x-data="{ scheduleOpen: {{ in_array($activeRoute, $scheduleRoutes) ? 'true' : 'false' }} }">
                     <button @click="scheduleOpen = !scheduleOpen" type="button"
-                            class="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ in_array($activeRoute, $scheduleRoutes) ? 'bg-white text-blue-600' : '' }}">
+                            class="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-md transition-all duration-200 group">
                         <div class="flex items-center">
-                            <i class="fas fa-calendar-plus mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ in_array($activeRoute, $scheduleRoutes) ? 'text-blue-600' : '' }}"></i>
+                            <i class="fas fa-calendar-plus mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
                             <span>Schedule Management</span>
                         </div>
                         <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': scheduleOpen }"></i>
@@ -316,13 +316,13 @@
                          x-transition:leave-end="opacity-0 transform scale-95"
                          class="ml-4 mt-1 space-y-1 bg-white rounded-lg p-2 border border-gray-200">
                         <a href="{{ route('schedule-v2.index') }}"
-                           class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'schedule-v2.index' ? 'text-blue-600' : '' }}">
+                           class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'schedule-v2.index' ? 'bg-white text-blue-600' : '' }}">
                             <i class="fas fa-calendar-alt mr-3 text-xs text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'schedule-v2.index' ? 'text-blue-600' : '' }}"></i>
                             <span>Schedule Calendar</span>
                         </a>
                         @if(in_array($user->role, ['admin', 'hr']))
                         <a href="{{ route('schedule-templates.index') }}"
-                           class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-md transition-all duration-200 group {{ in_array($activeRoute, ['schedule-templates.index', 'schedule-templates.create', 'schedule-templates.edit']) ? 'text-blue-600' : '' }}">
+                           class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ in_array($activeRoute, ['schedule-templates.index', 'schedule-templates.create', 'schedule-templates.edit']) ? 'bg-white text-blue-600' : '' }}">
                             <i class="fas fa-list-check mr-3 text-xs text-gray-400 group-hover:text-blue-600 {{ in_array($activeRoute, ['schedule-templates.index', 'schedule-templates.create', 'schedule-templates.edit']) ? 'text-blue-600' : '' }}"></i>
                             <span>Schedule Templates</span>
                         </a>
