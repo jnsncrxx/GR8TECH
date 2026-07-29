@@ -11,13 +11,17 @@ return new class extends Migration
     // this, so switching fixes it for good.
     public function up(): void
     {
-        DB::statement('ALTER TABLE time_entries MODIFY time_in DATETIME NOT NULL');
-        DB::statement('ALTER TABLE time_entries MODIFY time_out DATETIME NULL');
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('ALTER TABLE time_entries MODIFY time_in DATETIME NOT NULL');
+            DB::statement('ALTER TABLE time_entries MODIFY time_out DATETIME NULL');
+        }
     }
 
     public function down(): void
     {
-        DB::statement('ALTER TABLE time_entries MODIFY time_in TIMESTAMP NOT NULL');
-        DB::statement('ALTER TABLE time_entries MODIFY time_out TIMESTAMP NULL');
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('ALTER TABLE time_entries MODIFY time_in TIMESTAMP NOT NULL');
+            DB::statement('ALTER TABLE time_entries MODIFY time_out TIMESTAMP NULL');
+        }
     }
 };

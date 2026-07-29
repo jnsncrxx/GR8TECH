@@ -363,7 +363,7 @@ class Employee extends Model
     public function getTodayAttendance()
     {
         return $this->attendanceRecords()
-            ->where('date', today())
+            ->whereDate('date', today())
             ->first();
     }
 

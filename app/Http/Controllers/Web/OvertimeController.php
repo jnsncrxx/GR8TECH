@@ -471,4 +471,155 @@ class OvertimeController extends Controller
     }
 
     public function getStatistics(Request $request) { return response()->json([]); }
+    /**
+     * Auto / Quick Submit Overtime Request from Clock-Out or Reminder Prompt.
+     */
+    public function quickSubmit(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user || !$user->employee_id) {
+                return response()->json(['error' => 'No associated employee record found.'], 400);
+            }
+
+            $validated = $request->validate([
+                'date' => 'required|date',
+                'extra_hours' => 'required|numeric|min:0.01',
+                'start_time' => 'required|date_format:H:i',
+                'end_time' => 'required|date_format:H:i',
+                'reason' => 'nullable|string|max:1000',
+                'reminder_id' => 'required|uuid',
+            ]);
+
+            $dateStr = Carbon::parse($validated['date'])->toDateString();
+            $reminder = \App\Models\OvertimeReminder::whereKey($validated['reminder_id'])
+                ->where('employee_id', $user->employee_id)
+                ->whereDate('date', $dateStr)
+                ->where('status', \App\Models\OvertimeReminder::PENDING)
+                ->first();
+
+            if (!$reminder) {
+                return response()->json([
+                    'error' => 'This overtime reminder is no longer available.',
+                ], 422);
+            }
+
+            // Check if OT request already exists for this workday
+            $existingRequest = \App\Models\OvertimeRequest::where('employee_id', $user->employee_id)
+                ->whereDate('date', $dateStr)
+                ->whereIn('status', [\App\Models\OvertimeRequest::PENDING, \App\Models\OvertimeRequest::APPROVED])
+                ->first();
+
+            if ($existingRequest) {
+                $reminder->update(['status' => \App\Models\OvertimeReminder::SUBMITTED]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'An overtime request is already pending or approved for this date.',
+                    'overtime' => $existingRequest,
+                ]);
+            }
+
+            if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($user->employee_id, $dateStr)) {
+                return response()->json([
+                    'error' => 'Overtime cannot be filed for a date covered by a locked payroll period.',
+                ], 422);
+            }
+
+            $conflicts = app(\App\Services\PayrollRequestConflictService::class);
+            if ($conflicts->leaveOnDate($user->employee_id, $dateStr)) {
+                return response()->json(['error' => 'Overtime cannot be filed on a date covered by pending or approved leave.'], 422);
+            }
+            if ($conflicts->officialBusinessOnDate($user->employee_id, $dateStr)) {
+                return response()->json(['error' => 'Overtime cannot be filed on a date with pending or approved Official Business.'], 422);
+            }
+
+            $attendanceRecord = \App\Models\AttendanceRecord::where('employee_id', $user->employee_id)
+                ->whereDate('date', $dateStr)
+                ->first();
+
+            if (!$attendanceRecord) {
+                return response()->json(['error' => 'Overtime can only be requested for a date with an existing attendance record.'], 422);
+            }
+
+            $startTime = Carbon::parse($dateStr.' '.$validated['start_time']);
+            $endTime = Carbon::parse($dateStr.' '.$validated['end_time']);
+
+            if ($endTime->lte($startTime)) {
+                $endTime->addDay();
+            }
+
+            $hours = round($startTime->diffInMinutes($endTime) / 60, 2);
+            $detectedHours = (float) $reminder->extra_hours;
+            if ($hours > $detectedHours + 0.01 || abs($hours - (float) $validated['extra_hours']) > 0.02) {
+                return response()->json([
+                    'error' => 'Requested overtime must match the selected time range and cannot exceed the detected extra hours.',
+                ], 422);
+            }
+
+            $reason = $validated['reason'] ?? 'Auto-detected rendered overtime after clock out';
+
+            $overtime = \Illuminate\Support\Facades\DB::transaction(function () use (
+                $user,
+                $dateStr,
+                $startTime,
+                $endTime,
+                $hours,
+                $reason,
+                $reminder
+            ) {
+                $overtime = \App\Models\OvertimeRequest::create([
+                    'employee_id' => $user->employee_id,
+                    'date' => $dateStr,
+                    'start_time' => $startTime,
+                    'end_time' => $endTime,
+                    'hours' => round($hours, 2),
+                    'rate_multiplier' => (float) \App\Models\AttendanceSetting::getValue('overtime_rate_multiplier', 1.5),
+                    'reason' => $reason,
+                    'status' => \App\Models\OvertimeRequest::PENDING,
+                    'expires_at' => app(\App\Services\CutoffPeriodService::class)->graceDeadlineFor($dateStr),
+                ]);
+
+                $reminder->update(['status' => \App\Models\OvertimeReminder::SUBMITTED]);
+
+                return $overtime;
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Overtime request submitted successfully!',
+                'overtime' => $overtime,
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Quick Overtime submission error: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to submit overtime request: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Dismiss pending overtime reminder.
+     */
+    public function dismissReminder(Request $request, $id)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user || !$user->employee_id) {
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+
+            $reminder = \App\Models\OvertimeReminder::where('id', $id)
+                ->where('employee_id', $user->employee_id)
+                ->first();
+
+            if ($reminder) {
+                $reminder->update(['status' => \App\Models\OvertimeReminder::DISMISSED]);
+            }
+
+            return response()->json(['success' => true, 'message' => 'Reminder dismissed']);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
 }

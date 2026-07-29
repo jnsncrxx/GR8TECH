@@ -909,10 +909,14 @@ async function timeOut() {
             showSuccess(data.message);
             attendanceRecord = data.attendance_record;
             updateAttendanceUI();
-            // Refresh the page to show updated data
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
+            const reminder = data.reminder || data.pending_overtime_reminder;
+            if (data.overtime_detected && reminder && typeof showOvertimePromptModal === 'function') {
+                showOvertimePromptModal(reminder, true);
+            } else {
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            }
         } else {
             showError(data.error || 'Failed to clock out');
         }
