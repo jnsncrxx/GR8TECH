@@ -35,7 +35,7 @@
         <form action="{{ route('developer.accounts.update', $account) }}" method="POST">
             @csrf
             @method('PUT')
-            
+
             <div class="mb-4">
                 <label class="block text-sm font-medium mb-1">Employee</label>
                 <select name="employee_id" class="w-full border rounded-lg px-3 py-2 @error('employee_id') border-red-500 @enderror">
@@ -53,7 +53,7 @@
 
             <div class="mb-4">
                 <label class="block text-sm font-medium mb-1">Email *</label>
-                <input type="email" name="email" value="{{ old('email', $account->email) }}" required 
+                <input type="email" name="email" value="{{ old('email', $account->email) }}" required
                        class="w-full border rounded-lg px-3 py-2 @error('email') border-red-500 @enderror">
                 @error('email')
                     <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
@@ -62,8 +62,8 @@
 
             <div class="mb-4">
                 <label class="block text-sm font-medium mb-1">New Password (Optional)</label>
-                <input type="password" name="password" 
-                       class="w-full border rounded-lg px-3 py-2 @error('password') border-red-500 @enderror" 
+                <input type="password" name="password"
+                       class="w-full border rounded-lg px-3 py-2 @error('password') border-red-500 @enderror"
                        placeholder="Leave blank to keep current password">
                 @error('password')
                     <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
@@ -72,12 +72,18 @@
 
             <div class="mb-4">
                 <label class="block text-sm font-medium mb-1">Role *</label>
-                <select name="role" required class="w-full border rounded-lg px-3 py-2 @error('role') border-red-500 @enderror">
-                    <option value="admin" {{ $account->role == 'admin' ? 'selected' : '' }}>Admin</option>
+                <select name="role" required class="w-full border rounded-lg px-3 py-2 @error('role') border-red-500 @enderror" {{ ($account->role === 'admin' && $user->role !== 'admin') ? 'disabled' : '' }}>
+                    @if($account->role === 'admin' || $user->role === 'admin')
+                        <option value="admin" {{ $account->role == 'admin' ? 'selected' : '' }}>Admin</option>
+                    @endif
                     <option value="hr" {{ $account->role == 'hr' ? 'selected' : '' }}>HR</option>
                     <option value="manager" {{ $account->role == 'manager' ? 'selected' : '' }}>Manager</option>
                     <option value="employee" {{ $account->role == 'employee' ? 'selected' : '' }}>Employee</option>
                 </select>
+                @if($account->role === 'admin' && $user->role !== 'admin')
+                    <input type="hidden" name="role" value="admin">
+                    <p class="text-xs text-gray-500 mt-1">Only an administrator can change an admin account's role.</p>
+                @endif
                 @error('role')
                     <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                 @enderror

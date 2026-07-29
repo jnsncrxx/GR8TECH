@@ -483,7 +483,7 @@ Route::get('/debug-current-payrolls', function() {
 
             // General reports for admin/hr (This is the old route, keeping it to avoid breaking)
             Route::get('/reports-old', [App\Http\Controllers\Web\AttendanceController::class, 'reports'])->name('reports.old');
-            
+
            Route::get('/settings', [App\Http\Controllers\Web\AttendanceController::class, 'settings'])->name('settings');
             Route::put('/settings', [App\Http\Controllers\Web\AttendanceController::class, 'updateSettings'])->name('settings.update');
         });
@@ -495,7 +495,7 @@ Route::get('/debug-current-payrolls', function() {
         Route::get('/generate', [ReportController::class, 'generate'])->name('generate');
         Route::post('/export', [ReportController::class, 'export'])->name('export');
     });
-    
+
     // Tax Bracket Management routes (outside attendance prefix)
     Route::resource('tax-brackets', App\Http\Controllers\Web\TaxBracketController::class);
     Route::post('/tax-brackets/calculate', [App\Http\Controllers\Web\TaxBracketController::class, 'calculateTax'])->name('tax-brackets.calculate');
@@ -545,8 +545,25 @@ Route::middleware(['auth'])->group(function () {
 // ============================================
 Route::middleware(['auth', 'role:admin,hr'])->prefix('developer')->name('developer.')->group(function () {
     Route::get('/accounts', [App\Http\Controllers\Developer\AccountController::class, 'index'])->name('accounts.index');
+    Route::get('/accounts/link', [App\Http\Controllers\Developer\AccountController::class, 'linkForm'])->name('accounts.link');
+    Route::post('/accounts/link', [App\Http\Controllers\Developer\AccountController::class, 'linkStore'])->name('accounts.link.store');
     Route::get('/accounts/{account}/edit', [App\Http\Controllers\Developer\AccountController::class, 'edit'])->name('accounts.edit');
     Route::post('/accounts', [App\Http\Controllers\Developer\AccountController::class, 'store'])->name('accounts.store');
     Route::put('/accounts/{account}', [App\Http\Controllers\Developer\AccountController::class, 'update'])->name('accounts.update');
     Route::delete('/accounts/{account}', [App\Http\Controllers\Developer\AccountController::class, 'destroy'])->name('accounts.destroy');
+    Route::post('/accounts/{account}/restore', [App\Http\Controllers\Developer\AccountController::class, 'restore'])->name('accounts.restore');
+    Route::post('/accounts/{account}/toggle-status', [App\Http\Controllers\Developer\AccountController::class, 'toggleStatus'])->name('accounts.toggle-status');
+    Route::post('/accounts/{account}/send-reset-link', [App\Http\Controllers\Developer\AccountController::class, 'sendResetLink'])->name('accounts.send-reset-link');
+    Route::post('/accounts/{account}/unlink', [App\Http\Controllers\Developer\AccountController::class, 'unlink'])->name('accounts.unlink');
+
+    // Role & Permission Mapping is admin-only (stricter than the rest of this group).
+    Route::get('/permissions', [App\Http\Controllers\Developer\AccountController::class, 'permissions'])
+        ->middleware('role:admin')
+        ->name('permissions.index');
+
+    // Activity Logs are admin-only.
+    Route::middleware('role:admin')->prefix('activity-logs')->name('activity-logs.')->group(function () {
+        Route::get('/', [App\Http\Controllers\Developer\ActivityLogController::class, 'index'])->name('index');
+        Route::get('/export', [App\Http\Controllers\Developer\ActivityLogController::class, 'export'])->name('export');
+    });
 });
