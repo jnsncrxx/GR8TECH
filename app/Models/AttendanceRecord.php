@@ -33,6 +33,22 @@ class AttendanceRecord extends Model
     public const OFFICIAL_BUSINESS = 'official_business';
     public const ERROR = 'error';
 
+    public const VALIDATION_VALID = 'valid';
+    public const VALIDATION_INCOMPLETE_LOG = 'incomplete_log';
+    public const VALIDATION_INVALID_DURATION = 'invalid_duration';
+    public const VALIDATION_MISSING_SCHEDULE = 'missing_schedule';
+    public const VALIDATION_NEEDS_REVIEW = 'needs_review';
+    public const VALIDATION_CONFLICT = 'conflict';
+
+    public const VALIDATION_STATUSES = [
+        self::VALIDATION_VALID,
+        self::VALIDATION_INCOMPLETE_LOG,
+        self::VALIDATION_INVALID_DURATION,
+        self::VALIDATION_MISSING_SCHEDULE,
+        self::VALIDATION_NEEDS_REVIEW,
+        self::VALIDATION_CONFLICT,
+    ];
+
     /**
      * All valid attendance statuses.
      */
@@ -60,6 +76,7 @@ class AttendanceRecord extends Model
         'overtime_hours',
         'night_shift',
         'status',
+        'validation_status',
         'notes',
         'corrected_by',
         'correction_reason',
@@ -88,6 +105,14 @@ class AttendanceRecord extends Model
             if (empty($model->id)) {
                 $model->id = Uuid::uuid4()->toString();
             }
+        });
+
+        static::saving(function (AttendanceRecord $model) {
+            if ($model->status === 'completed') {
+                $model->status = $model->getCalculatedStatus();
+            }
+
+            $model->validation_status = $model->derivePunchValidationStatus();
         });
     }
 
@@ -698,6 +723,41 @@ class AttendanceRecord extends Model
         }
 
         return self::ABSENT;
+    }
+
+    /**
+     * Get the status label shown in attendance record lists.
+     *
+     * A stored status must never make a one-sided punch appear complete.
+     */
+    public function getDisplayStatusLabelAttribute(): string
+    {
+        if ($this->derivePunchValidationStatus() === self::VALIDATION_INCOMPLETE_LOG) {
+            return 'Incomplete Log';
+        }
+
+        return ucfirst(str_replace('_', ' ', (string) $this->status));
+    }
+
+    /**
+     * Validate the punch pair independently from the attendance result.
+     */
+    public function derivePunchValidationStatus(): string
+    {
+        if (($this->time_in && !$this->time_out) || (!$this->time_in && $this->time_out)) {
+            return self::VALIDATION_INCOMPLETE_LOG;
+        }
+
+        if ($this->time_in && $this->time_out) {
+            $timeIn = Carbon::parse($this->time_in);
+            $timeOut = Carbon::parse($this->time_out);
+
+            if (!$timeOut->gt($timeIn) || $timeIn->diffInMinutes($timeOut) > 24 * 60) {
+                return self::VALIDATION_INVALID_DURATION;
+            }
+        }
+
+        return self::VALIDATION_VALID;
     }
 
     /**

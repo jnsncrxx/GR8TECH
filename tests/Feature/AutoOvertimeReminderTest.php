@@ -7,6 +7,7 @@ use App\Models\AttendanceRecord;
 use App\Models\Employee;
 use App\Models\OvertimeReminder;
 use App\Models\OvertimeRequest;
+use App\Models\Period;
 use App\Models\TimeEntry;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -18,6 +19,7 @@ class AutoOvertimeReminderTest extends TestCase
 
     protected Employee $employee;
     protected Account $account;
+    protected \App\Models\Company $company;
 
     protected function setUp(): void
     {
@@ -26,7 +28,7 @@ class AutoOvertimeReminderTest extends TestCase
         config(['app.url' => 'http://localhost']);
         \Illuminate\Support\Facades\URL::forceRootUrl('http://localhost');
 
-        $company = \App\Models\Company::create([
+        $this->company = \App\Models\Company::create([
             'name' => 'GR8Tech',
             'code' => 'GR8',
             'legal_name' => 'GR8Tech Inc',
@@ -36,7 +38,7 @@ class AutoOvertimeReminderTest extends TestCase
         $dept = \App\Models\Department::create([
             'name' => 'Engineering',
             'code' => 'ENG',
-            'company_id' => $company->id,
+            'company_id' => $this->company->id,
             'budget' => 100000.00,
         ]);
 
@@ -50,7 +52,7 @@ class AutoOvertimeReminderTest extends TestCase
             'first_name' => 'John',
             'last_name' => 'Doe',
             'employee_id' => 'EMP-1001',
-            'company_id' => $company->id,
+            'company_id' => $this->company->id,
             'department_id' => $dept->id,
             'position_id' => $pos->id,
             'hire_date' => '2025-01-01',
@@ -67,12 +69,89 @@ class AutoOvertimeReminderTest extends TestCase
         ]);
     }
 
+    public function test_first_actual_clock_in_replaces_prefilled_schedule_time()
+    {
+        Carbon::setTestNow('2026-07-30 13:55:02');
+
+        $attendance = AttendanceRecord::create([
+            'employee_id' => $this->employee->id,
+            'date' => '2026-07-30',
+            'time_in' => '2026-07-30 08:00:00',
+            'status' => 'present',
+        ]);
+
+        $response = $this->actingAs($this->account)
+            ->postJson(route('attendance.time-in'));
+
+        $this->assertSame(200, $response->status(), $response->getContent());
+        $this->assertSame(
+            '2026-07-30 13:55:02',
+            $attendance->fresh()->time_in->format('Y-m-d H:i:s')
+        );
+        $this->assertDatabaseHas('time_entries', [
+            'attendance_record_id' => $attendance->id,
+            'time_in' => '2026-07-30 13:55:02',
+        ]);
+    }
+
+    public function test_clock_in_is_rejected_for_locked_payroll_period()
+    {
+        Carbon::setTestNow('2026-07-30 13:55:02');
+        $this->createLockedPeriod();
+
+        $response = $this->actingAs($this->account)
+            ->postJson(route('attendance.time-in'));
+
+        $response->assertStatus(422)
+            ->assertJsonFragment(['error' => 'Attendance is locked for this payroll period. Ask an authorized user to reopen the period before clocking in.']);
+        $this->assertDatabaseCount('time_entries', 0);
+    }
+
+    public function test_clock_out_is_rejected_for_locked_payroll_period()
+    {
+        Carbon::setTestNow('2026-07-30 17:00:00');
+        $this->createLockedPeriod();
+
+        $attendance = AttendanceRecord::create([
+            'employee_id' => $this->employee->id,
+            'date' => '2026-07-30',
+            'time_in' => '2026-07-30 08:00:00',
+            'status' => 'present',
+        ]);
+
+        TimeEntry::create([
+            'attendance_record_id' => $attendance->id,
+            'time_in' => '2026-07-30 08:00:00',
+            'entry_type' => 'regular',
+        ]);
+
+        $response = $this->actingAs($this->account)
+            ->postJson(route('attendance.time-out'));
+
+        $response->assertStatus(422)
+            ->assertJsonFragment(['error' => 'Attendance is locked for this payroll period. Ask an authorized user to reopen the period before clocking out.']);
+        $this->assertNull($attendance->fresh()->time_out);
+    }
+
+    private function createLockedPeriod(): Period
+    {
+        return Period::create([
+            'company_id' => $this->company->id,
+            'name' => 'July 2026 Locked Period',
+            'start_date' => '2026-07-26',
+            'end_date' => '2026-08-10',
+            'working_days' => 11,
+            'status' => Period::STATUS_LOCKED,
+            'created_by' => $this->account->id,
+        ]);
+    }
+
     public function test_clock_out_without_overtime_does_not_create_reminder()
     {
         $now = Carbon::parse('2026-07-28 17:00:00');
         Carbon::setTestNow($now);
         $date = Carbon::today();
-        
+
         $attendance = AttendanceRecord::create([
             'employee_id' => $this->employee->id,
             'date' => $date,
