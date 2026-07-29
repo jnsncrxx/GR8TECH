@@ -108,26 +108,41 @@ class TimeInOutController extends Controller
             $today = Carbon::today();
             $now = Carbon::now();
 
-            $attendanceRecord =
-                AttendanceRecord::firstOrCreate(
-                    [
+            if (app(\App\Services\PayrollPeriodLockService::class)
+                ->isLockedForDate($employee->id, $today)) {
+                return response()->json([
+                    'error' => 'Attendance is locked for this payroll period. Ask an authorized user to reopen the period before clocking in.',
+                ], 422);
+            }
+
+            $attendanceRecord = AttendanceRecord::where(
+                'employee_id',
+                $employee->id
+            )
+                ->whereDate('date', $today->toDateString())
+                ->first();
+
+            if (!$attendanceRecord) {
+                $attendanceRecord = AttendanceRecord::create([
                         'employee_id' => $employee->id,
                         'date' => $today->toDateString(),
-                    ],
-                    [
                         'status' => 'present',
                         'total_hours' => 0,
                         'regular_hours' => 0,
                         'overtime_hours' => 0,
-                    ]
-                );
+                ]);
+            }
 
-            if ($attendanceRecord->hasActiveTimeEntry()) {
+            if ($attendanceRecord->timeEntries()
+                ->whereNull('time_out')
+                ->exists()) {
                 return response()->json([
                     'error' =>
                         'You are already clocked in',
                 ], 400);
             }
+
+            $hasRecordedEntries = $attendanceRecord->timeEntries()->exists();
 
             TimeEntry::create([
                 'attendance_record_id' =>
@@ -141,7 +156,12 @@ class TimeInOutController extends Controller
             /*
              * Store the first actual Time In.
              */
-            if (!$attendanceRecord->time_in) {
+            if (
+                !$hasRecordedEntries
+                && !$attendanceRecord->corrected_at
+            ) {
+                $attendanceRecord->time_in = $now;
+            } elseif (!$attendanceRecord->time_in) {
                 $attendanceRecord->time_in = $now;
             }
 
@@ -209,6 +229,13 @@ class TimeInOutController extends Controller
                 ], 400);
             }
 
+            if (app(\App\Services\PayrollPeriodLockService::class)
+                ->isLockedForDate($employee->id, $attendanceRecord->date)) {
+                return response()->json([
+                    'error' => 'Attendance is locked for this payroll period. Ask an authorized user to reopen the period before clocking out.',
+                ], 422);
+            }
+
             $activeEntry =
                 $attendanceRecord->getActiveTimeEntry();
 
@@ -253,10 +280,9 @@ class TimeInOutController extends Controller
                 /*
                  * Store latest Time Out.
                  */
-                $attendanceRecord->update([
-                    'time_out' => $now,
-                    'status' => 'completed',
-                ]);
+                $attendanceRecord->time_out = $now;
+                $attendanceRecord->status = $attendanceRecord->getCalculatedStatus();
+                $attendanceRecord->save();
 
                 /*
                  * Critical:
