@@ -1225,19 +1225,19 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             $allowances['total'] = (float) $template->allowances;
         }
 
-        // Calculate statutory deductions (SSS, PHIC, HDMF)
-        $statutoryDeductions = $this->calculateStatutoryDeductions($employee, $monthlyRate, $daysInPeriod);
-        if ($template) {
-            if ($template->sss !== null) {
-                $statutoryDeductions['sss'] = (float) $template->sss;
-            }
-            if ($template->phic !== null) {
-                $statutoryDeductions['phic'] = (float) $template->phic;
-            }
-            if ($template->hdmf !== null) {
-                $statutoryDeductions['hdmf'] = (float) $template->hdmf;
-            }
-        }
+        // Resolve monthly statutory amounts first, including template overrides,
+        // then allocate them across the payroll frequency. Standard cutoffs are
+        // semi-monthly, while periods spanning at least 25 days are monthly.
+        $statutoryDeductionDivisor = $daysInPeriod >= 25 ? 1 : 2;
+        $statutoryDeductions = $this->calculateStatutoryDeductions(
+            $monthlyRate,
+            $statutoryDeductionDivisor,
+            [
+                'sss' => $template?->sss,
+                'phic' => $template?->phic,
+                'hdmf' => $template?->hdmf,
+            ]
+        );
 
         // Calculate late/undertime deductions
         $timeDeductions = $this->calculateLateUndertimeDeductions($employeeRecords, $hourlyRate);
@@ -1818,25 +1818,28 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
     /**
      * Calculate statutory deductions based on Excel values
      */
-   private function calculateStatutoryDeductions(Employee $employee, $monthlyRate, ?int $daysInPeriod = null): array
-{
-    $sss = $this->calculateSssContribution($monthlyRate);
-    $phic = $this->calculatePhilHealthContribution($monthlyRate);
-    $hdmf = $this->calculateHdmfContribution($monthlyRate);
+    private function calculateStatutoryDeductions(
+        $monthlyRate,
+        int $deductionDivisor = 1,
+        array $monthlyOverrides = []
+    ): array {
+        $deductionDivisor = max(1, $deductionDivisor);
 
-    $isSemiMonthly = $daysInPeriod !== null && $daysInPeriod < 25;
-    if ($isSemiMonthly) {
-        $sss = round($sss / 2, 2);
-        $phic = round($phic / 2, 2);
-        $hdmf = round($hdmf / 2, 2);
+        $monthlyAmounts = [
+            'sss' => $monthlyOverrides['sss']
+                ?? $this->calculateSssContribution($monthlyRate),
+            'phic' => $monthlyOverrides['phic']
+                ?? $this->calculatePhilHealthContribution($monthlyRate),
+            'hdmf' => $monthlyOverrides['hdmf']
+                ?? $this->calculateHdmfContribution($monthlyRate),
+        ];
+
+        return [
+            'sss' => round((float) $monthlyAmounts['sss'] / $deductionDivisor, 2),
+            'phic' => round((float) $monthlyAmounts['phic'] / $deductionDivisor, 2),
+            'hdmf' => round((float) $monthlyAmounts['hdmf'] / $deductionDivisor, 2),
+        ];
     }
-
-    return [
-        'sss' => $sss,
-        'phic' => $phic,
-        'hdmf' => $hdmf,
-    ];
-}
 
     /**
      * Employee share of SSS contribution (2026 table).

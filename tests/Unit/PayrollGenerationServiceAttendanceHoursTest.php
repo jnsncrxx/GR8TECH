@@ -132,6 +132,37 @@ class PayrollGenerationServiceAttendanceHoursTest extends TestCase
         $this->assertSame(1000.0, $deduction);
     }
 
+    public function test_statutory_deductions_are_split_across_two_cutoffs(): void
+    {
+        $deductions = $this->invoke(
+            'calculateStatutoryDeductions',
+            30000.0,
+            2
+        );
+
+        $this->assertSame(750.0, $deductions['sss']);
+        $this->assertSame(375.0, $deductions['phic']);
+        $this->assertSame(100.0, $deductions['hdmf']);
+    }
+
+    public function test_monthly_template_deductions_are_also_split_across_two_cutoffs(): void
+    {
+        $deductions = $this->invoke(
+            'calculateStatutoryDeductions',
+            30000.0,
+            2,
+            [
+                'sss' => 1800.0,
+                'phic' => 900.0,
+                'hdmf' => 200.0,
+            ]
+        );
+
+        $this->assertSame(900.0, $deductions['sss']);
+        $this->assertSame(450.0, $deductions['phic']);
+        $this->assertSame(100.0, $deductions['hdmf']);
+    }
+
     private function invoke(string $method, mixed ...$arguments): mixed
     {
         $reflection = new ReflectionMethod(PayrollGenerationService::class, $method);
