@@ -280,6 +280,15 @@ Route::get('/debug-current-payrolls', function() {
         Route::delete('/{schedule}', [App\Http\Controllers\Web\ScheduleV2Controller::class, 'destroy'])->name('destroy');
     });
 
+    Route::prefix('schedule-templates')->name('schedule-templates.')->middleware('role:admin,hr')->group(function () {
+        Route::get('/', [App\Http\Controllers\Web\ScheduleTemplateController::class, 'index'])->name('index');
+        Route::get('/create', [App\Http\Controllers\Web\ScheduleTemplateController::class, 'create'])->name('create');
+        Route::post('/', [App\Http\Controllers\Web\ScheduleTemplateController::class, 'store'])->name('store');
+        Route::get('/{scheduleTemplate}/edit', [App\Http\Controllers\Web\ScheduleTemplateController::class, 'edit'])->name('edit');
+        Route::put('/{scheduleTemplate}', [App\Http\Controllers\Web\ScheduleTemplateController::class, 'update'])->name('update');
+        Route::delete('/{scheduleTemplate}', [App\Http\Controllers\Web\ScheduleTemplateController::class, 'destroy'])->name('destroy');
+    });
+
     // Company routes
     Route::resource('companies', App\Http\Controllers\Web\CompanyController::class);
     Route::post('/companies/switch', [App\Http\Controllers\Web\CompanyController::class, 'switchCompany'])->name('companies.switch');
