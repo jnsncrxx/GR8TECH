@@ -222,7 +222,7 @@
                         <h2 class="text-lg font-semibold text-{{ $exceptionTone }}-900">
                             <i class="fas fa-exclamation-triangle mr-2"></i>Schedule & Attendance Exceptions
                         </h2>
-                        <a href="{{ route('attendance.timekeeping', ['date_from' => $period->start_date->format('Y-m-d'), 'date_to' => $period->end_date->format('Y-m-d'), 'exception' => 'attention']) }}" class="inline-flex items-center rounded-lg border border-{{ $exceptionTone }}-300 bg-white px-3 py-2 text-sm font-medium text-{{ $exceptionTone }}-700 hover:bg-{{ $exceptionTone }}-100">
+                        <a href="{{ route('attendance.timekeeping', ['date_from' => $period->start_date->format('Y-m-d'), 'date_to' => $period->end_date->format('Y-m-d'), 'exception' => 'attention']) }}" class="ui-solid-danger-action inline-flex items-center rounded-lg border border-{{ $exceptionTone }}-300 bg-white px-3 py-2 text-sm font-medium text-{{ $exceptionTone }}-700 hover:bg-{{ $exceptionTone }}-100">
                             <i class="fas fa-external-link-alt mr-2"></i>Review in Timekeeping
                         </a>
                     </div>

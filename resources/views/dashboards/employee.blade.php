@@ -275,7 +275,12 @@
                         <div class="mt-3">
                             <div class="w-full bg-white bg-opacity-20 rounded-full h-1.5 overflow-hidden flex">
                                 @if(!$isFlexibleSchedule && $lateWidthPct > 0)
-                                    <div id="hours-late-bar" class="bg-red-500 h-1.5" style="width: {{ $lateWidthPct }}%"></div>
+                                    <div
+                                        id="hours-late-bar"
+                                        class="h-1.5"
+                                        style="width: {{ $lateWidthPct }}%; background-color: #ef4444;"
+                                        aria-label="Late time: {{ $todayAttendance->getLateMinutesFormatted() }}"
+                                    ></div>
                                 @endif
                                 <div id="hours-progress-bar" class="bg-white h-1.5 transition-all" style="width: {{ max(0, $progressPct - $lateWidthPct) }}%"></div>
                             </div>
