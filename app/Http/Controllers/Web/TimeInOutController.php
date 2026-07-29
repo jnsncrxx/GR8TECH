@@ -65,6 +65,31 @@ class TimeInOutController extends Controller
         ]);
     }
 
+    private function findActiveAttendanceRecord($employee): ?AttendanceRecord
+    {
+        $today = Carbon::today();
+
+        $todayRecord = AttendanceRecord::where('employee_id', $employee->id)
+            ->whereDate('date', $today->toDateString())
+            ->with(['timeEntries', 'breaks'])
+            ->first();
+
+        if ($todayRecord && $todayRecord->hasActiveTimeEntry()) {
+            return $todayRecord;
+        }
+
+        $yesterdayRecord = AttendanceRecord::where('employee_id', $employee->id)
+            ->whereDate('date', $today->copy()->subDay()->toDateString())
+            ->with(['timeEntries', 'breaks'])
+            ->first();
+
+        if ($yesterdayRecord && $yesterdayRecord->hasActiveTimeEntry()) {
+            return $yesterdayRecord;
+        }
+
+        return $todayRecord;
+    }
+
     /**
      * Time In.
      */
@@ -175,19 +200,7 @@ class TimeInOutController extends Controller
                 ], 404);
             }
 
-            $today = Carbon::today();
-
-            $attendanceRecord =
-                AttendanceRecord::where(
-                    'employee_id',
-                    $employee->id
-                )
-                    ->whereDate(
-                        'date',
-                        $today->toDateString()
-                    )
-                    ->with(['timeEntries', 'breaks'])
-                    ->first();
+            $attendanceRecord = $this->findActiveAttendanceRecord($employee);
 
             if (!$attendanceRecord) {
                 return response()->json([
@@ -306,18 +319,7 @@ class TimeInOutController extends Controller
                 ], 404);
             }
 
-            $today = Carbon::today();
-
-            $attendanceRecord =
-                AttendanceRecord::where(
-                    'employee_id',
-                    $employee->id
-                )
-                    ->whereDate(
-                        'date',
-                        $today->toDateString()
-                    )
-                    ->first();
+            $attendanceRecord = $this->findActiveAttendanceRecord($employee);
 
             if (
                 !$attendanceRecord
@@ -401,18 +403,7 @@ class TimeInOutController extends Controller
                 ], 404);
             }
 
-            $today = Carbon::today();
-
-            $attendanceRecord =
-                AttendanceRecord::where(
-                    'employee_id',
-                    $employee->id
-                )
-                    ->whereDate(
-                        'date',
-                        $today->toDateString()
-                    )
-                    ->first();
+            $attendanceRecord = $this->findActiveAttendanceRecord($employee);
 
             if (
                 !$attendanceRecord
@@ -504,18 +495,7 @@ class TimeInOutController extends Controller
                 ], 404);
             }
 
-            $today = Carbon::today();
-
-            $attendanceRecord =
-                AttendanceRecord::where(
-                    'employee_id',
-                    $employee->id
-                )
-                    ->whereDate(
-                        'date',
-                        $today->toDateString()
-                    )
-                    ->first();
+            $attendanceRecord = $this->findActiveAttendanceRecord($employee);
 
             $status = [
                 'employee_id' => $employee->id,

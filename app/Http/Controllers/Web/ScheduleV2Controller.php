@@ -139,6 +139,13 @@ class ScheduleV2Controller extends Controller
             }
         }
 
+        $currentCompany = \App\Helpers\CompanyHelper::getCurrentCompany();
+        $templates = \App\Models\ScheduleTemplate::query()
+            ->when($currentCompany, fn ($query) => $query->forCompany($currentCompany->id))
+            ->when(!$currentCompany, fn ($query) => $query->whereNull('company_id'))
+            ->orderBy('code')
+            ->get();
+
         return view('attendance.schedule-v2.index', [
             'user' => Auth::user(),
             'searchQuery' => $searchQuery,
@@ -151,7 +158,8 @@ class ScheduleV2Controller extends Controller
             'calendarDays' => $calendarDays,
             'schedules' => $schedules,
             'attendanceHistory' => $attendanceHistory,
-            'scheduleSummary' => [] // Or mock summary data if needed
+            'scheduleSummary' => [], // Or mock summary data if needed
+            'templates' => $templates,
         ]);
     }
 
@@ -290,6 +298,7 @@ class ScheduleV2Controller extends Controller
             'employee_schedules.*.dates' => ['required', 'array', 'min:1'],
             'employee_schedules.*.dates.*' => ['required', 'date'],
             'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
+            'schedule_template_id' => ['nullable', 'exists:schedule_templates,id'],
             ...$this->scheduleDetailRules($request),
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
@@ -324,6 +333,7 @@ class ScheduleV2Controller extends Controller
                         'department_id' => $employee->department_id,
                         'status' => $validated['status'],
                         ...$details,
+                        'schedule_template_id' => $validated['schedule_template_id'] ?? null,
                         'notes' => $validated['notes'] ?? null,
                         'created_by' => Auth::id(),
                     ]
@@ -352,6 +362,7 @@ class ScheduleV2Controller extends Controller
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
+            'schedule_template_id' => ['nullable', 'exists:schedule_templates,id'],
             ...$this->scheduleDetailRules($request),
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
@@ -382,6 +393,7 @@ class ScheduleV2Controller extends Controller
                         'department_id' => $validated['department_id'],
                         'status' => $validated['status'],
                         ...$details,
+                        'schedule_template_id' => $validated['schedule_template_id'] ?? null,
                         'notes' => $validated['notes'] ?? null,
                         'created_by' => Auth::id(),
                     ]
@@ -548,7 +560,6 @@ class ScheduleV2Controller extends Controller
                 Rule::requiredIf($isWorkSchedule && $isFixed),
                 'nullable',
                 'date_format:H:i',
-                Rule::when($isWorkSchedule && $isFixed, ['after:time_in']),
             ],
         ];
     }
@@ -588,6 +599,13 @@ class ScheduleV2Controller extends Controller
     {
         $start = \Carbon\Carbon::createFromFormat('H:i', $timeIn);
         $end = \Carbon\Carbon::createFromFormat('H:i', $timeOut);
+
+        // Overnight shift (e.g. 3:00 PM to 12:00 AM) - time_out is earlier on
+        // the 24-hour clock, but chronologically it's the next calendar day.
+        if ($end->lessThanOrEqualTo($start)) {
+            $end->addDay();
+        }
+
         $minutes = $start->diffInMinutes($end);
 
         return round(max(0, $minutes - 60) / 60, 2);
