@@ -227,7 +227,17 @@
                             @endphp
                             <td class="calendar-day px-3 py-4 text-center border-l border-gray-200 hover:bg-gray-50 transition-colors {{ $day['date']->isToday() ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : '' }}" data-date="{{ $day['date']->format('Y-m-d') }}">
                                 @if($schedule)
-                                <div class="inline-block">
+                                <div class="inline-block schedule-detail-trigger cursor-pointer"
+                                     data-employee="{{ $employee->full_name }}"
+                                     data-date="{{ $day['date']->format('l, F j, Y') }}"
+                                     data-status="{{ $schedule->status_label }}"
+                                     data-template-code="{{ $schedule->scheduleTemplate->code ?? '' }}"
+                                     data-template-name="{{ $schedule->scheduleTemplate->name ?? '' }}"
+                                     data-time-in="{{ $schedule->time_in ? \Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_in)->format('g:i A') : '' }}"
+                                     data-time-out="{{ $schedule->time_out ? \Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_out)->format('g:i A') : '' }}"
+                                     data-required-hours="{{ $schedule->isFlexible() ? \App\Helpers\TimezoneHelper::formatHours((float) $schedule->required_hours) : '' }}"
+                                     data-notes="{{ $schedule->notes ?? '' }}"
+                                     data-edit-url="{{ route('schedule-v2.edit', array_merge(['schedule' => $schedule], array_filter(['department_id' => $selectedDepartment, 'month' => $selectedMonth, 'year' => $selectedYear, 'search' => $searchQuery]))) }}">
                                     <div class="flex items-center justify-center mb-2">
                                         <input type="checkbox"
                                             class="schedule-checkbox rounded border-gray-300 text-red-600 shadow-sm focus:border-red-300 focus:ring focus:ring-red-200 focus:ring-opacity-50 mr-2 hidden"
@@ -243,6 +253,13 @@
                                     } }} mb-1">
                                         {{ $schedule->status_label }}
                                     </div>
+                                    @if($schedule->scheduleTemplate)
+                                    <div class="inline-block mb-1">
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px] font-bold">
+                                            {{ $schedule->scheduleTemplate->code }}
+                                        </span>
+                                    </div>
+                                    @endif
                                     @php
                                     // don't show times for statuses where time doesn't apply
                                     $noTimeStatuses = ['Day Off', 'Leave', 'Holiday', 'Regular Holiday', 'Special Holiday'];
@@ -333,6 +350,91 @@
     </div>
     @endif
 </div>
+
+<!-- Schedule Detail Modal -->
+<div id="scheduleDetailModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+    <div class="relative top-20 mx-auto p-6 border w-full max-w-md shadow-lg rounded-lg bg-white">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-900" id="detailEmployeeName"></h3>
+            <button onclick="closeScheduleDetailModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        <div class="space-y-3 text-sm">
+            <div class="flex justify-between"><span class="text-gray-500">Date</span><span id="detailDate" class="font-medium text-gray-900"></span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Status</span><span id="detailStatus" class="font-medium text-gray-900"></span></div>
+            <div id="detailTemplateRow" class="flex justify-between hidden"><span class="text-gray-500">Template</span><span id="detailTemplate" class="font-medium text-gray-900"></span></div>
+            <div id="detailTimeRow" class="flex justify-between hidden"><span class="text-gray-500">Time</span><span id="detailTime" class="font-medium text-gray-900"></span></div>
+            <div id="detailHoursRow" class="flex justify-between hidden"><span class="text-gray-500">Required Hours</span><span id="detailHours" class="font-medium text-gray-900"></span></div>
+            <div id="detailNotesRow" class="hidden"><span class="text-gray-500 block mb-1">Notes</span><p id="detailNotes" class="text-gray-800"></p></div>
+        </div>
+        <div class="flex justify-end pt-5 mt-2 border-t border-gray-200">
+            <a id="detailEditLink" href="#" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+                <i class="fas fa-edit mr-2"></i>Edit Schedule
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('click', function(e) {
+        // Ignore clicks in date-select mode - that mode has its own click handling
+        if (dateSelectMode) {
+            return;
+        }
+        const trigger = e.target.closest('.schedule-detail-trigger');
+        if (!trigger) {
+            return;
+        }
+        // Don't open the modal if the click landed on the edit pencil or a checkbox
+        if (e.target.closest('a') || e.target.closest('input')) {
+            return;
+        }
+
+        document.getElementById('detailEmployeeName').textContent = trigger.dataset.employee;
+        document.getElementById('detailDate').textContent = trigger.dataset.date;
+        document.getElementById('detailStatus').textContent = trigger.dataset.status;
+        document.getElementById('detailEditLink').href = trigger.dataset.editUrl;
+
+        const templateRow = document.getElementById('detailTemplateRow');
+        if (trigger.dataset.templateCode) {
+            document.getElementById('detailTemplate').textContent = `${trigger.dataset.templateCode} — ${trigger.dataset.templateName}`;
+            templateRow.classList.remove('hidden');
+        } else {
+            templateRow.classList.add('hidden');
+        }
+
+        const timeRow = document.getElementById('detailTimeRow');
+        if (trigger.dataset.timeIn && trigger.dataset.timeOut) {
+            document.getElementById('detailTime').textContent = `${trigger.dataset.timeIn} - ${trigger.dataset.timeOut}`;
+            timeRow.classList.remove('hidden');
+        } else {
+            timeRow.classList.add('hidden');
+        }
+
+        const hoursRow = document.getElementById('detailHoursRow');
+        if (trigger.dataset.requiredHours) {
+            document.getElementById('detailHours').textContent = trigger.dataset.requiredHours;
+            hoursRow.classList.remove('hidden');
+        } else {
+            hoursRow.classList.add('hidden');
+        }
+
+        const notesRow = document.getElementById('detailNotesRow');
+        if (trigger.dataset.notes) {
+            document.getElementById('detailNotes').textContent = trigger.dataset.notes;
+            notesRow.classList.remove('hidden');
+        } else {
+            notesRow.classList.add('hidden');
+        }
+
+        document.getElementById('scheduleDetailModal').classList.remove('hidden');
+    });
+
+    function closeScheduleDetailModal() {
+        document.getElementById('scheduleDetailModal').classList.add('hidden');
+    }
+</script>
 
 <!-- Bulk Create Modal -->
 <div id="bulkModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">

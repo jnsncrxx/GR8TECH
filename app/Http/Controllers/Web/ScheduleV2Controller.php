@@ -65,7 +65,8 @@ class ScheduleV2Controller extends Controller
         if ($employees->isNotEmpty()) {
             $employeeIds = $employees->pluck('id');
             $monthEnd = $monthStart->copy()->endOfMonth();
-            $schedules = \App\Models\EmployeeSchedule::whereIn('employee_id', $employeeIds)
+            $schedules = \App\Models\EmployeeSchedule::with('scheduleTemplate')
+                ->whereIn('employee_id', $employeeIds)
                 ->whereBetween('date', [$monthStart->copy()->startOfMonth(), $monthStart->copy()->endOfMonth()])
                 ->get()
                 ->keyBy(fn($schedule) => $schedule->employee_id . '_' . $schedule->date->format('Y-m-d'));
@@ -182,6 +183,13 @@ class ScheduleV2Controller extends Controller
 
         $date = $request->query('date', now()->format('Y-m-d'));
 
+        $currentCompany = \App\Helpers\CompanyHelper::getCurrentCompany();
+        $templates = \App\Models\ScheduleTemplate::query()
+            ->when($currentCompany, fn ($query) => $query->forCompany($currentCompany->id))
+            ->when(!$currentCompany, fn ($query) => $query->whereNull('company_id'))
+            ->orderBy('code')
+            ->get();
+
         return view('attendance.schedule-v2.create', [
             'user' => Auth::user(),
             'departments' => $departments,
@@ -191,6 +199,7 @@ class ScheduleV2Controller extends Controller
             'defaultTimeIn' => '08:00',
             'defaultTimeOut' => '17:00',
             'currentFilters' => $request->only(['department_id', 'month', 'year', 'search']),
+            'templates' => $templates,
         ]);
     }
 
@@ -216,6 +225,7 @@ class ScheduleV2Controller extends Controller
             'department_id' => ['required', 'exists:departments,id'],
             'date' => ['required', 'date'],
             'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
+            'schedule_template_id' => ['nullable', 'exists:schedule_templates,id'],
             ...$this->scheduleDetailRules($request),
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
@@ -243,6 +253,7 @@ class ScheduleV2Controller extends Controller
                 'department_id' => $validated['department_id'],
                 'status' => $validated['status'],
                 ...$details,
+                'schedule_template_id' => $validated['schedule_template_id'] ?? null,
                 'notes' => $validated['notes'] ?? null,
                 'created_by' => Auth::id(),
             ]
@@ -440,7 +451,18 @@ class ScheduleV2Controller extends Controller
             $this->assertEmployeeManageable($schedule->employee);
         }
 
-        return view('attendance.schedule-v2.edit', ['schedule' => $schedule, 'user' => Auth::user()]);
+        $currentCompany = \App\Helpers\CompanyHelper::getCurrentCompany();
+        $templates = \App\Models\ScheduleTemplate::query()
+            ->when($currentCompany, fn ($query) => $query->forCompany($currentCompany->id))
+            ->when(!$currentCompany, fn ($query) => $query->whereNull('company_id'))
+            ->orderBy('code')
+            ->get();
+
+        return view('attendance.schedule-v2.edit', [
+            'schedule' => $schedule,
+            'user' => Auth::user(),
+            'templates' => $templates,
+        ]);
     }
 
     public function update(Request $request, $schedule)
@@ -459,6 +481,7 @@ class ScheduleV2Controller extends Controller
 
         $validated = $request->validate([
             'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
+            'schedule_template_id' => ['nullable', 'exists:schedule_templates,id'],
             ...$this->scheduleDetailRules($request),
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
@@ -468,6 +491,7 @@ class ScheduleV2Controller extends Controller
         $schedule->update([
             'status' => $validated['status'],
             ...$details,
+            'schedule_template_id' => $validated['schedule_template_id'] ?? null,
             'notes' => $validated['notes'] ?? null,
         ]);
 
