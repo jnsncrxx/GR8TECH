@@ -27,6 +27,7 @@ class TimeInOutController extends Controller
 
         $todayAttendance = null;
         $recentActivity = collect();
+        $pendingOtReminders = collect();
 
         if ($employee) {
             $todayAttendance = AttendanceRecord::where(
@@ -88,6 +89,31 @@ class TimeInOutController extends Controller
             'pendingOtReminders' => $pendingOtReminders,
             'activeRoute' => 'attendance.time-in-out',
         ]);
+    }
+
+    private function findActiveAttendanceRecord($employee): ?AttendanceRecord
+    {
+        $today = Carbon::today();
+
+        $todayRecord = AttendanceRecord::where('employee_id', $employee->id)
+            ->whereDate('date', $today->toDateString())
+            ->with(['timeEntries', 'breaks'])
+            ->first();
+
+        if ($todayRecord && $todayRecord->hasActiveTimeEntry()) {
+            return $todayRecord;
+        }
+
+        $yesterdayRecord = AttendanceRecord::where('employee_id', $employee->id)
+            ->whereDate('date', $today->copy()->subDay()->toDateString())
+            ->with(['timeEntries', 'breaks'])
+            ->first();
+
+        if ($yesterdayRecord && $yesterdayRecord->hasActiveTimeEntry()) {
+            return $yesterdayRecord;
+        }
+
+        return $todayRecord;
     }
 
     /**
@@ -200,18 +226,7 @@ class TimeInOutController extends Controller
                 ], 404);
             }
 
-            $today = Carbon::today();
-
-            $attendanceRecord =
-                AttendanceRecord::where(
-                    'employee_id',
-                    $employee->id
-                )
-                    ->whereDate(
-                        'date',
-                        $today->toDateString()
-                    )
-                    ->first();
+            $attendanceRecord = $this->findActiveAttendanceRecord($employee);
 
             if (!$attendanceRecord) {
                 return response()->json([
@@ -291,7 +306,9 @@ class TimeInOutController extends Controller
                 ->first();
 
             $requiredHours = (float) ($assignedSchedule?->required_hours ?? 8.00);
-            $workedHours = (float) ($attendanceRecord->total_hours > 0 ? $attendanceRecord->total_hours : $attendanceRecord->calculateTotalHours());
+            // Only actual rendered work can create an OT reminder. Credited OB
+            // hours are included in total_hours but must never generate OT.
+            $workedHours = (float) $attendanceRecord->calculateTotalHours();
             $extraHours = round(max(0, $workedHours - $requiredHours), 2);
 
             $overtimeDetected = false;
@@ -304,8 +321,10 @@ class TimeInOutController extends Controller
                     ->exists();
 
                 if (!$hasOtRequest) {
-                    $startTime = $attendanceRecord->time_in 
-                        ? Carbon::parse($attendanceRecord->time_in)->addHours($requiredHours) 
+                    $startTime = $assignedSchedule?->time_out
+                        ? Carbon::parse(
+                            $attendanceRecord->date->format('Y-m-d').' '.$assignedSchedule->time_out
+                        )
                         : $now->copy()->subMinutes(round($extraHours * 60));
                     $endTime = $now;
 
@@ -375,18 +394,7 @@ class TimeInOutController extends Controller
                 ], 404);
             }
 
-            $today = Carbon::today();
-
-            $attendanceRecord =
-                AttendanceRecord::where(
-                    'employee_id',
-                    $employee->id
-                )
-                    ->whereDate(
-                        'date',
-                        $today->toDateString()
-                    )
-                    ->first();
+            $attendanceRecord = $this->findActiveAttendanceRecord($employee);
 
             if (
                 !$attendanceRecord
@@ -470,18 +478,7 @@ class TimeInOutController extends Controller
                 ], 404);
             }
 
-            $today = Carbon::today();
-
-            $attendanceRecord =
-                AttendanceRecord::where(
-                    'employee_id',
-                    $employee->id
-                )
-                    ->whereDate(
-                        'date',
-                        $today->toDateString()
-                    )
-                    ->first();
+            $attendanceRecord = $this->findActiveAttendanceRecord($employee);
 
             if (
                 !$attendanceRecord
@@ -573,18 +570,7 @@ class TimeInOutController extends Controller
                 ], 404);
             }
 
-            $today = Carbon::today();
-
-            $attendanceRecord =
-                AttendanceRecord::where(
-                    'employee_id',
-                    $employee->id
-                )
-                    ->whereDate(
-                        'date',
-                        $today->toDateString()
-                    )
-                    ->first();
+            $attendanceRecord = $this->findActiveAttendanceRecord($employee);
 
             $pendingOtReminders = \App\Models\OvertimeReminder::where('employee_id', $employee->id)
                 ->where('status', \App\Models\OvertimeReminder::PENDING)
@@ -634,6 +620,9 @@ class TimeInOutController extends Controller
                 'status' => 'offline',
                 'attendance_record' => null,
                 'pending_overtime_reminders' => $pendingOtReminders,
+                'active_time_entry' => null,
+                'time_entries' => [],
+                'entry_count' => 0,
             ];
 
             if (!$attendanceRecord) {
@@ -650,8 +639,33 @@ class TimeInOutController extends Controller
 
             $attendanceRecord->refresh();
 
-            $isClockedIn =
-                $attendanceRecord->hasActiveTimeEntry();
+            // Use the same active TimeEntry lookup as the clock-out endpoint.
+            // This keeps the dashboard, status API, and Time In/Out page in sync.
+            $activeTimeEntry =
+                $attendanceRecord->getActiveTimeEntry();
+
+            $attendanceRecord->load(['timeEntries', 'breaks']);
+            $isClockedIn = (bool) $activeTimeEntry;
+
+            $status['time_entries'] = $attendanceRecord->timeEntries
+                ->map(fn ($entry) => [
+                    'id' => $entry->id,
+                    'time_in' => $entry->time_in?->toIso8601String(),
+                    'time_out' => $entry->time_out?->toIso8601String(),
+                    'hours_worked' => (float) ($entry->hours_worked ?? 0),
+                    'entry_type' => $entry->entry_type,
+                ])
+                ->values()
+                ->toArray();
+
+            $status['entry_count'] = count($status['time_entries']);
+            $status['active_time_entry'] = $activeTimeEntry
+                ? [
+                    'id' => $activeTimeEntry->id,
+                    'time_in' => $activeTimeEntry->time_in?->toIso8601String(),
+                    'time_out' => $activeTimeEntry->time_out?->toIso8601String(),
+                ]
+                : null;
 
             $status['has_clocked_in'] =
                 (bool) $attendanceRecord->time_in;

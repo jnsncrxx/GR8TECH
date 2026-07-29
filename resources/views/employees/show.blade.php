@@ -281,6 +281,41 @@
         </div>
         @endif
 
+        {{-- Payment Information --}}
+        @if($employee->info?->payment_method || $employee->info?->account_no || $employee->info?->bank)
+        <div class="emp-card sec-payment" style="margin-bottom:1.5rem;">
+            <div class="emp-card-header">
+                <div class="section-icon"><i class="fas fa-money-check-dollar"></i></div>
+                <div>
+                    <h3>Payment Information</h3>
+                    <p>How this employee receives their pay</p>
+                </div>
+            </div>
+            <div class="emp-card-body">
+                <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:1.25rem;align-items:start;">
+                    @if($employee->info?->payment_method)
+                    <div>
+                        <label class="form-label">Payment Method</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee->info->payment_method }}</p>
+                    </div>
+                    @endif
+                    @if($employee->info?->account_no)
+                    <div>
+                        <label class="form-label">Account No.</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee->info->account_no }}</p>
+                    </div>
+                    @endif
+                    @if($employee->info?->bank)
+                    <div>
+                        <label class="form-label">Bank</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee->info->bank }}</p>
+                    </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+        @endif
+
         {{-- Account Information --}}
         <div class="emp-card sec-account" style="margin-bottom:1.5rem;">
             <div class="emp-card-header">

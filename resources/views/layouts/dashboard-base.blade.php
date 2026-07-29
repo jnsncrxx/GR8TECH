@@ -142,7 +142,7 @@
         <!-- Main Content -->
         <div class="hris-workspace lg:ml-72">
             <!-- Top Navigation -->
-            <x-dashboard.header :title="trim($__env->yieldContent('title', 'Dashboard'))" :user="$user" />
+            <x-dashboard.header :title="html_entity_decode(trim($__env->yieldContent('title', 'Dashboard')), ENT_QUOTES | ENT_HTML5, 'UTF-8')" :user="$user" />
 
             <!-- Dashboard Content -->
             <main class="hris-content p-3 sm:p-4 lg:p-6 xl:p-8">
@@ -175,14 +175,20 @@
         if (duplicateTitle) {
             const introCopy = duplicateTitle.parentElement;
             const hasInteractiveContent = introCopy?.querySelector('a, button, input, select, textarea, form');
+            const introRow = introCopy?.parentElement;
+            const rowHasInteractiveContent = introRow?.querySelector('a, button, input, select, textarea, form');
 
-            if (introCopy && !hasInteractiveContent) {
+            if (introRow && !rowHasInteractiveContent) {
+                introRow.hidden = true;
+                introRow.setAttribute('aria-hidden', 'true');
+                introRow.dataset.duplicatePageIntro = 'true';
+            } else if (introCopy && !hasInteractiveContent) {
                 introCopy.hidden = true;
                 introCopy.setAttribute('aria-hidden', 'true');
                 introCopy.dataset.duplicatePageIntro = 'true';
 
-                if (introCopy.parentElement?.children.length > 1) {
-                    introCopy.parentElement.dataset.pageIntroActions = 'true';
+                if (introRow?.children.length > 1) {
+                    introRow.dataset.pageIntroActions = 'true';
                 }
             } else {
                 duplicateTitle.hidden = true;
@@ -342,6 +348,8 @@
     updateTime();
     setInterval(updateTime, 60000);
     </script>
-    <x-overtime-reminder-modal />
+    @unless(request()->routeIs('attendance.time-in-out'))
+        <x-overtime-reminder-modal />
+    @endunless
 </body>
 </html>

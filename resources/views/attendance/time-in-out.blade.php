@@ -328,9 +328,30 @@
         </div>
 
         <!-- Recent Activity -->
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
-            <div class="space-y-3" id="recent-activity">
+        <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" x-data="{ open: false }">
+            <button type="button"
+                    class="flex w-full items-center justify-between px-6 py-5 text-left transition-colors hover:bg-gray-50"
+                    @click="open = !open"
+                    :aria-expanded="open.toString()"
+                    aria-controls="recent-activity">
+                <span>
+                    <span class="block text-lg font-semibold text-gray-900">Recent Activity</span>
+                    <span class="mt-1 block text-sm text-gray-500">
+                        {{ $recentActivity?->count() ?? 0 }} recent attendance {{ ($recentActivity?->count() ?? 0) === 1 ? 'record' : 'records' }}
+                    </span>
+                </span>
+                <i class="fas fa-chevron-down text-sm text-gray-400 transition-transform duration-200"
+                   :class="{ 'rotate-180': open }"></i>
+            </button>
+            <div x-show="open"
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 -translate-y-1"
+                 x-transition:enter-end="opacity-100 translate-y-0"
+                 x-transition:leave="transition ease-in duration-150"
+                 x-transition:leave-start="opacity-100 translate-y-0"
+                 x-transition:leave-end="opacity-0 -translate-y-1"
+                 class="max-h-96 space-y-3 overflow-y-auto border-t border-gray-200 px-6 pb-6 pt-4"
+                 id="recent-activity">
                 @if($recentActivity && $recentActivity->count() > 0)
                     @foreach($recentActivity as $record)
                         @if($record->time_in)
@@ -673,7 +694,7 @@ function updateRealTimeStatus() {
     const liveIndicator = document.getElementById('live-indicator');
     if (liveIndicator) {
         // Change color based on current status
-        if (currentStatus && currentStatus.time_in && !currentStatus.time_out) {
+        if (currentStatus && currentStatus.is_currently_clocked_in) {
             liveIndicator.className = 'w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse';
         } else if (currentStatus && currentStatus.time_out) {
             liveIndicator.className = 'w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse';
@@ -701,13 +722,23 @@ function updateWorkingTime() {
         console.log('Using active time entry for working time:', currentStatus.active_time_entry);
     }
     // First check currentStatus (from API) - for backward compatibility
-    else if (currentStatus && currentStatus.time_in && !currentStatus.time_out) {
+    else if (
+        currentStatus
+        && currentStatus.is_currently_clocked_in === undefined
+        && currentStatus.time_in
+        && !currentStatus.time_out
+    ) {
         // Parse time_in from currentStatus (it might be a formatted string)
         timeIn = new Date(currentStatus.time_in);
         hasTimeOut = !!currentStatus.time_out;
     }
     // Fallback to attendanceRecord (from initial page load)
-    else if (attendanceRecord && attendanceRecord.time_in && !attendanceRecord.time_out) {
+    else if (
+        (!currentStatus || currentStatus.is_currently_clocked_in === undefined)
+        && attendanceRecord
+        && attendanceRecord.time_in
+        && !attendanceRecord.time_out
+    ) {
         timeIn = new Date(attendanceRecord.time_in);
         hasTimeOut = !!attendanceRecord.time_out;
     }
@@ -801,7 +832,7 @@ function updateTotalHoursDisplay() {
         const hours = Math.floor(currentStatus.total_hours);
         const minutes = Math.round((currentStatus.total_hours - hours) * 60);
         summaryElement.textContent = `${hours}h ${minutes}m`;
-    } else if (currentStatus.time_in && !currentStatus.time_out) {
+    } else if (currentStatus.is_currently_clocked_in) {
         // Calculate current working time (excluding break time)
         let timeIn = null;
         let breakStart = null;
@@ -900,7 +931,8 @@ async function loadAttendanceStatus() {
                         break_end: record.break_end || data.break_end || null,
                         status: record.status || data.status || 'present',
                         breaks: data.breaks || [],
-                        time_entries: data.time_entries || [],
+                        time_entries: data.time_entries || record.time_entries || [],
+                        active_time_entry: data.active_time_entry || null,
                         is_currently_clocked_in: data.is_currently_clocked_in || false
                     };
                 }
@@ -950,6 +982,8 @@ function initializeUI() {
             time_entries: timeEntries,
             active_time_entry: activeEntry || null,
             entry_count: timeEntries.length,
+            is_currently_clocked_in: hasActiveEntry,
+            active_break: null,
             breaks: attendanceRecord.breaks || [],
             // Set can_time_in and can_time_out based on active entry
             can_time_in: !hasActiveEntry,
@@ -973,6 +1007,8 @@ function initializeUI() {
             time_entries: [],
             active_time_entry: null,
             entry_count: 0,
+            is_currently_clocked_in: false,
+            active_break: null,
             can_time_in: true,
             can_time_out: false
         };
@@ -1049,9 +1085,14 @@ function updateUI() {
     // Use can_time_in/can_time_out from API if available (supports multiple entries)
     const canTimeIn = currentStatus.can_time_in !== undefined ? currentStatus.can_time_in : !currentStatus.time_in;
     const canTimeOut = currentStatus.can_time_out !== undefined ? currentStatus.can_time_out : (currentStatus.time_in && !currentStatus.time_out);
-    const isCurrentlyClockedIn = currentStatus.is_currently_clocked_in ||
-        (currentStatus.attendance_record && currentStatus.attendance_record.is_currently_clocked_in) ||
-        (!!currentStatus.time_in && !currentStatus.time_out);
+    const hasAuthoritativeSessionState =
+        typeof currentStatus.is_currently_clocked_in === 'boolean';
+    const isCurrentlyClockedIn = hasAuthoritativeSessionState
+        ? currentStatus.is_currently_clocked_in
+        : (
+            (currentStatus.attendance_record && currentStatus.attendance_record.is_currently_clocked_in)
+            || (!!currentStatus.time_in && !currentStatus.time_out)
+        );
     const hasActiveEntry = isCurrentlyClockedIn || canTimeOut;
     const entryCount = currentStatus.entry_count || 0;
     
@@ -1099,9 +1140,10 @@ function updateUI() {
             statusMessage.textContent = `Break started - Entry #${entryCount}`;
         } else {
             statusTitle.textContent = entryCount > 1 ? `Working (Entry #${entryCount})` : 'Currently Working';
+            const activeTimeIn = currentStatus.active_time_entry?.time_in || currentStatus.time_in;
             statusMessage.textContent = entryCount > 1 
                 ? `Time entry #${entryCount} in progress`
-                : `Clocked in at ${formatTimeForSummary(currentStatus.time_in)}`;
+                : `Clocked in at ${formatTimeForSummary(activeTimeIn)}`;
         }
         
         // Show break section when working
@@ -1417,8 +1459,12 @@ async function timeIn() {
         console.error('Error clocking in:', error);
         showError('Failed to clock in');
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
+        if (currentStatus) {
+            updateUI();
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
     }
 }
 
@@ -1457,8 +1503,12 @@ async function timeOut() {
         console.error('Error clocking out:', error);
         showError('Failed to clock out');
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
+        if (currentStatus) {
+            updateUI();
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
     }
 }
 
@@ -1499,8 +1549,12 @@ async function breakStart() {
         console.error('Error starting break:', error);
         showError('Failed to start break');
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
+        if (currentStatus) {
+            updateUI();
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
     }
 }
 
@@ -1541,8 +1595,12 @@ async function breakEnd() {
         console.error('Error ending break:', error);
         showError('Failed to end break');
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
+        if (currentStatus) {
+            updateUI();
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
     }
 }
 

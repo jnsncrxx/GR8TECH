@@ -41,7 +41,7 @@
             <div class="flex-1">
                 <label for="date" class="block text-sm font-medium text-gray-700 mb-2">Select Date</label>
                 <input type="date" name="date" id="date" value="{{ $date->format('Y-m-d') }}" 
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900">
             </div>
             <div class="flex items-end">
                 <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
@@ -179,8 +179,8 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 @if($schedule && $schedule->time_in && $schedule->time_out)
-                                    <div class="text-sm font-medium text-gray-900">{{ \Carbon\Carbon::parse($schedule->time_in)->format('g:i A') }}–{{ \Carbon\Carbon::parse($schedule->time_out)->format('g:i A') }}</div>
-                                    <div class="text-xs text-gray-500">{{ $schedule->status_label }} · {{ \App\Helpers\TimezoneHelper::formatHours((float) $schedule->required_hours) }}</div>
+                                    <div class="text-sm font-medium text-gray-900">{{ \Carbon\Carbon::parse($schedule->time_in)->format('g:i A') }}â€“{{ \Carbon\Carbon::parse($schedule->time_out)->format('g:i A') }}</div>
+                                    <div class="text-xs text-gray-500">{{ $schedule->status_label }} Â· {{ \App\Helpers\TimezoneHelper::formatHours((float) $schedule->required_hours) }}</div>
                                 @elseif($schedule)
                                     <span class="text-sm font-medium text-gray-700">{{ $schedule->status_label }}</span>
                                 @else
@@ -350,7 +350,7 @@
                             <span class="text-gray-500">Schedule:</span>
                             <span class="font-medium text-gray-900">
                                 @if($schedule && $schedule->time_in && $schedule->time_out)
-                                    {{ \Carbon\Carbon::parse($schedule->time_in)->format('g:i A') }}–{{ \Carbon\Carbon::parse($schedule->time_out)->format('g:i A') }}
+                                    {{ \Carbon\Carbon::parse($schedule->time_in)->format('g:i A') }}â€“{{ \Carbon\Carbon::parse($schedule->time_out)->format('g:i A') }}
                                 @else
                                     {{ $schedule?->status_label ?? 'Missing schedule' }}
                                 @endif

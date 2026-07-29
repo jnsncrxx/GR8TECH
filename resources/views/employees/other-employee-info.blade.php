@@ -45,7 +45,7 @@
                 </div>
             </div>
             <div class="emp-card-body">
-            <div class="w-full h-52 border border-gray-300 rounded-lg bg-gray-50 overflow-hidden flex items-center justify-center mb-3">
+            <div class="w-52 h-52 mx-auto border border-gray-300 rounded-full bg-gray-50 overflow-hidden flex items-center justify-center mb-3">
                 @if($selectedEmployee && data_get($selectedEmployee, 'profile_photo'))
                     <img src="{{ asset('storage/' . data_get($selectedEmployee, 'profile_photo')) }}" alt="Employee Photo" class="w-full h-full object-cover">
                 @else

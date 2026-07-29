@@ -11,8 +11,12 @@
 
     $isDashboard = str_ends_with($title, 'Dashboard');
     $moduleDescription = match ($title) {
-        'Official Business' => 'Review and manage employee OB requests.',
-        'Overtime Management' => 'Review and manage employee overtime requests.',
+        'Official Business' => request()->query('scope') === 'mine'
+            ? 'Submit and track your Official Business requests'
+            : 'Review and manage employee OB requests.',
+        'Overtime Management' => request()->query('scope') === 'mine'
+            ? 'Apply for overtime and track your requests'
+            : 'Review and manage employee overtime requests.',
         'Leave Management' => 'Review and manage employee leave requests.',
         'Employees' => 'Manage employee records and account information.',
         'Departments', 'Archived Departments' => 'Organize departments and employee assignments.',
@@ -22,6 +26,7 @@
         'Payroll Runs' => 'Generate, review, finalize, and lock payroll runs.',
         'Payroll Period Management' => 'Manage payroll cutoff periods and workflow status.',
         'Payroll Templates' => 'Configure reusable payroll calculation templates.',
+        'Salary & Payslips' => 'Your approved and paid payroll history',
         'Payroll Summary Report', 'Monthly Payroll Report' => 'Review summarized payroll results and trends.',
         'Attendance Records Report', 'Attendance Reports', 'Daily Attendance Report' => 'Review and export employee attendance data.',
         'Daily Attendance', 'My Attendance', 'Timekeeping' => 'Monitor employee attendance and time records.',
@@ -699,7 +704,12 @@
                     <!-- Settings -->
                     <a href="{{ route('hr.settings') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                         <i class="fas fa-cog w-4 h-4 mr-3 text-gray-400"></i>
-                        {{ in_array($user->role, ['admin', 'hr'], true) ? 'HR Settings' : 'Account Settings' }}
+                        {{ match ($user->role) {
+                            'admin' => 'Admin Settings',
+                            'hr' => 'HR Settings',
+                            'employee' => 'Employee Settings',
+                            default => 'Account Settings',
+                        } }}
                     </a>
                     
                     <!-- Profile -->
