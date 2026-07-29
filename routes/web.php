@@ -448,6 +448,8 @@ Route::get('/debug-current-payrolls', function() {
         Route::get('/overtime', [App\Http\Controllers\Web\OvertimeController::class, 'index'])->name('attendance.overtime');
         Route::get('/overtime/export/{format}', [App\Http\Controllers\Web\OvertimeController::class, 'exportOvertime'])->name('attendance.overtime.export');
         Route::post('/overtime', [App\Http\Controllers\Web\OvertimeController::class, 'store'])->name('attendance.overtime.store');
+        Route::post('/overtime/quick-submit', [App\Http\Controllers\Web\OvertimeController::class, 'quickSubmit'])->name('attendance.overtime.quick-submit');
+        Route::post('/overtime/dismiss-reminder/{id}', [App\Http\Controllers\Web\OvertimeController::class, 'dismissReminder'])->name('attendance.overtime.dismiss-reminder');
         Route::put('/overtime/{id}/status', [App\Http\Controllers\Web\OvertimeController::class, 'updateStatus'])->name('attendance.overtime.update-status');
         Route::put('/overtime/{id}/edit-approved', [App\Http\Controllers\Web\OvertimeController::class, 'updateApproved'])->name('attendance.overtime.update-approved')->middleware('role:admin,hr,manager');
         Route::delete('/overtime/{id}/cancel', [App\Http\Controllers\Web\OvertimeController::class, 'cancel'])->name('attendance.overtime.cancel');

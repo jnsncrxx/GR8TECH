@@ -150,6 +150,9 @@
             @endif
         </div>
 
+        <!-- Pending Overtime Reminders Banner Container -->
+        <div id="pending-ot-reminders-container" class="space-y-3 mb-6 hidden"></div>
+
         <!-- Current Time Display -->
         <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-8 text-center text-white shadow-lg">
             <div class="text-6xl font-bold mb-2" id="current-times">--:--:--</div>
@@ -406,7 +409,51 @@
 <div id="attendance-data" 
      data-today-attendance='{!! json_encode($todayAttendance) !!}' 
      data-recent-activity='{!! json_encode($recentActivity) !!}'
+     data-pending-reminders='{!! json_encode($pendingOtReminders ?? []) !!}'
      style="display: none;"></div>
+
+<!-- Overtime Prompt Modal on Clock Out -->
+<div id="overtime-prompt-modal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onclick="closeOvertimePromptModal()"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        
+        <div class="inline-block align-bottom bg-white dark:bg-slate-800 rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-gray-100 dark:border-slate-700">
+            <div class="bg-gradient-to-r from-orange-500 to-amber-600 px-6 py-4 flex items-center justify-between text-white">
+                <div class="flex items-center space-x-3">
+                    <div class="p-2 bg-white/20 rounded-lg">
+                        <i class="fas fa-user-clock text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-bold">Overtime Detected</h3>
+                </div>
+                <button type="button" onclick="closeOvertimePromptModal()" class="text-white/80 hover:text-white transition-colors">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+            
+            <div class="p-6 space-y-4">
+                <div class="p-4 bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800/50 rounded-xl text-center">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-orange-800 dark:text-orange-300">Worked Extra Hours Today</p>
+                    <p class="text-3xl font-extrabold text-orange-600 dark:text-orange-400 mt-1" id="ot-prompt-hours">0.00 hour(s)</p>
+                    <p class="text-xs text-orange-700 dark:text-orange-300 mt-1" id="ot-prompt-time-range"></p>
+                </div>
+
+                <p class="text-gray-700 dark:text-slate-300 text-center text-sm">
+                    You worked extra hours today beyond your required schedule. Would you like to submit an Overtime Request now?
+                </p>
+            </div>
+
+            <div class="bg-gray-50 dark:bg-slate-900/50 px-6 py-4 flex flex-col sm:flex-row gap-3 justify-end border-t border-gray-100 dark:border-slate-700">
+                <button type="button" id="ot-prompt-maybe-later" onclick="closeOvertimePromptModal()" class="w-full sm:w-auto px-5 py-2.5 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 font-medium rounded-lg hover:bg-gray-100 transition-colors text-center">
+                    <i class="fas fa-clock mr-2 text-gray-400"></i>Maybe Later
+                </button>
+                <button type="button" id="ot-prompt-request-now" onclick="submitQuickOvertimeFromModal()" class="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-semibold rounded-lg shadow-md transition-all flex items-center justify-center">
+                    <i class="fas fa-paper-plane mr-2"></i>Request OT Now
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
 // Global variables
@@ -824,6 +871,10 @@ async function loadAttendanceStatus() {
                 const previousStatus = currentStatus;
                 
             currentStatus = data;
+
+                if (data.pending_ot_reminders) {
+                    renderPendingOtReminders(data.pending_ot_reminders);
+                }
                 
                 // Update attendanceRecord with fresh data for working time calculation
                 if (data && (data.time_in || data.attendance_record)) {
@@ -854,9 +905,13 @@ async function loadAttendanceStatus() {
                     };
                 }
                 
+                if (data.pending_overtime_reminders) {
+                    renderPendingOtReminders(data.pending_overtime_reminders);
+                }
+
                 // Only update UI if we have valid status data
                 if (currentStatus && (currentStatus.status || currentStatus.time_in || currentStatus.attendance_record)) {
-            updateUI();
+                    updateUI();
                     updateWorkingTime(); // Update working time and break time when status is refreshed
                 }
             }
@@ -922,6 +977,13 @@ function initializeUI() {
             can_time_out: false
         };
     }
+    const rawPendingReminders = dataElement ? dataElement.getAttribute('data-pending-reminders') || '[]' : '[]';
+    try {
+        const pendingReminders = JSON.parse(rawPendingReminders);
+        if (pendingReminders && pendingReminders.length > 0) {
+            renderPendingOtReminders(pendingReminders);
+        }
+    } catch(e) {}
     updateUI();
     updateWorkingTime(); // Initialize working/break time display
 }
@@ -1383,6 +1445,11 @@ async function timeOut() {
             showSuccess(data.message);
             // Update status immediately without page reload
             await loadAttendanceStatus();
+
+            // Check if overtime was detected on clock out
+            if (data.overtime_detected && data.reminder) {
+                showOvertimePromptModal(data.reminder);
+            }
         } else {
             showError(data.error || 'Failed to clock out');
         }
@@ -1510,6 +1577,160 @@ function updateRecentActivity() {
     // This would ideally fetch fresh data from the server
     // For now, we'll just refresh the page to show updated data
     // In a more advanced implementation, we could make an AJAX call to get fresh recent activity
+}
+
+// Overtime Reminder Modal & Banner Management
+let currentOtReminder = null;
+
+function showOvertimePromptModal(reminder) {
+    currentOtReminder = reminder;
+    const modal = document.getElementById('overtime-prompt-modal');
+    const hoursEl = document.getElementById('ot-prompt-hours');
+    const rangeEl = document.getElementById('ot-prompt-time-range');
+
+    if (hoursEl) hoursEl.textContent = `${parseFloat(reminder.extra_hours).toFixed(2)} hour(s)`;
+    if (rangeEl) rangeEl.textContent = `${reminder.date_formatted} (${reminder.start_time_formatted || ''} – ${reminder.end_time_formatted || ''})`;
+
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeOvertimePromptModal() {
+    const modal = document.getElementById('overtime-prompt-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function submitQuickOvertimeFromModal() {
+    if (!currentOtReminder) return;
+
+    const btn = document.getElementById('ot-prompt-request-now');
+    const originalContent = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Submitting...';
+
+    try {
+        const response = await fetch('{{ route("attendance.overtime.quick-submit") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                reminder_id: currentOtReminder.id,
+                date: currentOtReminder.date,
+                extra_hours: currentOtReminder.extra_hours,
+                start_time: currentOtReminder.start_time,
+                end_time: currentOtReminder.end_time
+            })
+        });
+
+        const data = await response.json();
+        if (response.ok && data.success) {
+            showSuccess(data.message || 'Overtime request submitted successfully!');
+            closeOvertimePromptModal();
+            await loadAttendanceStatus();
+        } else {
+            showError(data.error || 'Failed to submit overtime request');
+        }
+    } catch (e) {
+        console.error('Error submitting quick overtime:', e);
+        showError('Failed to submit overtime request');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalContent;
+    }
+}
+
+async function submitPendingOtReminder(reminderId, date, extraHours, startTime, endTime) {
+    try {
+        const response = await fetch('{{ route("attendance.overtime.quick-submit") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                reminder_id: reminderId,
+                date: date,
+                extra_hours: extraHours,
+                start_time: startTime,
+                end_time: endTime
+            })
+        });
+
+        const data = await response.json();
+        if (response.ok && data.success) {
+            showSuccess(data.message || 'Overtime request submitted!');
+            await loadAttendanceStatus();
+        } else {
+            showError(data.error || 'Failed to submit overtime request');
+        }
+    } catch (e) {
+        console.error('Error submitting pending overtime reminder:', e);
+        showError('Failed to submit overtime request');
+    }
+}
+
+async function dismissPendingOtReminder(reminderId) {
+    try {
+        const response = await fetch(`{{ url('/attendance/overtime/dismiss-reminder') }}/${reminderId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            }
+        });
+        const data = await response.json();
+        if (response.ok) {
+            showSuccess('Reminder dismissed');
+            await loadAttendanceStatus();
+        }
+    } catch (e) {
+        console.error('Error dismissing reminder:', e);
+    }
+}
+
+function renderPendingOtReminders(reminders) {
+    const container = document.getElementById('pending-ot-reminders-container');
+    if (!container) return;
+
+    if (!reminders || reminders.length === 0) {
+        container.innerHTML = '';
+        container.classList.add('hidden');
+        return;
+    }
+
+    let html = '';
+    reminders.forEach(r => {
+        html += `
+            <div id="ot-reminder-banner-${r.id}" class="p-4 rounded-2xl shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4" style="background-color: #fff7ed; border: 1px solid #ffedd5; padding: 16px; border-radius: 16px;">
+                <div class="flex items-start space-x-3" style="display: flex; align-items: flex-start; gap: 12px;">
+                    <div class="p-2.5 rounded-xl flex-shrink-0 mt-0.5" style="background-color: #ea580c; color: #ffffff; padding: 10px; border-radius: 12px;">
+                        <i class="fas fa-bell text-lg" style="color: #ffffff;"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2" style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-weight: 700; color: #9a3412; font-size: 15px;">Pending Overtime Request Reminder</span>
+                            <span style="padding: 2px 8px; font-size: 11px; font-weight: 700; background-color: #ffedd5; color: #c2410c; border-radius: 9999px;">${r.date_formatted}</span>
+                        </div>
+                        <p style="font-size: 14px; color: #475569; margin: 4px 0 0 0;">
+                            You rendered <strong style="font-weight: 800; color: #ea580c;">${parseFloat(r.extra_hours).toFixed(2)} extra hour(s)</strong> on ${r.date_formatted}. You haven't submitted an OT request yet.
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2 w-full sm:w-auto justify-end" style="display: flex; align-items: center; gap: 8px;">
+                    <button type="button" onclick="dismissPendingOtReminder('${r.id}')" style="padding: 8px 14px; font-size: 12px; font-weight: 600; color: #64748b; background: transparent; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer;">
+                        Dismiss
+                    </button>
+                    <button type="button" onclick="submitPendingOtReminder('${r.id}', '${r.date}', ${r.extra_hours}, '${r.start_time}', '${r.end_time}')" style="padding: 8px 16px; font-size: 12px; font-weight: 700; background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%); color: #ffffff !important; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 2px 4px rgba(234, 88, 12, 0.3);">
+                        <i class="fas fa-paper-plane mr-1.5" style="margin-right: 6px; color: #ffffff;"></i>Request OT Now
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+    container.classList.remove('hidden');
 }
 
 // Initialize page

@@ -55,12 +55,37 @@ class TimeInOutController extends Controller
                 ->orderByDesc('created_at')
                 ->limit(10)
                 ->get();
+
+            $pendingOtReminders = \App\Models\OvertimeReminder::where('employee_id', $employee->id)
+                ->where('status', \App\Models\OvertimeReminder::PENDING)
+                ->orderBy('date', 'desc')
+                ->get()
+                ->filter(function ($reminder) use ($employee) {
+                    return !\App\Models\OvertimeRequest::where('employee_id', $employee->id)
+                        ->whereDate('date', $reminder->date)
+                        ->whereIn('status', [\App\Models\OvertimeRequest::PENDING, \App\Models\OvertimeRequest::APPROVED])
+                        ->exists();
+                })
+                ->values()
+                ->map(function ($r) {
+                    return [
+                        'id' => $r->id,
+                        'date' => $r->date->format('Y-m-d'),
+                        'date_formatted' => $r->date->format('M j, Y'),
+                        'extra_hours' => (float) $r->extra_hours,
+                        'start_time' => $r->start_time ? $r->start_time->format('H:i') : '17:00',
+                        'end_time' => $r->end_time ? $r->end_time->format('H:i') : '18:30',
+                        'start_time_formatted' => $r->start_time ? $r->start_time->format('g:i A') : '5:00 PM',
+                        'end_time_formatted' => $r->end_time ? $r->end_time->format('g:i A') : '6:30 PM',
+                    ];
+                });
         }
 
         return view('attendance.time-in-out', [
             'user' => $user,
             'todayAttendance' => $todayAttendance,
             'recentActivity' => $recentActivity,
+            'pendingOtReminders' => $pendingOtReminders,
             'activeRoute' => 'attendance.time-in-out',
         ]);
     }
@@ -167,7 +192,7 @@ class TimeInOutController extends Controller
     {
         try {
             $user = Auth::user();
-            $employee = $user?->employee;
+            $employee = $user?->employee ?: ($user?->employee_id ? \App\Models\Employee::find($user->employee_id) : null);
 
             if (!$employee) {
                 return response()->json([
@@ -260,26 +285,71 @@ class TimeInOutController extends Controller
 
             $attendanceRecord->refresh();
 
+            // Detect rendered extra working hours for Overtime Reminder prompt
+            $assignedSchedule = \App\Models\EmployeeSchedule::where('employee_id', $employee->id)
+                ->whereDate('date', $attendanceRecord->date)
+                ->first();
+
+            $requiredHours = (float) ($assignedSchedule?->required_hours ?? 8.00);
+            $workedHours = (float) ($attendanceRecord->total_hours > 0 ? $attendanceRecord->total_hours : $attendanceRecord->calculateTotalHours());
+            $extraHours = round(max(0, $workedHours - $requiredHours), 2);
+
+            $overtimeDetected = false;
+            $reminderData = null;
+
+            if ($extraHours >= 0.01) {
+                $hasOtRequest = \App\Models\OvertimeRequest::where('employee_id', $employee->id)
+                    ->whereDate('date', $attendanceRecord->date)
+                    ->whereIn('status', [\App\Models\OvertimeRequest::PENDING, \App\Models\OvertimeRequest::APPROVED])
+                    ->exists();
+
+                if (!$hasOtRequest) {
+                    $startTime = $attendanceRecord->time_in 
+                        ? Carbon::parse($attendanceRecord->time_in)->addHours($requiredHours) 
+                        : $now->copy()->subMinutes(round($extraHours * 60));
+                    $endTime = $now;
+
+                    $reminder = \App\Models\OvertimeReminder::updateOrCreate(
+                        [
+                            'employee_id' => $employee->id,
+                            'date' => $attendanceRecord->date->format('Y-m-d'),
+                        ],
+                        [
+                            'attendance_record_id' => $attendanceRecord->id,
+                            'required_hours' => $requiredHours,
+                            'worked_hours' => $workedHours,
+                            'extra_hours' => $extraHours,
+                            'start_time' => $startTime,
+                            'end_time' => $endTime,
+                            'status' => \App\Models\OvertimeReminder::PENDING,
+                        ]
+                    );
+
+                    $overtimeDetected = true;
+                    $reminderData = [
+                        'id' => $reminder->id,
+                        'extra_hours' => $extraHours,
+                        'date' => $attendanceRecord->date->format('Y-m-d'),
+                        'date_formatted' => Carbon::parse($attendanceRecord->date)->format('M j, Y'),
+                        'start_time' => $startTime->format('H:i'),
+                        'end_time' => $endTime->format('H:i'),
+                        'start_time_formatted' => $startTime->format('g:i A'),
+                        'end_time_formatted' => $endTime->format('g:i A'),
+                    ];
+                }
+            }
+
             return response()->json([
                 'success' => true,
-
-                'message' =>
-                    'Successfully clocked out at '
-                    . $now->format('g:i A'),
-
-                'time_out' =>
-                    $now->toIso8601String(),
-
-                'total_hours' =>
-                    $attendanceRecord->total_hours,
-
-                'regular_hours' =>
-                    $attendanceRecord->regular_hours,
-
-                'overtime_hours' =>
-                    $attendanceRecord->overtime_hours,
-
+                'message' => 'Successfully clocked out at ' . $now->format('g:i A'),
+                'time_out' => $now->toIso8601String(),
+                'total_hours' => $attendanceRecord->total_hours,
+                'regular_hours' => $attendanceRecord->regular_hours,
+                'overtime_hours' => $attendanceRecord->overtime_hours,
                 'status' => 'clocked_out',
+                'overtime_detected' => $overtimeDetected,
+                'reminder' => $reminderData,
+                'pending_overtime_reminder' => $reminderData,
             ]);
         } catch (\Throwable $e) {
             return response()->json([
@@ -495,7 +565,7 @@ class TimeInOutController extends Controller
     {
         try {
             $user = Auth::user();
-            $employee = $user?->employee;
+            $employee = $user?->employee ?: ($user?->employee_id ? \App\Models\Employee::find($user->employee_id) : null);
 
             if (!$employee) {
                 return response()->json([
@@ -515,6 +585,31 @@ class TimeInOutController extends Controller
                         $today->toDateString()
                     )
                     ->first();
+
+            $pendingOtReminders = \App\Models\OvertimeReminder::where('employee_id', $employee->id)
+                ->where('status', \App\Models\OvertimeReminder::PENDING)
+                ->orderBy('date', 'desc')
+                ->get()
+                ->filter(function ($reminder) use ($employee) {
+                    return !\App\Models\OvertimeRequest::where('employee_id', $employee->id)
+                        ->whereDate('date', $reminder->date)
+                        ->whereIn('status', [\App\Models\OvertimeRequest::PENDING, \App\Models\OvertimeRequest::APPROVED])
+                        ->exists();
+                })
+                ->values()
+                ->map(function ($r) {
+                    return [
+                        'id' => $r->id,
+                        'date' => $r->date->format('Y-m-d'),
+                        'date_formatted' => $r->date->format('M j, Y'),
+                        'extra_hours' => (float) $r->extra_hours,
+                        'worked_hours' => (float) $r->worked_hours,
+                        'required_hours' => (float) $r->required_hours,
+                        'start_time' => $r->start_time ? $r->start_time->format('H:i') : null,
+                        'end_time' => $r->end_time ? $r->end_time->format('H:i') : null,
+                    ];
+                })
+                ->toArray();
 
             $status = [
                 'employee_id' => $employee->id,
@@ -538,6 +633,7 @@ class TimeInOutController extends Controller
                 'can_break_end' => false,
                 'status' => 'offline',
                 'attendance_record' => null,
+                'pending_overtime_reminders' => $pendingOtReminders,
             ];
 
             if (!$attendanceRecord) {
