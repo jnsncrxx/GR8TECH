@@ -57,6 +57,13 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
         ->name('notifications.read');
     Route::post('/notifications/read-all', [App\Http\Controllers\NotificationController::class, 'markAllNotificationsRead'])
         ->name('notifications.read-all');
+
+    // Universal search — available to every authenticated role.
+    // Access/company scoping happens inside SearchController, not here.
+    // Throttled since it's hit on every debounced keystroke from the client.
+    Route::get('/search', [App\Http\Controllers\Web\SearchController::class, 'index'])->name('search')->middleware('throttle:60,1');
+    Route::get('/search/modules', [App\Http\Controllers\Web\SearchController::class, 'modules'])->name('search.modules')->middleware('throttle:60,1');
+
     // Dashboard
     Route::get('/dashboard', [RoleBasedDashboardController::class, 'index'])->name('dashboard');
    Route::get('/payroll/manage', [PayrollController::class, 'index'])->name('payroll.manage');

@@ -114,6 +114,7 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     @forelse($employees as $employee)
                     <tr class="hover:bg-gray-50 transition-colors employee-row" 
+                        data-search-row="{{ $employee->id }}"
                         data-name="{{ strtolower($employee->full_name) }}"
                         data-email="{{ strtolower($employee->account?->email ?? '') }}"
                         data-department="{{ $employee->department?->id ?? '' }}"

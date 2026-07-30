@@ -470,7 +470,7 @@
                             $initials = strtoupper(substr($ob->employee->first_name ?? '', 0, 1) . substr($ob->employee->last_name ?? '', 0, 1));
                             $reviewerName = trim(($ob->reviewer?->employee?->first_name ?? '') . ' ' . ($ob->reviewer?->employee?->last_name ?? ''));
                         @endphp
-                        <tr class="hover:bg-gray-50 transition-colors">
+                        <tr class="hover:bg-gray-50 transition-colors" data-search-row="{{ $ob->id }}">
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="flex items-center">
                                     <div class="flex-shrink-0 h-10 w-10">

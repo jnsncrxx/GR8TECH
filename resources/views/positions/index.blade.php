@@ -157,7 +157,7 @@
 
                 <tbody class="bg-white divide-y divide-gray-200">
                     @forelse($positions as $position)
-                        <tr class="{{ $position->is_active ? 'hover:bg-gray-50' : 'bg-gray-50 hover:bg-gray-100' }}">
+                        <tr class="{{ $position->is_active ? 'hover:bg-gray-50' : 'bg-gray-50 hover:bg-gray-100' }}" data-search-row="{{ $position->id }}">
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="flex items-center">
                                     <div class="flex-shrink-0 h-10 w-10">
