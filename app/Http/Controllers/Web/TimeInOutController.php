@@ -27,6 +27,7 @@ class TimeInOutController extends Controller
 
         $todayAttendance = null;
         $recentActivity = collect();
+        $pendingOtReminders = collect();
 
         if ($employee) {
             $todayAttendance = AttendanceRecord::where(
@@ -55,14 +56,64 @@ class TimeInOutController extends Controller
                 ->orderByDesc('created_at')
                 ->limit(10)
                 ->get();
+
+            $pendingOtReminders = \App\Models\OvertimeReminder::where('employee_id', $employee->id)
+                ->where('status', \App\Models\OvertimeReminder::PENDING)
+                ->orderBy('date', 'desc')
+                ->get()
+                ->filter(function ($reminder) use ($employee) {
+                    return !\App\Models\OvertimeRequest::where('employee_id', $employee->id)
+                        ->whereDate('date', $reminder->date)
+                        ->whereIn('status', [\App\Models\OvertimeRequest::PENDING, \App\Models\OvertimeRequest::APPROVED])
+                        ->exists();
+                })
+                ->values()
+                ->map(function ($r) {
+                    return [
+                        'id' => $r->id,
+                        'date' => $r->date->format('Y-m-d'),
+                        'date_formatted' => $r->date->format('M j, Y'),
+                        'extra_hours' => (float) $r->extra_hours,
+                        'start_time' => $r->start_time ? $r->start_time->format('H:i') : '17:00',
+                        'end_time' => $r->end_time ? $r->end_time->format('H:i') : '18:30',
+                        'start_time_formatted' => $r->start_time ? $r->start_time->format('g:i A') : '5:00 PM',
+                        'end_time_formatted' => $r->end_time ? $r->end_time->format('g:i A') : '6:30 PM',
+                    ];
+                });
         }
 
         return view('attendance.time-in-out', [
             'user' => $user,
             'todayAttendance' => $todayAttendance,
             'recentActivity' => $recentActivity,
+            'pendingOtReminders' => $pendingOtReminders,
             'activeRoute' => 'attendance.time-in-out',
         ]);
+    }
+
+    private function findActiveAttendanceRecord($employee): ?AttendanceRecord
+    {
+        $today = Carbon::today();
+
+        $todayRecord = AttendanceRecord::where('employee_id', $employee->id)
+            ->whereDate('date', $today->toDateString())
+            ->with(['timeEntries', 'breaks'])
+            ->first();
+
+        if ($todayRecord && $todayRecord->hasActiveTimeEntry()) {
+            return $todayRecord;
+        }
+
+        $yesterdayRecord = AttendanceRecord::where('employee_id', $employee->id)
+            ->whereDate('date', $today->copy()->subDay()->toDateString())
+            ->with(['timeEntries', 'breaks'])
+            ->first();
+
+        if ($yesterdayRecord && $yesterdayRecord->hasActiveTimeEntry()) {
+            return $yesterdayRecord;
+        }
+
+        return $todayRecord;
     }
 
     /**
@@ -83,26 +134,41 @@ class TimeInOutController extends Controller
             $today = Carbon::today();
             $now = Carbon::now();
 
-            $attendanceRecord =
-                AttendanceRecord::firstOrCreate(
-                    [
+            if (app(\App\Services\PayrollPeriodLockService::class)
+                ->isLockedForDate($employee->id, $today)) {
+                return response()->json([
+                    'error' => 'Attendance is locked for this payroll period. Ask an authorized user to reopen the period before clocking in.',
+                ], 422);
+            }
+
+            $attendanceRecord = AttendanceRecord::where(
+                'employee_id',
+                $employee->id
+            )
+                ->whereDate('date', $today->toDateString())
+                ->first();
+
+            if (!$attendanceRecord) {
+                $attendanceRecord = AttendanceRecord::create([
                         'employee_id' => $employee->id,
                         'date' => $today->toDateString(),
-                    ],
-                    [
                         'status' => 'present',
                         'total_hours' => 0,
                         'regular_hours' => 0,
                         'overtime_hours' => 0,
-                    ]
-                );
+                ]);
+            }
 
-            if ($attendanceRecord->hasActiveTimeEntry()) {
+            if ($attendanceRecord->timeEntries()
+                ->whereNull('time_out')
+                ->exists()) {
                 return response()->json([
                     'error' =>
                         'You are already clocked in',
                 ], 400);
             }
+
+            $hasRecordedEntries = $attendanceRecord->timeEntries()->exists();
 
             TimeEntry::create([
                 'attendance_record_id' =>
@@ -116,7 +182,12 @@ class TimeInOutController extends Controller
             /*
              * Store the first actual Time In.
              */
-            if (!$attendanceRecord->time_in) {
+            if (
+                !$hasRecordedEntries
+                && !$attendanceRecord->corrected_at
+            ) {
+                $attendanceRecord->time_in = $now;
+            } elseif (!$attendanceRecord->time_in) {
                 $attendanceRecord->time_in = $now;
             }
 
@@ -167,7 +238,7 @@ class TimeInOutController extends Controller
     {
         try {
             $user = Auth::user();
-            $employee = $user?->employee;
+            $employee = $user?->employee ?: ($user?->employee_id ? \App\Models\Employee::find($user->employee_id) : null);
 
             if (!$employee) {
                 return response()->json([
@@ -175,25 +246,20 @@ class TimeInOutController extends Controller
                 ], 404);
             }
 
-            $today = Carbon::today();
-
-            $attendanceRecord =
-                AttendanceRecord::where(
-                    'employee_id',
-                    $employee->id
-                )
-                    ->whereDate(
-                        'date',
-                        $today->toDateString()
-                    )
-                    ->with(['timeEntries', 'breaks'])
-                    ->first();
+            $attendanceRecord = $this->findActiveAttendanceRecord($employee);
 
             if (!$attendanceRecord) {
                 return response()->json([
                     'error' =>
                         'No clock in record found for today',
                 ], 400);
+            }
+
+            if (app(\App\Services\PayrollPeriodLockService::class)
+                ->isLockedForDate($employee->id, $attendanceRecord->date)) {
+                return response()->json([
+                    'error' => 'Attendance is locked for this payroll period. Ask an authorized user to reopen the period before clocking out.',
+                ], 422);
             }
 
             $activeEntry =
@@ -240,10 +306,9 @@ class TimeInOutController extends Controller
                 /*
                  * Store latest Time Out.
                  */
-                $attendanceRecord->update([
-                    'time_out' => $now,
-                    'status' => 'completed',
-                ]);
+                $attendanceRecord->time_out = $now;
+                $attendanceRecord->status = $attendanceRecord->getCalculatedStatus();
+                $attendanceRecord->save();
 
                 /*
                  * Critical:
@@ -261,26 +326,75 @@ class TimeInOutController extends Controller
 
             $attendanceRecord->refresh();
 
+            // Detect rendered extra working hours for Overtime Reminder prompt
+            $assignedSchedule = \App\Models\EmployeeSchedule::where('employee_id', $employee->id)
+                ->whereDate('date', $attendanceRecord->date)
+                ->first();
+
+            $requiredHours = (float) ($assignedSchedule?->required_hours ?? 8.00);
+            // Only actual rendered work can create an OT reminder. Credited OB
+            // hours are included in total_hours but must never generate OT.
+            $workedHours = (float) $attendanceRecord->calculateTotalHours();
+            $extraHours = round(max(0, $workedHours - $requiredHours), 2);
+
+            $overtimeDetected = false;
+            $reminderData = null;
+
+            if ($extraHours >= 0.01) {
+                $hasOtRequest = \App\Models\OvertimeRequest::where('employee_id', $employee->id)
+                    ->whereDate('date', $attendanceRecord->date)
+                    ->whereIn('status', [\App\Models\OvertimeRequest::PENDING, \App\Models\OvertimeRequest::APPROVED])
+                    ->exists();
+
+                if (!$hasOtRequest) {
+                    $startTime = $assignedSchedule?->time_out
+                        ? Carbon::parse(
+                            $attendanceRecord->date->format('Y-m-d').' '.$assignedSchedule->time_out
+                        )
+                        : $now->copy()->subMinutes(round($extraHours * 60));
+                    $endTime = $now;
+
+                    $reminder = \App\Models\OvertimeReminder::updateOrCreate(
+                        [
+                            'employee_id' => $employee->id,
+                            'date' => $attendanceRecord->date->format('Y-m-d'),
+                        ],
+                        [
+                            'attendance_record_id' => $attendanceRecord->id,
+                            'required_hours' => $requiredHours,
+                            'worked_hours' => $workedHours,
+                            'extra_hours' => $extraHours,
+                            'start_time' => $startTime,
+                            'end_time' => $endTime,
+                            'status' => \App\Models\OvertimeReminder::PENDING,
+                        ]
+                    );
+
+                    $overtimeDetected = true;
+                    $reminderData = [
+                        'id' => $reminder->id,
+                        'extra_hours' => $extraHours,
+                        'date' => $attendanceRecord->date->format('Y-m-d'),
+                        'date_formatted' => Carbon::parse($attendanceRecord->date)->format('M j, Y'),
+                        'start_time' => $startTime->format('H:i'),
+                        'end_time' => $endTime->format('H:i'),
+                        'start_time_formatted' => $startTime->format('g:i A'),
+                        'end_time_formatted' => $endTime->format('g:i A'),
+                    ];
+                }
+            }
+
             return response()->json([
                 'success' => true,
-
-                'message' =>
-                    'Successfully clocked out at '
-                    . $now->format('g:i A'),
-
-                'time_out' =>
-                    $now->toIso8601String(),
-
-                'total_hours' =>
-                    $attendanceRecord->total_hours,
-
-                'regular_hours' =>
-                    $attendanceRecord->regular_hours,
-
-                'overtime_hours' =>
-                    $attendanceRecord->overtime_hours,
-
+                'message' => 'Successfully clocked out at ' . $now->format('g:i A'),
+                'time_out' => $now->toIso8601String(),
+                'total_hours' => $attendanceRecord->total_hours,
+                'regular_hours' => $attendanceRecord->regular_hours,
+                'overtime_hours' => $attendanceRecord->overtime_hours,
                 'status' => 'clocked_out',
+                'overtime_detected' => $overtimeDetected,
+                'reminder' => $reminderData,
+                'pending_overtime_reminder' => $reminderData,
             ]);
         } catch (\Throwable $e) {
             return response()->json([
@@ -306,18 +420,7 @@ class TimeInOutController extends Controller
                 ], 404);
             }
 
-            $today = Carbon::today();
-
-            $attendanceRecord =
-                AttendanceRecord::where(
-                    'employee_id',
-                    $employee->id
-                )
-                    ->whereDate(
-                        'date',
-                        $today->toDateString()
-                    )
-                    ->first();
+            $attendanceRecord = $this->findActiveAttendanceRecord($employee);
 
             if (
                 !$attendanceRecord
@@ -401,18 +504,7 @@ class TimeInOutController extends Controller
                 ], 404);
             }
 
-            $today = Carbon::today();
-
-            $attendanceRecord =
-                AttendanceRecord::where(
-                    'employee_id',
-                    $employee->id
-                )
-                    ->whereDate(
-                        'date',
-                        $today->toDateString()
-                    )
-                    ->first();
+            $attendanceRecord = $this->findActiveAttendanceRecord($employee);
 
             if (
                 !$attendanceRecord
@@ -496,7 +588,7 @@ class TimeInOutController extends Controller
     {
         try {
             $user = Auth::user();
-            $employee = $user?->employee;
+            $employee = $user?->employee ?: ($user?->employee_id ? \App\Models\Employee::find($user->employee_id) : null);
 
             if (!$employee) {
                 return response()->json([
@@ -504,18 +596,32 @@ class TimeInOutController extends Controller
                 ], 404);
             }
 
-            $today = Carbon::today();
+            $attendanceRecord = $this->findActiveAttendanceRecord($employee);
 
-            $attendanceRecord =
-                AttendanceRecord::where(
-                    'employee_id',
-                    $employee->id
-                )
-                    ->whereDate(
-                        'date',
-                        $today->toDateString()
-                    )
-                    ->first();
+            $pendingOtReminders = \App\Models\OvertimeReminder::where('employee_id', $employee->id)
+                ->where('status', \App\Models\OvertimeReminder::PENDING)
+                ->orderBy('date', 'desc')
+                ->get()
+                ->filter(function ($reminder) use ($employee) {
+                    return !\App\Models\OvertimeRequest::where('employee_id', $employee->id)
+                        ->whereDate('date', $reminder->date)
+                        ->whereIn('status', [\App\Models\OvertimeRequest::PENDING, \App\Models\OvertimeRequest::APPROVED])
+                        ->exists();
+                })
+                ->values()
+                ->map(function ($r) {
+                    return [
+                        'id' => $r->id,
+                        'date' => $r->date->format('Y-m-d'),
+                        'date_formatted' => $r->date->format('M j, Y'),
+                        'extra_hours' => (float) $r->extra_hours,
+                        'worked_hours' => (float) $r->worked_hours,
+                        'required_hours' => (float) $r->required_hours,
+                        'start_time' => $r->start_time ? $r->start_time->format('H:i') : null,
+                        'end_time' => $r->end_time ? $r->end_time->format('H:i') : null,
+                    ];
+                })
+                ->toArray();
 
             $status = [
                 'employee_id' => $employee->id,
@@ -539,6 +645,7 @@ class TimeInOutController extends Controller
                 'can_break_end' => false,
                 'status' => 'offline',
                 'attendance_record' => null,
+                'pending_overtime_reminders' => $pendingOtReminders,
                 'active_time_entry' => null,
                 'time_entries' => [],
                 'entry_count' => 0,

@@ -10,7 +10,10 @@ return new class extends Migration
     {
         if (!Schema::hasTable('employees')) {
             Schema::create('employees', function (Blueprint $table) {
-                $table->id();
+                $table->uuid('id')->primary();
+                $table->string('employee_id')->nullable();
+                $table->string('first_name')->nullable();
+                $table->string('last_name')->nullable();
                 $table->timestamps();
             });
         }

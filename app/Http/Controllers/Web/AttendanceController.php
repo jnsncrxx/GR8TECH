@@ -189,8 +189,11 @@ class AttendanceController extends Controller
                 $severity = 'blocking';
             } elseif (in_array($schedule->status, ['Day Off', 'Rest Day'], true)) {
                 $code = $record && $record->time_in && $record->time_out ? 'rest_day_duty' : 'day_off';
-                $label = $code === 'rest_day_duty' ? 'Rest-day Duty Review' : $schedule->status;
-                $severity = $code === 'rest_day_duty' ? 'review' : 'neutral';
+                $isReviewedRestDayDuty = $code === 'rest_day_duty' && $record->corrected_at;
+                $label = $code === 'rest_day_duty'
+                    ? ($isReviewedRestDayDuty ? 'Rest-day Duty' : 'Rest-day Duty Review')
+                    : $schedule->status;
+                $severity = $code === 'rest_day_duty' && !$isReviewedRestDayDuty ? 'review' : 'clear';
             } elseif ($isWorking && (!$record || (!$record->time_in && !$record->time_out))) {
                 $code = 'absent';
                 $label = 'Absent';
@@ -287,13 +290,43 @@ class AttendanceController extends Controller
             ->get()
             ->keyBy(fn (EmployeeSchedule $schedule) => $schedule->employee_id . '|' . $schedule->date->format('Y-m-d'));
 
-        $allAttendanceRecords->each(function (AttendanceRecord $record) use ($scheduleMap) {
-            $schedule = $scheduleMap->get($record->employee_id . '|' . Carbon::parse($record->date)->format('Y-m-d'));
+        $approvedLeaves = LeaveRequest::query()
+            ->whereIn('employee_id', $allAttendanceRecords->pluck('employee_id')->unique())
+            ->where('status', LeaveRequest::APPROVED)
+            ->whereDate('start_date', '<=', $dateTo->toDateString())
+            ->whereDate('end_date', '>=', $dateFrom->toDateString())
+            ->get()
+            ->groupBy('employee_id');
+
+        $approvedOfficialBusiness = OfficialBusinessRequest::query()
+            ->whereIn('employee_id', $allAttendanceRecords->pluck('employee_id')->unique())
+            ->where('status', OfficialBusinessRequest::APPROVED)
+            ->whereBetween('date', [$dateFrom->toDateString(), $dateTo->toDateString()])
+            ->get()
+            ->keyBy(fn (OfficialBusinessRequest $request) => $request->employee_id . '|' . $request->date->format('Y-m-d'));
+
+        $allAttendanceRecords->each(function (AttendanceRecord $record) use ($scheduleMap, $approvedLeaves, $approvedOfficialBusiness) {
+            $dateString = Carbon::parse($record->date)->format('Y-m-d');
+            $recordKey = $record->employee_id . '|' . $dateString;
+            $schedule = $scheduleMap->get($recordKey);
+            $hasApprovedLeave = $approvedLeaves
+                ->get($record->employee_id, collect())
+                ->contains(fn (LeaveRequest $leave) => $leave->start_date->toDateString() <= $dateString
+                    && $leave->end_date->toDateString() >= $dateString);
+            $hasApprovedOfficialBusiness = $approvedOfficialBusiness->has($recordKey);
             $workedHours = $record->calculateTotalHours();
-            $exception = $this->timekeepingException($record, $schedule, $workedHours);
+            $exception = $this->timekeepingException(
+                $record,
+                $schedule,
+                $workedHours,
+                $hasApprovedLeave,
+                $hasApprovedOfficialBusiness
+            );
 
             $record->setRelation('assignedSchedule', $schedule);
             $record->setAttribute('display_worked_hours', $workedHours);
+            $record->setAttribute('has_approved_leave', $hasApprovedLeave);
+            $record->setAttribute('has_approved_official_business', $hasApprovedOfficialBusiness);
             $record->setAttribute('exception_code', $exception['code']);
             $record->setAttribute('exception_label', $exception['label']);
             $record->setAttribute('exception_severity', $exception['severity']);
@@ -391,14 +424,24 @@ class AttendanceController extends Controller
     private function timekeepingException(
         AttendanceRecord $record,
         ?EmployeeSchedule $schedule,
-        float $workedHours
+        float $workedHours,
+        bool $hasApprovedLeave = false,
+        bool $hasApprovedOfficialBusiness = false
     ): array {
-        if ($record->status === AttendanceRecord::ON_LEAVE) {
+        if ($hasApprovedLeave) {
             return ['code' => 'clear', 'label' => 'Approved leave', 'severity' => 'clear'];
         }
 
-        if ($record->status === AttendanceRecord::OFFICIAL_BUSINESS) {
+        if ($hasApprovedOfficialBusiness) {
             return ['code' => 'clear', 'label' => 'Approved official business', 'severity' => 'clear'];
+        }
+
+        if ($record->status === AttendanceRecord::ON_LEAVE) {
+            return ['code' => 'unverified_leave', 'label' => 'No approved leave request', 'severity' => 'blocking'];
+        }
+
+        if ($record->status === AttendanceRecord::OFFICIAL_BUSINESS) {
+            return ['code' => 'unverified_official_business', 'label' => 'No approved OB request', 'severity' => 'blocking'];
         }
 
         if ($record->status === AttendanceRecord::ABSENT && !$record->time_in && !$record->time_out) {
@@ -418,6 +461,10 @@ class AttendanceController extends Controller
         }
 
         if (in_array($schedule->status, ['Day Off', 'Rest Day'], true) && $workedHours > 0) {
+            if ($record->corrected_at) {
+                return ['code' => 'clear', 'label' => 'Rest-day duty reviewed', 'severity' => 'clear'];
+            }
+
             return ['code' => 'rest_day_attendance', 'label' => 'Rest-day duty review', 'severity' => 'review'];
         }
 

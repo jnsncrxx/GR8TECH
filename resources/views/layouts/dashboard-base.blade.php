@@ -304,9 +304,14 @@
 
             if (response.ok) {
                 showSidebarMessage(data.message, 'success');
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1000);
+                const reminder = data.reminder || data.pending_overtime_reminder;
+                if (data.overtime_detected && reminder && typeof showOvertimePromptModal === 'function') {
+                    showOvertimePromptModal(reminder, true);
+                } else {
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                }
             } else {
                 showSidebarMessage(data.error || 'Failed to clock out', 'error');
                 btn.disabled = false;
@@ -380,5 +385,8 @@
     updateTime();
     setInterval(updateTime, 60000);
     </script>
+    @unless(request()->routeIs('attendance.time-in-out'))
+        <x-overtime-reminder-modal />
+    @endunless
 </body>
 </html>

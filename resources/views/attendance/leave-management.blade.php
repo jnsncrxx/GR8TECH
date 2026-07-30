@@ -341,6 +341,9 @@
                             <div class="text-sm text-gray-900">
                                 {{ $reviewerName !== '' ? $reviewerName : '—' }}
                             </div>
+                            @if($leaveRequest->approved_at)
+                                <div class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($leaveRequest->approved_at)->format('M d, Y h:i A') }}</div>
+                            @endif
                         </td>
 
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
@@ -477,6 +480,9 @@
                         <div class="col-span-2">
                             <div class="text-gray-500">Reviewed By</div>
                             <div class="font-medium">{{ $reviewerName !== '' ? $reviewerName : '—' }}</div>
+                            @if($leaveRequest->approved_at)
+                                <div class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($leaveRequest->approved_at)->format('M d, Y h:i A') }}</div>
+                            @endif
                         </div>
                     </div>
                     <div class="text-sm mb-3">

@@ -171,16 +171,16 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div class="flex space-x-2">
-                                <a href="{{ route('employees.info', ['employee_id' => $employee->id]) }}" class="text-blue-600 hover:text-blue-900 transition-colors">
+                                <a href="{{ route('employees.info', ['employee_id' => $employee->id]) }}" class="ui-icon-action ui-action-view" title="View employee">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                <a href="{{ route('employees.edit', $employee) }}" class="text-indigo-600 hover:text-indigo-900 transition-colors">
+                                <a href="{{ route('employees.edit', $employee) }}" class="ui-icon-action ui-action-edit" title="Edit employee">
                                     <i class="fas fa-edit"></i>
                                 </a>
-                                <a href="{{ route('employees.payroll', $employee) }}" class="text-green-600 hover:text-green-900 transition-colors">
+                                <a href="{{ route('employees.payroll', $employee) }}" class="ui-icon-action ui-action-payroll" title="View payroll">
                                     <i class="fas fa-money-bill-wave"></i>
                                 </a>
-                                <button type="button" onclick="openDeleteModal('{{ $employee->id }}', '{{ $employee->full_name }}')" class="text-red-600 hover:text-red-900 transition-colors">
+                                <button type="button" onclick="openDeleteModal('{{ $employee->id }}', '{{ $employee->full_name }}')" class="ui-icon-action ui-action-delete" title="Delete employee">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>

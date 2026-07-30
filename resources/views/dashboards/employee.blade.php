@@ -275,7 +275,12 @@
                         <div class="mt-3">
                             <div class="w-full bg-white bg-opacity-20 rounded-full h-1.5 overflow-hidden flex">
                                 @if(!$isFlexibleSchedule && $lateWidthPct > 0)
-                                    <div id="hours-late-bar" class="bg-red-500 h-1.5" style="width: {{ $lateWidthPct }}%"></div>
+                                    <div
+                                        id="hours-late-bar"
+                                        class="h-1.5"
+                                        style="width: {{ $lateWidthPct }}%; background-color: #ef4444;"
+                                        aria-label="Late time: {{ $todayAttendance->getLateMinutesFormatted() }}"
+                                    ></div>
                                 @endif
                                 <div id="hours-progress-bar" class="bg-white h-1.5 transition-all" style="width: {{ max(0, $progressPct - $lateWidthPct) }}%"></div>
                             </div>
@@ -904,10 +909,14 @@ async function timeOut() {
             showSuccess(data.message);
             attendanceRecord = data.attendance_record;
             updateAttendanceUI();
-            // Refresh the page to show updated data
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
+            const reminder = data.reminder || data.pending_overtime_reminder;
+            if (data.overtime_detected && reminder && typeof showOvertimePromptModal === 'function') {
+                showOvertimePromptModal(reminder, true);
+            } else {
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            }
         } else {
             showError(data.error || 'Failed to clock out');
         }
