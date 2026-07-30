@@ -63,6 +63,8 @@ class RequireTimeInMiddleware
             'notifications.mine',
             'notifications.read',
             'notifications.read-all',
+            'search',
+            'search.modules',
         ])) {
             return $next($request);
         }

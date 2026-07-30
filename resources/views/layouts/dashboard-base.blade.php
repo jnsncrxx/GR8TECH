@@ -132,6 +132,19 @@
         border-radius: 50%; display: flex; align-items: center; justify-content: center;
         font-size: .75rem; box-shadow: 0 2px 4px rgba(0,0,0,.15); border: 2px solid #fff;
     }
+
+    /* Universal search — highlight flash applied to the target row/card
+       after navigating in from a search result (see data-search-row). */
+    @keyframes searchHighlightFlash {
+        0%   { background-color: rgba(250, 204, 21, .45); }
+        100% { background-color: transparent; }
+    }
+    .search-highlight-flash {
+        animation: searchHighlightFlash 2.2s ease-out 1;
+        outline: 2px solid rgba(37, 99, 235, .55);
+        outline-offset: -1px;
+        border-radius: 6px;
+    }
     </style>
 </head>
 <body class="hris-app font-sans antialiased bg-brand-surface text-brand-black">
@@ -199,6 +212,30 @@
     }
 
     removeDuplicatePageTitle();
+
+    // Universal search: scroll to and highlight the record the user picked.
+    // Any list/table row can opt in by adding a data-search-row attribute set to that record's id.
+    function highlightSearchResult() {
+        const params = new URLSearchParams(window.location.search);
+        const highlightId = params.get('highlight');
+        if (!highlightId) return;
+
+        const target = document.querySelector(`[data-search-row="${CSS.escape(highlightId)}"]`);
+
+        if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            target.classList.add('search-highlight-flash');
+            setTimeout(() => target.classList.remove('search-highlight-flash'), 2200);
+        }
+
+        // Strip the param so refreshing/sharing the URL doesn't re-trigger it.
+        params.delete('highlight');
+        const newSearch = params.toString();
+        const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash;
+        window.history.replaceState({}, '', newUrl);
+    }
+
+    highlightSearchResult();
 
     function toggleSidebar() {
         const sidebar = document.getElementById('sidebar');
