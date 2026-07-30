@@ -809,7 +809,12 @@ class PeriodManagementController extends Controller
         } elseif ($component === 'leave') {
             $hasIssue = fn ($record, string $issue) => in_array($issue, $record['validation_issues'] ?? [], true);
 
+            $unverifiedLeaves = $records->filter(fn ($r) => $hasIssue($r, 'Unverified Leave'))->count();
             $leaveConflicts = $records->filter(fn ($r) => $hasIssue($r, 'Leave Conflict'))->count();
+
+            if ($unverifiedLeaves > 0) {
+                $errors[] = "$unverifiedLeaves attendance record(s) are marked On Leave without a matching approved leave request.";
+            }
 
             if ($leaveConflicts > 0) {
                 $errors[] = "$leaveConflicts approved leave day(s) overlap worked attendance, approved OB, or approved overtime. Correct or cancel the conflicting request before validating leave.";
