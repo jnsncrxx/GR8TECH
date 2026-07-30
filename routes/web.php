@@ -413,6 +413,9 @@ Route::get('/debug-current-payrolls', function() {
         Route::post('/{period}/refresh-cutoff', [PeriodManagementController::class, 'refreshCutoffData'])
             ->name('refresh-cutoff');
 
+        Route::patch('/{period}/deadlines', [PeriodManagementController::class, 'extendDeadlines'])
+            ->name('deadlines');
+
         Route::post(
             '/{period}/validate/{component}',
             [PeriodManagementController::class, 'validateComponent']
