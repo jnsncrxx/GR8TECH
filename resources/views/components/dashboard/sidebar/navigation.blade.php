@@ -655,6 +655,16 @@
                     <i class="fas fa-clipboard-list mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'developer.activity-logs.index' ? 'text-blue-600' : '' }}"></i>
                     <span>Activity Logs</span>
                 </a>
+                <a href="{{ route('developer.recycle-bin.index') }}"
+                   class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'developer.recycle-bin.index' ? 'bg-white text-blue-600' : '' }}">
+                    <i class="fas fa-trash-can mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'developer.recycle-bin.index' ? 'text-blue-600' : '' }}"></i>
+                    <span>Recycle Bin</span>
+                </a>
+                <a href="{{ route('developer.database-backup.index') }}"
+                   class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'developer.database-backup.index' ? 'bg-white text-blue-600' : '' }}">
+                    <i class="fas fa-database mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'developer.database-backup.index' ? 'text-blue-600' : '' }}"></i>
+                    <span>Database Backup</span>
+                </a>
                 @endif
             </div>
         </div>

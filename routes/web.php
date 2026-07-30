@@ -566,4 +566,17 @@ Route::middleware(['auth', 'role:admin,hr'])->prefix('developer')->name('develop
         Route::get('/', [App\Http\Controllers\Developer\ActivityLogController::class, 'index'])->name('index');
         Route::get('/export', [App\Http\Controllers\Developer\ActivityLogController::class, 'export'])->name('export');
     });
+
+    // Recycle Bin is admin-only.
+    Route::middleware('role:admin')->prefix('recycle-bin')->name('recycle-bin.')->group(function () {
+        Route::get('/', [App\Http\Controllers\Developer\RecycleBinController::class, 'index'])->name('index');
+        Route::post('/{module}/{id}/restore', [App\Http\Controllers\Developer\RecycleBinController::class, 'restore'])->name('restore');
+        Route::delete('/{module}/{id}', [App\Http\Controllers\Developer\RecycleBinController::class, 'forceDelete'])->name('force-delete');
+    });
+
+    // Database Backup is admin-only.
+    Route::middleware('role:admin')->prefix('database-backup')->name('database-backup.')->group(function () {
+        Route::get('/', [App\Http\Controllers\Developer\DatabaseBackupController::class, 'index'])->name('index');
+        Route::post('/download', [App\Http\Controllers\Developer\DatabaseBackupController::class, 'download'])->name('download');
+    });
 });

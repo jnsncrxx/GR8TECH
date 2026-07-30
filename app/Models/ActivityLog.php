@@ -12,7 +12,7 @@ class ActivityLog extends Model
     /**
      * Action categories this system records.
      */
-    public const ACTIONS = ['login', 'logout', 'create', 'update', 'delete', 'restore', 'backup'];
+    public const ACTIONS = ['login', 'logout', 'create', 'update', 'delete', 'restore', 'permanent_delete', 'backup'];
 
     protected $fillable = [
         'account_id',
