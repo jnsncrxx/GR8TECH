@@ -12,9 +12,6 @@
                 <a href="{{ route('developer.permissions.index') }}" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg">
                     <i class="fas fa-user-shield mr-2"></i> Role & Permissions
                 </a>
-                <a href="{{ route('developer.activity-logs.index') }}" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg">
-                    <i class="fas fa-clipboard-list mr-2"></i> Activity Logs
-                </a>
             @endif
             <button onclick="openCreateModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
                 <i class="fas fa-plus mr-2"></i> Add Account
