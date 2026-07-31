@@ -283,7 +283,7 @@
                                     ?? '';
                             }
                         @endphp
-                    <tr class="hover:bg-gray-50 transition-colors">
+                    <tr class="hover:bg-gray-50 transition-colors" data-search-row="{{ $leaveRequest->id }}">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
                                 <div class="flex-shrink-0 h-10 w-10">

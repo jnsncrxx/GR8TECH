@@ -180,6 +180,11 @@ class Employee extends Model
         return $this->hasMany(Payroll::class);
     }
 
+    public function loans(): HasMany
+    {
+        return $this->hasMany(Loan::class);
+    }
+
     public function account(): HasOne
     {
         return $this->hasOne(Account::class);
@@ -363,7 +368,7 @@ class Employee extends Model
     public function getTodayAttendance()
     {
         return $this->attendanceRecords()
-            ->where('date', today())
+            ->whereDate('date', today())
             ->first();
     }
 

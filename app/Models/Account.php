@@ -7,13 +7,14 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Hash;
 use Ramsey\Uuid\Uuid;
 use App\Helpers\TimezoneHelper;
 
 class Account extends Authenticatable
 {
-    use HasFactory, Notifiable, HasUuids;
+    use HasFactory, Notifiable, HasUuids, SoftDeletes;
 
     protected $keyType = 'string';
     public $incrementing = false;
@@ -45,7 +46,7 @@ class Account extends Authenticatable
     protected static function boot()
     {
         parent::boot();
-        
+
         static::creating(function ($model) {
             if (empty($model->id)) {
                 $model->id = Uuid::uuid4()->toString();
@@ -134,7 +135,7 @@ class Account extends Authenticatable
      */
     public function getFormattedLastLoginAttribute(): string
     {
-        return $this->last_login_at 
+        return $this->last_login_at
             ? TimezoneHelper::formatForDisplay($this->last_login_at, 'M d, Y g:i A')
             : 'Never';
     }

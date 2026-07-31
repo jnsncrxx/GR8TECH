@@ -48,6 +48,9 @@ class RequireTimeInMiddleware
             'logout',
             'attendance.time-in',
             'attendance.time-out',
+            'attendance.status',
+            'attendance.overtime.quick-submit',
+            'attendance.overtime.dismiss-reminder',
             'companies.switch',
             'companies.index',
             'hr.help-support',
@@ -60,6 +63,8 @@ class RequireTimeInMiddleware
             'notifications.mine',
             'notifications.read',
             'notifications.read-all',
+            'search',
+            'search.modules',
         ])) {
             return $next($request);
         }

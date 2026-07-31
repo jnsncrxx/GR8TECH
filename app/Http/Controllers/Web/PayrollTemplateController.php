@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\PayrollTemplate;
 use App\Helpers\CompanyHelper;
+use App\Helpers\ActivityLogger;
 use Illuminate\Support\Facades\Auth;
 
 class PayrollTemplateController extends Controller
@@ -13,7 +14,7 @@ class PayrollTemplateController extends Controller
     public function index(Request $request)
     {
         $currentCompany = CompanyHelper::getCurrentCompany();
-        
+
         $query = PayrollTemplate::query();
         if ($currentCompany) {
             $query->where('company_id', $currentCompany->id);
@@ -105,6 +106,8 @@ class PayrollTemplateController extends Controller
 
         $payrollTemplate->delete();
 
+        ActivityLogger::log('delete', 'Payroll Template', "Archived payroll template \"{$payrollTemplate->name}\".");
+
         return redirect()->route('payroll-templates.index')->with('success', 'Payroll template archived successfully.');
     }
 
@@ -112,6 +115,8 @@ class PayrollTemplateController extends Controller
     {
         $payrollTemplate = PayrollTemplate::onlyTrashed()->findOrFail($id);
         $payrollTemplate->restore();
+
+        ActivityLogger::log('restore', 'Payroll Template', "Restored payroll template \"{$payrollTemplate->name}\".");
 
         return redirect()->route('payroll-templates.index')->with('success', 'Payroll template restored successfully.');
     }
