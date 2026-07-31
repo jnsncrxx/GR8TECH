@@ -603,7 +603,7 @@ class AttendanceRecord extends Model
 
         $minutes = $scheduled->diffInMinutes($actual);
 
-        return $minutes > self::GRACE_PERIOD_MINUTES ? $minutes - self::GRACE_PERIOD_MINUTES : 0;
+        return $minutes > self::GRACE_PERIOD_MINUTES ? $minutes : 0;
     }
 
     // shows late minutes as "Xh Ym" instead of just a big minute count
