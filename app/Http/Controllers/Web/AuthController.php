@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Account;
+use App\Helpers\ActivityLogger;
 use App\Helpers\TimezoneHelper;
 use App\Mail\PasswordResetMail;
 use Illuminate\Http\Request;
@@ -21,7 +22,7 @@ class AuthController extends Controller
         if (Auth::check()) {
             return redirect()->route('dashboard');
         }
-        
+
         return view('auth.login');
     }
 
@@ -48,7 +49,7 @@ class AuthController extends Controller
         }
 
         Auth::login($account, $request->boolean('remember'));
-        
+
         // Update last login time with proper timezone handling
         $account->updateLastLogin();
 
@@ -57,16 +58,24 @@ class AuthController extends Controller
         // Set default company session
         session(['current_company_id' => 'c5751b07-35c6-4f06-9442-51b3fe8b0347']);
 
+        ActivityLogger::log('login', 'Authentication', "{$account->email} logged in.", $account);
+
         return redirect()->intended(route('dashboard'));
     }
 
 
     public function logout(Request $request)
     {
+        $account = Auth::user();
+
         Auth::logout();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
+        if ($account) {
+            ActivityLogger::log('logout', 'Authentication', "{$account->email} logged out.", $account);
+        }
 
         return redirect()->route('login');
     }
@@ -98,7 +107,7 @@ class AuthController extends Controller
 
         // Generate reset token (valid for 60 minutes)
         $resetToken = Str::random(60);
-        
+
         $account->update([
             'password_reset_token' => $resetToken,
             'password_reset_expires_at' => now()->addHours(1),
@@ -107,7 +116,7 @@ class AuthController extends Controller
         // Send reset email
         try {
             $employeeName = $account->employee ? $account->employee->first_name . ' ' . $account->employee->last_name : 'User';
-            
+
             Mail::to($account->email)->send(new PasswordResetMail($resetToken, $employeeName));
         } catch (\Exception $e) {
             \Log::error('Failed to send password reset email: ' . $e->getMessage());
@@ -123,7 +132,7 @@ class AuthController extends Controller
     public function showResetPassword(Request $request)
     {
         $token = $request->query('token');
-        
+
         if (!$token) {
             return redirect()->route('login')->with('error', 'Invalid or missing reset token.');
         }

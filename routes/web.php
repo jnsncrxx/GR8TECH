@@ -605,8 +605,38 @@ Route::middleware(['auth'])->group(function () {
 // ============================================
 Route::middleware(['auth', 'role:admin,hr'])->prefix('developer')->name('developer.')->group(function () {
     Route::get('/accounts', [App\Http\Controllers\Developer\AccountController::class, 'index'])->name('accounts.index');
+    Route::get('/accounts/link', [App\Http\Controllers\Developer\AccountController::class, 'linkForm'])->name('accounts.link');
+    Route::post('/accounts/link', [App\Http\Controllers\Developer\AccountController::class, 'linkStore'])->name('accounts.link.store');
     Route::get('/accounts/{account}/edit', [App\Http\Controllers\Developer\AccountController::class, 'edit'])->name('accounts.edit');
     Route::post('/accounts', [App\Http\Controllers\Developer\AccountController::class, 'store'])->name('accounts.store');
     Route::put('/accounts/{account}', [App\Http\Controllers\Developer\AccountController::class, 'update'])->name('accounts.update');
     Route::delete('/accounts/{account}', [App\Http\Controllers\Developer\AccountController::class, 'destroy'])->name('accounts.destroy');
+    Route::post('/accounts/{account}/restore', [App\Http\Controllers\Developer\AccountController::class, 'restore'])->name('accounts.restore');
+    Route::post('/accounts/{account}/toggle-status', [App\Http\Controllers\Developer\AccountController::class, 'toggleStatus'])->name('accounts.toggle-status');
+    Route::post('/accounts/{account}/send-reset-link', [App\Http\Controllers\Developer\AccountController::class, 'sendResetLink'])->name('accounts.send-reset-link');
+    Route::post('/accounts/{account}/unlink', [App\Http\Controllers\Developer\AccountController::class, 'unlink'])->name('accounts.unlink');
+
+    // Role & Permission Mapping is admin-only (stricter than the rest of this group).
+    Route::get('/permissions', [App\Http\Controllers\Developer\AccountController::class, 'permissions'])
+        ->middleware('role:admin')
+        ->name('permissions.index');
+
+    // Activity Logs are admin-only.
+    Route::middleware('role:admin')->prefix('activity-logs')->name('activity-logs.')->group(function () {
+        Route::get('/', [App\Http\Controllers\Developer\ActivityLogController::class, 'index'])->name('index');
+        Route::get('/export', [App\Http\Controllers\Developer\ActivityLogController::class, 'export'])->name('export');
+    });
+
+    // Recycle Bin is admin-only.
+    Route::middleware('role:admin')->prefix('recycle-bin')->name('recycle-bin.')->group(function () {
+        Route::get('/', [App\Http\Controllers\Developer\RecycleBinController::class, 'index'])->name('index');
+        Route::post('/{module}/{id}/restore', [App\Http\Controllers\Developer\RecycleBinController::class, 'restore'])->name('restore');
+        Route::delete('/{module}/{id}', [App\Http\Controllers\Developer\RecycleBinController::class, 'forceDelete'])->name('force-delete');
+    });
+
+    // Database Backup is admin-only.
+    Route::middleware('role:admin')->prefix('database-backup')->name('database-backup.')->group(function () {
+        Route::get('/', [App\Http\Controllers\Developer\DatabaseBackupController::class, 'index'])->name('index');
+        Route::post('/download', [App\Http\Controllers\Developer\DatabaseBackupController::class, 'download'])->name('download');
+    });
 });
