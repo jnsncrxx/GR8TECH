@@ -173,12 +173,15 @@
         
         @if($user->role === 'admin' || $user->role === 'hr' || $user->role === 'manager')
         <!-- Payroll Dropdown -->
+        @php
+            $payrollRoutes = ['payroll.index', 'payroll.team', 'payroll.runs', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit', 'loans.index', 'loans.show', 'loan-types.index', 'loan-types.create', 'loan-types.edit'];
+        @endphp
         <div class="relative" x-data="{ 
-            open: {{ in_array($activeRoute, ['payroll.index', 'payroll.team', 'payroll.runs', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'true' : 'false' }}
+            open: {{ in_array($activeRoute, $payrollRoutes) ? 'true' : 'false' }}
         }">
-            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, ['payroll.index', 'payroll.team', 'payroll.runs', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, $payrollRoutes) ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
                 <div class="flex items-center">
-                    <i class="fas fa-money-bill-wave mr-3 text-lg {{ in_array($activeRoute, ['payroll.index', 'payroll.team', 'payroll.runs', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
+                    <i class="fas fa-money-bill-wave mr-3 text-lg {{ in_array($activeRoute, $payrollRoutes) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
                     <span>Payroll</span>
                 </div>
                 <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }"></i>
@@ -213,6 +216,12 @@
                    class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ in_array($activeRoute, ['payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'bg-white text-blue-600' : '' }}">
                     <i class="fas fa-file-invoice mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ in_array($activeRoute, ['payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'text-blue-600' : '' }}"></i>
                     <span>Payroll Templates</span>
+                </a>
+
+                <a href="{{ route('loans.index') }}"
+                   class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ in_array($activeRoute, ['loans.index', 'loans.show', 'loan-types.index', 'loan-types.create', 'loan-types.edit']) ? 'bg-white text-blue-600' : '' }}">
+                    <i class="fas fa-hand-holding-dollar mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ in_array($activeRoute, ['loans.index', 'loans.show', 'loan-types.index', 'loan-types.create', 'loan-types.edit']) ? 'text-blue-600' : '' }}"></i>
+                    <span>Loan Management</span>
                 </a>
                 @else
                 <!-- Manager: view-only, own department only -->
@@ -628,6 +637,11 @@
             <a href="{{ route('employee.payroll.history') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ $activeRoute === 'employee.payroll.history' ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
                 <i class="fas fa-receipt mr-3 text-lg text-gray-400 group-hover:text-blue-600"></i>
                 <span>Salary & Payslips</span>
+            </a>
+
+            <a href="{{ route('loans.index') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ in_array($activeRoute, ['loans.index', 'loans.create', 'loans.show']) ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+                <i class="fas fa-hand-holding-dollar mr-3 text-lg text-gray-400 group-hover:text-blue-600"></i>
+                <span>My Loans</span>
             </a>
 
             <!-- Update Profile -->
