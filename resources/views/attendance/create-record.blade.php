@@ -151,7 +151,7 @@
                 <div id="ob-notice" class="sm:col-span-2 hidden">
                     <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
                         <i class="fas fa-briefcase mr-1"></i>
-                        <span id="ob-notice-text">Full-day Official Business doesn't use clock times â€” the employee's scheduled shift hours will be credited automatically.</span>
+                        <span id="ob-notice-text">Full-day Official Business doesn't use clock times &mdash; the employee's scheduled shift hours will be credited automatically.</span>
                     </div>
                 </div>
 
@@ -195,7 +195,7 @@
                         <li>Break duration is automatically calculated if you provide both Time In and Time Out</li>
                         <li>Total hours will be calculated as: (Time Out - Time In) - Break Duration</li>
                         <li>You cannot add duplicate records for the same employee on the same date</li>
-                        <li>Official Business doesn't use breaks â€” choose Full day (scheduled shift hours are credited automatically) or Partial day (set the OB start/end time)</li>
+                        <li>Official Business doesn't use breaks &mdash; choose Full day (scheduled shift hours are credited automatically) or Partial day (set the OB start/end time)</li>
                     </ul>
                 </div>
             </div>

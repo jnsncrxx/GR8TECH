@@ -78,13 +78,13 @@
             
             <!-- Company Selector - Hidden on mobile, shown on tablet+ -->
             <div class="hidden md:block relative" x-data="{ open: false }">
-                <button @click="open = !open" class="flex items-center px-2.5 lg:px-4 py-1.5 lg:py-2 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 hover:border-blue-300 rounded-lg transition-all group dark:from-slate-800 dark:to-slate-800 dark:border-slate-700 dark:hover:border-slate-600">
-                    <i class="fas fa-building text-blue-600 mr-2 dark:text-blue-400"></i>
-                    <span class="text-sm font-medium text-blue-800 group-hover:text-blue-900 dark:text-blue-300 dark:group-hover:text-blue-200 truncate max-w-[7rem] lg:max-w-[12rem]">
+                <button @click="open = !open" class="flex items-center px-4 py-2 bg-gradient-to-r from-green-600 to-green-800 border border-green-700 hover:border-green-900 hover:from-green-700 hover:to-green-900 rounded-lg shadow-md transition-all group">
+                    <i class="fas fa-building text-white mr-2"></i>
+                    <span class="text-sm font-medium text-white">
                         {{ $currentCompany ? $currentCompany->name : 'No Company' }}
                     </span>
-                    <span class="hidden lg:inline-block ml-2 px-2 py-0.5 bg-blue-600 text-white text-xs font-medium rounded-full">Active</span>
-                    <i class="fas fa-chevron-down ml-2 text-blue-600 text-xs transition-transform dark:text-blue-400" :class="{ 'rotate-180': open }"></i>
+                    <span class="ml-2 px-2 py-0.5 bg-white/20 border border-white/30 text-white text-xs font-medium rounded-full">Active</span>
+                    <i class="fas fa-chevron-down ml-2 text-white text-xs transition-transform" :class="{ 'rotate-180': open }"></i>
                 </button>
 
                 <!-- Dropdown Menu -->
@@ -109,12 +109,12 @@
                               onsubmit="handleCompanySwitch(event, '{{ $company->name }}')">
                             @csrf
                             <input type="hidden" name="company_id" value="{{ $company->id }}">
-                            <button type="submit" class="w-full flex items-center px-4 py-3 text-left hover:bg-gray-50 transition-colors {{ $currentCompany && $company->id === $currentCompany->id ? 'bg-blue-50 cursor-not-allowed dark:bg-slate-800' : 'cursor-pointer dark:hover:bg-slate-800' }}">
+                            <button type="submit" class="w-full flex items-center px-4 py-3 text-left hover:bg-green-50 transition-colors {{ $currentCompany && $company->id === $currentCompany->id ? 'bg-green-50 cursor-not-allowed' : 'cursor-pointer' }}">
                                 <div class="flex-1">
                                     <div class="flex items-center justify-between">
                                         <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $company->name }}</span>
                                         @if($currentCompany && $company->id === $currentCompany->id)
-                                            <span class="px-2 py-0.5 bg-blue-600 text-white text-xs font-medium rounded-full">
+                                            <span class="px-2 py-0.5 bg-green-700 text-white text-xs font-medium rounded-full">
                                                 <i class="fas fa-check-circle mr-1"></i>Active
                                             </span>
                                         @else

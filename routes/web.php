@@ -287,6 +287,15 @@ Route::get('/debug-current-payrolls', function() {
         Route::delete('/{schedule}', [App\Http\Controllers\Web\ScheduleV2Controller::class, 'destroy'])->name('destroy');
     });
 
+    Route::prefix('schedule-templates')->name('schedule-templates.')->middleware('role:admin,hr')->group(function () {
+        Route::get('/', [App\Http\Controllers\Web\ScheduleTemplateController::class, 'index'])->name('index');
+        Route::get('/create', [App\Http\Controllers\Web\ScheduleTemplateController::class, 'create'])->name('create');
+        Route::post('/', [App\Http\Controllers\Web\ScheduleTemplateController::class, 'store'])->name('store');
+        Route::get('/{scheduleTemplate}/edit', [App\Http\Controllers\Web\ScheduleTemplateController::class, 'edit'])->name('edit');
+        Route::put('/{scheduleTemplate}', [App\Http\Controllers\Web\ScheduleTemplateController::class, 'update'])->name('update');
+        Route::delete('/{scheduleTemplate}', [App\Http\Controllers\Web\ScheduleTemplateController::class, 'destroy'])->name('destroy');
+    });
+
     // Company routes
     Route::resource('companies', App\Http\Controllers\Web\CompanyController::class);
     Route::post('/companies/switch', [App\Http\Controllers\Web\CompanyController::class, 'switchCompany'])->name('companies.switch');
@@ -411,6 +420,9 @@ Route::get('/debug-current-payrolls', function() {
         Route::post('/{period}/refresh-cutoff', [PeriodManagementController::class, 'refreshCutoffData'])
             ->name('refresh-cutoff');
 
+        Route::patch('/{period}/deadlines', [PeriodManagementController::class, 'extendDeadlines'])
+            ->name('deadlines');
+
         Route::post(
             '/{period}/validate/{component}',
             [PeriodManagementController::class, 'validateComponent']
@@ -455,6 +467,8 @@ Route::get('/debug-current-payrolls', function() {
         Route::get('/overtime', [App\Http\Controllers\Web\OvertimeController::class, 'index'])->name('attendance.overtime');
         Route::get('/overtime/export/{format}', [App\Http\Controllers\Web\OvertimeController::class, 'exportOvertime'])->name('attendance.overtime.export');
         Route::post('/overtime', [App\Http\Controllers\Web\OvertimeController::class, 'store'])->name('attendance.overtime.store');
+        Route::post('/overtime/quick-submit', [App\Http\Controllers\Web\OvertimeController::class, 'quickSubmit'])->name('attendance.overtime.quick-submit');
+        Route::post('/overtime/dismiss-reminder/{id}', [App\Http\Controllers\Web\OvertimeController::class, 'dismissReminder'])->name('attendance.overtime.dismiss-reminder');
         Route::put('/overtime/{id}/status', [App\Http\Controllers\Web\OvertimeController::class, 'updateStatus'])->name('attendance.overtime.update-status');
         Route::put('/overtime/{id}/edit-approved', [App\Http\Controllers\Web\OvertimeController::class, 'updateApproved'])->name('attendance.overtime.update-approved')->middleware('role:admin,hr,manager');
         Route::delete('/overtime/{id}/cancel', [App\Http\Controllers\Web\OvertimeController::class, 'cancel'])->name('attendance.overtime.cancel');

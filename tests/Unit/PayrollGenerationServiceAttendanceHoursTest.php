@@ -59,7 +59,7 @@ class PayrollGenerationServiceAttendanceHoursTest extends TestCase
             'calculateAllowances',
             new Employee(),
             1000.0,
-            ['sick_leave_days' => 0, 'sick_leave_pay' => 0]
+            ['paid_leave_days' => 0, 'paid_leave_pay' => 0]
         );
 
         $this->assertSame(0, $allowances['incentive_leave_days']);
@@ -73,11 +73,11 @@ class PayrollGenerationServiceAttendanceHoursTest extends TestCase
             'calculateAllowances',
             new Employee(),
             1000.0,
-            ['sick_leave_days' => 2, 'sick_leave_pay' => 2000.0]
+            ['paid_leave_days' => 2, 'paid_leave_pay' => 2000.0]
         );
 
-        $this->assertSame(2, $allowances['sick_leave_days']);
-        $this->assertSame(2000.0, $allowances['sick_leave_pay']);
+        $this->assertSame(2, $allowances['paid_leave_days']);
+        $this->assertSame(2000.0, $allowances['paid_leave_pay']);
         $this->assertSame(2000.0, $allowances['total']);
     }
 

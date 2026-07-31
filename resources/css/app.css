@@ -586,29 +586,56 @@ body.auth-app {
     box-shadow: 0 0 0 4px rgba(45, 147, 68, 0.12) !important;
 }
 
-.hris-content button[class*="bg-green-"],
-.hris-content a[class*="bg-green-"],
-.hris-content button[class*="bg-blue-6"],
-.hris-content a[class*="bg-blue-6"] {
+.hris-content :is(button, a):is(
+    [class~="bg-green-500"],
+    [class~="bg-green-600"],
+    [class~="bg-green-700"],
+    [class~="bg-blue-600"],
+    [class~="bg-blue-700"]
+) {
     border: 0 !important;
     border-radius: 0.75rem !important;
     background: linear-gradient(135deg, var(--ui-green-500), var(--ui-green-800)) !important;
     box-shadow: 0 8px 18px rgba(18, 97, 58, 0.18);
 }
 
-.hris-content button[class*="bg-green-"]:hover,
-.hris-content a[class*="bg-green-"]:hover,
-.hris-content button[class*="bg-blue-6"]:hover,
-.hris-content a[class*="bg-blue-6"]:hover {
+.hris-content :is(button, a):is(
+    [class~="bg-green-500"],
+    [class~="bg-green-600"],
+    [class~="bg-green-700"],
+    [class~="bg-blue-600"],
+    [class~="bg-blue-700"]
+):hover {
     background: linear-gradient(135deg, var(--ui-green-600), var(--ui-green-950)) !important;
     transform: translateY(-1px);
 }
 
-.hris-content button[class*="bg-red-"],
-.hris-content a[class*="bg-red-"] {
+.hris-content :is(button, a):is(
+    [class~="bg-red-500"],
+    [class~="bg-red-600"],
+    [class~="bg-red-700"]
+) {
     border-radius: 0.75rem !important;
     background: linear-gradient(135deg, var(--ui-red-500), #b81624) !important;
     box-shadow: 0 8px 18px rgba(217, 31, 43, 0.16);
+}
+
+.hris-content .ui-solid-danger-action {
+    border-color: #b91c1c !important;
+    background: linear-gradient(135deg, var(--ui-red-500), #b81624) !important;
+    color: #fff !important;
+    box-shadow: 0 8px 18px rgba(217, 31, 43, 0.2);
+}
+
+.hris-content .ui-solid-danger-action:hover {
+    border-color: #991b1b !important;
+    background: linear-gradient(135deg, #dc2626, #991b1b) !important;
+    color: #fff !important;
+    transform: translateY(-1px);
+}
+
+.hris-content .ui-solid-danger-action i {
+    color: #fff !important;
 }
 
 .hris-content .rounded-full {
@@ -819,6 +846,98 @@ html.dark .hris-content .bg-white {
 .hris-content table td .ui-icon-action i {
     margin: 0 !important;
     font-size: 0.82rem;
+    color: currentColor !important;
+}
+
+.hris-content .ui-action-view {
+    border-color: #bfdbfe !important;
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
+    color: #2563eb !important;
+}
+
+.hris-content .ui-action-edit {
+    border-color: #c4b5fd !important;
+    background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%) !important;
+    color: #6d28d9 !important;
+}
+
+.hris-content .ui-action-payroll {
+    border-color: #86efac !important;
+    background: linear-gradient(135deg, #ecfdf5 0%, #dcfce7 100%) !important;
+    color: #16a34a !important;
+}
+
+.hris-content .ui-action-delete {
+    border-color: #fecaca !important;
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%) !important;
+    color: #dc2626 !important;
+}
+
+/* Approval actions keep their border, pale surface, and matching icon color.
+   Explicit rules prevent broad system color remaps from turning them into
+   solid blocks or recoloring the icon independently. */
+.hris-content button[title="Approve"] {
+    border: 1px solid #86efac !important;
+    border-radius: 0.65rem !important;
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%) !important;
+    color: #15803d !important;
+}
+
+.hris-content button[title="Reject"] {
+    border: 1px solid #fca5a5 !important;
+    border-radius: 0.65rem !important;
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%) !important;
+    color: #dc2626 !important;
+}
+
+.hris-content button[title^="Cancel"] {
+    border: 1px solid #fdba74 !important;
+    border-radius: 0.65rem !important;
+    background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%) !important;
+    color: #ea580c !important;
+}
+
+.hris-content button[title="Approve"] i,
+.hris-content button[title="Reject"] i,
+.hris-content button[title^="Cancel"] i {
+    color: currentColor !important;
+}
+
+html.dark .hris-content .ui-action-view {
+    border-color: #1d4ed8 !important;
+    background: #172554 !important;
+    color: #93c5fd !important;
+}
+
+html.dark .hris-content button[title="Approve"] {
+    border-color: #166534 !important;
+    background: #14271c !important;
+    color: #86efac !important;
+}
+
+html.dark .hris-content .ui-action-edit {
+    border-color: #6d28d9 !important;
+    background: #241b35 !important;
+    color: #c4b5fd !important;
+}
+
+html.dark .hris-content .ui-action-payroll {
+    border-color: #15803d !important;
+    background: #13271b !important;
+    color: #86efac !important;
+}
+
+html.dark .hris-content .ui-action-delete,
+html.dark .hris-content button[title="Reject"] {
+    border-color: #991b1b !important;
+    background: #30191b !important;
+    color: #fca5a5 !important;
+}
+
+html.dark .hris-content button[title^="Cancel"] {
+    border-color: #9a3412 !important;
+    background: #302017 !important;
+    color: #fdba74 !important;
 }
 
 /* Shared icon colors in headings, cards, filters, and empty states. */
@@ -872,14 +991,86 @@ html.dark .hris-content .bg-white {
     color: currentColor !important;
 }
 
+/* Semantic status gradients. The existing text/background utility classes
+   continue to determine meaning; this layer only standardizes presentation. */
+.hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-green-"] {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%) !important;
+    border-color: #86efac !important;
+}
+
+.hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-red-"] {
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%) !important;
+    border-color: #fca5a5 !important;
+}
+
+.hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-yellow-"],
+.hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-amber-"] {
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%) !important;
+    border-color: #fcd34d !important;
+}
+
+.hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-blue-"] {
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
+    border-color: #93c5fd !important;
+}
+
+.hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-indigo-"] {
+    background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%) !important;
+    border-color: #a5b4fc !important;
+}
+
+.hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-purple-"] {
+    background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%) !important;
+    border-color: #d8b4fe !important;
+}
+
+.hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-orange-"] {
+    background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%) !important;
+    border-color: #fdba74 !important;
+}
+
+.hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-gray-"],
+.hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-slate-"] {
+    background: linear-gradient(135deg, #f9fafb 0%, #f1f5f9 100%) !important;
+    border-color: #cbd5e1 !important;
+}
+
 /* Consistent icon cards used throughout dashboards, summaries, and empty states. */
 .hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-"]:has(> i[class*="fa-"]) {
     border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
     box-shadow: 0 7px 18px rgba(6, 45, 27, 0.08);
+    transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
 }
 
 .hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-"] > i[class*="fa-"] {
     color: currentColor;
+}
+
+.hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-green-"]:has(> i[class*="fa-"]) {
+    background: linear-gradient(135deg, #f0fdf4 0%, #bbf7d0 100%) !important;
+    border-color: #86efac !important;
+}
+
+.hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-red-"]:has(> i[class*="fa-"]) {
+    background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%) !important;
+    border-color: #fca5a5 !important;
+}
+
+.hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-yellow-"]:has(> i[class*="fa-"]),
+.hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-amber-"]:has(> i[class*="fa-"]) {
+    background: linear-gradient(135deg, #fffbeb 0%, #fde68a 100%) !important;
+    border-color: #fcd34d !important;
+}
+
+.hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-blue-"]:has(> i[class*="fa-"]) {
+    background: linear-gradient(135deg, #eff6ff 0%, #bfdbfe 100%) !important;
+    border-color: #93c5fd !important;
+}
+
+.hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-purple-"]:has(> i[class*="fa-"]),
+.hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-indigo-"]:has(> i[class*="fa-"]) {
+    background: linear-gradient(135deg, #faf5ff 0%, #ddd6fe 100%) !important;
+    border-color: #c4b5fd !important;
 }
 
 /* Laravel and custom pagination. */
@@ -1126,6 +1317,41 @@ html.dark .hris-content [class*="bg-red-"] .text-red-700,
 html.dark .hris-content [class*="bg-red-"] .text-red-800,
 html.dark .hris-content [class*="bg-red-"] .text-red-900 {
     color: #fca5a5 !important;
+}
+
+/* Preserve semantic color identity in dark mode with restrained gradients. */
+html.dark .hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-green-"],
+html.dark .hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-green-"]:has(> i[class*="fa-"]) {
+    background: linear-gradient(135deg, rgba(20, 83, 45, 0.72), #27272a 100%) !important;
+    border-color: #166534 !important;
+}
+
+html.dark .hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-red-"],
+html.dark .hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-red-"]:has(> i[class*="fa-"]) {
+    background: linear-gradient(135deg, rgba(127, 29, 29, 0.68), #27272a 100%) !important;
+    border-color: #991b1b !important;
+}
+
+html.dark .hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-yellow-"],
+html.dark .hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-amber-"],
+html.dark .hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-yellow-"]:has(> i[class*="fa-"]),
+html.dark .hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-amber-"]:has(> i[class*="fa-"]) {
+    background: linear-gradient(135deg, rgba(113, 63, 18, 0.72), #27272a 100%) !important;
+    border-color: #a16207 !important;
+}
+
+html.dark .hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-blue-"],
+html.dark .hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-blue-"]:has(> i[class*="fa-"]) {
+    background: linear-gradient(135deg, rgba(30, 58, 138, 0.68), #27272a 100%) !important;
+    border-color: #1d4ed8 !important;
+}
+
+html.dark .hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-purple-"],
+html.dark .hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-indigo-"],
+html.dark .hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-purple-"]:has(> i[class*="fa-"]),
+html.dark .hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-indigo-"]:has(> i[class*="fa-"]) {
+    background: linear-gradient(135deg, rgba(76, 29, 149, 0.68), #27272a 100%) !important;
+    border-color: #6d28d9 !important;
 }
 
 html.dark .hris-content [class*="from-blue-"][class*="to-blue-"] {

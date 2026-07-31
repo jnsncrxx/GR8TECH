@@ -151,7 +151,9 @@
     @php
         $blockingExceptions = ($exceptionCounts['incomplete'] ?? 0)
             + ($exceptionCounts['invalid_duration'] ?? 0)
-            + ($exceptionCounts['missing_schedule'] ?? 0);
+            + ($exceptionCounts['missing_schedule'] ?? 0)
+            + ($exceptionCounts['unverified_leave'] ?? 0)
+            + ($exceptionCounts['unverified_official_business'] ?? 0);
         $reviewExceptions = ($exceptionCounts['possible_wrong_schedule'] ?? 0)
             + ($exceptionCounts['rest_day_attendance'] ?? 0);
     @endphp
@@ -257,7 +259,7 @@
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">
                                     @if($record->getRelation('assignedSchedule') && $record->getRelation('assignedSchedule')->time_in && $record->getRelation('assignedSchedule')->time_out)
-                                        {{ \Carbon\Carbon::parse($record->getRelation('assignedSchedule')->time_in)->format('g:i A') }}â€“{{ \Carbon\Carbon::parse($record->getRelation('assignedSchedule')->time_out)->format('g:i A') }}
+                                        {{ \Carbon\Carbon::parse($record->getRelation('assignedSchedule')->time_in)->format('g:i A') }}&ndash;{{ \Carbon\Carbon::parse($record->getRelation('assignedSchedule')->time_out)->format('g:i A') }}
                                     @else
                                         <span class="text-gray-400">-</span>
                                     @endif
@@ -266,14 +268,18 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">
-                                    @if($record->status === \App\Models\AttendanceRecord::ON_LEAVE)
+                                    @if($record->has_approved_leave)
                                         <span class="font-medium text-blue-700">Approved Leave</span>
-                                    @elseif($record->status === \App\Models\AttendanceRecord::OFFICIAL_BUSINESS)
-                                        <span class="font-medium text-indigo-700">Official Business</span>
+                                    @elseif($record->has_approved_official_business)
+                                        <span class="font-medium text-indigo-700">Approved Official Business</span>
                                     @elseif($record->status === \App\Models\AttendanceRecord::ABSENT && !$record->time_in && !$record->time_out)
                                         <span class="font-medium text-red-700">Absent</span>
                                     @elseif($record->time_in)
-                                        {{ \Carbon\Carbon::parse($record->time_in)->format('g:i A') }}â€“{{ $record->time_out ? \Carbon\Carbon::parse($record->time_out)->format('g:i A') : 'Incomplete' }}
+                                        {{ \Carbon\Carbon::parse($record->time_in)->format('g:i A') }}&ndash;{{ $record->time_out ? \Carbon\Carbon::parse($record->time_out)->format('g:i A') : 'Incomplete' }}
+                                    @elseif($record->status === \App\Models\AttendanceRecord::ON_LEAVE)
+                                        <span class="font-medium text-red-700">Unverified Leave</span>
+                                    @elseif($record->status === \App\Models\AttendanceRecord::OFFICIAL_BUSINESS)
+                                        <span class="font-medium text-red-700">Unverified Official Business</span>
                                     @else
                                         <span class="text-gray-400">-</span>
                                     @endif
@@ -293,11 +299,21 @@
                                     {{ $record->exception_label }}
                                 </span>
                                 @if(in_array($user->role, ['admin', 'hr']))
-                                    <a href="{{ route('attendance.edit-record', $record->id) }}" class="ml-2 text-xs font-medium text-blue-600 hover:text-blue-800">Edit</a>
-                                    <form action="{{ route('attendance.delete-record', $record->id) }}" method="POST" class="inline-block ml-2" onsubmit="return confirm('Are you sure you want to delete this attendance record?');">
+                                    <a href="{{ route('attendance.edit-record', $record->id) }}"
+                                       class="ui-icon-action ui-action-edit ml-2"
+                                       title="Edit attendance record"
+                                       aria-label="Edit attendance record">
+                                        <i class="fas fa-pen" aria-hidden="true"></i>
+                                    </a>
+                                    <form action="{{ route('attendance.delete-record', $record->id) }}" method="POST" class="inline-flex ml-2" onsubmit="return confirm('Are you sure you want to delete this attendance record?');">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="text-xs font-medium text-red-600 hover:text-red-800">Delete</button>
+                                        <button type="submit"
+                                                class="ui-icon-action ui-action-delete"
+                                                title="Delete attendance record"
+                                                aria-label="Delete attendance record">
+                                            <i class="fas fa-trash" aria-hidden="true"></i>
+                                        </button>
                                     </form>
                                 @endif
                             </td>

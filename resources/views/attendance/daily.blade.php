@@ -143,11 +143,6 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Status
                         </th>
-                        @if(in_array($user->role, ['admin', 'hr']))
-                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Actions
-                        </th>
-                        @endif
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -179,8 +174,8 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 @if($schedule && $schedule->time_in && $schedule->time_out)
-                                    <div class="text-sm font-medium text-gray-900">{{ \Carbon\Carbon::parse($schedule->time_in)->format('g:i A') }}â€“{{ \Carbon\Carbon::parse($schedule->time_out)->format('g:i A') }}</div>
-                                    <div class="text-xs text-gray-500">{{ $schedule->status_label }} Â· {{ \App\Helpers\TimezoneHelper::formatHours((float) $schedule->required_hours) }}</div>
+                                    <div class="text-sm font-medium text-gray-900">{{ \Carbon\Carbon::parse($schedule->time_in)->format('g:i A') }}&ndash;{{ \Carbon\Carbon::parse($schedule->time_out)->format('g:i A') }}</div>
+                                    <div class="text-xs text-gray-500">{{ $schedule->status_label }} &middot; {{ \App\Helpers\TimezoneHelper::formatHours((float) $schedule->required_hours) }}</div>
                                 @elseif($schedule)
                                     <span class="text-sm font-medium text-gray-700">{{ $schedule->status_label }}</span>
                                 @else
@@ -264,20 +259,6 @@
                                     {{ $snapshot['label'] ?? 'Unknown' }}
                                 </span>
                             </td>
-                            @if(in_array($user->role, ['admin', 'hr']))
-                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                @if($attendance)
-                                    <a href="{{ route('attendance.edit-record', $attendance->id) }}" class="text-blue-600 hover:text-blue-900 mr-3">Edit</a>
-                                    <form action="{{ route('attendance.delete-record', $attendance->id) }}" method="POST" class="inline-block" onsubmit="return confirm('Are you sure you want to delete this attendance record?');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="text-red-600 hover:text-red-900">Delete</button>
-                                    </form>
-                                @else
-                                    <a href="{{ route('attendance.create-record') }}?employee_id={{ $employee->id }}&date={{ $date->format('Y-m-d') }}" class="text-gray-500 hover:text-blue-600">+ Add</a>
-                                @endif
-                            </td>
-                            @endif
                         </tr>
                     @empty
                         <tr>
@@ -350,7 +331,7 @@
                             <span class="text-gray-500">Schedule:</span>
                             <span class="font-medium text-gray-900">
                                 @if($schedule && $schedule->time_in && $schedule->time_out)
-                                    {{ \Carbon\Carbon::parse($schedule->time_in)->format('g:i A') }}â€“{{ \Carbon\Carbon::parse($schedule->time_out)->format('g:i A') }}
+                                    {{ \Carbon\Carbon::parse($schedule->time_in)->format('g:i A') }}&ndash;{{ \Carbon\Carbon::parse($schedule->time_out)->format('g:i A') }}
                                 @else
                                     {{ $schedule?->status_label ?? 'Missing schedule' }}
                                 @endif
