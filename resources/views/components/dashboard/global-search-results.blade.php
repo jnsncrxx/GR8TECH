@@ -1,15 +1,33 @@
-{{-- Module filter chips --}}
+{{-- Module filter dropdown --}}
 <template x-if="modules.length > 0 || activeModule">
-    <div class="flex items-center gap-1.5 px-3 pt-3 pb-1 overflow-x-auto">
-        <template x-for="m in modules" :key="m.key">
+    <div class="relative px-3 pt-3 pb-1" x-data="{ moduleDropdownOpen: false }">
+        <button type="button"
+                @click="moduleDropdownOpen = !moduleDropdownOpen"
+                class="flex items-center justify-between w-full text-xs font-medium px-2.5 py-1.5 rounded-lg border bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100 transition-colors dark:bg-slate-800 dark:text-gray-300 dark:border-slate-700">
+            <span x-text="activeModule ? (modules.find(m => m.key === activeModule)?.label + ' · ' + modules.find(m => m.key === activeModule)?.count) : 'All modules'"></span>
+            <i class="fas fa-chevron-down ml-2 text-[10px] transition-transform" :class="{ 'rotate-180': moduleDropdownOpen }"></i>
+        </button>
+
+        <div x-show="moduleDropdownOpen"
+             @click.away="moduleDropdownOpen = false"
+             x-transition
+             class="absolute left-3 right-3 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-1 max-h-56 overflow-y-auto dark:bg-slate-900 dark:border-slate-700">
             <button type="button"
-                    @click="setModuleFilter(m.key)"
-                    :class="activeModule === m.key ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100 dark:bg-slate-800 dark:text-gray-300 dark:border-slate-700'"
-                    class="flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-full border transition-colors">
-                <span x-text="m.label"></span>
-                <span class="opacity-70" x-text="' · ' + m.count"></span>
+                    @click="setModuleFilter(null); moduleDropdownOpen = false"
+                    :class="!activeModule ? 'bg-blue-50 text-blue-700 dark:bg-slate-800 dark:text-blue-400' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-slate-800'"
+                    class="w-full text-left text-xs font-medium px-3 py-1.5 transition-colors">
+                All modules
             </button>
-        </template>
+            <template x-for="m in modules" :key="m.key">
+                <button type="button"
+                        @click="setModuleFilter(m.key); moduleDropdownOpen = false"
+                        :class="activeModule === m.key ? 'bg-blue-50 text-blue-700 dark:bg-slate-800 dark:text-blue-400' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-slate-800'"
+                        class="w-full text-left text-xs font-medium px-3 py-1.5 flex items-center justify-between transition-colors">
+                    <span x-text="m.label"></span>
+                    <span class="opacity-60" x-text="m.count"></span>
+                </button>
+            </template>
+        </div>
     </div>
 </template>
 

@@ -43,7 +43,7 @@
 @endphp
 
 <header class="brand-top-header bg-white backdrop-blur-sm shadow-sm border-b border-gray-200 sticky top-0 z-40 dark:bg-slate-900 dark:border-slate-700">
-    <div class="flex items-center justify-between h-16 sm:h-20 px-3 sm:px-4 lg:px-8">
+    <div class="flex items-center justify-between gap-2 sm:gap-3 lg:gap-4 h-16 sm:h-20 px-3 sm:px-4 lg:px-8">
         <div class="flex items-center flex-1 min-w-0">
             <button class="lg:hidden text-gray-500 hover:text-gray-700 p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-slate-700" onclick="toggleSidebar()">
                 <i class="fas fa-bars text-lg sm:text-xl"></i>
@@ -53,7 +53,7 @@
                 @if($isDashboard)
                     <div class="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-4">
                         <p class="text-xs sm:text-sm text-gray-500 truncate dark:text-gray-400">Welcome back, {{ $user->full_name }}</p>
-                        <div class="flex items-center text-xs text-gray-400 dark:text-gray-500">
+                        <div class="hidden lg:flex items-center text-xs text-gray-400 whitespace-nowrap dark:text-gray-500">
                             <i class="fas fa-clock mr-1"></i>
                             <span id="current-time-desktop" class="hidden sm:inline">{{ \App\Helpers\TimezoneHelper::now()->format('M d, Y g:i A') }}</span>
                             <span id="current-time-mobile" class="sm:hidden">{{ \App\Helpers\TimezoneHelper::now()->format('g:i A') }}</span>

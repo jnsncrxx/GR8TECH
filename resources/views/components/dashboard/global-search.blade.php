@@ -1,6 +1,6 @@
 @props(['user'])
 
-<div class="global-search flex-1 max-w-xl mx-2 sm:mx-4 lg:mx-6"
+<div class="global-search flex-shrink-0 min-w-0 md:w-44 lg:w-64 xl:w-80"
      x-data="globalSearch()"
      @keydown.window="onGlobalKeydown($event)"
      x-cloak>
