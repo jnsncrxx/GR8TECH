@@ -24,6 +24,7 @@ class EmployeeSchedule extends Model
         'status',
         'schedule_type',
         'required_hours',
+        'schedule_template_id',
         'notes',
         'created_by',
     ];
@@ -81,6 +82,11 @@ class EmployeeSchedule extends Model
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
+    }
+
+    public function scheduleTemplate(): BelongsTo
+    {
+        return $this->belongsTo(ScheduleTemplate::class);
     }
 
     public function creator(): BelongsTo

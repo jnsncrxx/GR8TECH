@@ -927,6 +927,11 @@ class PayrollGenerationService
                 }
 
                 $payroll->save();
+
+                if ($status === 'success') {
+                    $this->recordLoanPayments($payroll);
+                }
+
                 DB::commit();
 
                 if ($status === 'success') {
@@ -1225,19 +1230,19 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             $allowances['total'] = (float) $template->allowances;
         }
 
-        // Calculate statutory deductions (SSS, PHIC, HDMF)
-        $statutoryDeductions = $this->calculateStatutoryDeductions($employee, $monthlyRate);
-        if ($template) {
-            if ($template->sss !== null) {
-                $statutoryDeductions['sss'] = (float) $template->sss;
-            }
-            if ($template->phic !== null) {
-                $statutoryDeductions['phic'] = (float) $template->phic;
-            }
-            if ($template->hdmf !== null) {
-                $statutoryDeductions['hdmf'] = (float) $template->hdmf;
-            }
-        }
+        // Resolve monthly statutory amounts first, including template overrides,
+        // then allocate them across the payroll frequency. Standard cutoffs are
+        // semi-monthly, while periods spanning at least 25 days are monthly.
+        $statutoryDeductionDivisor = $daysInPeriod >= 25 ? 1 : 2;
+        $statutoryDeductions = $this->calculateStatutoryDeductions(
+            $monthlyRate,
+            $statutoryDeductionDivisor,
+            [
+                'sss' => $template?->sss,
+                'phic' => $template?->phic,
+                'hdmf' => $template?->hdmf,
+            ]
+        );
 
         // Calculate late/undertime deductions
         $timeDeductions = $this->calculateLateUndertimeDeductions($employeeRecords, $hourlyRate);
@@ -1343,8 +1348,8 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             'allowances' => $allowances['total'],
             'bonuses' => 0,
             'other_earnings' => 0,
-            'sick_leave_days' => $leaveData['sick_leave_days'] ?? 0,
-            'sick_leave_pay' => $leaveData['sick_leave_pay'] ?? 0,
+            'paid_leave_days' => $leaveData['paid_leave_days'] ?? 0,
+            'paid_leave_pay' => $leaveData['paid_leave_pay'] ?? 0,
             'unpaid_leave_days' => $leaveData['unpaid_leave_days'] ?? 0,
             'unpaid_leave_deduction' => $appliedUnpaidLeaveDeduction,
             'total_deductions' => $totalDeductions,
@@ -1674,24 +1679,89 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
         // employees' gross pay even when no leave was approved.
         $incentiveLeaveDays = 0;
         $incentiveLeavePay = 0;
-        $sickLeavePay = $leaveData['sick_leave_pay'] ?? 0;
-        $totalAllowance = $incentiveLeavePay + $sickLeavePay;
+        $paidLeavePay = $leaveData['paid_leave_pay'] ?? 0;
+        $totalAllowance = $incentiveLeavePay + $paidLeavePay;
 
         return [
             'incentive_leave_days' => $incentiveLeaveDays,
-            'sick_leave_days' => $leaveData['sick_leave_days'] ?? 0,
-            'sick_leave_pay' => $sickLeavePay,
+            'paid_leave_days' => $leaveData['paid_leave_days'] ?? 0,
+            'paid_leave_pay' => $paidLeavePay,
             'incentive_leave_pay' => round($incentiveLeavePay, 2),
             'total' => round($totalAllowance, 2)
         ];
     }
 
     /**
-     * Convert the employee's monthly loan amortization to the current payroll
-     * frequency. Standard cutoffs are semi-monthly, so each receives half of
-     * the monthly amount. Date limits prevent deductions outside the loan term.
+     * Per-loan cutoff amounts for an employee's active loans (Loan Management
+     * module), each capped to that loan's own remaining_balance. Used both to
+     * total up the scheduled deduction during payroll generation, and later to
+     * proportionally allocate the actually-applied amount into LoanPayment
+     * rows once the payroll is paid (see recordLoanPayments()).
+     *
+     * Returns an empty array if the employee has no active loans in the new
+     * `loans` table - callers should fall back to the legacy
+     * Employee::loan_monthly_amortization mechanism in that case.
+     */
+    private function loanDeductionBreakdown(Employee $employee, array $periodData): array
+    {
+        if (!$employee->exists) {
+            return [];
+        }
+
+        $loans = $employee->loans()->deductible()->orderBy('created_at')->get();
+        if ($loans->isEmpty()) {
+            return [];
+        }
+
+        $periodStart = Carbon::parse($periodData['start_date'])->startOfDay();
+        $periodEnd = Carbon::parse($periodData['end_date'])->endOfDay();
+        $daysInPeriod = $periodData['days_in_period']
+            ?? $periodStart->diffInDays($periodEnd) + 1;
+        // Standard cutoffs are semi-monthly, so a monthly amortization figure
+        // is split in half; periods spanning at least 25 days get the full
+        // monthly amount, matching how statutory deductions are prorated above.
+        $divisor = $daysInPeriod >= 25 ? 1 : 2;
+
+        $breakdown = [];
+        foreach ($loans as $loan) {
+            if ($loan->start_date && Carbon::parse($loan->start_date)->gt($periodEnd)) {
+                continue;
+            }
+
+            $cutoffAmount = round(((float) $loan->amortization_amount) / $divisor, 2);
+            $cutoffAmount = min($cutoffAmount, max(0, (float) $loan->remaining_balance));
+
+            if ($cutoffAmount > 0) {
+                $breakdown[] = ['loan' => $loan, 'amount' => $cutoffAmount];
+            }
+        }
+
+        return $breakdown;
+    }
+
+    /**
+     * Total scheduled loan deduction for the cutoff. Sources from the Loan
+     * Management module (active approved loans) when available, falling back
+     * to the legacy Employee::loan_monthly_amortization columns for employees
+     * who only have that older, single-loan data and no rows in `loans` yet.
      */
     private function calculateLoanDeduction(Employee $employee, array $periodData): float
+    {
+        $breakdown = $this->loanDeductionBreakdown($employee, $periodData);
+
+        if (!empty($breakdown)) {
+            return round(array_sum(array_column($breakdown, 'amount')), 2);
+        }
+
+        return $this->calculateLegacyLoanDeduction($employee, $periodData);
+    }
+
+    /**
+     * Original pre-Loan-Management calculation, kept for employees who still
+     * only have data in Employee::loan_start_date/loan_end_date/
+     * loan_total_amount/loan_monthly_amortization and no row in `loans` yet.
+     */
+    private function calculateLegacyLoanDeduction(Employee $employee, array $periodData): float
     {
         $employeeAttributes = $employee->getAttributes();
         $monthlyAmortization = max(0, (float) ($employeeAttributes['loan_monthly_amortization'] ?? 0));
@@ -1732,6 +1802,60 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             ->sum('loan_deduction');
 
         return round(min($scheduledDeduction, max(0, $loanTotal - $previouslyDeducted)), 2);
+    }
+
+    /**
+     * Decrements each active loan's remaining_balance and writes a
+     * LoanPayment row for the amount actually deducted on this now-paid
+     * payroll. Runs once, only when a payroll transitions to 'paid' - never
+     * during generation/regeneration, since Loan::remaining_balance is a
+     * mutable running total, unlike the other deduction fields which are
+     * recalculated fresh from attendance data on every generation.
+     *
+     * If loan_deduction ended up capped below the scheduled amount (net pay
+     * ran out before reaching the loan line), each loan's share is scaled
+     * down proportionally so recorded payments sum to exactly what was paid.
+     */
+    private function recordLoanPayments(Payroll $payroll): void
+    {
+        if ((float) ($payroll->loan_deduction ?? 0) <= 0) {
+            return;
+        }
+
+        // Guard against double-recording - e.g. a retry after a partial
+        // batch failure re-processing an already-paid payroll.
+        if (\App\Models\LoanPayment::where('payroll_id', $payroll->id)->exists()) {
+            return;
+        }
+
+        $employee = Employee::find($payroll->employee_id);
+        if (!$employee) {
+            return;
+        }
+
+        $periodData = [
+            'start_date' => Carbon::parse($payroll->pay_period_start)->format('Y-m-d'),
+            'end_date' => Carbon::parse($payroll->pay_period_end)->format('Y-m-d'),
+        ];
+
+        $breakdown = $this->loanDeductionBreakdown($employee, $periodData);
+        if (empty($breakdown)) {
+            // No rows in the new `loans` table for this employee - the
+            // deduction came from the legacy Employee loan columns instead,
+            // which have no persistent balance to decrement here.
+            return;
+        }
+
+        $scheduledTotal = array_sum(array_column($breakdown, 'amount'));
+        $appliedTotal = (float) $payroll->loan_deduction;
+        $scaleFactor = $scheduledTotal > 0 ? min(1, $appliedTotal / $scheduledTotal) : 0;
+
+        foreach ($breakdown as $entry) {
+            $amount = round($entry['amount'] * $scaleFactor, 2);
+            if ($amount > 0) {
+                $entry['loan']->recordPayment($amount, $payroll->id, $payroll->paid_by ?? null);
+            }
+        }
     }
 
     /**
@@ -1808,9 +1932,8 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
         }
 
         return [
-            // sick_leave_days / sick_leave_pay kept for DB column compatibility.
-            'sick_leave_days'       => $paidLeaveDays,
-            'sick_leave_pay'        => round($paidLeaveDays * $dailyRate, 2),
+            'paid_leave_days'       => $paidLeaveDays,
+            'paid_leave_pay'        => round($paidLeaveDays * $dailyRate, 2),
             'unpaid_leave_days'     => $unpaidLeaveDays,
             'unpaid_leave_deduction'=> round($unpaidLeaveDays * $dailyRate, 2),
         ];
@@ -1819,12 +1942,26 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
     /**
      * Calculate statutory deductions based on Excel values
      */
-    private function calculateStatutoryDeductions(Employee $employee, $monthlyRate): array
-    {
+    private function calculateStatutoryDeductions(
+        $monthlyRate,
+        int $deductionDivisor = 1,
+        array $monthlyOverrides = []
+    ): array {
+        $deductionDivisor = max(1, $deductionDivisor);
+
+        $monthlyAmounts = [
+            'sss' => $monthlyOverrides['sss']
+                ?? $this->calculateSssContribution($monthlyRate),
+            'phic' => $monthlyOverrides['phic']
+                ?? $this->calculatePhilHealthContribution($monthlyRate),
+            'hdmf' => $monthlyOverrides['hdmf']
+                ?? $this->calculateHdmfContribution($monthlyRate),
+        ];
+
         return [
-            'sss' => $this->calculateSssContribution($monthlyRate),
-            'phic' => $this->calculatePhilHealthContribution($monthlyRate),
-            'hdmf' => $this->calculateHdmfContribution($monthlyRate),
+            'sss' => round((float) $monthlyAmounts['sss'] / $deductionDivisor, 2),
+            'phic' => round((float) $monthlyAmounts['phic'] / $deductionDivisor, 2),
+            'hdmf' => round((float) $monthlyAmounts['hdmf'] / $deductionDivisor, 2),
         ];
     }
 
@@ -2428,8 +2565,8 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             'allowances' => $components['allowances'],
             'bonuses' => $components['bonuses'],
             'other_earnings' => $components['other_earnings'] ?? 0,
-            'sick_leave_days' => $components['sick_leave_days'],
-            'sick_leave_pay' => $components['sick_leave_pay'],
+            'paid_leave_days' => $components['paid_leave_days'],
+            'paid_leave_pay' => $components['paid_leave_pay'],
             'unpaid_leave_days' => $components['unpaid_leave_days'] ?? 0,
             'unpaid_leave_deduction' => $components['unpaid_leave_deduction'] ?? 0,
             'late_minutes' => $components['late_minutes'] ?? 0,
@@ -2475,8 +2612,8 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             ],
            'earnings_details' => [
                 'basic_salary' => $components['basic_salary'] ?? 0,
-                'allowances' => max(0, ($components['allowances'] ?? 0) - ($components['sick_leave_pay'] ?? 0)),
-                'paid_leave' => $components['sick_leave_pay'] ?? 0,
+                'allowances' => max(0, ($components['allowances'] ?? 0) - ($components['paid_leave_pay'] ?? 0)),
+                'paid_leave' => $components['paid_leave_pay'] ?? 0,
                 'overtime' => $components['overtime_pay'] ?? 0,
                 'overtime_hours' => $components['overtime_hours'] ?? 0,
                 'night_differential' => $components['night_differential_pay'] ?? 0,
@@ -2576,8 +2713,8 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
                 'allowances' => $components['allowances'],
                 'bonuses' => $components['bonuses'],
                 'other_earnings' => $components['other_earnings'] ?? 0,
-                'sick_leave_days' => $components['sick_leave_days'] ?? 0,
-                'sick_leave_pay' => $components['sick_leave_pay'] ?? 0,
+                'paid_leave_days' => $components['paid_leave_days'] ?? 0,
+                'paid_leave_pay' => $components['paid_leave_pay'] ?? 0,
                 'unpaid_leave_days' => $components['unpaid_leave_days'] ?? 0,
                 'unpaid_leave_deduction' => $components['unpaid_leave_deduction'] ?? 0,
                 'deductions' => $components['total_deductions'],

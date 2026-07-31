@@ -4171,6 +4171,7 @@ class PayrollController extends Controller
                     $attendanceRecord
                     && $attendanceRecord->status === AttendanceRecord::OFFICIAL_BUSINESS
                     && $attendanceStatus !== 'Official Business'
+                    && !in_array('Unverified Official Business', $validationIssues, true)
                 ) {
                     $validationIssues[] = 'Unverified Official Business';
                 }
@@ -4262,6 +4263,14 @@ class PayrollController extends Controller
             return null;
         }
 
+        if ($attendanceRecord->status === AttendanceRecord::ON_LEAVE) {
+            return 'Unverified Leave';
+        }
+
+        if ($attendanceRecord->status === AttendanceRecord::OFFICIAL_BUSINESS) {
+            return 'Unverified Official Business';
+        }
+
         if (($attendanceRecord->time_in && !$attendanceRecord->time_out)
             || (!$attendanceRecord->time_in && $attendanceRecord->time_out)) {
             return 'Incomplete Log';
@@ -4276,6 +4285,13 @@ class PayrollController extends Controller
         }
 
         if (in_array($schedule->status, ['Day Off', 'Rest Day'], true)) {
+            // An audited HR/Admin correction is the explicit review decision.
+            // Keep payroll's rest-day premium calculation based on the assigned
+            // schedule, but do not keep returning the resolved advisory.
+            if ($attendanceRecord->corrected_at) {
+                return null;
+            }
+
             return 'Rest Day Duty Review';
         }
 
@@ -4286,10 +4302,9 @@ class PayrollController extends Controller
         ) {
             // Once HR has reviewed and saved an audited correction (with a
             // reason), that review is the resolution for this advisory flag
-            // — the time gap was already looked at and confirmed. Unlike
-            // Rest Day Duty Review (a pay-rate fact that doesn't change),
-            // this check exists purely to prompt a human look, so it should
-            // not keep firing after that look already happened.
+            // — the time gap was already looked at and confirmed. This check
+            // exists purely to prompt a human look, so it should not keep
+            // firing after that look already happened.
             $date = Carbon::parse($attendanceRecord->date)->format('Y-m-d');
             $scheduledIn = Carbon::parse($date . ' ' . Carbon::parse($schedule->time_in)->format('H:i:s'));
             $actualIn = Carbon::parse($attendanceRecord->time_in);

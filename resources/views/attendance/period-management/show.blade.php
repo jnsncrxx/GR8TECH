@@ -107,6 +107,90 @@
     <!-- Summary Cards -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
 
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">
+                        <i class="fas fa-calendar-check mr-2 text-green-600"></i>Payroll Deadlines
+                    </h2>
+                    <p class="mt-1 text-sm text-gray-500">
+                        Deadlines guide request approvals, preparation, validation, and locking. Payroll is never approved or locked automatically.
+                    </p>
+                </div>
+                @if($period->deadline_extended_at)
+                    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                        Extended {{ $period->deadline_extended_at->format('M j, Y g:i A') }}
+                        <div class="mt-1 text-xs">{{ $period->deadline_extension_reason }}</div>
+                    </div>
+                @endif
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mt-5">
+                @foreach([
+                    'request_deadline_at' => ['Request Approval', 'Pending Leave, OB, and OT must be reviewed.'],
+                    'preparation_deadline_at' => ['Payroll Preparation', 'Attendance and source records must be ready.'],
+                    'validation_deadline_at' => ['Final Validation', 'All four validation gates must be confirmed.'],
+                    'lock_deadline_at' => ['Payroll Lock', 'Finalized payroll should be explicitly locked.'],
+                ] as $field => [$label, $help])
+                    @php
+                        $state = $period->deadlineState($field);
+                        $tone = match($state) {
+                            'overdue' => 'border-red-200 bg-red-50 text-red-800',
+                            'due_soon' => 'border-amber-200 bg-amber-50 text-amber-800',
+                            'open' => 'border-green-200 bg-green-50 text-green-800',
+                            default => 'border-gray-200 bg-gray-50 text-gray-700',
+                        };
+                    @endphp
+                    <div class="rounded-xl border p-4 {{ $tone }}">
+                        <div class="flex items-center justify-between gap-2">
+                            <p class="text-sm font-semibold">{{ $label }}</p>
+                            <span class="text-xs font-medium uppercase">{{ str_replace('_', ' ', $state) }}</span>
+                        </div>
+                        <p class="mt-2 font-medium">
+                            {{ $period->{$field}?->format('M j, Y g:i A') ?? 'Not configured' }}
+                        </p>
+                        <p class="mt-1 text-xs opacity-80">{{ $help }}</p>
+                    </div>
+                @endforeach
+            </div>
+
+            @if(!$period->isLocked() && in_array($user->role, ['admin', 'hr'], true))
+                <details class="mt-5 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <summary class="cursor-pointer text-sm font-semibold text-gray-800">Extend or configure deadlines</summary>
+                    <form method="POST" action="{{ route('attendance.period-management.deadlines', $period->id) }}" class="mt-4">
+                        @csrf
+                        @method('PATCH')
+                        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                            @foreach([
+                                'request_deadline_at' => 'Request Approval',
+                                'preparation_deadline_at' => 'Preparation',
+                                'validation_deadline_at' => 'Validation',
+                                'lock_deadline_at' => 'Lock',
+                            ] as $field => $label)
+                                <label class="text-sm text-gray-700">
+                                    <span class="block mb-1 font-medium">{{ $label }}</span>
+                                    <input type="datetime-local" name="{{ $field }}" required
+                                           value="{{ old($field, $period->{$field}?->format('Y-m-d\TH:i')) }}"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2">
+                                </label>
+                            @endforeach
+                        </div>
+                        <label class="block mt-3 text-sm text-gray-700">
+                            <span class="block mb-1 font-medium">Extension reason *</span>
+                            <textarea name="reason" required minlength="10" maxlength="1000" rows="2"
+                                      class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
+                                      placeholder="Explain why the payroll timeline must be extended.">{{ old('reason') }}</textarea>
+                        </label>
+                        <div class="mt-3 flex justify-end">
+                            <button type="submit" class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">
+                                <i class="fas fa-clock mr-2"></i>Save Deadline Extension
+                            </button>
+                        </div>
+                    </form>
+                </details>
+            @endif
+        </div>
+
         <!-- Phase 2 Validation Workflow -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -222,7 +306,7 @@
                         <h2 class="text-lg font-semibold text-{{ $exceptionTone }}-900">
                             <i class="fas fa-exclamation-triangle mr-2"></i>Schedule & Attendance Exceptions
                         </h2>
-                        <a href="{{ route('attendance.timekeeping', ['date_from' => $period->start_date->format('Y-m-d'), 'date_to' => $period->end_date->format('Y-m-d'), 'exception' => 'attention']) }}" class="inline-flex items-center rounded-lg border border-{{ $exceptionTone }}-300 bg-white px-3 py-2 text-sm font-medium text-{{ $exceptionTone }}-700 hover:bg-{{ $exceptionTone }}-100">
+                        <a href="{{ route('attendance.timekeeping', ['date_from' => $period->start_date->format('Y-m-d'), 'date_to' => $period->end_date->format('Y-m-d'), 'exception' => 'attention']) }}" class="ui-solid-danger-action inline-flex items-center rounded-lg border border-{{ $exceptionTone }}-300 bg-white px-3 py-2 text-sm font-medium text-{{ $exceptionTone }}-700 hover:bg-{{ $exceptionTone }}-100">
                             <i class="fas fa-external-link-alt mr-2"></i>Review in Timekeeping
                         </a>
                     </div>

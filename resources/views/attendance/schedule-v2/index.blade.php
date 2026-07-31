@@ -25,23 +25,6 @@
             }
         }
     </style>
-    <!-- Header -->
-    <div class="bg-white shadow-sm border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="py-8">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h1 class="text-3xl font-bold text-gray-900 flex items-center">
-                            <i class="fas fa-calendar-alt mr-3 text-blue-600"></i>
-                            Employee Schedule Management
-                        </h1>
-                        <p class="mt-2 text-sm text-gray-600">Manage employee work schedules and time allocations efficiently</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Filters -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div class="bg-white rounded-lg shadow-sm border border-gray-200">
@@ -181,17 +164,17 @@
                             </div>
                         </div>
                     </div>
-                    <div class="flex items-center space-x-2 text-sm text-gray-600">
+                    <div class="flex items-center space-x-4 text-xs text-gray-500">
                         <span class="flex items-center">
-                            <div class="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                            <div class="w-2.5 h-2.5 rounded-full bg-emerald-400 mr-1.5"></div>
                             Scheduled Workday
                         </span>
                         <span class="flex items-center">
-                            <div class="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
+                            <div class="w-2.5 h-2.5 rounded-full bg-amber-400 mr-1.5"></div>
                             Day Off
                         </span>
                         <span class="flex items-center">
-                            <div class="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
+                            <div class="w-2.5 h-2.5 rounded-full bg-rose-400 mr-1.5"></div>
                             Leave/Holidays
                         </span>
                     </div>
@@ -200,18 +183,22 @@
 
             <!-- Calendar Grid -->
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gradient-to-r from-gray-50 to-gray-100">
-                        <tr>
-                            <th class="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider w-48">
-                                <i class="fas fa-user mr-2"></i>Employee
+                <table class="w-full border-collapse table-fixed">
+                    <thead>
+                        <tr class="border-b border-gray-200">
+                            <th class="sticky left-0 z-20 bg-gray-50 px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-36 border-r border-gray-200">
+                                Employee
                             </th>
                             @foreach($calendarDays as $day)
-                            <th class="calendar-day px-3 py-4 text-center text-sm font-semibold uppercase tracking-wider min-w-24 border-l border-gray-200 {{ $day['date']->isToday() ? 'bg-blue-100 text-blue-900 ring-2 ring-inset ring-blue-400' : 'text-gray-700' }}" data-date="{{ $day['date']->format('Y-m-d') }}">
-                                <div class="flex flex-col items-center">
-                                    <span class="font-bold text-lg">{{ $day['day'] }}</span>
-                                    <span class="text-xs text-gray-500 font-medium">{{ $day['date']->format('D') }}</span>
-                                    @if($day['date']->isToday())<span class="mt-1 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold text-white">TODAY</span>@endif
+                            @php
+                                $isWeekend = $day['date']->isWeekend();
+                                $isToday = $day['date']->isToday();
+                            @endphp
+                            <th class="calendar-day w-9 px-0.5 py-2 text-center border-l border-gray-300 {{ $isToday ? 'bg-indigo-50' : ($isWeekend ? 'bg-gray-100' : 'bg-white') }}" data-date="{{ $day['date']->format('Y-m-d') }}">
+                                <div class="flex flex-col items-center leading-tight">
+                                    <span class="text-[9px] font-medium {{ $isToday ? 'text-indigo-500' : 'text-gray-400' }} uppercase">{{ $day['date']->format('D') }}</span>
+                                    <span class="text-[13px] font-semibold {{ $isToday ? 'text-indigo-700' : 'text-gray-700' }}">{{ $day['day'] }}</span>
+                                    @if($isToday)<span class="mt-0.5 h-1 w-1 rounded-full bg-indigo-500"></span>@endif
                                 </div>
                             </th>
                             @endforeach
@@ -219,20 +206,17 @@
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
                         @foreach($employees as $employee)
-                        <tr class="employee-row hover:bg-gray-50 transition-colors" data-employee-id="{{ $employee->id }}">
-                            <td class="px-6 py-5 whitespace-nowrap border-r border-gray-200">
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0 h-12 w-12">
-                                        <div class="h-12 w-12 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center shadow-sm">
-                                            <span class="text-sm font-bold text-blue-700">
-                                                {{ substr($employee->first_name, 0, 1) }}{{ substr($employee->last_name, 0, 1) }}
-                                            </span>
-                                        </div>
+                        <tr class="employee-row group hover:bg-gray-50 transition-colors border-b border-gray-100" data-employee-id="{{ $employee->id }}">
+                            <td class="sticky left-0 z-10 bg-white group-hover:bg-gray-50 px-3 py-2.5 border-r border-gray-200">
+                                <div class="flex items-center min-w-0">
+                                    <div class="flex-shrink-0 h-7 w-7 rounded-full bg-indigo-50 flex items-center justify-center">
+                                        <span class="text-[10px] font-semibold text-indigo-600">
+                                            {{ substr($employee->first_name, 0, 1) }}{{ substr($employee->last_name, 0, 1) }}
+                                        </span>
                                     </div>
-                                    <div class="ml-4">
-                                        <div class="text-sm font-semibold text-gray-900">{{ $employee->full_name }}</div>
-                                        <div class="text-sm text-gray-600">{{ $employee->position?->name ?? 'N/A' }}</div>
-                                        <div class="text-xs text-gray-500">{{ $employee->department->name }}</div>
+                                    <div class="ml-2.5 min-w-0">
+                                        <div class="text-xs font-medium text-gray-800 truncate" title="{{ $employee->full_name }}">{{ $employee->full_name }}</div>
+                                        <div class="text-[10px] text-gray-400 truncate">{{ $employee->department->name }}</div>
                                     </div>
                                 </div>
                             </td>
@@ -242,63 +226,66 @@
                             $schedule = $schedules->get($scheduleKey);
                             $history = $attendanceHistory->get($scheduleKey);
                             @endphp
-                            <td class="calendar-day px-3 py-4 text-center border-l border-gray-200 hover:bg-gray-50 transition-colors {{ $day['date']->isToday() ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : '' }}" data-date="{{ $day['date']->format('Y-m-d') }}">
+                            <td class="calendar-day group/cell relative w-9 h-14 text-center border-l border-gray-200 {{ $day['date']->isToday() ? 'bg-indigo-50/40' : ($day['date']->isWeekend() ? 'bg-gray-100/70' : '') }} hover:bg-gray-100 transition-colors" data-date="{{ $day['date']->format('Y-m-d') }}">
                                 @if($schedule)
-                                <div class="inline-block">
-                                    <div class="flex items-center justify-center mb-2">
-                                        <input type="checkbox"
-                                            class="schedule-checkbox rounded border-gray-300 text-red-600 shadow-sm focus:border-red-300 focus:ring focus:ring-red-200 focus:ring-opacity-50 mr-2 hidden"
-                                            value="{{ $schedule->id }}"
-                                            onchange="updateBulkDeleteButton()">
-                                    </div>
-                                    <div class="text-xs font-semibold {{ match($schedule->status_color) {
-                                        'green' => 'text-green-700',
-                                        'yellow' => 'text-yellow-700',
-                                        'red' => 'text-red-700',
-                                        'blue' => 'text-blue-700',
-                                        default => 'text-gray-700',
-                                    } }} mb-1">
-                                        {{ $schedule->status_label }}
-                                    </div>
-                                    @php
-                                    // don't show times for statuses where time doesn't apply
-                                    $noTimeStatuses = ['Day Off', 'Leave', 'Holiday', 'Regular Holiday', 'Special Holiday'];
-                                    $showTime = $schedule->time_in && $schedule->time_out && !in_array($schedule->status, $noTimeStatuses);
-                                    @endphp
-                                    @if($showTime)
-                                    <div class="text-xs text-gray-600">
-                                        {{ \Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_in)->format('H:i') }}-{{ \Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_out)->format('H:i') }}
-                                    </div>
-                                    @elseif($schedule->isFlexible() && in_array($schedule->status, ['Working', 'Overtime']))
-                                    <div class="text-xs text-purple-700">
-                                        Flexible · {{ \App\Helpers\TimezoneHelper::formatHours((float) $schedule->required_hours) }} required
-                                    </div>
+                                @php
+                                    $isWorkDay = in_array($schedule->status, ['Working', 'Overtime']);
+                                    $statusAbbr = match($schedule->status) {
+                                        'Day Off' => 'DO',
+                                        'Leave' => 'LV',
+                                        'Absent' => 'AB',
+                                        'Regular Holiday' => 'RH',
+                                        'Special Holiday' => 'SH',
+                                        'Holiday' => 'HOL',
+                                        default => null,
+                                    };
+                                    $badgeColor = match(true) {
+                                        $isWorkDay => 'bg-emerald-50 text-emerald-700',
+                                        $schedule->status === 'Day Off' => 'bg-amber-50 text-amber-700',
+                                        default => 'bg-rose-50 text-rose-700',
+                                    };
+                                @endphp
+                                <div class="schedule-detail-trigger cursor-pointer h-full flex flex-col items-center justify-center gap-1 py-1"
+                                     data-employee="{{ $employee->full_name }}"
+                                     data-date="{{ $day['date']->format('l, F j, Y') }}"
+                                     data-status="{{ $schedule->status_label }}"
+                                     data-template-code="{{ $schedule->scheduleTemplate->code ?? '' }}"
+                                     data-template-name="{{ $schedule->scheduleTemplate->name ?? '' }}"
+                                     data-time-in="{{ $schedule->time_in ? \Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_in)->format('g:i A') : '' }}"
+                                     data-time-out="{{ $schedule->time_out ? \Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_out)->format('g:i A') : '' }}"
+                                     data-required-hours="{{ $schedule->isFlexible() ? \App\Helpers\TimezoneHelper::formatHours((float) $schedule->required_hours) : '' }}"
+                                     data-notes="{{ $schedule->notes ?? '' }}"
+                                     data-edit-url="{{ route('schedule-v2.edit', array_merge(['schedule' => $schedule], array_filter(['department_id' => $selectedDepartment, 'month' => $selectedMonth, 'year' => $selectedYear, 'search' => $searchQuery]))) }}">
+                                    <input type="checkbox"
+                                        class="schedule-checkbox absolute top-0.5 left-0.5 rounded border-gray-300 text-red-600 h-3 w-3 hidden"
+                                        value="{{ $schedule->id }}"
+                                        onclick="event.stopPropagation()"
+                                        onchange="updateBulkDeleteButton()">
+                                    @if($isWorkDay && $schedule->scheduleTemplate)
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded {{ $badgeColor }} text-[10px] font-semibold leading-none">
+                                        {{ $schedule->scheduleTemplate->code }}
+                                    </span>
+                                    @elseif($isWorkDay)
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded {{ $badgeColor }} text-[10px] font-semibold leading-none">
+                                        •
+                                    </span>
+                                    @else
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded {{ $badgeColor }} text-[10px] font-semibold leading-none">
+                                        {{ $statusAbbr }}
+                                    </span>
                                     @endif
-                                    @if($history)
-                                        <div class="mt-2 text-[10px] font-semibold {{ match($history['tone']) {
-                                            'green' => 'text-green-700',
-                                            'amber' => 'text-amber-700',
-                                            'red' => 'text-red-700',
-                                            'indigo' => 'text-indigo-700',
-                                            default => 'text-gray-600',
-                                        } }}">{{ $history['label'] }}</div>
-                                    @endif
-                                    <div class="mt-1">
-                                        <a href="{{ route('schedule-v2.edit', array_merge(['schedule' => $schedule], array_filter(['department_id' => $selectedDepartment, 'month' => $selectedMonth, 'year' => $selectedYear, 'search' => $searchQuery]))) }}" class="text-blue-600 hover:text-blue-900 text-xs">
-                                            <i class="fas fa-edit"></i>
-                                        </a>
-                                    </div>
+                                    <a href="{{ route('schedule-v2.edit', array_merge(['schedule' => $schedule], array_filter(['department_id' => $selectedDepartment, 'month' => $selectedMonth, 'year' => $selectedYear, 'search' => $searchQuery]))) }}"
+                                       onclick="event.stopPropagation()"
+                                       class="opacity-0 group-hover/cell:opacity-100 transition-opacity text-gray-400 hover:text-indigo-600 text-[10px]">
+                                        <i class="fas fa-pen"></i>
+                                    </a>
                                 </div>
                                 @else
-                                <div class="inline-block">
-                                    <div class="text-xs font-semibold text-red-700 mb-1">Unassigned</div>
-                                    <div class="text-[10px] text-red-500">No schedule record</div>
-                                    <div class="mt-1">
-                                        <a href="{{ route('schedule-v2.create', array_merge(['employee_id' => $employee->id, 'date' => $day['date']->format('Y-m-d')], array_filter(['department_id' => $selectedDepartment, 'month' => $selectedMonth, 'year' => $selectedYear, 'search' => $searchQuery]))) }}" class="text-blue-600 hover:text-blue-900 text-xs" title="Create or customize schedule">
-                                            <i class="fas fa-pen"></i>
-                                        </a>
-                                    </div>
-                                </div>
+                                <a href="{{ route('schedule-v2.create', array_merge(['employee_id' => $employee->id, 'date' => $day['date']->format('Y-m-d')], array_filter(['department_id' => $selectedDepartment, 'month' => $selectedMonth, 'year' => $selectedYear, 'search' => $searchQuery]))) }}"
+                                   class="h-full w-full flex items-center justify-center text-gray-200 hover:text-indigo-500 opacity-0 group-hover/cell:opacity-100 transition-opacity"
+                                   title="Create schedule">
+                                    <i class="fas fa-plus text-[10px]"></i>
+                                </a>
                                 @endif
                             </td>
                             @endforeach
@@ -346,9 +333,96 @@
     @endif
 </div>
 
+<!-- Schedule Detail Modal -->
+<div id="scheduleDetailModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+    <div class="relative top-20 mx-auto p-6 border w-full max-w-md shadow-lg rounded-lg bg-white">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-900" id="detailEmployeeName"></h3>
+            <button onclick="closeScheduleDetailModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        <div class="space-y-3 text-sm">
+            <div class="flex justify-between"><span class="text-gray-500">Date</span><span id="detailDate" class="font-medium text-gray-900"></span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Status</span><span id="detailStatus" class="font-medium text-gray-900"></span></div>
+            <div id="detailTemplateRow" class="flex justify-between hidden"><span class="text-gray-500">Template</span><span id="detailTemplate" class="font-medium text-gray-900"></span></div>
+            <div id="detailTimeRow" class="flex justify-between hidden"><span class="text-gray-500">Time</span><span id="detailTime" class="font-medium text-gray-900"></span></div>
+            <div id="detailHoursRow" class="flex justify-between hidden"><span class="text-gray-500">Required Hours</span><span id="detailHours" class="font-medium text-gray-900"></span></div>
+            <div id="detailNotesRow" class="hidden"><span class="text-gray-500 block mb-1">Notes</span>
+                <p id="detailNotes" class="text-gray-800"></p>
+            </div>
+        </div>
+        <div class="flex justify-end pt-5 mt-2 border-t border-gray-200">
+            <a id="detailEditLink" href="#" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+                <i class="fas fa-edit mr-2"></i>Edit Schedule
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('click', function(e) {
+        // Ignore clicks in date-select mode - that mode has its own click handling
+        if (dateSelectMode) {
+            return;
+        }
+        const trigger = e.target.closest('.schedule-detail-trigger');
+        if (!trigger) {
+            return;
+        }
+        // Don't open the modal if the click landed on the edit pencil or a checkbox
+        if (e.target.closest('a') || e.target.closest('input')) {
+            return;
+        }
+
+        document.getElementById('detailEmployeeName').textContent = trigger.dataset.employee;
+        document.getElementById('detailDate').textContent = trigger.dataset.date;
+        document.getElementById('detailStatus').textContent = trigger.dataset.status;
+        document.getElementById('detailEditLink').href = trigger.dataset.editUrl;
+
+        const templateRow = document.getElementById('detailTemplateRow');
+        if (trigger.dataset.templateCode) {
+            document.getElementById('detailTemplate').textContent = `${trigger.dataset.templateCode} — ${trigger.dataset.templateName}`;
+            templateRow.classList.remove('hidden');
+        } else {
+            templateRow.classList.add('hidden');
+        }
+
+        const timeRow = document.getElementById('detailTimeRow');
+        if (trigger.dataset.timeIn && trigger.dataset.timeOut) {
+            document.getElementById('detailTime').textContent = `${trigger.dataset.timeIn} - ${trigger.dataset.timeOut}`;
+            timeRow.classList.remove('hidden');
+        } else {
+            timeRow.classList.add('hidden');
+        }
+
+        const hoursRow = document.getElementById('detailHoursRow');
+        if (trigger.dataset.requiredHours) {
+            document.getElementById('detailHours').textContent = trigger.dataset.requiredHours;
+            hoursRow.classList.remove('hidden');
+        } else {
+            hoursRow.classList.add('hidden');
+        }
+
+        const notesRow = document.getElementById('detailNotesRow');
+        if (trigger.dataset.notes) {
+            document.getElementById('detailNotes').textContent = trigger.dataset.notes;
+            notesRow.classList.remove('hidden');
+        } else {
+            notesRow.classList.add('hidden');
+        }
+
+        document.getElementById('scheduleDetailModal').classList.remove('hidden');
+    });
+
+    function closeScheduleDetailModal() {
+        document.getElementById('scheduleDetailModal').classList.add('hidden');
+    }
+</script>
+
 <!-- Bulk Create Modal -->
-<div id="bulkModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
-    <div class="relative top-10 mx-auto p-6 border w-4/5 max-w-6xl shadow-lg rounded-lg bg-white">
+<div id="bulkModal" class="fixed inset-0 z-[9999] hidden items-center justify-center bg-gray-900/50 p-4 overflow-y-auto">
+    <div class="relative w-full max-w-6xl my-8 max-h-[calc(100vh-4rem)] overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
         <div class="flex items-center justify-between mb-6">
             <div>
                 <h3 class="text-xl font-semibold text-gray-900">Bulk Create Schedules</h3>
@@ -436,6 +510,17 @@
                                 </select>
                             </div>
 
+                            <div>
+                                <label for="bulk_schedule_template_id" class="block text-sm font-medium text-gray-700 mb-2">Schedule Template</label>
+                                <select name="schedule_template_id" id="bulk_schedule_template_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                    <option value="">No template — set manually</option>
+                                    @foreach($templates as $template)
+                                    <option value="{{ $template->id }}">{{ $template->code }} — {{ $template->name }} ({{ $template->window_label }})</option>
+                                    @endforeach
+                                </select>
+                                <p class="mt-1 text-xs text-gray-500">Picking a template fills in the fields below — still editable after.</p>
+                            </div>
+
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
                                     <label for="start_date" class="block text-sm font-medium text-gray-700 mb-2">
@@ -518,12 +603,17 @@
             event.stopPropagation();
         }
 
-        // Open the modal
-        document.getElementById('bulkModal').classList.remove('hidden');
+        // Open the modal - toggle both classes since Tailwind's `hidden`
+        // and `flex` both set `display`, so only one can apply at a time
+        const modal = document.getElementById('bulkModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
     }
 
     function closeBulkModal() {
-        document.getElementById('bulkModal').classList.add('hidden');
+        const modal = document.getElementById('bulkModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
     }
 
     // Date range validation for bulk create
@@ -599,6 +689,35 @@
     let allEmployees = @json($allEmployees);
     let filteredEmployees = [];
     let selectedEmployees = new Set();
+
+    // Schedule template data, keyed by id, for auto-filling bulk create fields on selection
+</script>
+@php
+    $scheduleTemplatesJson = $templates->mapWithKeys(function ($t) {
+        return [
+            $t->id => [
+                'schedule_type' => $t->schedule_type,
+                'time_in' => $t->time_in ? \Carbon\Carbon::parse($t->time_in)->format('H:i') : '',
+                'time_out' => $t->time_out ? \Carbon\Carbon::parse($t->time_out)->format('H:i') : '',
+                'required_hours' => (float) $t->required_hours,
+            ],
+        ];
+    })->toJson();
+@endphp
+<script>
+    const bulkScheduleTemplates = {!! $scheduleTemplatesJson !!};
+
+    document.getElementById('bulk_schedule_template_id').addEventListener('change', function() {
+        const template = bulkScheduleTemplates[this.value];
+        if (!template) {
+            return;
+        }
+        document.getElementById('bulk_schedule_type').value = template.schedule_type;
+        document.getElementById('bulk_time_in').value = template.time_in;
+        document.getElementById('bulk_time_out').value = template.time_out;
+        document.getElementById('bulk_required_hours').value = template.required_hours;
+        document.getElementById('bulk_schedule_type').dispatchEvent(new Event('change'));
+    });
 
     // Load employees when department is selected in bulk modal
     document.getElementById('bulk_department_id').addEventListener('change', function() {
@@ -809,14 +928,17 @@
             return;
         }
 
-        document.getElementById('bulkDeleteModal').classList.remove('hidden');
+        const modal = document.getElementById('bulkDeleteModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
         document.getElementById('deleteCount').textContent = count;
     }
 
     function closeBulkDeleteModal() {
-        document.getElementById('bulkDeleteModal').classList.add('hidden');
+        const modal = document.getElementById('bulkDeleteModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
     }
-
     function confirmBulkDelete() {
         const checkboxes = document.querySelectorAll('.schedule-checkbox:checked');
         const scheduleIds = Array.from(checkboxes).map(checkbox => checkbox.value);
@@ -1093,14 +1215,15 @@
 
         // Show modal
         modal.classList.remove('hidden');
+        modal.classList.add('flex');
     }
 
     function createDateReviewModal() {
         const modal = document.createElement('div');
         modal.id = 'dateReviewModal';
-        modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50';
+        modal.className = 'fixed inset-0 z-[9999] hidden items-center justify-center bg-gray-900/50 p-4 overflow-y-auto';
         modal.innerHTML = `
-        <div class="relative top-10 mx-auto p-6 border w-4/5 max-w-6xl shadow-lg rounded-lg bg-white">
+        <div class="relative w-full max-w-6xl my-8 max-h-[calc(100vh-4rem)] overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
             <div class="flex items-center justify-between mb-6">
                 <div>
                     <h3 class="text-xl font-semibold text-gray-900 flex items-center">
@@ -1304,6 +1427,7 @@
         const modal = document.getElementById('dateReviewModal');
         if (modal) {
             modal.classList.add('hidden');
+            modal.classList.remove('flex');
         }
 
         // Clear the selected dates and exit date select mode when modal is closed
@@ -1456,8 +1580,8 @@
 </script>
 
 <!-- Bulk Delete Confirmation Modal -->
-<div id="bulkDeleteModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
-    <div class="relative top-20 mx-auto p-6 border w-96 shadow-lg rounded-lg bg-white">
+<div id="bulkDeleteModal" class="fixed inset-0 z-[9999] hidden items-center justify-center bg-gray-900/50 p-4 overflow-y-auto">
+    <div class="relative w-full max-w-md my-8 max-h-[calc(100vh-4rem)] overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
         <div class="flex items-center justify-between mb-4">
             <div>
                 <h3 class="text-lg font-semibold text-gray-900 flex items-center">

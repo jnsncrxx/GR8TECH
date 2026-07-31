@@ -10,7 +10,7 @@
             <div class="py-6">
                 <div class="flex items-center justify-between">
                     <div>
-                        <h1 class="text-2xl font-bold text-gray-900">Edit Employee Schedule</h1>
+                        <h1 class="text-2xl font-bold text-gray-900">Edit Schedule</h1>
                         <p class="mt-1 text-sm text-gray-600">Update work schedule for {{ $schedule->employee->full_name }}</p>
                     </div>
                     <div class="flex space-x-3">
@@ -87,10 +87,6 @@
                         <option value="flexible" {{ old('schedule_type', $schedule->schedule_type) === 'flexible' ? 'selected' : '' }}>Flexible hours</option>
                     </select>
                     <p class="mt-1 text-xs text-gray-500">Fixed hours are editable. Flexible schedules are evaluated using required hours.</p>
-                    @error('schedule_type')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-                </div>
-
-                <!-- Time In/Out (only show for working status) -->
                 <div id="timeFields" class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                         <label for="time_in" class="block text-sm font-medium text-gray-700 mb-2">Time In</label>
@@ -172,6 +168,34 @@
 </div>
 
 <script>
+    // Schedule template data, keyed by id, for auto-filling schedule fields on selection
+</script>
+@php
+    $scheduleTemplatesJson = $templates->mapWithKeys(function ($t) {
+        return [
+            $t->id => [
+                'schedule_type' => $t->schedule_type,
+                'time_in' => $t->time_in ? \Carbon\Carbon::parse($t->time_in)->format('H:i') : '',
+                'time_out' => $t->time_out ? \Carbon\Carbon::parse($t->time_out)->format('H:i') : '',
+                'required_hours' => (float) $t->required_hours,
+            ],
+        ];
+    })->toJson();
+@endphp
+<script>
+    const scheduleTemplates = {!! $scheduleTemplatesJson !!};
+
+    document.getElementById('schedule_template_id').addEventListener('change', function() {
+        const template = scheduleTemplates[this.value];
+        if (!template) {
+            return;
+        }
+        document.getElementById('schedule_type').value = template.schedule_type;
+        document.getElementById('time_in').value = template.time_in;
+        document.getElementById('time_out').value = template.time_out;
+        syncScheduleFields();
+    });
+
 // Handle form actions dynamically and initialize
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('scheduleForm');

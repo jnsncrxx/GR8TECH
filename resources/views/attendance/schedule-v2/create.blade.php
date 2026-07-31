@@ -10,7 +10,7 @@
             <div class="py-6">
                 <div class="flex items-center justify-between">
                     <div>
-                        <h1 class="text-2xl font-bold text-gray-900">Create Employee Schedule</h1>
+                        <h1 class="text-2xl font-bold text-gray-900">Create Schedule</h1>
                         @if($employee)
                         <p class="mt-1 text-sm text-gray-600">Add a new work schedule for {{ $employee->full_name }}</p>
                         @else
@@ -173,6 +173,23 @@
                                     @error('schedule_type')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
                                 </div>
 
+                                <!-- Schedule Template -->
+                                <div>
+                                    <label for="schedule_template_id" class="block text-sm font-medium text-gray-700 mb-2">
+                                        <i class="fas fa-list-check mr-1"></i>Schedule Template
+                                    </label>
+                                    <select name="schedule_template_id" id="schedule_template_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('schedule_template_id') border-red-500 @enderror">
+                                        <option value="">No template — set manually</option>
+                                        @foreach($templates as $template)
+                                        <option value="{{ $template->id }}" {{ old('schedule_template_id') == $template->id ? 'selected' : '' }}>
+                                            {{ $template->code }} — {{ $template->name }} ({{ $template->window_label }})
+                                        </option>
+                                        @endforeach
+                                    </select>
+                                    <p class="mt-1 text-xs text-gray-500">Picking a template fills in the fields below — you can still adjust them after.</p>
+                                    @error('schedule_template_id')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+                                </div>
+
                                 <!-- Time In/Out (only show for working status) -->
                                 <div id="timeFields" class="grid grid-cols-2 gap-4" style="display: none;">
                                     <div>
@@ -234,7 +251,22 @@
     </div>
 </div>
 
+@php
+    $scheduleTemplatesJson = $templates->mapWithKeys(function ($t) {
+        return [
+            $t->id => [
+                'schedule_type' => $t->schedule_type,
+                'time_in' => $t->time_in ? \Carbon\Carbon::parse($t->time_in)->format('H:i') : '',
+                'time_out' => $t->time_out ? \Carbon\Carbon::parse($t->time_out)->format('H:i') : '',
+                'required_hours' => (float) $t->required_hours,
+            ],
+        ];
+    })->toJson();
+@endphp
 <script>
+    // Schedule template data, keyed by id, for auto-filling schedule fields on selection
+    const scheduleTemplates = {!! $scheduleTemplatesJson !!};
+
     // Filter employees based on selected department (only if department dropdown exists)
     const departmentSelect = document.getElementById('department_id');
     const employeeSelect = document.getElementById('employee_id');
@@ -307,6 +339,29 @@
     document.getElementById('status').addEventListener('change', syncScheduleFields);
     document.getElementById('schedule_type').addEventListener('change', syncScheduleFields);
 
+    // Applying a template fills schedule_type, time_in/out, and required_hours,
+    // then re-runs syncScheduleFields so the right fields show/hide
+    document.getElementById('schedule_template_id').addEventListener('change', function() {
+        const template = scheduleTemplates[this.value];
+        if (!template) {
+            return;
+        }
+
+        const statusField = document.getElementById('status');
+        // A template implies actual work, so default status to Working unless
+        // the admin already chose something else that isn't a work status
+        if (statusField.value !== 'Working' && statusField.value !== 'Overtime') {
+            statusField.value = 'Working';
+        }
+
+        document.getElementById('schedule_type').value = template.schedule_type;
+        document.getElementById('time_in').value = template.time_in;
+        document.getElementById('time_out').value = template.time_out;
+        document.getElementById('required_hours').value = template.required_hours;
+
+        syncScheduleFields();
+    });
+
     // Auto-apply default schedule values based on selected date (editable by admin after auto-fill)
     function applyAutoScheduleDefaults() {
         const dateField = document.getElementById('date');
@@ -335,7 +390,10 @@
         syncScheduleFields();
     }
 
-    document.getElementById('date').addEventListener('change', applyAutoScheduleDefaults);
+    document.getElementById('date').addEventListener('change', function() {
+        document.getElementById('schedule_template_id').value = '';
+        applyAutoScheduleDefaults();
+    });
 
     // Initialize on page load
     document.addEventListener('DOMContentLoaded', function() {

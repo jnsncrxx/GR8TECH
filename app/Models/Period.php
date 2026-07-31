@@ -94,6 +94,13 @@ class Period extends Model
         'payroll_date',
         'start_date',
         'end_date',
+        'request_deadline_at',
+        'preparation_deadline_at',
+        'validation_deadline_at',
+        'lock_deadline_at',
+        'deadline_extended_at',
+        'deadline_extended_by',
+        'deadline_extension_reason',
         'working_days',
         'status',
         'department_id',
@@ -109,6 +116,7 @@ class Period extends Model
         'overtime_validated_at',
         'overtime_validated_by',
         'validation_notes',
+        'validation_results',
         'ready_at',
         'ready_by',
 
@@ -131,11 +139,17 @@ class Period extends Model
         'payroll_date' => 'date',
         'start_date' => 'date',
         'end_date' => 'date',
+        'request_deadline_at' => 'datetime',
+        'preparation_deadline_at' => 'datetime',
+        'validation_deadline_at' => 'datetime',
+        'lock_deadline_at' => 'datetime',
+        'deadline_extended_at' => 'datetime',
         'employee_ids' => 'array',
         'period_month' => 'integer',
         'period_year' => 'integer',
         'period_no' => 'integer',
         'working_days' => 'integer',
+        'validation_results' => 'array',
 
         'attendance_validated_at' => 'datetime',
         'leave_validated_at' => 'datetime',
@@ -358,5 +372,26 @@ class Period extends Model
     public function isFuture(): bool
     {
         return $this->start_date->gt(now()->startOfDay());
+    }
+
+    public function deadlineHasPassed(string $field): bool
+    {
+        $deadline = $this->{$field};
+
+        return $deadline !== null && now()->greaterThan($deadline);
+    }
+
+    public function deadlineState(string $field): string
+    {
+        $deadline = $this->{$field};
+        if (!$deadline) {
+            return 'not_set';
+        }
+
+        if (now()->greaterThan($deadline)) {
+            return 'overdue';
+        }
+
+        return now()->diffInHours($deadline) <= 24 ? 'due_soon' : 'open';
     }
 }

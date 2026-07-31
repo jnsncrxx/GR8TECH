@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Exports\LeaveRequestExport;
 use App\Models\AttendanceRecord;
 use App\Models\Department;
 use App\Models\Employee;
@@ -15,6 +16,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Maatwebsite\Excel\Facades\Excel;
 
 class LeaveController extends Controller
 {
@@ -38,6 +41,12 @@ class LeaveController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
+        $personalRequested = $request->query('scope') === 'mine';
+        if ($personalRequested && !$user->employee_id) {
+            return redirect()->route('dashboard')->with('error', 'No employee record is linked to this account.');
+        }
+        $personalMode = $personalRequested;
+        $isReviewer = in_array($user->role, ['admin', 'hr', 'manager'], true) && !$personalMode;
 
         $query = $this->applyFilters(LeaveRequest::with(['employee', 'approver']), $request, $user);
         $leaveRequests = $query->orderBy('created_at', 'desc')->paginate(10)->withQueryString();
@@ -71,57 +80,67 @@ class LeaveController extends Controller
             'departments' => $departments,
             'statusList' => ['pending', 'approved', 'rejected', 'cancelled'],
             'hasEmployeesWithoutBalances' => $hasEmployeesWithoutBalances,
+            'isReviewer' => $isReviewer,
+            'personalMode' => $personalMode,
         ]);
     }
 
-    public function exportLeave($format)
+    public function exportLeave(Request $request, string $format)
     {
-        $allowed = ['pdf', 'csv', 'xls'];
-        if (!in_array($format, $allowed, true)) {
+        $format = strtolower($format);
+
+        if (!in_array($format, ['pdf', 'csv', 'xlsx', 'xls'], true)) {
             return back()->with('error', 'Unsupported export format.');
         }
 
-        $leaveRequests = LeaveRequest::with(['employee'])->orderBy('created_at', 'desc')->get();
-        $fileName = 'leave-requests-' . Carbon::now()->format('YmdHis') . '.csv';
+        $user = Auth::user();
+        if ($request->query('scope') === 'mine' && !$user->employee_id) {
+            return redirect()->route('dashboard')->with('error', 'No employee record is linked to this account.');
+        }
 
-        $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
-        ];
+        $leaveRequests = $this->applyFilters(
+            LeaveRequest::with(['employee.department', 'approver.employee']),
+            $request,
+            $user
+        )->orderByDesc('created_at')->get();
 
-        $callback = function () use ($leaveRequests) {
-            $handle = fopen('php://output', 'w');
-            fputcsv($handle, ['Employee', 'Leave Type', 'Start Date', 'End Date', 'Days Requested', 'Status', 'Reason', 'Approved By', 'Approved At']);
+        $timestamp = now()->format('Ymd_His');
 
-            foreach ($leaveRequests as $request) {
-                fputcsv($handle, [
-                    $request->employee->full_name ?? 'N/A',
-                    ucfirst(str_replace('_', ' ', $request->leave_type)),
-                    $request->start_date,
-                    $request->end_date,
-                    $request->days_requested,
-                    ucfirst($request->status),
-                    $request->reason,
-                    $request->approvedBy?->email ?? '',
-                    $request->approved_at?->format('Y-m-d H:i:s') ?? '',
-                ]);
-            }
+        if ($format === 'pdf') {
+            return Pdf::loadView('attendance.exports.leave-requests-pdf', [
+                'requests' => $leaveRequests,
+                'generatedAt' => now(),
+            ])->setPaper('a4', 'landscape')
+                ->download("leave-requests_{$timestamp}.pdf");
+        }
 
-            fclose($handle);
-        };
+        $export = new LeaveRequestExport($leaveRequests);
 
-        return response()->stream($callback, 200, $headers);
+        if ($format === 'csv') {
+            return Excel::download(
+                $export,
+                "leave-requests_{$timestamp}.csv",
+                \Maatwebsite\Excel\Excel::CSV
+            );
+        }
+
+        return Excel::download(
+            $export,
+            "leave-requests_{$timestamp}.xlsx",
+            \Maatwebsite\Excel\Excel::XLSX
+        );
     }
 
-    public function create()
+    public function create(Request $request)
     {
         $user = Auth::user();
+        $personalMode = $request->query('scope') === 'mine' && (bool) $user->employee_id;
         $employee = $user->employee;
         $employees = [];
         $leaveBalance = null;
         $availableDays = [];
 
-        if (in_array($user->role, ['admin', 'hr'], true)) {
+        if (in_array($user->role, ['admin', 'hr'], true) && !$personalMode) {
             $employees = Employee::with('department')->get();
         }
 
@@ -143,6 +162,7 @@ class LeaveController extends Controller
             'employees' => $employees,
             'leaveBalance' => $leaveBalance,
             'availableDays' => $availableDays,
+            'personalMode' => $personalMode,
         ]);
     }
 
@@ -217,6 +237,7 @@ class LeaveController extends Controller
     {
         $user = Auth::user();
         $role = $user->role;
+        $personalMode = $request->input('scope') === 'mine' && (bool) $user->employee_id;
 
         $rules = [
             'leave_type'       => ['required', 'in:' . implode(',', $this->leaveTypes)],
@@ -228,11 +249,11 @@ class LeaveController extends Controller
         ];
 
         // Employees cannot file backdated leave requests.
-        if (!in_array($role, ['admin', 'hr'], true)) {
+        if (!in_array($role, ['admin', 'hr'], true) || $personalMode) {
             $rules['start_date'][] = 'after_or_equal:today';
         }
 
-        if (!in_array($role, ['admin', 'hr'], true)) {
+        if (!in_array($role, ['admin', 'hr'], true) || $personalMode) {
             $employee = $user->employee;
             if (!$employee) {
                 return back()->with('error', 'Employee record not found.');
@@ -266,6 +287,16 @@ class LeaveController extends Controller
             return back()->with('error', 'Employee not found.');
         }
 
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForRange(
+            $employee->id,
+            $data['start_date'],
+            $data['end_date']
+        )) {
+            return back()->withInput()->with(
+                'error',
+                'Cannot file leave because part of the selected date range belongs to a locked payroll period.'
+            );
+        }
 
         $timeConflict = app(\App\Services\PayrollRequestConflictService::class)
             ->timeRequestWithinLeaveRange($employee->id, $data['start_date'], $data['end_date']);
@@ -378,6 +409,16 @@ class LeaveController extends Controller
             return response()->json(['error' => 'This request has already been reviewed.'], 422);
         }
 
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForRange(
+            $leaveRequest->employee_id,
+            $leaveRequest->start_date->toDateString(),
+            $leaveRequest->end_date->toDateString()
+        )) {
+            return response()->json([
+                'error' => 'This leave request belongs to a locked payroll period and can no longer be reviewed or changed.',
+            ], 422);
+        }
+
         // Check if there are overlapping approved leaves before approving
         if ($request->status === 'approved') {
             $leaveConflicts = app(\App\Services\PayrollRequestConflictService::class);
@@ -390,16 +431,6 @@ class LeaveController extends Controller
             if ($timeConflict) {
                 return response()->json([
                     'error' => "Cannot approve leave because the selected dates contain pending or approved {$timeConflict}.",
-                ], 422);
-            }
-
-            if ($leaveConflicts->payrollGeneratedForRange(
-                $leaveRequest->employee_id,
-                $leaveRequest->start_date->toDateString(),
-                $leaveRequest->end_date->toDateString()
-            )) {
-                return response()->json([
-                    'error' => 'Cannot approve — payroll has already been generated for part of this leave period. An Admin must reopen the payroll period first.',
                 ], 422);
             }
 
@@ -622,13 +653,13 @@ class LeaveController extends Controller
 
         if ($leaveRequest->status === LeaveRequest::APPROVED) {
             $conflicts = app(\App\Services\PayrollRequestConflictService::class);
-            if ($conflicts->payrollGeneratedForRange(
+            if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForRange(
                 $leaveRequest->employee_id,
                 $leaveRequest->start_date->toDateString(),
                 $leaveRequest->end_date->toDateString()
             )) {
                 return response()->json([
-                    'error' => 'Cannot cancel — payroll has already been generated for part of this leave period. An Admin must reopen the payroll period before this request can be changed.',
+                    'error' => 'Cannot cancel — payroll has already been generated for part of this leave period. The payroll period is locked and this request can no longer be changed.',
                 ], 422);
             }
         }
@@ -696,13 +727,13 @@ class LeaveController extends Controller
         }
 
         $conflicts = app(\App\Services\PayrollRequestConflictService::class);
-        if ($conflicts->payrollGeneratedForRange(
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForRange(
             $leaveRequest->employee_id,
             $leaveRequest->start_date->toDateString(),
             $leaveRequest->end_date->toDateString()
         )) {
             return response()->json([
-                'error' => 'Cannot edit — payroll has already been generated for part of this leave period. An Admin must reopen the payroll period before this request can be changed.',
+                'error' => 'Cannot edit — payroll has already been generated for part of this leave period. The payroll period is locked and this request can no longer be changed.',
             ], 422);
         }
 
@@ -717,9 +748,9 @@ class LeaveController extends Controller
 
         // The new range might land inside a different, already-generated period
         // even if the original range didn't.
-        if ($conflicts->payrollGeneratedForRange($leaveRequest->employee_id, $data['start_date'], $data['end_date'])) {
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForRange($leaveRequest->employee_id, $data['start_date'], $data['end_date'])) {
             return response()->json([
-                'error' => 'Cannot edit — payroll has already been generated for the new dates. An Admin must reopen that payroll period first.',
+                'error' => 'Cannot edit — payroll has already been generated for the new dates. That payroll period is locked and can no longer be modified.',
             ], 422);
         }
 
@@ -952,13 +983,15 @@ class LeaveController extends Controller
 
     private function applyFilters($query, Request $request, $user)
     {
-        if ($user->role === 'employee' && $user->employee) {
+        $personalMode = $request->query('scope') === 'mine' && $user->employee;
+
+        if (($user->role === 'employee' || $personalMode) && $user->employee) {
             $query->where('employee_id', $user->employee->id);
         } elseif ($request->filled('employee_id')) {
             $query->where('employee_id', $request->employee_id);
         }
 
-        if ($user->role === 'manager') {
+        if ($user->role === 'manager' && !$personalMode) {
             $query->whereHas('employee.department', fn ($dept) => $dept->where('manager_id', $user->employee_id));
         }
 

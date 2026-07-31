@@ -51,7 +51,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
                 <label for="reportType" class="block text-sm font-medium text-gray-700 mb-2">Report Type</label>
-                <select id="reportType" name="report_type" x-model="reportType" @change="updateDateInputs()" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
+                <select id="reportType" name="report_type" x-model="reportType" @change="updateDateInputs()" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900">
                     <option value="daily" style="color: #111827 !important;">Daily Attendance</option>
                     <option value="weekly" style="color: #111827 !important;">Weekly Summary</option>
                     <option value="monthly" style="color: #111827 !important;">Monthly Report</option>
@@ -62,7 +62,7 @@
             </div>
             <div>
                 <label for="department" class="block text-sm font-medium text-gray-700 mb-2">Department</label>
-                <select id="department" name="department_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
+                <select id="department" name="department_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900">
                     <option value="" style="color: #111827 !important;">All Departments</option>
                     @foreach($departments ?? [] as $dept)
                         <option value="{{ $dept->id }}" {{ request('department_id') == $dept->id ? 'selected' : '' }} style="color: #111827 !important;">{{ $dept->name }}</option>
@@ -78,7 +78,7 @@
             <div x-show="reportType === 'daily'">
                 <label for="dateSingle" class="block text-sm font-medium text-gray-700 mb-2">Date</label>
                 <div class="relative">
-                    <input type="text" id="dateSingle" :value="dailyDate" readonly class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 date-picker-input" style="background-color: white !important; color: #111827 !important;" placeholder="Select date">
+                    <input type="text" id="dateSingle" :value="dailyDate" readonly class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 date-picker-input" placeholder="Select date">
                     <input type="hidden" x-model="dailyDate">
                     <i class="fas fa-calendar absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 calendar-icon" style="pointer-events: auto; cursor: pointer;"></i>
             </div>
@@ -88,7 +88,7 @@
             <div x-show="reportType === 'weekly'">
                 <label for="weekStart" class="block text-sm font-medium text-gray-700 mb-2">Week Starting</label>
                 <div class="relative">
-                    <input type="text" id="weekStart" :value="weekStart" readonly class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 date-picker-input" style="background-color: white !important; color: #111827 !important;" placeholder="Select week start">
+                    <input type="text" id="weekStart" :value="weekStart" readonly class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 date-picker-input" placeholder="Select week start">
                     <input type="hidden" x-model="weekStart" @change="updateWeekEnd()">
                     <i class="fas fa-calendar absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 calendar-icon" style="pointer-events: auto; cursor: pointer;"></i>
         </div>
@@ -99,7 +99,7 @@
             <div x-show="reportType === 'monthly'">
                 <label for="monthSelect" class="block text-sm font-medium text-gray-700 mb-2">Month</label>
                 <div class="relative">
-                    <input type="text" id="monthSelect" :value="monthValue" readonly class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 date-picker-input" style="background-color: white !important; color: #111827 !important;" placeholder="Select month">
+                    <input type="text" id="monthSelect" :value="monthValue" readonly class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 date-picker-input" placeholder="Select month">
                     <input type="hidden" name="month" x-model="monthValue" @change="updateMonthDates()">
                     <i class="fas fa-calendar absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 calendar-icon" style="pointer-events: auto; cursor: pointer;"></i>
                 </div>
@@ -108,7 +108,7 @@
             <!-- Yearly: Year Selector -->
             <div x-show="reportType === 'yearly'">
                 <label for="yearSelect" class="block text-sm font-medium text-gray-700 mb-2">Year</label>
-                <select id="yearSelect" name="year" x-model="yearValue" @change="updateYearDates()" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
+                <select id="yearSelect" name="year" x-model="yearValue" @change="updateYearDates()" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900">
                     @for($year = now()->year; $year >= now()->year - 5; $year--)
                         <option value="{{ $year }}" style="color: #111827 !important;">{{ $year }}</option>
                     @endfor
@@ -121,14 +121,14 @@
                     <div>
                         <label for="dateFrom" class="block text-sm font-medium text-gray-700 mb-2">From Date</label>
                         <div class="relative">
-                            <input type="text" id="dateFrom" x-model="dateFrom" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 date-picker-input" style="background-color: white !important; color: #111827 !important;" placeholder="Select from date">
+                            <input type="text" id="dateFrom" x-model="dateFrom" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 date-picker-input" placeholder="Select from date">
                             <i class="fas fa-calendar absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 calendar-icon" style="pointer-events: auto; cursor: pointer;"></i>
                         </div>
                     </div>
                     <div>
                         <label for="dateTo" class="block text-sm font-medium text-gray-700 mb-2">To Date</label>
                         <div class="relative">
-                            <input type="text" id="dateTo" x-model="dateTo" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 date-picker-input" style="background-color: white !important; color: #111827 !important;" placeholder="Select to date">
+                            <input type="text" id="dateTo" x-model="dateTo" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 date-picker-input" placeholder="Select to date">
                             <i class="fas fa-calendar absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 calendar-icon" style="pointer-events: auto; cursor: pointer;"></i>
                         </div>
                     </div>

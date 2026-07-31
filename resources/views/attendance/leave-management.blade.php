@@ -2,15 +2,15 @@
 
 @php use Illuminate\Support\Str; @endphp
 
-@section('title', 'Leave Management')
+@section('title', ($personalMode ?? false) ? 'My Leave' : 'Leave Management')
 
 @section('content')
 <div class="space-y-6">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Leave Management</h1>
-            <p class="mt-1 text-sm text-gray-600">Manage employee leave requests and balances</p>
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">{{ ($personalMode ?? false) ? 'My Leave' : 'Leave Management' }}</h1>
+            <p class="mt-1 text-sm text-gray-600">{{ ($personalMode ?? false) ? 'Review and submit your leave requests' : 'Manage employee leave requests and balances' }}</p>
         </div>
         <div class="mt-4 sm:mt-0 flex space-x-3">
             <!-- Export Dropdown -->
@@ -28,19 +28,19 @@
                         <a href="{{ route('attendance.leave-management.export', ['format' => 'csv']) . '?' . http_build_query(request()->query()) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                             <i class="fas fa-file-csv mr-2 text-green-500"></i>Export as CSV
                         </a>
-                        <a href="{{ route('attendance.leave-management.export', ['format' => 'xls']) . '?' . http_build_query(request()->query()) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                        <a href="{{ route('attendance.leave-management.export', ['format' => 'xlsx']) . '?' . http_build_query(request()->query()) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                             <i class="fas fa-file-excel mr-2 text-green-600"></i>Export as Excel
                         </a>
                     </div>
                 </div>
             </div>
-            @if(in_array($user->role, ['admin', 'hr', 'manager']) && ($hasEmployeesWithoutBalances ?? true))
+            @if($isReviewer && ($hasEmployeesWithoutBalances ?? true))
             <button onclick="openSetLeaveBalanceModal()" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium" title="Set Leave Balance">
                 <i class="fas fa-calendar-plus mr-2"></i><span class="hidden sm:inline">Set Leave Balance</span><span class="sm:hidden">Set Balance</span>
             </button>
             @endif
-            @if($user->role === 'employee')
-            <a href="{{ route('attendance.leave-management.create') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+            @if(!$isReviewer)
+            <a href="{{ route('attendance.leave-management.create', ['scope' => 'mine']) }}" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
                 <i class="fas fa-plus mr-2"></i>
                 New Leave Request
             </a>
@@ -124,7 +124,7 @@
     <!-- Filters -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            @if($user->role !== 'employee')
+            @if($isReviewer)
             <div>
                 <label for="department" class="block text-sm font-medium text-gray-700 mb-2">Department</label>
                 <select id="department" name="department_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
@@ -283,7 +283,7 @@
                                     ?? '';
                             }
                         @endphp
-                    <tr class="hover:bg-gray-50 transition-colors">
+                    <tr class="hover:bg-gray-50 transition-colors" data-search-row="{{ $leaveRequest->id }}">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
                                 <div class="flex-shrink-0 h-10 w-10">
@@ -341,22 +341,25 @@
                             <div class="text-sm text-gray-900">
                                 {{ $reviewerName !== '' ? $reviewerName : '—' }}
                             </div>
+                            @if($leaveRequest->approved_at)
+                                <div class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($leaveRequest->approved_at)->format('M d, Y h:i A') }}</div>
+                            @endif
                         </td>
 
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                             <div class="flex justify-center items-center space-x-2">
-                                    @if(in_array($user->role, ['admin', 'hr', 'manager']) && $leaveRequest->status == 'pending')
+                                    @if($isReviewer && $leaveRequest->status == 'pending')
                                         <button data-leave-id="{{ $leaveRequest->id }}" data-action="approve" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors" title="Approve">
                                             <i class="fas fa-check"></i>
                                         </button>
                                         <button data-leave-id="{{ $leaveRequest->id }}" data-action="reject" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors" title="Reject">
                                             <i class="fas fa-times"></i>
                                         </button>
-                                    @elseif(in_array($user->role, ['admin', 'hr', 'manager']) && $leaveRequest->status == 'approved')
+                                    @elseif($isReviewer && $leaveRequest->status == 'approved')
                                         <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel approved leave">
                                             <i class="fas fa-ban"></i>
                                         </button>
-                                    @elseif($leaveRequest->status == 'pending' && ($user->role == 'employee' && $leaveRequest->employee_id == $user->employee?->id))
+                                    @elseif($leaveRequest->status == 'pending' && (!$isReviewer && $leaveRequest->employee_id == $user->employee?->id))
                                         <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel">
                                             <i class="fas fa-ban"></i>
                                         </button>
@@ -477,6 +480,9 @@
                         <div class="col-span-2">
                             <div class="text-gray-500">Reviewed By</div>
                             <div class="font-medium">{{ $reviewerName !== '' ? $reviewerName : '—' }}</div>
+                            @if($leaveRequest->approved_at)
+                                <div class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($leaveRequest->approved_at)->format('M d, Y h:i A') }}</div>
+                            @endif
                         </div>
                     </div>
                     <div class="text-sm mb-3">
@@ -484,18 +490,18 @@
                             <div class="font-medium">{{ Str::limit($leaveRequest->reason, 50) }}</div>
                     </div>
                     <div class="flex justify-center space-x-2">
-                            @if(in_array($user->role, ['admin', 'hr', 'manager']) && $leaveRequest->status == 'pending')
+                            @if($isReviewer && $leaveRequest->status == 'pending')
                                 <button data-leave-id="{{ $leaveRequest->id }}" data-action="approve" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors" title="Approve">
                                     <i class="fas fa-check"></i>
                                 </button>
                                 <button data-leave-id="{{ $leaveRequest->id }}" data-action="reject" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors" title="Reject">
                                     <i class="fas fa-times"></i>
                                 </button>
-                            @elseif(in_array($user->role, ['admin', 'hr', 'manager']) && $leaveRequest->status == 'approved')
+                            @elseif($isReviewer && $leaveRequest->status == 'approved')
                                 <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel approved leave">
                                     <i class="fas fa-ban"></i>
                                 </button>
-                            @elseif($leaveRequest->status == 'pending' && ($user->role == 'employee' && $leaveRequest->employee_id == $user->employee?->id))
+                            @elseif($leaveRequest->status == 'pending' && (!$isReviewer && $leaveRequest->employee_id == $user->employee?->id))
                                 <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel">
                                     <i class="fas fa-ban"></i>
                                 </button>
@@ -527,7 +533,7 @@
         $selectedEmployee = null;
 
         // For employees, always show their own balance
-        if ($user->role === 'employee' && $user->employee) {
+        if (!$isReviewer && $user->employee) {
             $showLeaveBalances = true;
             $selectedEmployee = $user->employee;
             // Always refresh balance from database to ensure we have latest data
@@ -564,7 +570,7 @@
             }
         }
         // For HR/Admin, only show when a specific employee is selected (not "All Employees")
-        elseif (in_array($user->role, ['admin', 'hr', 'manager']) && $selectedEmployeeId && $selectedEmployeeId !== '') {
+        elseif ($isReviewer && $selectedEmployeeId && $selectedEmployeeId !== '') {
             // Find employee from the filtered employees collection (respects company filtering)
             // Use firstWhere with string comparison to handle UUID properly
             $selectedEmployee = $employees->first(function($emp) use ($selectedEmployeeId) {
@@ -615,7 +621,7 @@
         <div class="flex items-center justify-between mb-4">
             <h3 class="text-lg font-medium text-gray-900">
                 Leave Balances
-                @if($user->role !== 'employee' && $selectedEmployee)
+                @if($isReviewer && $selectedEmployee)
                     - {{ $selectedEmployee->full_name }}
                 @endif
             </h3>
@@ -624,68 +630,72 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             @php
                 $leaveTypes = [
-                    'vacation' => ['label' => 'Vacation Leave', 'color' => 'blue'],
-                    'sick' => ['label' => 'Sick Leave', 'color' => 'red'],
-                    'personal' => ['label' => 'Personal Leave/Leave Without Pay', 'color' => 'purple'],
-                    'emergency' => ['label' => 'Emergency Leave', 'color' => 'yellow'],
-                    'maternity' => ['label' => 'Maternity Leave', 'color' => 'pink'],
-                    'paternity' => ['label' => 'Paternity Leave', 'color' => 'indigo'],
-                    'bereavement' => ['label' => 'SIL (Service Incentive Leave)', 'color' => 'gray'],
+                    'vacation'    => ['label' => 'Vacation Leave',                    'color' => 'blue'],
+                    'sick'        => ['label' => 'Sick Leave',                        'color' => 'red'],
+                    'sil'         => ['label' => 'SIL (Service Incentive Leave)',     'color' => 'gray'],
+                    'personal'    => ['label' => 'Personal Leave / Leave Without Pay','color' => 'purple'],
+                    'emergency'   => ['label' => 'Emergency Leave',                   'color' => 'yellow'],
+                    'maternity'   => ['label' => 'Maternity Leave',                   'color' => 'pink'],
+                    'paternity'   => ['label' => 'Paternity Leave',                   'color' => 'indigo'],
+                    'spl'         => ['label' => 'Solo Parent Leave',                 'color' => 'green'],
+                    'vawc'        => ['label' => 'VAWC Leave',                        'color' => 'red'],
+                    'bl'          => ['label' => 'Bereavement Leave',                 'color' => 'gray'],
                 ];
-                // Personal and Emergency leave are incremental: usage keeps
-                // accruing but no total cap blocks new requests, so they get
-                // a simple usage count instead of a capped progress bar.
-                $incrementalTypes = \App\Models\LeaveRequest::UNCAPPED_LEAVE_TYPES;
-                // SIL is a standard statutory entitlement, so always surface
-                // it (even at 0/unset) rather than hiding it like the
-                // optional maternity/paternity cards.
-                $alwaysVisibleTypes = array_merge($incrementalTypes, ['bereavement']);
+                // VL, SL, and SIL are capped and always visible (even at 0)
+                $alwaysVisibleTypes = ['vacation', 'sick', 'sil'];
+                
+                $colorClasses = [
+                    'blue'   => 'bg-blue-600',
+                    'red'    => 'bg-red-600',
+                    'green'  => 'bg-green-600',
+                    'yellow' => 'bg-yellow-600',
+                    'pink'   => 'bg-pink-600',
+                    'indigo' => 'bg-indigo-600',
+                    'gray'   => 'bg-gray-600',
+                    'purple' => 'bg-purple-600',
+                ];
             @endphp
             @foreach($leaveTypes as $type => $config)
                 @php
-                    $totalField = $type . '_days_total';
-                    $usedField = $type . '_days_used';
-                    $total = $selectedEmployeeBalance->$totalField ?? 0;
-                    $used = $selectedEmployeeBalance->$usedField ?? 0;
-                    $remaining = $total - $used;
-                    $percentage = $total > 0 ? ($used / $total) * 100 : 0;
-                    $widthPercentage = min((float)$percentage, 100);
-                    $colorClasses = [
-                        'blue' => 'bg-blue-600',
-                        'red' => 'bg-red-600',
-                        'green' => 'bg-green-600',
-                        'yellow' => 'bg-yellow-600',
-                        'pink' => 'bg-pink-600',
-                        'indigo' => 'bg-indigo-600',
-                        'gray' => 'bg-gray-600',
-                        'purple' => 'bg-purple-600',
-                    ];
-                    $barColor = $colorClasses[$config['color']] ?? 'bg-blue-600';
-                    $isIncremental = in_array($type, $incrementalTypes, true);
+                    $totalField      = $type . '_days_total';
+                    $usedField       = $type . '_days_used';
+                    $total           = $selectedEmployeeBalance->$totalField ?? 0;
+                    $used            = $selectedEmployeeBalance->$usedField  ?? 0;
+                    $isCapped        = in_array($type, $alwaysVisibleTypes, true);
                 @endphp
-                @if($total > 0 || in_array($type, $alwaysVisibleTypes, true))
+                
+                
             <div class="border border-gray-200 rounded-lg p-4">
                 <div class="flex items-center justify-between mb-2">
-                        <h4 class="font-medium text-gray-900">{{ $config['label'] }}</h4>
-                        <span class="text-sm text-gray-500">{{ $isIncremental ? 'Incremental' : $total . ' days' }}</span>
+                    <h4 class="font-medium text-gray-900 text-sm">{{ $config['label'] }}</h4>
+                    @if($isCapped)
+                        <span class="text-sm text-gray-500">{{ $total }} days</span>
+                    @endif
                 </div>
-                @if($isIncremental)
+                
+                @if(!$isCapped)
                 <div class="text-xs text-gray-500 mt-1">
-                    <span class="font-medium">{{ $used }}</span> days used &mdash; no cap enforced
+                    <span class="font-medium text-gray-900">{{ $used }}</span> days used
                 </div>
                 @else
+                @php
+                    $remaining       = $total - $used;
+                    $percentage      = $total > 0 ? ($used / $total) * 100 : 0;
+                    $widthPercentage = min((float)$percentage, 100);
+                    $barColor        = $colorClasses[$config['color']] ?? 'bg-blue-600';
+                @endphp
                 <div class="w-full bg-gray-200 rounded-full h-2">
-                    <div class="{{ $barColor }} h-2 rounded-full transition-all" style="--width: {{ $widthPercentage }}%; width: var(--width)"></div>
+                    <div class="{{ $barColor }} h-2 rounded-full transition-all" style="width: {{ $widthPercentage }}%"></div>
                 </div>
                 <div class="text-xs text-gray-500 mt-1">
-                    <span class="font-medium">{{ $used }}</span> days used,
-                    <span class="font-medium text-green-600">{{ $remaining }}</span> remaining
+                    <span class="font-medium text-gray-900">{{ $used }}</span> days used,
+                    <span class="font-medium text-green-600">{{ max($remaining, 0) }}</span> remaining
                 </div>
                 @endif
-                </div>
-                @endif
+            </div>
+            
             @endforeach
-                </div>
+        </div>
         @else
         <div class="text-center py-8 text-gray-500">
             <i class="fas fa-info-circle text-4xl mb-4 text-gray-400"></i>

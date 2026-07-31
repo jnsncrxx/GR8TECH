@@ -83,7 +83,7 @@
             @if(in_array($user->role, ['admin', 'hr', 'manager']))
             <div>
                 <label for="employee_id" class="block text-sm font-medium text-gray-700 mb-2">Employee</label>
-                <select name="employee_id" id="employee_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
+                <select name="employee_id" id="employee_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900">
                     <option value="" style="color: #111827 !important;">All Employees</option>
                     @foreach($employees as $employee)
                         <option value="{{ $employee->id }}" {{ request('employee_id') == $employee->id ? 'selected' : '' }} style="color: #111827 !important;">
@@ -94,7 +94,7 @@
             </div>
             <div>
                 <label for="department_id" class="block text-sm font-medium text-gray-700 mb-2">Department</label>
-                <select name="department_id" id="department_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
+                <select name="department_id" id="department_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900">
                     <option value="" style="color: #111827 !important;">All Departments</option>
                     @foreach($departments as $department)
                         <option value="{{ $department->id }}" {{ request('department_id') == $department->id ? 'selected' : '' }} style="color: #111827 !important;">
@@ -123,7 +123,7 @@
                     <i class="fas fa-calendar-alt mr-1 text-gray-500"></i>From Date
                 </label>
                 <div class="relative">
-                    <input type="text" name="date_from" id="date_from" value="{{ request('date_from') }}" placeholder="Select date" class="w-full px-3 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 cursor-pointer" style="background-color: white !important; color: #111827 !important;">
+                    <input type="text" name="date_from" id="date_from" value="{{ request('date_from') }}" placeholder="Select date" class="w-full px-3 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 cursor-pointer">
                     <i class="fas fa-calendar absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 cursor-pointer hover:text-gray-600 transition-colors" style="pointer-events: auto;"></i>
                 </div>
             </div>
@@ -132,7 +132,7 @@
                     <i class="fas fa-calendar-alt mr-1 text-gray-500"></i>To Date
                 </label>
                 <div class="relative">
-                    <input type="text" name="date_to" id="date_to" value="{{ request('date_to') }}" placeholder="Select date" class="w-full px-3 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 cursor-pointer" style="background-color: white !important; color: #111827 !important;">
+                    <input type="text" name="date_to" id="date_to" value="{{ request('date_to') }}" placeholder="Select date" class="w-full px-3 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 cursor-pointer">
                     <i class="fas fa-calendar absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 cursor-pointer hover:text-gray-600 transition-colors" style="pointer-events: auto;"></i>
                 </div>
             </div>
@@ -151,85 +151,49 @@
     @php
         $blockingExceptions = ($exceptionCounts['incomplete'] ?? 0)
             + ($exceptionCounts['invalid_duration'] ?? 0)
-            + ($exceptionCounts['missing_schedule'] ?? 0);
+            + ($exceptionCounts['missing_schedule'] ?? 0)
+            + ($exceptionCounts['unverified_leave'] ?? 0)
+            + ($exceptionCounts['unverified_official_business'] ?? 0);
         $reviewExceptions = ($exceptionCounts['possible_wrong_schedule'] ?? 0)
             + ($exceptionCounts['rest_day_attendance'] ?? 0);
     @endphp
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <a href="{{ request()->fullUrlWithQuery(['exception' => 'blocking', 'page' => null]) }}" class="rounded-lg border border-red-200 bg-red-50 p-4">
-            <p class="text-sm font-medium text-red-700">Blocking exceptions</p>
-            <p class="mt-1 text-2xl font-bold text-red-900">{{ $blockingExceptions }}</p>
-            <p class="text-xs text-red-700">Incomplete, invalid, or missing schedule</p>
+    <div class="timekeeping-status-grid mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <a href="{{ request()->fullUrlWithQuery(['exception' => 'blocking', 'page' => null]) }}" class="timekeeping-status-card timekeeping-status-card--blocking rounded-lg border border-red-200 bg-gradient-to-r from-red-50 to-red-100 p-4 transition-transform hover:-translate-y-0.5">
+            <div class="flex items-center">
+                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-red-500 dark:bg-red-600">
+                    <i class="fas fa-triangle-exclamation text-sm text-white"></i>
+                </div>
+                <div class="ml-3 min-w-0">
+                    <p class="text-sm font-medium text-red-600 dark:text-red-400">Blocking exceptions</p>
+                    <p class="text-lg font-semibold text-red-900 dark:text-red-100">{{ $blockingExceptions }}</p>
+                </div>
+            </div>
+            <p class="mt-2 text-xs text-red-700 dark:text-red-300">Incomplete, invalid, or missing schedule</p>
         </a>
-        <a href="{{ request()->fullUrlWithQuery(['exception' => 'manager_review', 'page' => null]) }}" class="rounded-lg border border-amber-200 bg-amber-50 p-4">
-            <p class="text-sm font-medium text-amber-700">Manager review</p>
-            <p class="mt-1 text-2xl font-bold text-amber-900">{{ $reviewExceptions }}</p>
-            <p class="text-xs text-amber-700">Possible wrong shift or rest-day duty</p>
+        <a href="{{ request()->fullUrlWithQuery(['exception' => 'manager_review', 'page' => null]) }}" class="timekeeping-status-card timekeeping-status-card--review rounded-lg border border-yellow-200 bg-gradient-to-r from-yellow-50 to-yellow-100 p-4 transition-transform hover:-translate-y-0.5">
+            <div class="flex items-center">
+                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-yellow-500 dark:bg-yellow-600">
+                    <i class="fas fa-user-clock text-sm text-white"></i>
+                </div>
+                <div class="ml-3 min-w-0">
+                    <p class="text-sm font-medium text-yellow-600 dark:text-yellow-400">Manager review</p>
+                    <p class="text-lg font-semibold text-yellow-900 dark:text-yellow-100">{{ $reviewExceptions }}</p>
+                </div>
+            </div>
+            <p class="mt-2 text-xs text-yellow-700 dark:text-yellow-300">Possible wrong shift or rest-day duty</p>
         </a>
-        <a href="{{ request()->fullUrlWithQuery(['exception' => 'clear', 'page' => null]) }}" class="rounded-lg border border-green-200 bg-green-50 p-4">
-            <p class="text-sm font-medium text-green-700">Clear records</p>
-            <p class="mt-1 text-2xl font-bold text-green-900">{{ $exceptionCounts['clear'] ?? 0 }}</p>
-            <p class="text-xs text-green-700">Schedule and log checks passed</p>
+        <a href="{{ request()->fullUrlWithQuery(['exception' => 'clear', 'page' => null]) }}" class="timekeeping-status-card timekeeping-status-card--clear rounded-lg border border-green-200 bg-gradient-to-r from-green-50 to-green-100 p-4 transition-transform hover:-translate-y-0.5">
+            <div class="flex items-center">
+                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-green-500 dark:bg-green-600">
+                    <i class="fas fa-circle-check text-sm text-white"></i>
+                </div>
+                <div class="ml-3 min-w-0">
+                    <p class="text-sm font-medium text-green-600 dark:text-green-400">Clear records</p>
+                    <p class="text-lg font-semibold text-green-900 dark:text-green-100">{{ $exceptionCounts['clear'] ?? 0 }}</p>
+                </div>
+            </div>
+            <p class="mt-2 text-xs text-green-700 dark:text-green-300">Schedule and log checks passed</p>
         </a>
-    </div>
-
-    <!-- Summary Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-            <div class="flex items-center">
-                <div class="flex-shrink-0">
-                    <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-clock text-blue-600"></i>
-                    </div>
-                </div>
-                <div class="ml-3">
-                    <p class="text-sm font-medium text-gray-500">Total Hours</p>
-                    <p class="text-lg font-semibold text-gray-900">{{ \App\Helpers\TimezoneHelper::formatHours($summary['total_hours']) }}</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-            <div class="flex items-center">
-                <div class="flex-shrink-0">
-                    <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-check-circle text-green-600"></i>
-                    </div>
-                </div>
-                <div class="ml-3">
-                    <p class="text-sm font-medium text-gray-500">Regular Hours</p>
-                    <p class="text-lg font-semibold text-gray-900">{{ \App\Helpers\TimezoneHelper::formatHours($summary['regular_hours']) }}</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-            <div class="flex items-center">
-                <div class="flex-shrink-0">
-                    <div class="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-plus-circle text-yellow-600"></i>
-                    </div>
-                </div>
-                <div class="ml-3">
-                    <p class="text-sm font-medium text-gray-500">Overtime Hours</p>
-                    <p class="text-lg font-semibold text-gray-900">{{ \App\Helpers\TimezoneHelper::formatHours($summary['overtime_hours']) }}</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-            <div class="flex items-center">
-                <div class="flex-shrink-0">
-                    <div class="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-percentage text-purple-600"></i>
-                    </div>
-                </div>
-                <div class="ml-3">
-                    <p class="text-sm font-medium text-gray-500">Average Hours</p>
-                    <p class="text-lg font-semibold text-gray-900">{{ \App\Helpers\TimezoneHelper::formatHours($summary['average_hours']) }}</p>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Timekeeping Records -->
@@ -295,7 +259,7 @@
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">
                                     @if($record->getRelation('assignedSchedule') && $record->getRelation('assignedSchedule')->time_in && $record->getRelation('assignedSchedule')->time_out)
-                                        {{ \Carbon\Carbon::parse($record->getRelation('assignedSchedule')->time_in)->format('g:i A') }}–{{ \Carbon\Carbon::parse($record->getRelation('assignedSchedule')->time_out)->format('g:i A') }}
+                                        {{ \Carbon\Carbon::parse($record->getRelation('assignedSchedule')->time_in)->format('g:i A') }}&ndash;{{ \Carbon\Carbon::parse($record->getRelation('assignedSchedule')->time_out)->format('g:i A') }}
                                     @else
                                         <span class="text-gray-400">-</span>
                                     @endif
@@ -304,14 +268,18 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">
-                                    @if($record->status === \App\Models\AttendanceRecord::ON_LEAVE)
+                                    @if($record->has_approved_leave)
                                         <span class="font-medium text-blue-700">Approved Leave</span>
-                                    @elseif($record->status === \App\Models\AttendanceRecord::OFFICIAL_BUSINESS)
-                                        <span class="font-medium text-indigo-700">Official Business</span>
+                                    @elseif($record->has_approved_official_business)
+                                        <span class="font-medium text-indigo-700">Approved Official Business</span>
                                     @elseif($record->status === \App\Models\AttendanceRecord::ABSENT && !$record->time_in && !$record->time_out)
                                         <span class="font-medium text-red-700">Absent</span>
                                     @elseif($record->time_in)
-                                        {{ \Carbon\Carbon::parse($record->time_in)->format('g:i A') }}–{{ $record->time_out ? \Carbon\Carbon::parse($record->time_out)->format('g:i A') : 'Incomplete' }}
+                                        {{ \Carbon\Carbon::parse($record->time_in)->format('g:i A') }}&ndash;{{ $record->time_out ? \Carbon\Carbon::parse($record->time_out)->format('g:i A') : 'Incomplete' }}
+                                    @elseif($record->status === \App\Models\AttendanceRecord::ON_LEAVE)
+                                        <span class="font-medium text-red-700">Unverified Leave</span>
+                                    @elseif($record->status === \App\Models\AttendanceRecord::OFFICIAL_BUSINESS)
+                                        <span class="font-medium text-red-700">Unverified Official Business</span>
                                     @else
                                         <span class="text-gray-400">-</span>
                                     @endif
@@ -331,11 +299,21 @@
                                     {{ $record->exception_label }}
                                 </span>
                                 @if(in_array($user->role, ['admin', 'hr']))
-                                    <a href="{{ route('attendance.edit-record', $record->id) }}" class="ml-2 text-xs font-medium text-blue-600 hover:text-blue-800">Edit</a>
-                                    <form action="{{ route('attendance.delete-record', $record->id) }}" method="POST" class="inline-block ml-2" onsubmit="return confirm('Are you sure you want to delete this attendance record?');">
+                                    <a href="{{ route('attendance.edit-record', $record->id) }}"
+                                       class="ui-icon-action ui-action-edit ml-2"
+                                       title="Edit attendance record"
+                                       aria-label="Edit attendance record">
+                                        <i class="fas fa-pen" aria-hidden="true"></i>
+                                    </a>
+                                    <form action="{{ route('attendance.delete-record', $record->id) }}" method="POST" class="inline-flex ml-2" onsubmit="return confirm('Are you sure you want to delete this attendance record?');">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="text-xs font-medium text-red-600 hover:text-red-800">Delete</button>
+                                        <button type="submit"
+                                                class="ui-icon-action ui-action-delete"
+                                                title="Delete attendance record"
+                                                aria-label="Delete attendance record">
+                                            <i class="fas fa-trash" aria-hidden="true"></i>
+                                        </button>
                                     </form>
                                 @endif
                             </td>

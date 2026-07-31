@@ -47,6 +47,7 @@
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         @forelse($departments as $department)
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow department-card flex flex-col"
+             data-search-row="{{ $department->id }}"
              data-name="{{ strtolower($department->name) }}"
              data-location="{{ $department->location }}">
             <!-- Department Header -->

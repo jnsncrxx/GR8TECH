@@ -102,11 +102,23 @@
                         </div>
                     </div>
 
-                    <div id="datePreview" class="hidden mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <div class="rounded-lg bg-gray-50 p-3"><p class="text-xs text-gray-500">Calendar Days</p><p id="calendarDays" class="font-semibold text-gray-900">0</p></div>
-                        <div class="rounded-lg bg-gray-50 p-3"><p class="text-xs text-gray-500">Weekdays</p><p id="workingDays" class="font-semibold text-gray-900">0</p></div>
-                        <div class="rounded-lg bg-gray-50 p-3"><p class="text-xs text-gray-500">Weekend Days</p><p id="weekendDays" class="font-semibold text-gray-900">0</p></div>
-                        <div class="rounded-lg bg-gray-50 p-3"><p class="text-xs text-gray-500">Pay Date</p><p id="payDatePreview" class="font-semibold text-gray-900">—</p></div>
+                    <div id="datePreview" class="hidden mt-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                        <div class="min-h-[92px] rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex flex-col justify-between">
+                            <p class="text-xs font-medium leading-5 text-gray-500">Calendar Days</p>
+                            <p id="calendarDays" class="mt-3 text-xl font-semibold leading-none text-gray-900">0</p>
+                        </div>
+                        <div class="min-h-[92px] rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex flex-col justify-between">
+                            <p class="text-xs font-medium leading-5 text-gray-500">Workdays (Mon–Sat)</p>
+                            <p id="workingDays" class="mt-3 text-xl font-semibold leading-none text-gray-900">0</p>
+                        </div>
+                        <div class="min-h-[92px] rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex flex-col justify-between">
+                            <p class="text-xs font-medium leading-5 text-gray-500">Sunday Off Days</p>
+                            <p id="weekendDays" class="mt-3 text-xl font-semibold leading-none text-gray-900">0</p>
+                        </div>
+                        <div class="min-h-[92px] rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex flex-col justify-between">
+                            <p class="text-xs font-medium leading-5 text-gray-500">Pay Date</p>
+                            <p id="payDatePreview" class="mt-3 text-lg font-semibold leading-none text-gray-900">—</p>
+                        </div>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
@@ -126,6 +138,17 @@
                                 <option value="resigned_only" @selected(old('processing_type') === 'resigned_only')>Resigned Employees Only</option>
                                 <option value="leaves_only" @selected(old('processing_type') === 'leaves_only')>Leaves Only</option>
                             </select>
+                        </div>
+                    </div>
+
+                    <div class="mt-5 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <div class="flex items-start justify-between gap-4">
+                            <div class="min-w-0">
+                                <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Previous Period</p>
+                                <p id="previousPeriodName" class="mt-1 font-semibold text-gray-900">Checking selected cutoff…</p>
+                                <p id="previousPeriodDetails" class="mt-1 text-sm text-gray-600">The previous cutoff is based on the selected month and period number.</p>
+                            </div>
+                            <span id="previousPeriodStatus" class="hidden shrink-0 inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-700 ring-1 ring-gray-200"></span>
                         </div>
                     </div>
 
@@ -199,6 +222,7 @@
 
 <script>
 const employees = {{ Illuminate\Support\Js::from($employeeOptions) }};
+const periodOptions = {{ Illuminate\Support\Js::from($periodOptions) }};
 
 const oldSelected = new Set(
     {{ Illuminate\Support\Js::from($oldSelectedEmployeeIds) }}
@@ -210,6 +234,54 @@ function updateGeneratedName() {
     const year = document.getElementById('period_year').value;
     const number = document.getElementById('period_no').value;
     document.getElementById('generatedName').textContent = `${month.options[month.selectedIndex].text} ${year} - Period ${number}`;
+}
+
+function updatePreviousPeriodPreview() {
+    const year = Number(document.getElementById('period_year').value);
+    const month = Number(document.getElementById('period_month').value);
+    const periodNo = Number(document.getElementById('period_no').value);
+    const name = document.getElementById('previousPeriodName');
+    const details = document.getElementById('previousPeriodDetails');
+    const status = document.getElementById('previousPeriodStatus');
+
+    if (!year || !month || !periodNo) return;
+
+    let previousYear = year;
+    let previousMonth = month;
+    let previousNo = periodNo - 1;
+
+    if (previousNo < 1) {
+        previousNo = 2;
+        previousMonth -= 1;
+        if (previousMonth < 1) {
+            previousMonth = 12;
+            previousYear -= 1;
+        }
+    }
+
+    const previous = periodOptions.find(period =>
+        Number(period.period_year) === previousYear &&
+        Number(period.period_month) === previousMonth &&
+        Number(period.period_no) === previousNo
+    );
+
+    if (!previous) {
+        const expectedMonth = new Date(previousYear, previousMonth - 1, 1)
+            .toLocaleDateString(undefined, { month: 'long' });
+        name.textContent = `${expectedMonth} ${previousYear} - Period ${previousNo}`;
+        details.textContent = 'Not yet created. Create or verify this cutoff before continuing.';
+        status.classList.add('hidden');
+        status.textContent = '';
+        return;
+    }
+
+    name.textContent = previous.name;
+    const formatDate = value => new Date(`${value}T00:00:00`).toLocaleDateString(undefined, {
+        month: 'short', day: 'numeric', year: 'numeric'
+    });
+    details.textContent = `${formatDate(previous.start_date)} – ${formatDate(previous.end_date)} · ${previous.working_days} workdays`;
+    status.textContent = previous.status_label;
+    status.classList.remove('hidden');
 }
 
 function updateStandardPeriodDates() {
@@ -303,6 +375,7 @@ function updateSelectedCount() {
 
 ['period_month', 'period_year', 'period_no'].forEach(id => document.getElementById(id).addEventListener('change', function () {
     updateGeneratedName();
+    updatePreviousPeriodPreview();
     updateStandardPeriodDates();
 }));
 document.querySelector('[name="period_type"]').addEventListener('change', updateStandardPeriodDates);
@@ -315,6 +388,7 @@ document.getElementById('selectAllEmployees').addEventListener('change', functio
 });
 
 updateGeneratedName();
+updatePreviousPeriodPreview();
 updateStandardPeriodDates();
 updateDatePreview();
 renderEmployees();

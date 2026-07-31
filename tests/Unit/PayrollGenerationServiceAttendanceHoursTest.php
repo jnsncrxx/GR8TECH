@@ -59,7 +59,7 @@ class PayrollGenerationServiceAttendanceHoursTest extends TestCase
             'calculateAllowances',
             new Employee(),
             1000.0,
-            ['sick_leave_days' => 0, 'sick_leave_pay' => 0]
+            ['paid_leave_days' => 0, 'paid_leave_pay' => 0]
         );
 
         $this->assertSame(0, $allowances['incentive_leave_days']);
@@ -73,11 +73,11 @@ class PayrollGenerationServiceAttendanceHoursTest extends TestCase
             'calculateAllowances',
             new Employee(),
             1000.0,
-            ['sick_leave_days' => 2, 'sick_leave_pay' => 2000.0]
+            ['paid_leave_days' => 2, 'paid_leave_pay' => 2000.0]
         );
 
-        $this->assertSame(2, $allowances['sick_leave_days']);
-        $this->assertSame(2000.0, $allowances['sick_leave_pay']);
+        $this->assertSame(2, $allowances['paid_leave_days']);
+        $this->assertSame(2000.0, $allowances['paid_leave_pay']);
         $this->assertSame(2000.0, $allowances['total']);
     }
 
@@ -130,6 +130,37 @@ class PayrollGenerationServiceAttendanceHoursTest extends TestCase
         ]);
 
         $this->assertSame(1000.0, $deduction);
+    }
+
+    public function test_statutory_deductions_are_split_across_two_cutoffs(): void
+    {
+        $deductions = $this->invoke(
+            'calculateStatutoryDeductions',
+            30000.0,
+            2
+        );
+
+        $this->assertSame(750.0, $deductions['sss']);
+        $this->assertSame(375.0, $deductions['phic']);
+        $this->assertSame(100.0, $deductions['hdmf']);
+    }
+
+    public function test_monthly_template_deductions_are_also_split_across_two_cutoffs(): void
+    {
+        $deductions = $this->invoke(
+            'calculateStatutoryDeductions',
+            30000.0,
+            2,
+            [
+                'sss' => 1800.0,
+                'phic' => 900.0,
+                'hdmf' => 200.0,
+            ]
+        );
+
+        $this->assertSame(900.0, $deductions['sss']);
+        $this->assertSame(450.0, $deductions['phic']);
+        $this->assertSame(100.0, $deductions['hdmf']);
     }
 
     private function invoke(string $method, mixed ...$arguments): mixed

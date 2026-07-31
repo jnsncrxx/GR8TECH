@@ -65,7 +65,8 @@ class ScheduleV2Controller extends Controller
         if ($employees->isNotEmpty()) {
             $employeeIds = $employees->pluck('id');
             $monthEnd = $monthStart->copy()->endOfMonth();
-            $schedules = \App\Models\EmployeeSchedule::whereIn('employee_id', $employeeIds)
+            $schedules = \App\Models\EmployeeSchedule::with('scheduleTemplate')
+                ->whereIn('employee_id', $employeeIds)
                 ->whereBetween('date', [$monthStart->copy()->startOfMonth(), $monthStart->copy()->endOfMonth()])
                 ->get()
                 ->keyBy(fn($schedule) => $schedule->employee_id . '_' . $schedule->date->format('Y-m-d'));
@@ -116,7 +117,7 @@ class ScheduleV2Controller extends Controller
                     } elseif ($record && $record->hasInvalidTimeSpan()) {
                         $history = ['label' => 'Invalid Duration', 'tone' => 'red'];
                     } elseif ($record && $record->time_in && $record->time_out) {
-                        $history = ['label' => $record->status === \App\Models\AttendanceRecord::LATE ? 'Late' : 'Present', 'tone' => $record->status === \App\Models\AttendanceRecord::LATE ? 'amber' : 'green'];
+                        $history = ['label' => $record->isLate() ? 'Late' : 'Present', 'tone' => $record->isLate() ? 'amber' : 'green'];
                     } elseif ($date->isToday()) {
                         $history = ['label' => 'Not Yet Recorded', 'tone' => 'gray'];
                     } elseif ($schedule?->status === 'Working') {
@@ -125,10 +126,25 @@ class ScheduleV2Controller extends Controller
                         continue;
                     }
 
+                    // late can happen on top of any of the labels above (e.g.
+                    // clocked in late AND hasn't clocked out yet) - shown as
+                    // its own separate badge instead of fighting for priority
+                    if ($record && $record->isLate()) {
+                        $history['is_late'] = true;
+                        $history['late_minutes_formatted'] = $record->getLateMinutesFormatted();
+                    }
+
                     $attendanceHistory->put($key, $history);
                 }
             }
         }
+
+        $currentCompany = \App\Helpers\CompanyHelper::getCurrentCompany();
+        $templates = \App\Models\ScheduleTemplate::query()
+            ->when($currentCompany, fn ($query) => $query->forCompany($currentCompany->id))
+            ->when(!$currentCompany, fn ($query) => $query->whereNull('company_id'))
+            ->orderBy('code')
+            ->get();
 
         return view('attendance.schedule-v2.index', [
             'user' => Auth::user(),
@@ -142,7 +158,8 @@ class ScheduleV2Controller extends Controller
             'calendarDays' => $calendarDays,
             'schedules' => $schedules,
             'attendanceHistory' => $attendanceHistory,
-            'scheduleSummary' => [] // Or mock summary data if needed
+            'scheduleSummary' => [], // Or mock summary data if needed
+            'templates' => $templates,
         ]);
     }
 
@@ -174,6 +191,13 @@ class ScheduleV2Controller extends Controller
 
         $date = $request->query('date', now()->format('Y-m-d'));
 
+        $currentCompany = \App\Helpers\CompanyHelper::getCurrentCompany();
+        $templates = \App\Models\ScheduleTemplate::query()
+            ->when($currentCompany, fn ($query) => $query->forCompany($currentCompany->id))
+            ->when(!$currentCompany, fn ($query) => $query->whereNull('company_id'))
+            ->orderBy('code')
+            ->get();
+
         return view('attendance.schedule-v2.create', [
             'user' => Auth::user(),
             'departments' => $departments,
@@ -183,6 +207,7 @@ class ScheduleV2Controller extends Controller
             'defaultTimeIn' => '08:00',
             'defaultTimeOut' => '17:00',
             'currentFilters' => $request->only(['department_id', 'month', 'year', 'search']),
+            'templates' => $templates,
         ]);
     }
 
@@ -208,6 +233,7 @@ class ScheduleV2Controller extends Controller
             'department_id' => ['required', 'exists:departments,id'],
             'date' => ['required', 'date'],
             'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
+            'schedule_template_id' => ['nullable', 'exists:schedule_templates,id'],
             ...$this->scheduleDetailRules($request),
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
@@ -215,10 +241,10 @@ class ScheduleV2Controller extends Controller
         $employee = \App\Models\Employee::findOrFail($validated['employee_id']);
         $this->assertEmployeeManageable($employee);
 
-        if (app(\App\Services\PayrollRequestConflictService::class)->payrollGeneratedForDate($validated['employee_id'], $validated['date'])) {
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($validated['employee_id'], $validated['date'])) {
             return redirect()->back()->withInput()->with(
                 'error',
-                'Cannot set a schedule — payroll has already been generated for this date. An Admin must reopen the payroll period first.'
+                'Cannot set a schedule — payroll has already been generated for this date. The payroll period is locked and can no longer be modified.'
             );
         }
 
@@ -235,6 +261,7 @@ class ScheduleV2Controller extends Controller
                 'department_id' => $validated['department_id'],
                 'status' => $validated['status'],
                 ...$details,
+                'schedule_template_id' => $validated['schedule_template_id'] ?? null,
                 'notes' => $validated['notes'] ?? null,
                 'created_by' => Auth::id(),
             ]
@@ -271,6 +298,7 @@ class ScheduleV2Controller extends Controller
             'employee_schedules.*.dates' => ['required', 'array', 'min:1'],
             'employee_schedules.*.dates.*' => ['required', 'date'],
             'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
+            'schedule_template_id' => ['nullable', 'exists:schedule_templates,id'],
             ...$this->scheduleDetailRules($request),
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
@@ -280,10 +308,10 @@ class ScheduleV2Controller extends Controller
 
         foreach ($validated['employee_schedules'] as $entry) {
             foreach ($entry['dates'] as $date) {
-                if ($conflicts->payrollGeneratedForDate($entry['employee_id'], $date)) {
+                if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($entry['employee_id'], $date)) {
                     return response()->json([
                         'success' => false,
-                        'message' => "Cannot save — payroll has already been generated for {$date}. An Admin must reopen the payroll period first.",
+                        'message' => "Cannot save — payroll has already been generated for {$date}. The payroll period is locked and can no longer be modified.",
                     ], 422);
                 }
             }
@@ -305,6 +333,7 @@ class ScheduleV2Controller extends Controller
                         'department_id' => $employee->department_id,
                         'status' => $validated['status'],
                         ...$details,
+                        'schedule_template_id' => $validated['schedule_template_id'] ?? null,
                         'notes' => $validated['notes'] ?? null,
                         'created_by' => Auth::id(),
                     ]
@@ -333,6 +362,7 @@ class ScheduleV2Controller extends Controller
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
+            'schedule_template_id' => ['nullable', 'exists:schedule_templates,id'],
             ...$this->scheduleDetailRules($request),
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
@@ -343,10 +373,10 @@ class ScheduleV2Controller extends Controller
         foreach ($validated['employee_ids'] as $employeeId) {
             $this->assertEmployeeManageable(\App\Models\Employee::findOrFail($employeeId));
 
-            if ($conflicts->payrollGeneratedForRange($employeeId, $validated['start_date'], $validated['end_date'])) {
+            if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForRange($employeeId, $validated['start_date'], $validated['end_date'])) {
                 return redirect()->back()->withInput()->with(
                     'error',
-                    'Cannot save — payroll has already been generated for part of this date range. An Admin must reopen the payroll period first.'
+                    'Cannot save — payroll has already been generated for part of this date range. The payroll period is locked and can no longer be modified.'
                 );
             }
         }
@@ -363,6 +393,7 @@ class ScheduleV2Controller extends Controller
                         'department_id' => $validated['department_id'],
                         'status' => $validated['status'],
                         ...$details,
+                        'schedule_template_id' => $validated['schedule_template_id'] ?? null,
                         'notes' => $validated['notes'] ?? null,
                         'created_by' => Auth::id(),
                     ]
@@ -393,10 +424,10 @@ class ScheduleV2Controller extends Controller
             if ($schedule->employee) {
                 $this->assertEmployeeManageable($schedule->employee);
             }
-            if ($conflicts->payrollGeneratedForDate($schedule->employee_id, $schedule->date->toDateString())) {
+            if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($schedule->employee_id, $schedule->date->toDateString())) {
                 return response()->json([
                     'success' => false,
-                    'message' => "Cannot delete — payroll has already been generated for {$schedule->date->toDateString()}. An Admin must reopen the payroll period first.",
+                    'message' => "Cannot delete — payroll has already been generated for {$schedule->date->toDateString()}. The payroll period is locked and can no longer be modified.",
                 ], 422);
             }
         }
@@ -432,7 +463,18 @@ class ScheduleV2Controller extends Controller
             $this->assertEmployeeManageable($schedule->employee);
         }
 
-        return view('attendance.schedule-v2.edit', ['schedule' => $schedule, 'user' => Auth::user()]);
+        $currentCompany = \App\Helpers\CompanyHelper::getCurrentCompany();
+        $templates = \App\Models\ScheduleTemplate::query()
+            ->when($currentCompany, fn ($query) => $query->forCompany($currentCompany->id))
+            ->when(!$currentCompany, fn ($query) => $query->whereNull('company_id'))
+            ->orderBy('code')
+            ->get();
+
+        return view('attendance.schedule-v2.edit', [
+            'schedule' => $schedule,
+            'user' => Auth::user(),
+            'templates' => $templates,
+        ]);
     }
 
     public function update(Request $request, $schedule)
@@ -442,15 +484,16 @@ class ScheduleV2Controller extends Controller
             $this->assertEmployeeManageable($schedule->employee);
         }
 
-        if (app(\App\Services\PayrollRequestConflictService::class)->payrollGeneratedForDate($schedule->employee_id, $schedule->date->toDateString())) {
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($schedule->employee_id, $schedule->date->toDateString())) {
             return redirect()->back()->withInput()->with(
                 'error',
-                'Cannot edit this schedule — payroll has already been generated for this date. An Admin must reopen the payroll period first.'
+                'Cannot edit this schedule — payroll has already been generated for this date. The payroll period is locked and can no longer be modified.'
             );
         }
 
         $validated = $request->validate([
             'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
+            'schedule_template_id' => ['nullable', 'exists:schedule_templates,id'],
             ...$this->scheduleDetailRules($request),
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
@@ -460,6 +503,7 @@ class ScheduleV2Controller extends Controller
         $schedule->update([
             'status' => $validated['status'],
             ...$details,
+            'schedule_template_id' => $validated['schedule_template_id'] ?? null,
             'notes' => $validated['notes'] ?? null,
         ]);
 
@@ -474,10 +518,10 @@ class ScheduleV2Controller extends Controller
             $this->assertEmployeeManageable($schedule->employee);
         }
 
-        if (app(\App\Services\PayrollRequestConflictService::class)->payrollGeneratedForDate($schedule->employee_id, $schedule->date->toDateString())) {
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($schedule->employee_id, $schedule->date->toDateString())) {
             return redirect()->back()->with(
                 'error',
-                'Cannot delete this schedule — payroll has already been generated for this date. An Admin must reopen the payroll period first.'
+                'Cannot delete this schedule — payroll has already been generated for this date. The payroll period is locked and can no longer be modified.'
             );
         }
 
@@ -516,7 +560,6 @@ class ScheduleV2Controller extends Controller
                 Rule::requiredIf($isWorkSchedule && $isFixed),
                 'nullable',
                 'date_format:H:i',
-                Rule::when($isWorkSchedule && $isFixed, ['after:time_in']),
             ],
         ];
     }
@@ -556,6 +599,13 @@ class ScheduleV2Controller extends Controller
     {
         $start = \Carbon\Carbon::createFromFormat('H:i', $timeIn);
         $end = \Carbon\Carbon::createFromFormat('H:i', $timeOut);
+
+        // Overnight shift (e.g. 3:00 PM to 12:00 AM) - time_out is earlier on
+        // the 24-hour clock, but chronologically it's the next calendar day.
+        if ($end->lessThanOrEqualTo($start)) {
+            $end->addDay();
+        }
+
         $minutes = $start->diffInMinutes($end);
 
         return round(max(0, $minutes - 60) / 60, 2);

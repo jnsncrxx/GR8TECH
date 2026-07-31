@@ -470,7 +470,7 @@
                             $initials = strtoupper(substr($ob->employee->first_name ?? '', 0, 1) . substr($ob->employee->last_name ?? '', 0, 1));
                             $reviewerName = trim(($ob->reviewer?->employee?->first_name ?? '') . ' ' . ($ob->reviewer?->employee?->last_name ?? ''));
                         @endphp
-                        <tr class="hover:bg-gray-50 transition-colors">
+                        <tr class="hover:bg-gray-50 transition-colors" data-search-row="{{ $ob->id }}">
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="flex items-center">
                                     <div class="flex-shrink-0 h-10 w-10">
@@ -537,6 +537,9 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">{{ $reviewerName !== '' ? $reviewerName : '—' }}</div>
+                                @if($ob->reviewed_at)
+                                    <div class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($ob->reviewed_at)->format('M d, Y h:i A') }}</div>
+                                @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                                 <div class="flex justify-center items-center space-x-2">
@@ -694,6 +697,9 @@
                             <div>
                                 <div class="text-gray-500">Reviewed By</div>
                                 <div class="font-medium">{{ $reviewerName !== '' ? $reviewerName : '—' }}</div>
+                                @if($ob->reviewed_at)
+                                    <div class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($ob->reviewed_at)->format('M d, Y h:i A') }}</div>
+                                @endif
                             </div>
                         </div>
 

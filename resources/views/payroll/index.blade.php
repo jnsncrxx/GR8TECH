@@ -547,7 +547,7 @@
                             ];
                             $statusColor = $statusColors[$payroll->status] ?? 'bg-gray-100 text-gray-800';
                         @endphp
-                        <tr class="hover:bg-gray-50">
+                        <tr class="hover:bg-gray-50" data-search-row="{{ $payroll->id }}">
                             <!-- Add this checkbox cell -->
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <input type="checkbox"

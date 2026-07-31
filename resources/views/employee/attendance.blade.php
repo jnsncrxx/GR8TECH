@@ -57,7 +57,11 @@
                             </td>
                             <td class="px-5 py-4 text-gray-700">{{ $record->time_in ? $record->time_in->format('g:i A') : '—' }}–{{ $record->time_out ? $record->time_out->format('g:i A') : '—' }}</td>
                             <td class="px-5 py-4 text-gray-900">{{ \App\Helpers\TimezoneHelper::formatHours((float) $record->display_worked_hours) }}</td>
-                            <td class="px-5 py-4"><span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-800">{{ ucfirst(str_replace('_', ' ', $record->status)) }}</span></td>
+                            <td class="px-5 py-4">
+                                <span class="rounded-full px-2.5 py-1 text-xs font-medium {{ $record->display_status_label === 'Incomplete Log' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800' }}">
+                                    {{ $record->display_status_label }}
+                                </span>
+                            </td>
                         </tr>
                     @empty
                         <tr><td colspan="5" class="px-5 py-10 text-center text-gray-500">No attendance records for this month.</td></tr>

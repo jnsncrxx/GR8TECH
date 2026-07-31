@@ -10,6 +10,14 @@
         $todayAttendance = $user->employee->getTodayAttendance();
         $isCurrentlyTimedIn = $todayAttendance && $todayAttendance->hasActiveTimeEntry();
     }
+
+    $myWorkspaceActive = request()->query('scope') === 'mine'
+        || in_array($activeRoute, [
+            'attendance.time-in-out',
+            'attendance.my',
+            'employee.schedule',
+            'employee.payroll.history',
+        ], true);
 @endphp
 
 <nav class="brand-sidebar-nav mt-8 px-4 pb-4">
@@ -20,6 +28,52 @@
             <span>Dashboard</span>
         </a>
 
+        @if($user->employee && $user->role !== 'employee')
+        <div class="my-4 border-t border-gray-200"></div>
+        <div class="relative" x-data="{ open: {{ $myWorkspaceActive ? 'true' : 'false' }} }">
+            <button @click="open = !open"
+                    class="group flex w-full items-center justify-between rounded-lg px-4 py-3 text-sm font-medium transition-all duration-200 {{ $myWorkspaceActive ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }}">
+                <span class="flex items-center">
+                    <i class="fas fa-user-circle mr-3 text-lg {{ $myWorkspaceActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
+                    <span>My Workspace</span>
+                </span>
+                <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200"
+                   :class="{ 'rotate-180': open }"></i>
+            </button>
+        <div x-show="open"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 transform scale-95"
+             x-transition:enter-end="opacity-100 transform scale-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100 transform scale-100"
+             x-transition:leave-end="opacity-0 transform scale-95"
+             class="ml-8 mt-2 space-y-1 rounded-lg border border-gray-200 bg-gray-50 p-2">
+            <a href="{{ route('attendance.time-in-out') }}" class="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-white hover:text-blue-600">
+                <i class="fas fa-sign-in-alt mr-3 text-sm text-gray-400"></i><span>Clock In / Out</span>
+            </a>
+            <a href="{{ route('attendance.my') }}" class="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-white hover:text-blue-600">
+                <i class="fas fa-calendar-check mr-3 text-sm text-gray-400"></i><span>My Attendance</span>
+            </a>
+            <a href="{{ route('employee.schedule') }}" class="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-white hover:text-blue-600">
+                <i class="fas fa-calendar-alt mr-3 text-sm text-gray-400"></i><span>My Schedule</span>
+            </a>
+            <a href="{{ route('attendance.overtime', ['scope' => 'mine']) }}" class="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-white hover:text-blue-600">
+                <i class="fas fa-clock mr-3 text-sm text-gray-400"></i><span>My Overtime</span>
+            </a>
+            <a href="{{ route('attendance.leave-management', ['scope' => 'mine']) }}" class="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-white hover:text-blue-600">
+                <i class="fas fa-calendar-times mr-3 text-sm text-gray-400"></i><span>My Leave</span>
+            </a>
+            <a href="{{ route('attendance.official-business', ['scope' => 'mine']) }}" class="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-white hover:text-blue-600">
+                <i class="fas fa-briefcase mr-3 text-sm text-gray-400"></i><span>My Official Business</span>
+            </a>
+            <a href="{{ route('employee.payroll.history') }}" class="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-white hover:text-blue-600">
+                <i class="fas fa-receipt mr-3 text-sm text-gray-400"></i><span>My Payslips</span>
+            </a>
+        </div>
+        </div>
+        <div class="my-4 border-t border-gray-200"></div>
+        @endif
+        
         @if($user->role === 'admin' || $user->role === 'hr')
         <!-- Employees Dropdown -->
         @php
@@ -27,12 +81,12 @@
                 ? \App\Models\Employee::forCompany($currentCompany->id)->count()
                 : \App\Models\Employee::count();
         @endphp
-        <div class="relative" x-data="{
-            open: {{ in_array($activeRoute, ['employees.index', 'employees.other-employee-info', 'employees.education-training-rating', 'employees.prev-emp-oth', 'employees.ytd-info', 'employees.bio-zk']) ? 'true' : 'false' }}
+        <div class="relative" x-data="{ 
+            open: {{ in_array($activeRoute, ['employees.index', 'employees.info', 'employees.other-employee-info', 'employees.education-training-rating', 'employees.prev-emp-oth', 'employees.documents', 'employees.ytd-info', 'employees.bio-zk']) ? 'true' : 'false' }}
         }">
-            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, ['employees.index', 'employees.other-employee-info', 'employees.education-training-rating', 'employees.prev-emp-oth', 'employees.ytd-info', 'employees.bio-zk']) ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, ['employees.index', 'employees.info', 'employees.other-employee-info', 'employees.education-training-rating', 'employees.prev-emp-oth', 'employees.documents', 'employees.ytd-info', 'employees.bio-zk']) ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
                 <div class="flex items-center">
-                    <i class="fas fa-users mr-3 text-lg {{ in_array($activeRoute, ['employees.index', 'employees.other-employee-info', 'employees.education-training-rating', 'employees.prev-emp-oth', 'employees.ytd-info', 'employees.bio-zk']) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
+                    <i class="fas fa-users mr-3 text-lg {{ in_array($activeRoute, ['employees.index', 'employees.info', 'employees.other-employee-info', 'employees.education-training-rating', 'employees.prev-emp-oth', 'employees.documents', 'employees.ytd-info', 'employees.bio-zk']) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
                     <span>Employees</span>
                 </div>
                 <div class="flex items-center gap-2">
@@ -54,8 +108,8 @@
                     <i class="fas fa-list mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'employees.index' ? 'text-blue-600' : '' }}"></i>
                     <span>Employee List</span>
                 </a>
-                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-id-card mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                <a href="{{ route('employees.info') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'employees.info' ? 'bg-white text-blue-600' : '' }}">
+                    <i class="fas fa-id-card mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'employees.info' ? 'text-blue-600' : '' }}"></i>
                     <span>Employee Info</span>
                 </a>
                 <a href="{{ route('employees.other-employee-info') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'employees.other-employee-info' ? 'bg-white text-blue-600' : '' }}">
@@ -64,14 +118,14 @@
                 </a>
                 <a href="{{ route('employees.education-training-rating') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'employees.education-training-rating' ? 'bg-white text-blue-600' : '' }}">
                     <i class="fas fa-book mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'employees.education-training-rating' ? 'text-blue-600' : '' }}"></i>
-                    <span>Education/Training/Rating</span>
+                    <span>Education/ Training/ Rating</span>
                 </a>
                 <a href="{{ route('employees.prev-emp-oth') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'employees.prev-emp-oth' ? 'bg-white text-blue-600' : '' }}">
                     <i class="fas fa-briefcase mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'employees.prev-emp-oth' ? 'text-blue-600' : '' }}"></i>
                     <span>Previous Employer & Other</span>
                 </a>
-                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group">
-                    <i class="fas fa-file-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                <a href="{{ route('employees.documents') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'employees.documents' ? 'bg-white text-blue-600' : '' }}">
+                    <i class="fas fa-file-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'employees.documents' ? 'text-blue-600' : '' }}"></i>
                     <span>Documents</span>
                 </a>
                 <a href="{{ route('employees.ytd-info') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'employees.ytd-info' ? 'bg-white text-blue-600' : '' }}">
@@ -119,12 +173,15 @@
 
         @if($user->role === 'admin' || $user->role === 'hr' || $user->role === 'manager')
         <!-- Payroll Dropdown -->
-        <div class="relative" x-data="{
-            open: {{ in_array($activeRoute, ['payroll.index', 'payroll.team', 'payroll.runs', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'true' : 'false' }}
+        @php
+            $payrollRoutes = ['payroll.index', 'payroll.team', 'payroll.runs', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit', 'loans.index', 'loans.show', 'loan-types.index', 'loan-types.create', 'loan-types.edit'];
+        @endphp
+        <div class="relative" x-data="{ 
+            open: {{ in_array($activeRoute, $payrollRoutes) ? 'true' : 'false' }}
         }">
-            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, ['payroll.index', 'payroll.team', 'payroll.runs', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, $payrollRoutes) ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
                 <div class="flex items-center">
-                    <i class="fas fa-money-bill-wave mr-3 text-lg {{ in_array($activeRoute, ['payroll.index', 'payroll.team', 'payroll.runs', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
+                    <i class="fas fa-money-bill-wave mr-3 text-lg {{ in_array($activeRoute, $payrollRoutes) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
                     <span>Payroll</span>
                 </div>
                 <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }"></i>
@@ -160,6 +217,12 @@
                     <i class="fas fa-file-invoice mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ in_array($activeRoute, ['payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'text-blue-600' : '' }}"></i>
                     <span>Payroll Templates</span>
                 </a>
+
+                <a href="{{ route('loans.index') }}"
+                   class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ in_array($activeRoute, ['loans.index', 'loans.show', 'loan-types.index', 'loan-types.create', 'loan-types.edit']) ? 'bg-white text-blue-600' : '' }}">
+                    <i class="fas fa-hand-holding-dollar mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ in_array($activeRoute, ['loans.index', 'loans.show', 'loan-types.index', 'loan-types.create', 'loan-types.edit']) ? 'text-blue-600' : '' }}"></i>
+                    <span>Loan Management</span>
+                </a>
                 @else
                 <!-- Manager: view-only, own department only -->
                 <a href="{{ route('payroll.team') }}"
@@ -174,12 +237,12 @@
         @endif
 
         <!-- Attendance Dropdown -->
-        <div class="relative" x-data="{
-            open: {{ in_array($activeRoute, ['attendance.time-in-out', 'attendance.daily', 'attendance.my', 'employee.schedule', 'attendance.timekeeping', 'attendance.import-dtr', 'schedule-v2.index', 'schedule-v2.create', 'schedule-v2.show', 'schedule-v2.edit', 'attendance.schedule.reports', 'attendance.schedule.templates', 'attendance.overtime', 'attendance.leave-management', 'attendance.official-business', 'attendance.reports', 'attendance.settings', 'attendance.period-management.index', 'attendance.period-management.create', 'attendance.period-management.show']) ? 'true' : 'false' }}
+        <div class="relative" x-data="{ 
+            open: {{ in_array($activeRoute, ['attendance.time-in-out', 'attendance.daily', 'attendance.my', 'employee.schedule', 'attendance.timekeeping', 'attendance.import-dtr', 'schedule-v2.index', 'schedule-v2.create', 'schedule-v2.show', 'schedule-v2.edit', 'attendance.schedule.reports', 'schedule-templates.index', 'schedule-templates.create', 'schedule-templates.edit', 'attendance.overtime', 'attendance.leave-management', 'attendance.official-business', 'attendance.reports', 'attendance.settings', 'attendance.period-management.index', 'attendance.period-management.create', 'attendance.period-management.show']) ? 'true' : 'false' }}
         }">
-            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, ['attendance.time-in-out', 'attendance.daily', 'attendance.my', 'employee.schedule', 'attendance.timekeeping', 'attendance.import-dtr', 'schedule-v2.index', 'schedule-v2.create', 'schedule-v2.show', 'schedule-v2.edit', 'attendance.schedule.reports', 'attendance.schedule.templates', 'attendance.overtime', 'attendance.leave-management', 'attendance.official-business', 'attendance.reports', 'attendance.settings', 'attendance.period-management.index', 'attendance.period-management.create', 'attendance.period-management.show']) ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, ['attendance.time-in-out', 'attendance.daily', 'attendance.my', 'employee.schedule', 'attendance.timekeeping', 'attendance.import-dtr', 'schedule-v2.index', 'schedule-v2.create', 'schedule-v2.show', 'schedule-v2.edit', 'attendance.schedule.reports', 'schedule-templates.index', 'schedule-templates.create', 'schedule-templates.edit', 'attendance.overtime', 'attendance.leave-management', 'attendance.official-business', 'attendance.reports', 'attendance.settings', 'attendance.period-management.index', 'attendance.period-management.create', 'attendance.period-management.show']) ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
                 <div class="flex items-center">
-                    <i class="fas fa-clock mr-3 text-lg {{ in_array($activeRoute, ['attendance.time-in-out', 'attendance.daily', 'attendance.my', 'employee.schedule', 'attendance.timekeeping', 'attendance.import-dtr', 'schedule-v2.index', 'schedule-v2.create', 'schedule-v2.show', 'schedule-v2.edit', 'attendance.schedule.reports', 'attendance.schedule.templates', 'attendance.overtime', 'attendance.leave-management', 'attendance.official-business', 'attendance.reports', 'attendance.settings', 'attendance.period-management.index', 'attendance.period-management.create', 'attendance.period-management.show']) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
+                    <i class="fas fa-clock mr-3 text-lg {{ in_array($activeRoute, ['attendance.time-in-out', 'attendance.daily', 'attendance.my', 'employee.schedule', 'attendance.timekeeping', 'attendance.import-dtr', 'schedule-v2.index', 'schedule-v2.create', 'schedule-v2.show', 'schedule-v2.edit', 'attendance.schedule.reports', 'schedule-templates.index', 'schedule-templates.create', 'schedule-templates.edit', 'attendance.overtime', 'attendance.leave-management', 'attendance.official-business', 'attendance.reports', 'attendance.settings', 'attendance.period-management.index', 'attendance.period-management.create', 'attendance.period-management.show']) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
                     <span>Attendance</span>
                 </div>
                 <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }"></i>
@@ -240,11 +303,41 @@
                 </a>
                 @else
                 @if(in_array($user->role, ['admin', 'hr', 'manager']))
-                <a href="{{ route('schedule-v2.index') }}"
-                   class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'schedule-v2.index' ? 'bg-white text-blue-600' : '' }}">
-                    <i class="fas fa-calendar-plus mr-3 text-sm text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'schedule-v2.index' ? 'text-blue-600' : '' }}"></i>
-                    <span>Schedule Management</span>
-                </a>
+                @php
+                    $scheduleRoutes = ['schedule-v2.index', 'schedule-v2.create', 'schedule-v2.show', 'schedule-v2.edit', 'schedule-templates.index', 'schedule-templates.create', 'schedule-templates.edit'];
+                @endphp
+                <div class="relative" x-data="{ scheduleOpen: {{ in_array($activeRoute, $scheduleRoutes) ? 'true' : 'false' }} }">
+                    <button @click="scheduleOpen = !scheduleOpen" type="button"
+                            class="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-md transition-all duration-200 group">
+                        <div class="flex items-center">
+                            <i class="fas fa-calendar-plus mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                            <span>Schedule Management</span>
+                        </div>
+                        <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': scheduleOpen }"></i>
+                    </button>
+
+                    <div x-show="scheduleOpen"
+                         x-transition:enter="transition ease-out duration-200"
+                         x-transition:enter-start="opacity-0 transform scale-95"
+                         x-transition:enter-end="opacity-100 transform scale-100"
+                         x-transition:leave="transition ease-in duration-150"
+                         x-transition:leave-start="opacity-100 transform scale-100"
+                         x-transition:leave-end="opacity-0 transform scale-95"
+                         class="ml-4 mt-1 space-y-1 bg-white rounded-lg p-2 border border-gray-200">
+                        <a href="{{ route('schedule-v2.index') }}"
+                           class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ $activeRoute === 'schedule-v2.index' ? 'bg-white text-blue-600' : '' }}">
+                            <i class="fas fa-calendar-alt mr-3 text-xs text-gray-400 group-hover:text-blue-600 {{ $activeRoute === 'schedule-v2.index' ? 'text-blue-600' : '' }}"></i>
+                            <span>Schedule Calendar</span>
+                        </a>
+                        @if(in_array($user->role, ['admin', 'hr']))
+                        <a href="{{ route('schedule-templates.index') }}"
+                           class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md transition-all duration-200 group {{ in_array($activeRoute, ['schedule-templates.index', 'schedule-templates.create', 'schedule-templates.edit']) ? 'bg-white text-blue-600' : '' }}">
+                            <i class="fas fa-list-check mr-3 text-xs text-gray-400 group-hover:text-blue-600 {{ in_array($activeRoute, ['schedule-templates.index', 'schedule-templates.create', 'schedule-templates.edit']) ? 'text-blue-600' : '' }}"></i>
+                            <span>Schedule Templates</span>
+                        </a>
+                        @endif
+                    </div>
+                </div>
                 @endif
                 @endif
 
@@ -544,6 +637,11 @@
             <a href="{{ route('employee.payroll.history') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ $activeRoute === 'employee.payroll.history' ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
                 <i class="fas fa-receipt mr-3 text-lg text-gray-400 group-hover:text-blue-600"></i>
                 <span>Salary & Payslips</span>
+            </a>
+
+            <a href="{{ route('loans.index') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ in_array($activeRoute, ['loans.index', 'loans.create', 'loans.show']) ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+                <i class="fas fa-hand-holding-dollar mr-3 text-lg text-gray-400 group-hover:text-blue-600"></i>
+                <span>My Loans</span>
             </a>
 
             <!-- Update Profile -->

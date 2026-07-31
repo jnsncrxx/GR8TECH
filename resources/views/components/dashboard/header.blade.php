@@ -8,27 +8,68 @@
         $todayAttendance = $user->employee->getTodayAttendance();
         $isCurrentlyTimedIn = $todayAttendance && $todayAttendance->time_in && !$todayAttendance->time_out;
     }
+
+    $isDashboard = str_ends_with($title, 'Dashboard');
+    $moduleDescription = match ($title) {
+        'Official Business' => request()->query('scope') === 'mine'
+            ? 'Submit and track your Official Business requests'
+            : 'Review and manage employee OB requests.',
+        'Overtime Management' => request()->query('scope') === 'mine'
+            ? 'Apply for overtime and track your requests'
+            : 'Review and manage employee overtime requests.',
+        'Leave Management' => 'Review and manage employee leave requests.',
+        'Employees' => 'Manage employee records and account information.',
+        'Departments', 'Archived Departments' => 'Organize departments and employee assignments.',
+        'Positions' => 'Manage company positions, levels, and salary ranges.',
+        'Companies' => 'Manage company profiles and active organizations.',
+        'Payroll Payments' => 'Process and monitor employee payroll payments.',
+        'Payroll Runs' => 'Generate, review, finalize, and lock payroll runs.',
+        'Payroll Period Management' => 'Manage payroll cutoff periods and workflow status.',
+        'Payroll Templates' => 'Configure reusable payroll calculation templates.',
+        'Salary & Payslips' => 'Your approved and paid payroll history',
+        'Payroll Summary Report', 'Monthly Payroll Report' => 'Review summarized payroll results and trends.',
+        'Attendance Records Report', 'Attendance Reports', 'Daily Attendance Report' => 'Review and export employee attendance data.',
+        'Daily Attendance', 'My Attendance', 'Timekeeping' => 'Monitor employee attendance and time records.',
+        'Schedule Management', 'Schedule Management V2', 'Schedule Templates' => 'Manage employee schedules and work patterns.',
+        'Import DTR', 'Review DTR Import' => 'Import and validate employee time records.',
+        'Tax Brackets Management' => 'Manage tax brackets and deduction rates.',
+        'Reports', 'Report Results' => 'Generate and review HR and payroll reports.',
+        'HR Contact Management', 'Messages from Employees' => 'Review and respond to employee concerns.',
+        'Help & Support' => 'Find guidance and support for system features.',
+        'Attendance Settings' => 'Configure attendance rules and company policies.',
+        'Login Logs' => 'Review account access and authentication activity.',
+        default => 'View and manage '.str($title)->lower().'.',
+    };
 @endphp
 
 <header class="brand-top-header bg-white backdrop-blur-sm shadow-sm border-b border-gray-200 sticky top-0 z-40 dark:bg-slate-900 dark:border-slate-700">
-    <div class="flex items-center justify-between h-16 sm:h-20 px-3 sm:px-4 lg:px-8">
+    <div class="flex items-center justify-between gap-2 sm:gap-3 lg:gap-4 h-16 sm:h-20 px-3 sm:px-4 lg:px-8">
         <div class="flex items-center flex-1 min-w-0">
-            <button class="lg:hidden text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0" onclick="toggleSidebar()">
+            <button class="lg:hidden text-gray-500 hover:text-gray-700 p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-slate-700" onclick="toggleSidebar()">
                 <i class="fas fa-bars text-lg sm:text-xl"></i>
             </button>
             <div class="ml-2 sm:ml-4 lg:ml-0 min-w-0 flex-1">
-                <h1 class="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">{{ $title }}</h1>
-                <div class="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-4">
-                    <p class="text-xs sm:text-sm text-gray-500 truncate">Welcome back, {{ $user->full_name }}</p>
-                    <div class="flex items-center text-xs text-gray-400">
-                        <i class="fas fa-clock mr-1"></i>
-                        <span id="current-time-desktop" class="hidden sm:inline">{{ \App\Helpers\TimezoneHelper::now()->format('M d, Y g:i A') }}</span>
-                        <span id="current-time-mobile" class="sm:hidden">{{ \App\Helpers\TimezoneHelper::now()->format('g:i A') }}</span>
-                        <span class="ml-1 text-blue-600">PHT</span>
+                <h1 id="page-header-title" class="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate dark:text-gray-100">{{ $title }}</h1>
+                @if($isDashboard)
+                    <div class="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-4">
+                        <p class="text-xs sm:text-sm text-gray-500 truncate dark:text-gray-400">Welcome back, {{ $user->full_name }}</p>
+                        <div class="hidden lg:flex items-center text-xs text-gray-400 whitespace-nowrap dark:text-gray-500">
+                            <i class="fas fa-clock mr-1"></i>
+                            <span id="current-time-desktop" class="hidden sm:inline">{{ \App\Helpers\TimezoneHelper::now()->format('M d, Y g:i A') }}</span>
+                            <span id="current-time-mobile" class="sm:hidden">{{ \App\Helpers\TimezoneHelper::now()->format('g:i A') }}</span>
+                            <span class="ml-1 text-blue-600 dark:text-blue-400">PHT</span>
+                        </div>
                     </div>
-                </div>
+                @else
+                    <p id="page-header-description" class="text-xs sm:text-sm text-gray-500 truncate dark:text-gray-400">
+                        {{ $moduleDescription }}
+                    </p>
+                @endif
             </div>
         </div>
+
+        <x-dashboard.global-search :user="$user" />
+
         <div class="flex items-center space-x-1 sm:space-x-2 lg:space-x-3 flex-shrink-0">
             @php
                 $currentCompany = \App\Helpers\CompanyHelper::getCurrentCompany();
@@ -37,17 +78,17 @@
             
             <!-- Company Selector - Hidden on mobile, shown on tablet+ -->
             <div class="hidden md:block relative" x-data="{ open: false }">
-                <button @click="open = !open" class="flex items-center px-4 py-2 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 hover:border-blue-300 rounded-lg transition-all group">
-                    <i class="fas fa-building text-blue-600 mr-2"></i>
-                    <span class="text-sm font-medium text-blue-800 group-hover:text-blue-900">
+                <button @click="open = !open" class="flex items-center px-4 py-2 bg-gradient-to-r from-green-600 to-green-800 border border-green-700 hover:border-green-900 hover:from-green-700 hover:to-green-900 rounded-lg shadow-md transition-all group">
+                    <i class="fas fa-building text-white mr-2"></i>
+                    <span class="text-sm font-medium text-white">
                         {{ $currentCompany ? $currentCompany->name : 'No Company' }}
                     </span>
-                    <span class="ml-2 px-2 py-0.5 bg-blue-600 text-white text-xs font-medium rounded-full">Active</span>
-                    <i class="fas fa-chevron-down ml-2 text-blue-600 text-xs transition-transform" :class="{ 'rotate-180': open }"></i>
+                    <span class="ml-2 px-2 py-0.5 bg-white/20 border border-white/30 text-white text-xs font-medium rounded-full">Active</span>
+                    <i class="fas fa-chevron-down ml-2 text-white text-xs transition-transform" :class="{ 'rotate-180': open }"></i>
                 </button>
 
                 <!-- Dropdown Menu -->
-                <div x-show="open" 
+                <div x-show="open"
                      @click.away="open = false"
                      x-transition:enter="transition ease-out duration-100"
                      x-transition:enter-start="transform opacity-0 scale-95"
@@ -55,33 +96,33 @@
                      x-transition:leave="transition ease-in duration-75"
                      x-transition:leave-start="transform opacity-100 scale-100"
                      x-transition:leave-end="transform opacity-0 scale-95"
-                     class="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50 max-h-96 overflow-y-auto">
-                    
+                     class="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50 max-h-96 overflow-y-auto dark:bg-slate-900 dark:border-slate-700">
+
                     <!-- Dropdown Header -->
-                    <div class="px-4 py-2 border-b border-gray-100">
-                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Select Company</p>
+                    <div class="px-4 py-2 border-b border-gray-100 dark:border-slate-700">
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide dark:text-gray-400">Select Company</p>
                     </div>
-                    
+
                     <!-- Company List -->
                     @foreach($allCompanies as $company)
-                        <form method="POST" action="{{ route('companies.switch') }}" class="block" 
+                        <form method="POST" action="{{ route('companies.switch') }}" class="block"
                               onsubmit="handleCompanySwitch(event, '{{ $company->name }}')">
                             @csrf
                             <input type="hidden" name="company_id" value="{{ $company->id }}">
-                            <button type="submit" class="w-full flex items-center px-4 py-3 text-left hover:bg-gray-50 transition-colors {{ $currentCompany && $company->id === $currentCompany->id ? 'bg-blue-50 cursor-not-allowed' : 'cursor-pointer' }}">
+                            <button type="submit" class="w-full flex items-center px-4 py-3 text-left hover:bg-green-50 transition-colors {{ $currentCompany && $company->id === $currentCompany->id ? 'bg-green-50 cursor-not-allowed' : 'cursor-pointer' }}">
                                 <div class="flex-1">
                                     <div class="flex items-center justify-between">
-                                        <span class="text-sm font-medium text-gray-900">{{ $company->name }}</span>
+                                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $company->name }}</span>
                                         @if($currentCompany && $company->id === $currentCompany->id)
-                                            <span class="px-2 py-0.5 bg-blue-600 text-white text-xs font-medium rounded-full">
+                                            <span class="px-2 py-0.5 bg-green-700 text-white text-xs font-medium rounded-full">
                                                 <i class="fas fa-check-circle mr-1"></i>Active
                                             </span>
                                         @else
-                                            <span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">Switch</span>
+                                            <span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-full dark:bg-slate-700 dark:text-gray-300">Switch</span>
                                         @endif
                                     </div>
                                     @if($company->code)
-                                        <p class="text-xs text-gray-500 mt-0.5">{{ $company->code }}</p>
+                                        <p class="text-xs text-gray-500 mt-0.5 dark:text-gray-400">{{ $company->code }}</p>
                                     @endif
                                 </div>
                             </button>
@@ -89,7 +130,7 @@
                     @endforeach
                 </div>
             </div>
-            <button type="button" onclick="toggleTheme()" title="Toggle dark/light theme" class="p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors dark:text-gray-200 dark:hover:bg-slate-700">
+            <button type="button" onclick="toggleTheme()" title="Toggle dark/light theme" class="p-1.5 sm:p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors dark:text-gray-200 dark:hover:bg-slate-700">
                 <i id="themeToggleIcon" class="fas fa-moon text-lg"></i>
             </button>
             
@@ -202,18 +243,18 @@
                     // For now, we just clear the badge
                 }
             }">
-                <button @click="toggleNotifications()" 
-                        :class="{'bg-gray-100': open}"
-                        class="relative p-1.5 sm:p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
+                <button @click="toggleNotifications()"
+                        :class="{'bg-gray-100 dark:bg-slate-700': open}"
+                        class="relative p-1.5 sm:p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-slate-700">
                     <i class="fas fa-bell text-lg sm:text-xl"></i>
                     <template x-if="unreadCount > 0">
-                        <span x-text="unreadCount > 99 ? '99+' : unreadCount" 
+                        <span x-text="unreadCount > 99 ? '99+' : unreadCount"
                               class="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 block h-4 w-4 sm:h-5 sm:w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center animate-pulse"></span>
                     </template>
                 </button>
-                
+
                 <!-- Notification Dropdown -->
-                <div x-show="open" 
+                <div x-show="open"
                      x-cloak
                      @click.away="open = false"
                      x-transition:enter="transition ease-out duration-100"
@@ -222,63 +263,63 @@
                      x-transition:leave="transition ease-in duration-75"
                      x-transition:leave-start="transform opacity-100 scale-100"
                      x-transition:leave-end="transform opacity-0 scale-95"
-                     class="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50 max-h-[80vh] overflow-hidden flex flex-col">
-                    
+                     class="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50 max-h-[80vh] overflow-hidden flex flex-col dark:bg-slate-900 dark:border-slate-700">
+
                     <!-- Header -->
-                    <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white">
+                    <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white dark:from-slate-800 dark:to-slate-900 dark:border-slate-700">
                         <div>
-                            <h3 class="text-sm font-semibold text-gray-900">Recent Login Activity</h3>
-                            <p class="text-xs text-gray-500 mt-0.5" x-text="userRole === 'admin' ? 'Admin View' : 'HR View'"></p>
+                            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Recent Login Activity</h3>
+                            <p class="text-xs text-gray-500 mt-0.5 dark:text-gray-400" x-text="userRole === 'admin' ? 'Admin View' : 'HR View'"></p>
                         </div>
                         <div class="flex items-center space-x-2">
-                            <span x-show="loading" class="text-xs text-gray-500">
+                            <span x-show="loading" class="text-xs text-gray-500 dark:text-gray-400">
                                 <i class="fas fa-spinner fa-spin mr-1"></i>
                             </span>
-                            <button @click="loadNotifications()" class="text-xs text-blue-600 hover:text-blue-800 p-1">
+                            <button @click="loadNotifications()" class="text-xs text-blue-600 hover:text-blue-800 p-1 dark:text-blue-400 dark:hover:text-blue-300">
                                 <i class="fas fa-sync-alt"></i>
                             </button>
                         </div>
                     </div>
-                    
+
                     <!-- Notifications List -->
                     <div class="flex-1 overflow-y-auto">
                         <template x-if="notifications.length === 0 && !loading">
                             <div class="px-4 py-8 text-center">
-                                <i class="fas fa-bell-slash text-gray-300 text-3xl mb-2"></i>
-                                <p class="text-sm text-gray-500">No recent login activity</p>
-                                <p class="text-xs text-gray-400 mt-1">Login activity will appear here</p>
+                                <i class="fas fa-bell-slash text-gray-300 text-3xl mb-2 dark:text-slate-600"></i>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">No recent login activity</p>
+                                <p class="text-xs text-gray-400 mt-1 dark:text-gray-500">Login activity will appear here</p>
                             </div>
                         </template>
-                        
+
                         <template x-if="loading">
                             <div class="px-4 py-8 text-center">
                                 <div class="inline-block">
-                                    <i class="fas fa-spinner fa-spin text-blue-600 text-2xl"></i>
+                                    <i class="fas fa-spinner fa-spin text-blue-600 text-2xl dark:text-blue-400"></i>
                                 </div>
-                                <p class="text-sm text-gray-500 mt-2">Loading login logs...</p>
+                                <p class="text-sm text-gray-500 mt-2 dark:text-gray-400">Loading login logs...</p>
                             </div>
                         </template>
-                        
+
                         <template x-for="notification in notifications" :key="notification.id">
-                            <div class="px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                            <div class="px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors dark:border-slate-800 dark:hover:bg-slate-800">
                                 <div class="flex items-start">
                                     <div class="flex-shrink-0">
-                                        <div class="w-8 h-8 rounded-full bg-gradient-to-r from-blue-100 to-blue-50 flex items-center justify-center shadow-sm">
-                                            <i class="fas fa-sign-in-alt text-blue-600 text-sm"></i>
+                                        <div class="w-8 h-8 rounded-full bg-gradient-to-r from-blue-100 to-blue-50 flex items-center justify-center shadow-sm dark:from-slate-700 dark:to-slate-800">
+                                            <i class="fas fa-sign-in-alt text-blue-600 text-sm dark:text-blue-400"></i>
                                         </div>
                                     </div>
                                     <div class="ml-3 flex-1 min-w-0">
                                         <div class="flex items-start justify-between">
-                                            <p class="text-sm font-medium text-gray-900 truncate" x-text="notification.employee_name"></p>
-                                            <span class="text-xs text-gray-400 ml-2 flex-shrink-0" x-text="notification.time_ago"></span>
+                                            <p class="text-sm font-medium text-gray-900 truncate dark:text-gray-100" x-text="notification.employee_name"></p>
+                                            <span class="text-xs text-gray-400 ml-2 flex-shrink-0 dark:text-gray-500" x-text="notification.time_ago"></span>
                                         </div>
-                                        <p class="text-xs text-gray-500 mt-0.5 truncate" x-text="notification.employee_email"></p>
+                                        <p class="text-xs text-gray-500 mt-0.5 truncate dark:text-gray-400" x-text="notification.employee_email"></p>
                                         <div class="flex items-center mt-1 space-x-3">
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-gray-300">
                                                 <i class="fas fa-globe mr-1 text-xs"></i>
                                                 <span x-text="notification.ip_address"></span>
                                             </span>
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 dark:bg-slate-800 dark:text-blue-300">
                                                 <i class="fas fa-desktop mr-1 text-xs"></i>
                                                 <span x-text="notification.user_agent"></span>
                                             </span>
@@ -288,14 +329,14 @@
                             </div>
                         </template>
                     </div>
-                    
+
                     <!-- Footer -->
-                    <div class="px-4 py-2 border-t border-gray-100 bg-gray-50">
+                    <div class="px-4 py-2 border-t border-gray-100 bg-gray-50 dark:border-slate-700 dark:bg-slate-800/50">
                         <div class="flex items-center justify-between">
-                            <p class="text-xs text-gray-500">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">
                                 <span x-text="notifications.length"></span> recent logins
                             </p>
-                            <button @click="markAllAsRead()" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                            <button @click="markAllAsRead()" class="text-xs text-blue-600 hover:text-blue-800 font-medium dark:text-blue-400 dark:hover:text-blue-300">
                                 Mark as read
                             </button>
                         </div>
@@ -390,9 +431,9 @@
                 }
             }">
                 <button @click="toggleNotifications()"
-                        :class="{'bg-gray-100': open}"
+                        :class="{'bg-gray-100 dark:bg-slate-700': open}"
                         title="My request updates"
-                        class="relative p-1.5 sm:p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
+                        class="relative p-1.5 sm:p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-slate-700">
                     <i class="fas fa-bell text-lg sm:text-xl"></i>
                     <template x-if="unreadCount > 0">
                         <span x-text="unreadCount > 99 ? '99+' : unreadCount"
@@ -409,14 +450,14 @@
                      x-transition:leave="transition ease-in duration-75"
                      x-transition:leave-start="transform opacity-100 scale-100"
                      x-transition:leave-end="transform opacity-0 scale-95"
-                     class="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50 max-h-[80vh] overflow-hidden flex flex-col">
+                     class="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50 max-h-[80vh] overflow-hidden flex flex-col dark:bg-slate-900 dark:border-slate-700">
 
-                    <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white">
+                    <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white dark:from-slate-800 dark:to-slate-900 dark:border-slate-700">
                         <div>
-                            <h3 class="text-sm font-semibold text-gray-900">My Request Updates</h3>
-                            <p class="text-xs text-gray-500 mt-0.5">Leave, Overtime &amp; Official Business</p>
+                            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">My Request Updates</h3>
+                            <p class="text-xs text-gray-500 mt-0.5 dark:text-gray-400">Leave, Overtime &amp; Official Business</p>
                         </div>
-                        <span x-show="loading" class="text-xs text-gray-500">
+                        <span x-show="loading" class="text-xs text-gray-500 dark:text-gray-400">
                             <i class="fas fa-spinner fa-spin"></i>
                         </span>
                     </div>
@@ -424,55 +465,55 @@
                     <div class="flex-1 overflow-y-auto">
                         <template x-if="notifications.length === 0 && !loading">
                             <div class="px-4 py-8 text-center">
-                                <i class="fas fa-bell-slash text-gray-300 text-3xl mb-2"></i>
-                                <p class="text-sm text-gray-500">No updates yet</p>
-                                <p class="text-xs text-gray-400 mt-1">You'll see status changes for your requests here</p>
+                                <i class="fas fa-bell-slash text-gray-300 text-3xl mb-2 dark:text-slate-600"></i>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">No updates yet</p>
+                                <p class="text-xs text-gray-400 mt-1 dark:text-gray-500">You'll see status changes for your requests here</p>
                             </div>
                         </template>
 
                         <template x-for="notification in notifications" :key="notification.id">
                             <button @click="openNotification(notification)"
-                                    class="w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors"
-                                    :class="{ 'bg-blue-50/50': !notification.read }">
+                                    class="w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors dark:border-slate-800 dark:hover:bg-slate-800"
+                                    :class="{ 'bg-blue-50/50 dark:bg-slate-800/60': !notification.read }">
                                 <div class="flex items-start">
                                     <div class="flex-shrink-0">
                                         <div class="w-8 h-8 rounded-full flex items-center justify-center shadow-sm"
                                              :class="{
-                                                'bg-green-100': notification.color === 'green',
-                                                'bg-red-100': notification.color === 'red',
-                                                'bg-gray-200': notification.color === 'gray',
-                                                'bg-blue-100': !['green','red','gray'].includes(notification.color)
+                                                'bg-green-100 dark:bg-green-900/40': notification.color === 'green',
+                                                'bg-red-100 dark:bg-red-900/40': notification.color === 'red',
+                                                'bg-gray-200 dark:bg-slate-700': notification.color === 'gray',
+                                                'bg-blue-100 dark:bg-blue-900/40': !['green','red','gray'].includes(notification.color)
                                              }">
                                             <i class="fas text-sm"
                                                :class="[notification.icon || 'fa-bell', {
-                                                    'text-green-600': notification.color === 'green',
-                                                    'text-red-600': notification.color === 'red',
-                                                    'text-gray-600': notification.color === 'gray',
-                                                    'text-blue-600': !['green','red','gray'].includes(notification.color)
+                                                    'text-green-600 dark:text-green-400': notification.color === 'green',
+                                                    'text-red-600 dark:text-red-400': notification.color === 'red',
+                                                    'text-gray-600 dark:text-gray-300': notification.color === 'gray',
+                                                    'text-blue-600 dark:text-blue-400': !['green','red','gray'].includes(notification.color)
                                                }]"></i>
                                         </div>
                                     </div>
                                     <div class="ml-3 flex-1 min-w-0">
                                         <div class="flex items-start justify-between">
-                                            <p class="text-sm font-medium text-gray-900" x-text="notification.title"></p>
-                                            <span class="text-xs text-gray-400 ml-2 flex-shrink-0" x-text="notification.time_ago"></span>
+                                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="notification.title"></p>
+                                            <span class="text-xs text-gray-400 ml-2 flex-shrink-0 dark:text-gray-500" x-text="notification.time_ago"></span>
                                         </div>
-                                        <p class="text-xs text-gray-600 mt-0.5" x-text="notification.message"></p>
+                                        <p class="text-xs text-gray-600 mt-0.5 dark:text-gray-400" x-text="notification.message"></p>
                                     </div>
                                     <template x-if="!notification.read">
-                                        <span class="ml-2 mt-1 h-2 w-2 rounded-full bg-blue-600 flex-shrink-0"></span>
+                                        <span class="ml-2 mt-1 h-2 w-2 rounded-full bg-blue-600 flex-shrink-0 dark:bg-blue-400"></span>
                                     </template>
                                 </div>
                             </button>
                         </template>
                     </div>
 
-                    <div class="px-4 py-2 border-t border-gray-100 bg-gray-50">
+                    <div class="px-4 py-2 border-t border-gray-100 bg-gray-50 dark:border-slate-700 dark:bg-slate-800/50">
                         <div class="flex items-center justify-between">
-                            <p class="text-xs text-gray-500">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">
                                 <span x-text="notifications.length"></span> updates
                             </p>
-                            <button @click="markAllAsRead()" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                            <button @click="markAllAsRead()" class="text-xs text-blue-600 hover:text-blue-800 font-medium dark:text-blue-400 dark:hover:text-blue-300">
                                 Mark all as read
                             </button>
                         </div>
@@ -532,18 +573,18 @@
                     }
                 }
             }">
-                <button @click="toggleMessages()" 
-                        :class="{'bg-gray-100': open}"
-                        class="relative p-1.5 sm:p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
+                <button @click="toggleMessages()"
+                        :class="{'bg-gray-100 dark:bg-slate-700': open}"
+                        class="relative p-1.5 sm:p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-slate-700">
                     <i class="fas fa-inbox text-lg sm:text-xl"></i>
                     <template x-if="pendingCount > 0">
-                        <span x-text="pendingCount > 99 ? '99+' : pendingCount" 
+                        <span x-text="pendingCount > 99 ? '99+' : pendingCount"
                               class="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 block h-4 w-4 sm:h-5 sm:w-5 rounded-full bg-indigo-500 text-white text-xs flex items-center justify-center animate-pulse"></span>
                     </template>
                 </button>
-                
+
                 <!-- Inbox Dropdown -->
-                <div x-show="open" 
+                <div x-show="open"
                      x-cloak
                      @click.away="open = false"
                      x-transition:enter="transition ease-out duration-100"
@@ -552,76 +593,76 @@
                      x-transition:leave="transition ease-in duration-75"
                      x-transition:leave-start="transform opacity-100 scale-100"
                      x-transition:leave-end="transform opacity-0 scale-95"
-                     class="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50 max-h-[80vh] overflow-hidden flex flex-col">
-                    
+                     class="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50 max-h-[80vh] overflow-hidden flex flex-col dark:bg-slate-900 dark:border-slate-700">
+
                     <!-- Header -->
-                    <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-white">
+                    <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-white dark:from-slate-800 dark:to-slate-900 dark:border-slate-700">
                         <div>
-                            <h3 class="text-sm font-semibold text-gray-900">Employee Messages</h3>
-                            <p class="text-xs text-gray-500 mt-0.5" x-text="pendingCount + ' Pending'"></p>
+                            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Employee Messages</h3>
+                            <p class="text-xs text-gray-500 mt-0.5 dark:text-gray-400" x-text="pendingCount + ' Pending'"></p>
                         </div>
                         <div class="flex items-center space-x-2">
-                            <span x-show="loading" class="text-xs text-gray-500">
+                            <span x-show="loading" class="text-xs text-gray-500 dark:text-gray-400">
                                 <i class="fas fa-spinner fa-spin mr-1"></i>
                             </span>
-                            <button @click="loadMessages()" class="text-xs text-indigo-600 hover:text-indigo-800 p-1">
+                            <button @click="loadMessages()" class="text-xs text-indigo-600 hover:text-indigo-800 p-1 dark:text-indigo-400 dark:hover:text-indigo-300">
                                 <i class="fas fa-sync-alt"></i>
                             </button>
                         </div>
                     </div>
-                    
+
                     <!-- Messages List -->
                     <div class="flex-1 overflow-y-auto">
                         <template x-if="messages.length === 0 && !loading">
                             <div class="px-4 py-8 text-center">
-                                <i class="fas fa-inbox text-gray-300 text-3xl mb-2"></i>
-                                <p class="text-sm text-gray-500">No messages</p>
-                                <p class="text-xs text-gray-400 mt-1">Employee messages will appear here</p>
+                                <i class="fas fa-inbox text-gray-300 text-3xl mb-2 dark:text-slate-600"></i>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">No messages</p>
+                                <p class="text-xs text-gray-400 mt-1 dark:text-gray-500">Employee messages will appear here</p>
                             </div>
                         </template>
-                        
+
                         <template x-if="loading">
                             <div class="px-4 py-8 text-center">
                                 <div class="inline-block">
-                                    <i class="fas fa-spinner fa-spin text-indigo-600 text-2xl"></i>
+                                    <i class="fas fa-spinner fa-spin text-indigo-600 text-2xl dark:text-indigo-400"></i>
                                 </div>
-                                <p class="text-sm text-gray-500 mt-2">Loading messages...</p>
+                                <p class="text-sm text-gray-500 mt-2 dark:text-gray-400">Loading messages...</p>
                             </div>
                         </template>
-                        
+
                         <template x-for="message in messages" :key="message.id">
-                            <a :href="'/hr/contact/' + message.id" 
-                               class="block px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                            <a :href="'/hr/contact/' + message.id"
+                               class="block px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors dark:border-slate-800 dark:hover:bg-slate-800">
                                 <div class="flex items-start">
                                     <div class="flex-shrink-0">
-                                        <div class="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-100 to-indigo-50 flex items-center justify-center shadow-sm">
-                                            <i class="fas fa-envelope text-indigo-600 text-sm"></i>
+                                        <div class="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-100 to-indigo-50 flex items-center justify-center shadow-sm dark:from-slate-700 dark:to-slate-800">
+                                            <i class="fas fa-envelope text-indigo-600 text-sm dark:text-indigo-400"></i>
                                         </div>
                                     </div>
                                     <div class="ml-3 flex-1 min-w-0">
                                         <div class="flex items-start justify-between">
-                                            <p class="text-sm font-medium text-gray-900 truncate" x-text="message.sender_name"></p>
-                                            <span class="text-xs text-gray-400 ml-2 flex-shrink-0" x-text="message.time_ago"></span>
+                                            <p class="text-sm font-medium text-gray-900 truncate dark:text-gray-100" x-text="message.sender_name"></p>
+                                            <span class="text-xs text-gray-400 ml-2 flex-shrink-0 dark:text-gray-500" x-text="message.time_ago"></span>
                                         </div>
-                                        <p class="text-xs text-gray-600 mt-0.5 truncate" x-text="message.subject"></p>
+                                        <p class="text-xs text-gray-600 mt-0.5 truncate dark:text-gray-400" x-text="message.subject"></p>
                                         <div class="flex items-center mt-1 space-x-2">
                                             <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium" :class="{
-                                                'bg-yellow-100 text-yellow-800': message.status === 'pending',
-                                                'bg-blue-100 text-blue-800': message.status === 'in_progress',
-                                                'bg-green-100 text-green-800': message.status === 'resolved',
-                                                'bg-gray-100 text-gray-800': message.status === 'closed'
+                                                'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300': message.status === 'pending',
+                                                'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300': message.status === 'in_progress',
+                                                'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300': message.status === 'resolved',
+                                                'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-gray-300': message.status === 'closed'
                                             }" x-text="message.status_label"></span>
-                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800" x-text="message.category_label"></span>
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-gray-300" x-text="message.category_label"></span>
                                         </div>
                                     </div>
                                 </div>
                             </a>
                         </template>
                     </div>
-                    
+
                     <!-- Footer -->
-                    <div class="px-4 py-2 border-t border-gray-100 bg-gray-50">
-                        <a href="{{ route('hr.contacts.admin') }}" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center gap-1">
+                    <div class="px-4 py-2 border-t border-gray-100 bg-gray-50 dark:border-slate-700 dark:bg-slate-800/50">
+                        <a href="{{ route('hr.contacts.admin') }}" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center gap-1 dark:text-indigo-400 dark:hover:text-indigo-300">
                             View All Messages
                             <i class="fas fa-arrow-right"></i>
                         </a>
@@ -630,23 +671,23 @@
             </div>
             @else
             <!-- Empty placeholder for non-HR/Admin users -->
-            <div class="p-1.5 sm:p-2 text-gray-300">
+            <div class="p-1.5 sm:p-2 text-gray-300 dark:text-slate-600">
                 <i class="fas fa-inbox text-lg sm:text-xl"></i>
             </div>
             @endif
             
             <!-- User Menu Dropdown -->
             <div class="relative" x-data="{ open: false }">
-                <button @click="open = !open" class="flex items-center space-x-1 sm:space-x-2 p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 transition-colors">
+                <button @click="open = !open" class="flex items-center space-x-1 sm:space-x-2 p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 transition-colors dark:hover:bg-slate-700">
                     <div class="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
                         <i class="fas fa-user text-white text-xs sm:text-sm"></i>
                     </div>
-                    <span class="hidden lg:block text-sm font-medium text-gray-700">{{ $user->full_name }}</span>
-                    <i class="fas fa-chevron-down text-gray-400 text-xs hidden sm:block" :class="{ 'rotate-180': open }"></i>
+                    <span class="hidden lg:block text-sm font-medium text-gray-700 dark:text-gray-200">{{ $user->full_name }}</span>
+                    <i class="fas fa-chevron-down text-gray-400 text-xs hidden sm:block dark:text-gray-500" :class="{ 'rotate-180': open }"></i>
                 </button>
-                
+
                 <!-- Dropdown Menu -->
-                <div x-show="open" 
+                <div x-show="open"
                      x-cloak
                      @click.away="open = false"
                      x-transition:enter="transition ease-out duration-100"
@@ -655,33 +696,38 @@
                      x-transition:leave="transition ease-in duration-75"
                      x-transition:leave-start="transform opacity-100 scale-100"
                      x-transition:leave-end="transform opacity-0 scale-95"
-                     class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                    
+                     class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 dark:bg-slate-900 dark:border-slate-700">
+
                     <!-- User Info -->
-                    <div class="px-4 py-3 border-b border-gray-100">
-                        <p class="text-sm font-medium text-gray-900">{{ $user->full_name }}</p>
-                        <p class="text-xs text-gray-500">{{ $user->email }}</p>
+                    <div class="px-4 py-3 border-b border-gray-100 dark:border-slate-700">
+                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $user->full_name }}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ $user->email }}</p>
                     </div>
-                    
+
                     <!-- Settings -->
-                    <a href="{{ route('hr.settings') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                        <i class="fas fa-cog w-4 h-4 mr-3 text-gray-400"></i>
-                        {{ in_array($user->role, ['admin', 'hr'], true) ? 'HR Settings' : 'Account Settings' }}
+                    <a href="{{ route('hr.settings') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800">
+                        <i class="fas fa-cog w-4 h-4 mr-3 text-gray-400 dark:text-gray-500"></i>
+                        {{ match ($user->role) {
+                            'admin' => 'Admin Settings',
+                            'hr' => 'HR Settings',
+                            'employee' => 'Employee Settings',
+                            default => 'Account Settings',
+                        } }}
                     </a>
-                    
+
                     <!-- Profile -->
-                    <a href="{{ route('hr.profile') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                        <i class="fas fa-user-circle w-4 h-4 mr-3 text-gray-400"></i>
+                    <a href="{{ route('hr.profile') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800">
+                        <i class="fas fa-user-circle w-4 h-4 mr-3 text-gray-400 dark:text-gray-500"></i>
                         Profile
                     </a>
-                    
+
                     <!-- Divider -->
-                    <div class="border-t border-gray-100 my-1"></div>
-                    
+                    <div class="border-t border-gray-100 my-1 dark:border-slate-700"></div>
+
                     <!-- Logout -->
                     <form method="POST" action="{{ route('logout') }}" id="logout-form" class="block">
                         @csrf
-                        <button type="submit" onclick="handleLogout(event, {{ $isCurrentlyTimedIn ? 'true' : 'false' }})" class="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
+                        <button type="submit" onclick="handleLogout(event, {{ $isCurrentlyTimedIn ? 'true' : 'false' }})" class="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors dark:text-red-400 dark:hover:bg-red-900/20">
                             <i class="fas fa-sign-out-alt w-4 h-4 mr-3"></i>
                             Logout
                         </button>

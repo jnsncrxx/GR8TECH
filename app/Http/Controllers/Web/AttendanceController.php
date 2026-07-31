@@ -189,8 +189,11 @@ class AttendanceController extends Controller
                 $severity = 'blocking';
             } elseif (in_array($schedule->status, ['Day Off', 'Rest Day'], true)) {
                 $code = $record && $record->time_in && $record->time_out ? 'rest_day_duty' : 'day_off';
-                $label = $code === 'rest_day_duty' ? 'Rest-day Duty Review' : $schedule->status;
-                $severity = $code === 'rest_day_duty' ? 'review' : 'neutral';
+                $isReviewedRestDayDuty = $code === 'rest_day_duty' && $record->corrected_at;
+                $label = $code === 'rest_day_duty'
+                    ? ($isReviewedRestDayDuty ? 'Rest-day Duty' : 'Rest-day Duty Review')
+                    : $schedule->status;
+                $severity = $code === 'rest_day_duty' && !$isReviewedRestDayDuty ? 'review' : 'clear';
             } elseif ($isWorking && (!$record || (!$record->time_in && !$record->time_out))) {
                 $code = 'absent';
                 $label = 'Absent';
@@ -287,13 +290,43 @@ class AttendanceController extends Controller
             ->get()
             ->keyBy(fn (EmployeeSchedule $schedule) => $schedule->employee_id . '|' . $schedule->date->format('Y-m-d'));
 
-        $allAttendanceRecords->each(function (AttendanceRecord $record) use ($scheduleMap) {
-            $schedule = $scheduleMap->get($record->employee_id . '|' . Carbon::parse($record->date)->format('Y-m-d'));
+        $approvedLeaves = LeaveRequest::query()
+            ->whereIn('employee_id', $allAttendanceRecords->pluck('employee_id')->unique())
+            ->where('status', LeaveRequest::APPROVED)
+            ->whereDate('start_date', '<=', $dateTo->toDateString())
+            ->whereDate('end_date', '>=', $dateFrom->toDateString())
+            ->get()
+            ->groupBy('employee_id');
+
+        $approvedOfficialBusiness = OfficialBusinessRequest::query()
+            ->whereIn('employee_id', $allAttendanceRecords->pluck('employee_id')->unique())
+            ->where('status', OfficialBusinessRequest::APPROVED)
+            ->whereBetween('date', [$dateFrom->toDateString(), $dateTo->toDateString()])
+            ->get()
+            ->keyBy(fn (OfficialBusinessRequest $request) => $request->employee_id . '|' . $request->date->format('Y-m-d'));
+
+        $allAttendanceRecords->each(function (AttendanceRecord $record) use ($scheduleMap, $approvedLeaves, $approvedOfficialBusiness) {
+            $dateString = Carbon::parse($record->date)->format('Y-m-d');
+            $recordKey = $record->employee_id . '|' . $dateString;
+            $schedule = $scheduleMap->get($recordKey);
+            $hasApprovedLeave = $approvedLeaves
+                ->get($record->employee_id, collect())
+                ->contains(fn (LeaveRequest $leave) => $leave->start_date->toDateString() <= $dateString
+                    && $leave->end_date->toDateString() >= $dateString);
+            $hasApprovedOfficialBusiness = $approvedOfficialBusiness->has($recordKey);
             $workedHours = $record->calculateTotalHours();
-            $exception = $this->timekeepingException($record, $schedule, $workedHours);
+            $exception = $this->timekeepingException(
+                $record,
+                $schedule,
+                $workedHours,
+                $hasApprovedLeave,
+                $hasApprovedOfficialBusiness
+            );
 
             $record->setRelation('assignedSchedule', $schedule);
             $record->setAttribute('display_worked_hours', $workedHours);
+            $record->setAttribute('has_approved_leave', $hasApprovedLeave);
+            $record->setAttribute('has_approved_official_business', $hasApprovedOfficialBusiness);
             $record->setAttribute('exception_code', $exception['code']);
             $record->setAttribute('exception_label', $exception['label']);
             $record->setAttribute('exception_severity', $exception['severity']);
@@ -391,14 +424,24 @@ class AttendanceController extends Controller
     private function timekeepingException(
         AttendanceRecord $record,
         ?EmployeeSchedule $schedule,
-        float $workedHours
+        float $workedHours,
+        bool $hasApprovedLeave = false,
+        bool $hasApprovedOfficialBusiness = false
     ): array {
-        if ($record->status === AttendanceRecord::ON_LEAVE) {
+        if ($hasApprovedLeave) {
             return ['code' => 'clear', 'label' => 'Approved leave', 'severity' => 'clear'];
         }
 
-        if ($record->status === AttendanceRecord::OFFICIAL_BUSINESS) {
+        if ($hasApprovedOfficialBusiness) {
             return ['code' => 'clear', 'label' => 'Approved official business', 'severity' => 'clear'];
+        }
+
+        if ($record->status === AttendanceRecord::ON_LEAVE) {
+            return ['code' => 'unverified_leave', 'label' => 'No approved leave request', 'severity' => 'blocking'];
+        }
+
+        if ($record->status === AttendanceRecord::OFFICIAL_BUSINESS) {
+            return ['code' => 'unverified_official_business', 'label' => 'No approved OB request', 'severity' => 'blocking'];
         }
 
         if ($record->status === AttendanceRecord::ABSENT && !$record->time_in && !$record->time_out) {
@@ -418,6 +461,10 @@ class AttendanceController extends Controller
         }
 
         if (in_array($schedule->status, ['Day Off', 'Rest Day'], true) && $workedHours > 0) {
+            if ($record->corrected_at) {
+                return ['code' => 'clear', 'label' => 'Rest-day duty reviewed', 'severity' => 'clear'];
+            }
+
             return ['code' => 'rest_day_attendance', 'label' => 'Rest-day duty review', 'severity' => 'review'];
         }
 
@@ -690,6 +737,11 @@ class AttendanceController extends Controller
      */
     public function importDtr(Request $request)
     {
+        $userRole = Auth::user()->role ?? null;
+        if (!in_array($userRole, ['admin', 'hr'], true)) {
+            return redirect()->route('dashboard')->with('error', 'Unauthorized access.');
+        }
+
         return view('attendance.import-dtr', [
             'user' => Auth::user(),
             'recentImports' => collect([])
@@ -701,6 +753,11 @@ class AttendanceController extends Controller
      */
     public function processImportDtr(Request $request)
     {
+        $userRole = Auth::user()->role ?? null;
+        if (!in_array($userRole, ['admin', 'hr'], true)) {
+            return redirect()->route('dashboard')->with('error', 'Unauthorized access.');
+        }
+
         $request->validate([
             'dtr_file' => 'required|file|mimes:csv,xlsx,xls|max:10240',
         ]);
@@ -742,6 +799,11 @@ class AttendanceController extends Controller
      */
     public function reviewImportDtr(Request $request)
     {
+        $userRole = Auth::user()->role ?? null;
+        if (!in_array($userRole, ['admin', 'hr'], true)) {
+            return redirect()->route('dashboard')->with('error', 'Unauthorized access.');
+        }
+
         $importedRecords = session('imported_records', []);
         $validation = session('import_validation', ['errors' => collect(), 'warnings' => collect(), 'is_valid' => true]);
         $filePath = session('import_file_path', '');
@@ -769,6 +831,11 @@ class AttendanceController extends Controller
      */
     public function confirmImportDtr(Request $request)
     {
+        $userRole = Auth::user()->role ?? null;
+        if (!in_array($userRole, ['admin', 'hr'], true)) {
+            return redirect()->route('dashboard')->with('error', 'Unauthorized access.');
+        }
+
         try {
             $importedRecords = session('imported_records', []);
 
@@ -946,10 +1013,10 @@ class AttendanceController extends Controller
 
         $conflicts = app(\App\Services\PayrollRequestConflictService::class);
 
-        if ($conflicts->payrollGeneratedForDate($validated['employee_id'], $validated['date'])) {
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($validated['employee_id'], $validated['date'])) {
             return redirect()->back()->withInput()->with(
                 'error',
-                'Cannot add a record — payroll has already been generated for this date. An Admin must reopen the payroll period before this date can be edited.'
+                'Cannot add a record — payroll has already been generated for this date. The payroll period is locked and this date can no longer be edited.'
             );
         }
 
@@ -1162,11 +1229,11 @@ class AttendanceController extends Controller
 
         $conflicts = app(\App\Services\PayrollRequestConflictService::class);
         $originalDate = Carbon::parse($attendanceRecord->date)->toDateString();
-        if ($conflicts->payrollGeneratedForDate($validated['employee_id'], $originalDate)
-            || ($date !== $originalDate && $conflicts->payrollGeneratedForDate($validated['employee_id'], $date))) {
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($validated['employee_id'], $originalDate)
+            || ($date !== $originalDate && app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($validated['employee_id'], $date))) {
             return redirect()->back()->withInput()->with(
                 'error',
-                'Cannot edit this record — payroll has already been generated for this date. An Admin must reopen the payroll period first.'
+                'Cannot edit this record — payroll has already been generated for this date. The payroll period is locked and can no longer be modified.'
             );
         }
 
@@ -1241,6 +1308,19 @@ class AttendanceController extends Controller
             $employeeName = $record->employee?->full_name ?? 'Employee';
             $dateStr = $record->date ? Carbon::parse($record->date)->format('M d, Y') : '';
 
+            if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate(
+                $record->employee_id,
+                $record->date
+            )) {
+                $message = 'Cannot delete this attendance record because its date belongs to a locked payroll period.';
+
+                if ($request->wantsJson()) {
+                    return response()->json(['error' => $message], 422);
+                }
+
+                return redirect()->back()->with('error', $message);
+            }
+
             DB::transaction(function () use ($record) {
                 if (Schema::hasTable('attendance_corrections')) {
                     DB::table('attendance_corrections')->insert([
@@ -1277,14 +1357,6 @@ class AttendanceController extends Controller
     public function myAttendance(Request $request)
     {
         $user = Auth::user();
-        $userRole = $user->role ?? 'employee';
-
-        // Only employees can access this - HR/Admin redirect to main attendance
-        if (in_array($userRole, ['admin', 'hr'])) {
-            return redirect()->route('attendance.daily')
-                ->with('info', 'HR and Admin should use the main attendance page.');
-        }
-
         $employee = Employee::find($user->employee_id);
 
         if (!$employee) {
@@ -1343,12 +1415,10 @@ class AttendanceController extends Controller
     public function mySchedule(Request $request)
     {
         $user = Auth::user();
-        abort_unless(($user->role ?? null) === 'employee', 403);
-
         $employee = Employee::with(['department', 'position'])->find($user->employee_id);
 
         if (!$employee) {
-            return redirect()->route('employee.dashboard')
+            return redirect()->route('dashboard')
                 ->with('error', 'No employee record found. Please contact HR.');
         }
 

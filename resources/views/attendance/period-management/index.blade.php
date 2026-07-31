@@ -33,21 +33,100 @@
 
 
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div class="bg-white rounded-lg border border-gray-200 p-4">
+            <div class="min-h-[104px] bg-white rounded-xl border border-gray-200 p-4 flex flex-col justify-between">
                 <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Total Periods</p>
                 <p class="mt-1 text-2xl font-bold text-gray-900">{{ $periods->count() }}</p>
             </div>
-            <div class="bg-white rounded-lg border border-gray-200 p-4">
+            <div class="min-h-[104px] bg-white rounded-xl border border-gray-200 p-4 flex flex-col justify-between">
                 <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Open / Validation</p>
                 <p class="mt-1 text-2xl font-bold text-blue-700">{{ $periods->whereIn('status', ['open', 'for_validation', 'ready'])->count() }}</p>
             </div>
-            <div class="bg-white rounded-lg border border-gray-200 p-4">
+            <div class="min-h-[104px] bg-white rounded-xl border border-gray-200 p-4 flex flex-col justify-between">
                 <p class="text-xs font-medium uppercase tracking-wide text-gray-500">In Payroll Process</p>
                 <p class="mt-1 text-2xl font-bold text-purple-700">{{ $periods->whereIn('status', ['processing', 'for_review', 'finalized'])->count() }}</p>
             </div>
-            <div class="bg-white rounded-lg border border-gray-200 p-4">
+            <div class="min-h-[104px] bg-white rounded-xl border border-gray-200 p-4 flex flex-col justify-between">
                 <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Locked</p>
                 <p class="mt-1 text-2xl font-bold text-gray-700">{{ $periods->where('status', 'locked')->count() }}</p>
+            </div>
+        </div>
+
+        <div class="mb-6 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+            <div class="flex flex-col gap-2 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h2 class="font-semibold text-gray-900">Yearly Period Status Matrix</h2>
+                    <p class="mt-1 text-sm text-gray-500">Quickly check whether each monthly period is used, processed, or locked.</p>
+                </div>
+                <div class="flex flex-wrap gap-2 text-xs">
+                    <span class="rounded-full bg-blue-100 px-2.5 py-1 font-medium text-blue-700">U · Used / Open</span>
+                    <span class="rounded-full bg-purple-100 px-2.5 py-1 font-medium text-purple-700">P · Processed</span>
+                    <span class="rounded-full bg-slate-200 px-2.5 py-1 font-medium text-slate-800">L · Locked</span>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full border-collapse text-center text-xs">
+                    <thead>
+                        <tr class="bg-gray-50 text-gray-600">
+                            <th class="sticky left-0 z-10 border-b border-r border-gray-200 bg-gray-50 px-3 py-2 text-left">Month</th>
+                            @foreach($calendarYears as $year)
+                                <th colspan="5" class="border-b border-r border-gray-200 px-3 py-2 font-semibold">{{ $year }}</th>
+                            @endforeach
+                        </tr>
+                        <tr class="bg-gray-50 text-gray-500">
+                            <th class="sticky left-0 z-10 border-b border-r border-gray-200 bg-gray-50 px-3 py-2"></th>
+                            @foreach($calendarYears as $year)
+                                @foreach(range(1, 5) as $periodNo)
+                                    <th class="w-12 border-b border-r border-gray-200 px-2 py-2">{{ $periodNo }}</th>
+                                @endforeach
+                            @endforeach
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach(range(1, 12) as $month)
+                            <tr>
+                                <th class="sticky left-0 z-10 border-b border-r border-gray-200 bg-white px-3 py-2 text-left font-medium text-gray-700">
+                                    {{ \Carbon\Carbon::create(null, $month, 1)->format('M') }}
+                                </th>
+                                @foreach($calendarYears as $year)
+                                    @foreach(range(1, 5) as $periodNo)
+                                        @php
+                                            $matrixPeriod = $periodCalendar[$year][$month][$periodNo] ?? null;
+                                            $matrixCode = null;
+                                            $matrixClasses = 'bg-white text-gray-300';
+                                            if ($matrixPeriod) {
+                                                if ($matrixPeriod->status === \App\Models\Period::STATUS_LOCKED) {
+                                                    $matrixCode = 'L';
+                                                    $matrixClasses = 'bg-slate-200 text-slate-800';
+                                                } elseif (in_array($matrixPeriod->status, [
+                                                    \App\Models\Period::STATUS_PROCESSING,
+                                                    \App\Models\Period::STATUS_FOR_REVIEW,
+                                                    \App\Models\Period::STATUS_FINALIZED,
+                                                ], true)) {
+                                                    $matrixCode = 'P';
+                                                    $matrixClasses = 'bg-purple-100 text-purple-700';
+                                                } else {
+                                                    $matrixCode = 'U';
+                                                    $matrixClasses = 'bg-blue-100 text-blue-700';
+                                                }
+                                            }
+                                        @endphp
+                                        <td class="border-b border-r border-gray-200 p-1.5">
+                                            @if($matrixPeriod)
+                                                <a href="{{ route('attendance.period-management.show', $matrixPeriod->id) }}"
+                                                   title="{{ $matrixPeriod->name }} — {{ $matrixPeriod->status_label }}"
+                                                   class="mx-auto flex h-7 w-7 items-center justify-center rounded font-bold {{ $matrixClasses }} hover:ring-2 hover:ring-green-500">
+                                                    {{ $matrixCode }}
+                                                </a>
+                                            @else
+                                                <span class="mx-auto flex h-7 w-7 items-center justify-center rounded {{ $matrixClasses }}">—</span>
+                                            @endif
+                                        </td>
+                                    @endforeach
+                                @endforeach
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -101,6 +180,17 @@
                                         'locked' => 'bg-slate-200 text-slate-800',
                                         default => 'bg-gray-100 text-gray-700',
                                     };
+                                    $statusIcon = match($period->status) {
+                                        'draft' => 'fa-file-pen',
+                                        'open' => 'fa-folder-open',
+                                        'for_validation' => 'fa-magnifying-glass',
+                                        'ready' => 'fa-circle-check',
+                                        'processing' => 'fa-gears',
+                                        'for_review' => 'fa-clipboard-check',
+                                        'finalized' => 'fa-flag-checkered',
+                                        'locked' => 'fa-lock',
+                                        default => 'fa-circle-info',
+                                    };
                                     $nextStatus = in_array($period->status, ['draft', 'open'], true) ? $period->nextStatus() : null;
                                 @endphp
                                 <tr class="period-row hover:bg-gray-50"
@@ -117,7 +207,7 @@
                                     </td>
                                     <td class="px-5 py-4 text-sm text-gray-700 whitespace-nowrap">
                                         <div>{{ $period->start_date->format('M j, Y') }} – {{ $period->end_date->format('M j, Y') }}</div>
-                                        <div class="text-xs text-gray-500">{{ $period->duration }} calendar days · {{ $period->working_days ?? 0 }} weekdays</div>
+                                        <div class="text-xs text-gray-500">{{ $period->duration }} calendar days · {{ $period->working_days ?? 0 }} workdays (Sunday off)</div>
                                     </td>
                                     <td class="px-5 py-4 text-sm text-gray-700 whitespace-nowrap">
                                         {{ $period->payroll_date?->format('M j, Y') ?? 'Not set' }}
@@ -127,16 +217,16 @@
                                         <div class="text-xs text-gray-500">{{ str($period->processing_type ?? 'regular')->replace('_', ' ')->title() }}</div>
                                     </td>
                                     <td class="px-5 py-4">
-                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium {{ $statusClasses }}">
-                                            @if($period->status === 'locked')<i class="fas fa-lock mr-1"></i>@endif
+                                        <span class="ui-status-badge inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium {{ $statusClasses }}">
+                                            <i class="fas {{ $statusIcon }}" aria-hidden="true"></i>
                                             {{ $period->status_label }}
                                         </span>
                                     </td>
                                     <td class="px-5 py-4 text-right whitespace-nowrap">
                                         <div class="inline-flex items-center gap-2">
                                             <a href="{{ route('attendance.period-management.show', $period->id) }}"
-                                               class="px-3 py-2 rounded-lg bg-green-50 text-green-700 text-sm font-medium hover:bg-green-100">
-                                                <i class="fas fa-eye mr-1"></i>View
+                                               class="ui-labeled-action px-3 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700">
+                                                <i class="fas fa-eye" aria-hidden="true"></i><span>View</span>
                                             </a>
 
                                             @if($user->role !== 'employee' && $nextStatus)

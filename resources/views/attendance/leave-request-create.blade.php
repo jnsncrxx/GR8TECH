@@ -11,7 +11,7 @@
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900">New Leave Request</h1>
                 <p class="mt-1 text-sm text-gray-500">Submit a leave request for approval</p>
             </div>
-            <a href="{{ route('attendance.leave-management') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+            <a href="{{ route('attendance.leave-management', ($personalMode ?? false) ? ['scope' => 'mine'] : []) }}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
                 <i class="fas fa-arrow-left mr-2"></i>
                 <span class="hidden sm:inline">Back to Leave Management</span>
                 <span class="sm:hidden">Back</span>
@@ -101,9 +101,12 @@
         <div class="bg-white rounded-lg shadow-sm border border-gray-200">
             <form method="POST" action="{{ route('attendance.leave-management.store') }}" class="p-4 sm:p-6 space-y-6" id="leaveRequestForm">
                 @csrf
+                @if($personalMode ?? false)
+                    <input type="hidden" name="scope" value="mine">
+                @endif
                 
                 <!-- Employee Selection (HR/Admin only) -->
-                @if(in_array($user->role, ['admin', 'hr']))
+                @if(in_array($user->role, ['admin', 'hr']) && !($personalMode ?? false))
                 <div>
                     <h3 class="text-lg font-medium text-gray-900 mb-4">Employee Information</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">

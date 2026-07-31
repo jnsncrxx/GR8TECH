@@ -92,7 +92,7 @@
                             Employee
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Employee ID
+                            Employee No.
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Department
@@ -114,6 +114,7 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     @forelse($employees as $employee)
                     <tr class="hover:bg-gray-50 transition-colors employee-row" 
+                        data-search-row="{{ $employee->id }}"
                         data-name="{{ strtolower($employee->full_name) }}"
                         data-email="{{ strtolower($employee->account?->email ?? '') }}"
                         data-department="{{ $employee->department?->id ?? '' }}"
@@ -122,11 +123,15 @@
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
                                 <div class="flex-shrink-0 h-10 w-10">
-                                    <div class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center">
-                                        <span class="text-sm font-medium text-white">
-                                            {{ strtoupper(substr($employee->first_name, 0, 1) . substr($employee->last_name, 0, 1)) }}
-                                        </span>
-                                    </div>
+                                    @if($employee->profile_photo)
+                                        <img src="{{ asset('storage/' . $employee->profile_photo) }}" alt="{{ $employee->full_name }}" class="h-10 w-10 rounded-full object-cover">
+                                    @else
+                                        <div class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center">
+                                            <span class="text-sm font-medium text-white">
+                                                {{ strtoupper(substr($employee->first_name, 0, 1) . substr($employee->last_name, 0, 1)) }}
+                                            </span>
+                                        </div>
+                                    @endif
                                 </div>
                                 <div class="ml-4">
                                     <div class="text-sm font-medium text-gray-900">
@@ -166,16 +171,16 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div class="flex space-x-2">
-                                <a href="{{ route('employees.show', $employee) }}" class="text-blue-600 hover:text-blue-900 transition-colors">
+                                <a href="{{ route('employees.info', ['employee_id' => $employee->id]) }}" class="ui-icon-action ui-action-view" title="View employee">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                <a href="{{ route('employees.edit', $employee) }}" class="text-indigo-600 hover:text-indigo-900 transition-colors">
+                                <a href="{{ route('employees.edit', $employee) }}" class="ui-icon-action ui-action-edit" title="Edit employee">
                                     <i class="fas fa-edit"></i>
                                 </a>
-                                <a href="{{ route('employees.payroll', $employee) }}" class="text-green-600 hover:text-green-900 transition-colors">
+                                <a href="{{ route('employees.payroll', $employee) }}" class="ui-icon-action ui-action-payroll" title="View payroll">
                                     <i class="fas fa-money-bill-wave"></i>
                                 </a>
-                                <button type="button" onclick="openDeleteModal('{{ $employee->id }}', '{{ $employee->full_name }}')" class="text-red-600 hover:text-red-900 transition-colors">
+                                <button type="button" onclick="openDeleteModal('{{ $employee->id }}', '{{ $employee->full_name }}')" class="ui-icon-action ui-action-delete" title="Delete employee">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>
@@ -208,11 +213,15 @@
                 <div class="flex items-start justify-between">
                     <div class="flex items-center space-x-3">
                         <div class="flex-shrink-0 h-12 w-12">
-                            <div class="h-12 w-12 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center">
-                                <span class="text-sm font-medium text-white">
-                                    {{ strtoupper(substr($employee->first_name, 0, 1) . substr($employee->last_name, 0, 1)) }}
-                                </span>
-                            </div>
+                            @if($employee->profile_photo)
+                                <img src="{{ asset('storage/' . $employee->profile_photo) }}" alt="{{ $employee->full_name }}" class="h-12 w-12 rounded-full object-cover">
+                            @else
+                                <div class="h-12 w-12 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center">
+                                    <span class="text-sm font-medium text-white">
+                                        {{ strtoupper(substr($employee->first_name, 0, 1) . substr($employee->last_name, 0, 1)) }}
+                                    </span>
+                                </div>
+                            @endif
                         </div>
                         <div class="min-w-0 flex-1">
                             <div class="text-sm font-medium text-gray-900 truncate">
@@ -250,7 +259,7 @@
                 </div>
                 
                 <div class="mt-3 flex justify-end space-x-2">
-                    <a href="{{ route('employees.show', $employee) }}" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-900 transition-colors">
+                    <a href="{{ route('employees.info', ['employee_id' => $employee->id]) }}" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-900 transition-colors">
                         <i class="fas fa-eye mr-1"></i>View
                     </a>
                     <a href="{{ route('employees.edit', $employee) }}" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-900 transition-colors">
