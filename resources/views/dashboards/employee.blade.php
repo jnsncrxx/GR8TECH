@@ -262,13 +262,10 @@
                                 $elapsedMinutes = max(0, ($now->timestamp - $shiftStart->timestamp) / 60);
                                 $progressPct = min(100, max(0, round(($elapsedMinutes / $shiftSpanMinutes) * 100)));
 
-                                // red segment: the part of the shift where they simply weren't clocked in yet
-                                if ($todayAttendance->time_in) {
-                                    $actualTimeIn = \Carbon\Carbon::parse($todayAttendance->time_in);
-                                    if ($actualTimeIn->gt($shiftStart)) {
-                                        $lateMinutesRaw = min($shiftSpanMinutes, ($actualTimeIn->timestamp - $shiftStart->timestamp) / 60);
-                                        $lateWidthPct = round(($lateMinutesRaw / $shiftSpanMinutes) * 100);
-                                    }
+                                // red segment: only counts if actually late (grace period respected)
+                                if ($todayAttendance->time_in && $todayAttendance->isLate()) {
+                                    $lateMinutesRaw = min($shiftSpanMinutes, $todayAttendance->getLateMinutes());
+                                    $lateWidthPct = round(($lateMinutesRaw / $shiftSpanMinutes) * 100);
                                 }
                             }
                         @endphp
@@ -293,10 +290,10 @@
                             window.completedHoursBeforeSession = {{ (float) $completedHoursToday }};
                             window.expectedHoursToday = {{ (float) $expectedHoursToday }};
                             window.isFixedSchedule = {{ $isFlexibleSchedule ? 'false' : 'true' }};
+                            window.lateWidthPct = {{ (float) $lateWidthPct }};
                             @if(!$isFlexibleSchedule)
                                 window.scheduledStartTime = "{{ $todaySchedule->time_in ?? '08:00:00' }}";
                                 window.scheduledEndTime = "{{ $todaySchedule->time_out ?? '17:00:00' }}";
-                                window.actualClockInTime = "{{ $todayAttendance->time_in ? \Carbon\Carbon::parse($todayAttendance->time_in)->toIso8601String() : '' }}";
                             @endif
                         </script>
                     @endif
@@ -813,15 +810,8 @@ function updateWorkingTime() {
             const elapsedMinutes = Math.max(0, (now - shiftStart) / 60000);
             const pct = Math.min(100, Math.max(0, Math.round((elapsedMinutes / totalShiftMinutes) * 100)));
 
-            // red segment: the part of the shift where they simply weren't clocked in yet
-            let lateWidthPct = 0;
-            if (window.actualClockInTime) {
-                const actualClockIn = new Date(window.actualClockInTime);
-                if (actualClockIn > shiftStart) {
-                    const lateMinutes = Math.min(totalShiftMinutes, (actualClockIn - shiftStart) / 60000);
-                    lateWidthPct = Math.round((lateMinutes / totalShiftMinutes) * 100);
-                }
-            }
+            // red segment: fixed value computed server-side (grace period already applied)
+            const lateWidthPct = window.lateWidthPct || 0;
 
             if (lateBar) lateBar.style.width = `${lateWidthPct}%`;
             if (bar) bar.style.width = `${Math.max(0, pct - lateWidthPct)}%`;
