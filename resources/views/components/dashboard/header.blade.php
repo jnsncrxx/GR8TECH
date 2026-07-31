@@ -106,16 +106,27 @@
                               onsubmit="handleCompanySwitch(event, '{{ $company->name }}')">
                             @csrf
                             <input type="hidden" name="company_id" value="{{ $company->id }}">
+<<<<<<< Updated upstream
                             <button type="submit" class="w-full flex items-center px-4 py-3 text-left hover:bg-green-50 transition-colors {{ $currentCompany && $company->id === $currentCompany->id ? 'bg-green-50 cursor-not-allowed' : 'cursor-pointer' }}">
                                 <div class="flex-1">
                                     <div class="flex items-center justify-between">
                                         <span class="text-sm font-medium text-gray-900">{{ $company->name }}</span>
+=======
+                            <button type="submit" class="w-full flex items-center px-4 py-3 text-left hover:bg-green-50 dark:hover:bg-slate-800 transition-colors {{ $currentCompany && $company->id === $currentCompany->id ? 'bg-green-50 dark:bg-slate-800 cursor-not-allowed' : 'cursor-pointer' }}">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between w-full">
+                                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate pr-2 flex-1" title="{{ $company->name }}">{{ $company->name }}</span>
+>>>>>>> Stashed changes
                                         @if($currentCompany && $company->id === $currentCompany->id)
-                                            <span class="px-2 py-0.5 bg-green-700 text-white text-xs font-medium rounded-full">
+                                            <span class="inline-flex items-center flex-shrink-0 px-2 py-0.5 bg-green-700 text-white text-xs font-medium rounded-full whitespace-nowrap">
                                                 <i class="fas fa-check-circle mr-1"></i>Active
                                             </span>
                                         @else
+<<<<<<< Updated upstream
                                             <span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">Switch</span>
+=======
+                                            <span class="inline-flex items-center flex-shrink-0 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-full dark:bg-slate-700 dark:text-gray-300 whitespace-nowrap">Switch</span>
+>>>>>>> Stashed changes
                                         @endif
                                     </div>
                                     @if($company->code)
