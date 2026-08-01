@@ -339,9 +339,11 @@ Route::prefix('loans')->name('loans.')->middleware('auth')->group(function () {
 
     // HR Profile and Settings routes
     Route::prefix('hr')->name('hr.')->group(function () {
+        // Header dropdown "Profile" page
         Route::get('/profile', [App\Http\Controllers\Web\HrController::class, 'profile'])->name('profile');
         Route::put('/profile', [App\Http\Controllers\Web\HrController::class, 'updateProfile'])->name('profile.update');
         Route::post('/profile/photo', [App\Http\Controllers\Web\HrController::class, 'updateProfilePhoto'])->name('profile.photo.upload');
+
         Route::get('/settings', [App\Http\Controllers\Web\HrController::class, 'settings'])->name('settings');
         Route::put('/settings', [App\Http\Controllers\Web\HrController::class, 'updateSettings'])->name('settings.update');
         Route::put('/settings/password', [App\Http\Controllers\Web\HrController::class, 'updatePassword'])->name('settings.password');
@@ -351,6 +353,32 @@ Route::prefix('loans')->name('loans.')->middleware('auth')->group(function () {
         Route::delete('/sessions/{session}', [App\Http\Controllers\Web\HrController::class, 'terminateSession'])->name('sessions.terminate');
         Route::delete('/sessions', [App\Http\Controllers\Web\HrController::class, 'terminateAllOtherSessions'])->name('sessions.terminate-all');
         Route::post('/track-session', [App\Http\Controllers\Web\HrController::class, 'trackLoginSession'])->name('track-session');
+
+        // My Information routes (employee self-service, scoped to the
+        // signed-in user's own employee record - no employee picker)
+        Route::prefix('my-information')->name('my-information.')->group(function () {
+            // Sidebar "Personal Information" page - separate route/view from
+            // hr.profile above, though both edit the same employee record.
+            Route::get('/info', [App\Http\Controllers\Web\HrController::class, 'myPersonalInfo'])->name('info');
+            Route::put('/info', [App\Http\Controllers\Web\HrController::class, 'updateMyPersonalInfo'])->name('info.update');
+            Route::post('/info/photo', [App\Http\Controllers\Web\HrController::class, 'uploadMyPersonalInfoPhoto'])->name('info.photo.upload');
+
+            Route::get('/other-info', [App\Http\Controllers\Web\HrController::class, 'myOtherInfo'])->name('other-info');
+            Route::post('/other-info', [App\Http\Controllers\Web\HrController::class, 'saveMyOtherInfo'])->name('other-info.save');
+            Route::post('/other-info/photo', [App\Http\Controllers\Web\HrController::class, 'uploadMyOtherInfoPhoto'])->name('other-info.photo');
+            Route::post('/other-info/photo/clear', [App\Http\Controllers\Web\HrController::class, 'clearMyOtherInfoPhoto'])->name('other-info.photo.clear');
+
+            Route::get('/education-training-rating', [App\Http\Controllers\Web\HrController::class, 'myEducationTrainingRating'])->name('education-training-rating');
+
+            Route::get('/prev-emp-oth', [App\Http\Controllers\Web\HrController::class, 'myPrevEmpOth'])->name('prev-emp-oth');
+            Route::post('/prev-emp-oth', [App\Http\Controllers\Web\HrController::class, 'saveMyPrevEmpOth'])->name('prev-emp-oth.save');
+
+            Route::get('/documents', [App\Http\Controllers\Web\HrController::class, 'myDocuments'])->name('documents');
+            Route::post('/documents', [App\Http\Controllers\Web\HrController::class, 'saveMyDocuments'])->name('documents.save');
+
+            Route::get('/ytd-info', [App\Http\Controllers\Web\HrController::class, 'myYtdInfo'])->name('ytd-info');
+            Route::get('/bio-zk', [App\Http\Controllers\Web\HrController::class, 'myBioZk'])->name('bio-zk');
+        });
 
         // Contact HR routes
         Route::get('/contact', [App\Http\Controllers\Web\HrContactController::class, 'index'])->name('contact.index');
