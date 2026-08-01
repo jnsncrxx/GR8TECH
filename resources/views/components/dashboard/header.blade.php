@@ -396,7 +396,7 @@
                 },
 
                 async openNotification(notification) {
-                    if (!notification.read) {
+                    if (!notification.read && !notification.persistent) {
                         try {
                             await fetch(`/notifications/${notification.id}/read`, {
                                 method: 'POST',
@@ -423,8 +423,10 @@
                                 'X-CSRF-TOKEN': document.querySelector('meta[name=\'csrf-token\']').content
                             }
                         });
-                        this.notifications.forEach(n => n.read = true);
-                        this.unreadCount = 0;
+                        this.notifications.forEach(n => {
+                            if (!n.persistent) n.read = true;
+                        });
+                        this.unreadCount = this.notifications.filter(n => n.persistent && !n.read).length;
                     } catch (error) {
                         console.error('Error marking all as read:', error);
                     }
@@ -481,15 +483,17 @@
                                              :class="{
                                                 'bg-green-100 dark:bg-green-900/40': notification.color === 'green',
                                                 'bg-red-100 dark:bg-red-900/40': notification.color === 'red',
+                                                'bg-orange-100 dark:bg-orange-900/40': notification.color === 'orange',
                                                 'bg-gray-200 dark:bg-slate-700': notification.color === 'gray',
-                                                'bg-blue-100 dark:bg-blue-900/40': !['green','red','gray'].includes(notification.color)
+                                                'bg-blue-100 dark:bg-blue-900/40': !['green','red','orange','gray'].includes(notification.color)
                                              }">
                                             <i class="fas text-sm"
                                                :class="[notification.icon || 'fa-bell', {
                                                     'text-green-600 dark:text-green-400': notification.color === 'green',
                                                     'text-red-600 dark:text-red-400': notification.color === 'red',
+                                                    'text-orange-600 dark:text-orange-400': notification.color === 'orange',
                                                     'text-gray-600 dark:text-gray-300': notification.color === 'gray',
-                                                    'text-blue-600 dark:text-blue-400': !['green','red','gray'].includes(notification.color)
+                                                    'text-blue-600 dark:text-blue-400': !['green','red','orange','gray'].includes(notification.color)
                                                }]"></i>
                                         </div>
                                     </div>
