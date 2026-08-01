@@ -1,9 +1,9 @@
 @extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'schedule-v2.index'])
 
-@section('title', 'Schedule Management V2')
+@section('title', 'Schedule Management')
 
 @section('content')
-<div class="min-h-screen bg-gray-50">
+<div class="schedule-management-page min-h-screen bg-gray-50">
     <style>
         .delete-mode {
             background-color: #fef2f2 !important;
@@ -24,10 +24,22 @@
                 opacity: 0.7;
             }
         }
+
+        .schedule-calendar-scroll { max-height: min(68vh, 760px); scrollbar-gutter: stable; }
+        .schedule-calendar-table { width: max-content; min-width: 100%; }
+        .schedule-employee-column { width: 232px; min-width: 232px; max-width: 232px; }
+        .schedule-date-column { width: 58px; min-width: 58px; }
+        .schedule-grid-cell { height: 64px; }
+        .schedule-calendar.is-compact .schedule-employee-column { width: 190px; min-width: 190px; max-width: 190px; }
+        .schedule-calendar.is-compact .schedule-date-column { width: 42px; min-width: 42px; }
+        .schedule-calendar.is-compact .calendar-cell-detail { display: none; }
+        .schedule-calendar.is-compact .schedule-grid-cell { height: 52px; }
+        .schedule-calendar.is-compact .schedule-calendar-table { width: 100%; min-width: 1450px; table-layout: fixed; }
+        .schedule-density-button[aria-pressed="true"] { background: #fff; color: #1f2937; box-shadow: 0 1px 2px rgb(0 0 0 / 0.08); }
     </style>
     <!-- Filters -->
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+    <div class="w-full px-3 sm:px-4 lg:px-5 py-6">
+        <div class="schedule-filter-card bg-white rounded-lg shadow-sm border border-gray-200">
             <div class="px-6 py-4 border-b border-gray-200">
                 <h3 class="text-lg font-medium text-gray-900 flex items-center">
                     <i class="fas fa-filter mr-2 text-blue-600"></i>
@@ -135,11 +147,11 @@
 
     <!-- Schedule Grid -->
     @if($employees->count() > 0)
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <div class="w-full px-3 sm:px-4 lg:px-5 pb-6">
+        <div class="schedule-calendar-card bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <!-- Calendar Header -->
-            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-5 border-b border-gray-200">
-                <div class="flex items-center justify-between">
+            <div class="schedule-calendar-header bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-5 border-b border-gray-200">
+                <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                     <div class="flex items-center space-x-4">
                         <div>
                             <h3 class="text-xl font-semibold text-gray-900 flex items-center">
@@ -164,29 +176,45 @@
                             </div>
                         </div>
                     </div>
-                    <div class="flex items-center space-x-4 text-xs text-gray-500">
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-500">
+                        <div class="inline-flex rounded-lg bg-white/70 p-1 ring-1 ring-gray-200" aria-label="Calendar density">
+                            <button type="button" class="schedule-density-button rounded-md px-2.5 py-1 text-gray-500" data-density="detailed" aria-pressed="true">Detailed</button>
+                            <button type="button" class="schedule-density-button rounded-md px-2.5 py-1 text-gray-500" data-density="compact" aria-pressed="false">Compact</button>
+                        </div>
                         <span class="flex items-center">
                             <div class="w-2.5 h-2.5 rounded-full bg-emerald-400 mr-1.5"></div>
-                            Scheduled Workday
+                            Shift
                         </span>
                         <span class="flex items-center">
                             <div class="w-2.5 h-2.5 rounded-full bg-amber-400 mr-1.5"></div>
-                            Day Off
+                            OFF
                         </span>
                         <span class="flex items-center">
-                            <div class="w-2.5 h-2.5 rounded-full bg-rose-400 mr-1.5"></div>
-                            Leave/Holidays
+                            <div class="w-2.5 h-2.5 rounded-full bg-red-500 mr-1.5"></div>
+                            Absent
+                        </span>
+                        <span class="flex items-center">
+                            <div class="w-2.5 h-2.5 rounded-full bg-violet-500 mr-1.5"></div>
+                            OB / LV
+                        </span>
+                        <span class="flex items-center">
+                            <div class="w-2.5 h-2.5 rounded-full bg-blue-500 mr-1.5"></div>
+                            Holiday
                         </span>
                     </div>
                 </div>
             </div>
 
             <!-- Calendar Grid -->
-            <div class="overflow-x-auto">
-                <table class="w-full border-collapse table-fixed">
-                    <thead>
+            <div class="schedule-calendar-help border-b border-gray-200 bg-white px-4 py-2 text-xs text-gray-500">
+                <i class="fas fa-arrows-alt-h mr-1.5 text-gray-400"></i>
+                Scroll inside the calendar to view more dates. Select a cell to see its full schedule.
+            </div>
+            <div id="scheduleCalendar" class="schedule-calendar schedule-calendar-scroll overflow-auto">
+                <table class="schedule-calendar-table border-separate border-spacing-0">
+                    <thead class="sticky top-0 z-30">
                         <tr class="border-b border-gray-200">
-                            <th class="sticky left-0 z-20 bg-gray-50 px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-36 border-r border-gray-200">
+                            <th class="schedule-employee-column sticky left-0 top-0 z-40 bg-gray-50 px-4 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide border-r border-b border-gray-200 shadow-[4px_0_8px_-8px_rgba(15,23,42,0.45)]">
                                 Employee
                             </th>
                             @foreach($calendarDays as $day)
@@ -194,7 +222,7 @@
                                 $isWeekend = $day['date']->isWeekend();
                                 $isToday = $day['date']->isToday();
                             @endphp
-                            <th class="calendar-day w-9 px-0.5 py-2 text-center border-l border-gray-300 {{ $isToday ? 'bg-indigo-50' : ($isWeekend ? 'bg-gray-100' : 'bg-white') }}" data-date="{{ $day['date']->format('Y-m-d') }}">
+                            <th class="calendar-day schedule-date-column sticky top-0 z-30 px-1 py-2.5 text-center border-r border-b border-gray-200 {{ $isToday ? 'bg-indigo-100 ring-1 ring-inset ring-indigo-300' : ($isWeekend ? 'bg-gray-100' : 'bg-white') }}" data-date="{{ $day['date']->format('Y-m-d') }}">
                                 <div class="flex flex-col items-center leading-tight">
                                     <span class="text-[9px] font-medium {{ $isToday ? 'text-indigo-500' : 'text-gray-400' }} uppercase">{{ $day['date']->format('D') }}</span>
                                     <span class="text-[13px] font-semibold {{ $isToday ? 'text-indigo-700' : 'text-gray-700' }}">{{ $day['day'] }}</span>
@@ -207,16 +235,16 @@
                     <tbody class="bg-white divide-y divide-gray-200">
                         @foreach($employees as $employee)
                         <tr class="employee-row group hover:bg-gray-50 transition-colors border-b border-gray-100" data-employee-id="{{ $employee->id }}">
-                            <td class="sticky left-0 z-10 bg-white group-hover:bg-gray-50 px-3 py-2.5 border-r border-gray-200">
+                            <td class="schedule-employee-column sticky left-0 z-20 bg-white group-hover:bg-gray-50 px-4 py-3 border-r border-b border-gray-200 shadow-[4px_0_8px_-8px_rgba(15,23,42,0.45)]">
                                 <div class="flex items-center min-w-0">
                                     <div class="flex-shrink-0 h-7 w-7 rounded-full bg-indigo-50 flex items-center justify-center">
                                         <span class="text-[10px] font-semibold text-indigo-600">
                                             {{ substr($employee->first_name, 0, 1) }}{{ substr($employee->last_name, 0, 1) }}
                                         </span>
                                     </div>
-                                    <div class="ml-2.5 min-w-0">
-                                        <div class="text-xs font-medium text-gray-800 truncate" title="{{ $employee->full_name }}">{{ $employee->full_name }}</div>
-                                        <div class="text-[10px] text-gray-400 truncate">{{ $employee->department->name }}</div>
+                                    <div class="ml-2.5 min-w-0 leading-tight">
+                                        <div class="text-xs font-semibold text-gray-800 whitespace-normal break-words" title="{{ $employee->full_name }}">{{ $employee->full_name }}</div>
+                                        <div class="mt-1 text-[10px] text-gray-500 whitespace-normal break-words" title="{{ $employee->department->name }}">{{ $employee->department->name }}</div>
                                     </div>
                                 </div>
                             </td>
@@ -226,12 +254,17 @@
                             $schedule = $schedules->get($scheduleKey);
                             $history = $attendanceHistory->get($scheduleKey);
                             @endphp
-                            <td class="calendar-day group/cell relative w-9 h-14 text-center border-l border-gray-200 {{ $day['date']->isToday() ? 'bg-indigo-50/40' : ($day['date']->isWeekend() ? 'bg-gray-100/70' : '') }} hover:bg-gray-100 transition-colors" data-date="{{ $day['date']->format('Y-m-d') }}">
+                            <td class="calendar-day schedule-date-column schedule-grid-cell group/cell relative text-center border-r border-b border-gray-200 {{ $day['date']->isToday() ? 'bg-indigo-50 ring-1 ring-inset ring-indigo-200' : ($day['date']->isWeekend() ? 'bg-gray-50' : 'bg-white') }} hover:bg-indigo-50 transition-colors" data-date="{{ $day['date']->format('Y-m-d') }}">
                                 @if($schedule)
                                 @php
                                     $isWorkDay = in_array($schedule->status, ['Working', 'Overtime']);
+                                    $isApprovedOb = ($history['label'] ?? null) === 'Official Business';
+                                    $isApprovedLeave = ($history['tone'] ?? null) === 'indigo'
+                                        && !$isApprovedOb
+                                        && str_contains((string) ($history['label'] ?? ''), 'Leave');
+                                    $hasRequestConflict = ($history['label'] ?? null) === 'Leave / OB Conflict';
                                     $statusAbbr = match($schedule->status) {
-                                        'Day Off' => 'DO',
+                                        'Day Off' => 'OFF',
                                         'Leave' => 'LV',
                                         'Absent' => 'AB',
                                         'Regular Holiday' => 'RH',
@@ -239,16 +272,45 @@
                                         'Holiday' => 'HOL',
                                         default => null,
                                     };
+                                    $cellLabel = match(true) {
+                                        $hasRequestConflict => '!',
+                                        $isApprovedOb => 'OB',
+                                        $isApprovedLeave => 'LV',
+                                        $schedule->status === 'Overtime' => 'OT',
+                                        $schedule->isFlexible() => 'Flex ' . rtrim(rtrim(number_format((float) $schedule->required_hours, 2), '0'), '.') . 'h',
+                                        $isWorkDay && $schedule->time_in && $schedule->time_out =>
+                                            \Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_in)->format('g')
+                                            . strtolower(substr(\Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_in)->format('A'), 0, 1))
+                                            . '–'
+                                            . \Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_out)->format('g')
+                                            . strtolower(substr(\Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_out)->format('A'), 0, 1)),
+                                        default => $statusAbbr,
+                                    };
                                     $badgeColor = match(true) {
+                                        $hasRequestConflict => 'bg-red-100 text-red-800 ring-1 ring-inset ring-red-300',
+                                        $isApprovedOb, $isApprovedLeave => 'bg-violet-100 text-violet-800 ring-1 ring-inset ring-violet-300',
                                         $isWorkDay => 'bg-emerald-50 text-emerald-700',
                                         $schedule->status === 'Day Off' => 'bg-amber-50 text-amber-700',
-                                        default => 'bg-rose-50 text-rose-700',
+                                        $schedule->status === 'Absent' => 'bg-red-100 text-red-800 ring-1 ring-inset ring-red-300',
+                                        in_array($schedule->status, ['Holiday', 'Regular Holiday', 'Special Holiday'], true) => 'bg-blue-100 text-blue-800 ring-1 ring-inset ring-blue-300',
+                                        $schedule->status === 'Leave' => 'bg-violet-100 text-violet-800 ring-1 ring-inset ring-violet-300',
+                                        default => 'bg-gray-100 text-gray-700',
+                                    };
+                                    $badgeTone = match(true) {
+                                        $hasRequestConflict, $schedule->status === 'Absent' => 'absent',
+                                        $isApprovedOb, $isApprovedLeave, $schedule->status === 'Leave' => 'covered',
+                                        in_array($schedule->status, ['Holiday', 'Regular Holiday', 'Special Holiday'], true) => 'holiday',
+                                        $schedule->status === 'Day Off' => 'off',
+                                        default => 'shift',
                                     };
                                 @endphp
-                                <div class="schedule-detail-trigger cursor-pointer h-full flex flex-col items-center justify-center gap-1 py-1"
+                                <div class="schedule-detail-trigger cursor-pointer h-full flex flex-col items-center justify-center gap-1 px-1 py-1 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
+                                     role="button"
+                                     tabindex="0"
+                                     title="{{ $employee->full_name }} — {{ $day['date']->format('M j') }}: {{ $hasRequestConflict || $isApprovedOb || $isApprovedLeave ? $history['label'] : $schedule->status_label }}{{ $schedule->time_in && $schedule->time_out ? ' (' . \Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_in)->format('g:i A') . '–' . \Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_out)->format('g:i A') . ')' : '' }}"
                                      data-employee="{{ $employee->full_name }}"
                                      data-date="{{ $day['date']->format('l, F j, Y') }}"
-                                     data-status="{{ $schedule->status_label }}"
+                                     data-status="{{ $hasRequestConflict || $isApprovedOb || $isApprovedLeave ? $history['label'] : $schedule->status_label }}"
                                      data-template-code="{{ $schedule->scheduleTemplate->code ?? '' }}"
                                      data-template-name="{{ $schedule->scheduleTemplate->name ?? '' }}"
                                      data-time-in="{{ $schedule->time_in ? \Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_in)->format('g:i A') : '' }}"
@@ -261,18 +323,20 @@
                                         value="{{ $schedule->id }}"
                                         onclick="event.stopPropagation()"
                                         onchange="updateBulkDeleteButton()">
-                                    @if($isWorkDay && $schedule->scheduleTemplate)
-                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded {{ $badgeColor }} text-[10px] font-semibold leading-none">
-                                        {{ $schedule->scheduleTemplate->code }}
+                                    <span class="schedule-status-badge inline-flex max-w-full items-center rounded px-1.5 py-1 {{ $badgeColor }} text-[10px] font-bold leading-none whitespace-nowrap" data-schedule-tone="{{ $badgeTone }}">
+                                        {{ $cellLabel }}
                                     </span>
-                                    @elseif($isWorkDay)
-                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded {{ $badgeColor }} text-[10px] font-semibold leading-none">
-                                        •
+                                    <span class="calendar-cell-detail max-w-full truncate text-[9px] font-medium text-gray-500" title="{{ $hasRequestConflict || $isApprovedOb || $isApprovedLeave ? $history['label'] : ($schedule->scheduleTemplate->name ?? $schedule->status_label) }}">
+                                        {{ $hasRequestConflict || $isApprovedOb || $isApprovedLeave ? $history['label'] : ($schedule->scheduleTemplate->code ?? $schedule->status_label) }}
                                     </span>
-                                    @else
-                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded {{ $badgeColor }} text-[10px] font-semibold leading-none">
-                                        {{ $statusAbbr }}
-                                    </span>
+                                    @if($history)
+                                    <span class="absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full {{ match($history['tone']) {
+                                        'red' => 'bg-red-500',
+                                        'amber' => 'bg-amber-500',
+                                        'green' => 'bg-green-500',
+                                        'indigo' => 'bg-violet-500',
+                                        default => 'bg-gray-400',
+                                    } }}" title="Attendance: {{ $history['label'] }}"></span>
                                     @endif
                                     <a href="{{ route('schedule-v2.edit', array_merge(['schedule' => $schedule], array_filter(['department_id' => $selectedDepartment, 'month' => $selectedMonth, 'year' => $selectedYear, 'search' => $searchQuery]))) }}"
                                        onclick="event.stopPropagation()"
@@ -282,9 +346,10 @@
                                 </div>
                                 @else
                                 <a href="{{ route('schedule-v2.create', array_merge(['employee_id' => $employee->id, 'date' => $day['date']->format('Y-m-d')], array_filter(['department_id' => $selectedDepartment, 'month' => $selectedMonth, 'year' => $selectedYear, 'search' => $searchQuery]))) }}"
-                                   class="h-full w-full flex items-center justify-center text-gray-200 hover:text-indigo-500 opacity-0 group-hover/cell:opacity-100 transition-opacity"
+                                   class="h-full w-full flex flex-col items-center justify-center gap-1 text-gray-300 hover:text-indigo-600 transition-colors"
                                    title="Create schedule">
-                                    <i class="fas fa-plus text-[10px]"></i>
+                                    <span class="text-sm leading-none">—</span>
+                                    <i class="fas fa-plus text-[9px] opacity-0 group-hover/cell:opacity-100"></i>
                                 </a>
                                 @endif
                             </td>
@@ -297,7 +362,7 @@
         </div>
     </div>
     @else
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
+    <div class="w-full px-3 sm:px-4 lg:px-5 pb-6">
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
             <div class="mx-auto w-24 h-24 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full flex items-center justify-center mb-6">
                 <i class="fas fa-calendar-alt text-3xl text-blue-600"></i>
@@ -361,6 +426,32 @@
 </div>
 
 <script>
+    function setCalendarDensity(density) {
+        const calendar = document.getElementById('scheduleCalendar');
+        if (!calendar) return;
+
+        const compact = density === 'compact';
+        calendar.classList.toggle('is-compact', compact);
+        document.querySelectorAll('.schedule-density-button').forEach((button) => {
+            button.setAttribute('aria-pressed', String(button.dataset.density === density));
+        });
+        localStorage.setItem('scheduleCalendarDensity', density);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const savedDensity = localStorage.getItem('scheduleCalendarDensity') || 'detailed';
+        setCalendarDensity(savedDensity);
+        document.querySelectorAll('.schedule-density-button').forEach((button) => {
+            button.addEventListener('click', () => setCalendarDensity(button.dataset.density));
+        });
+
+        const calendar = document.getElementById('scheduleCalendar');
+        const today = calendar?.querySelector('thead [data-date="{{ now()->format('Y-m-d') }}"]');
+        if (calendar && today) {
+            calendar.scrollLeft = Math.max(0, today.offsetLeft - 280);
+        }
+    });
+
     document.addEventListener('click', function(e) {
         // Ignore clicks in date-select mode - that mode has its own click handling
         if (dateSelectMode) {
@@ -413,6 +504,14 @@
         }
 
         document.getElementById('scheduleDetailModal').classList.remove('hidden');
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (!['Enter', ' '].includes(e.key)) return;
+        const trigger = e.target.closest('.schedule-detail-trigger');
+        if (!trigger) return;
+        e.preventDefault();
+        trigger.click();
     });
 
     function closeScheduleDetailModal() {
