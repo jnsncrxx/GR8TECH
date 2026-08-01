@@ -10,6 +10,7 @@ use App\Models\Employee;
 use App\Models\AttendanceRecord;
 use App\Models\LeaveRequest;
 use App\Models\Payroll;
+use App\Models\OfficialBusinessRequest;
 use App\Helpers\CompanyHelper;
 
 class ReportController extends Controller
@@ -18,17 +19,28 @@ class ReportController extends Controller
     {
         $currentCompany = CompanyHelper::getCurrentCompany();
         
-        $departments = $currentCompany 
-            ? Department::forCompany($currentCompany->id)->get() 
-            : Department::all();
+        $departments = Department::forCompany($currentCompany?->id)
+            ->orderBy('name')
+            ->get();
             
-        $employees = $currentCompany 
-            ? Employee::forCompany($currentCompany->id)->get() 
-            : Employee::all();
+        $employees = Employee::forCompany($currentCompany?->id)
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
 
         $user = auth()->user();
 
         return view('reports.index', compact('departments', 'employees', 'user'));
+    }
+
+    private function scopeEmployeeCompany($query)
+    {
+        $companyId = CompanyHelper::getCurrentCompanyId();
+
+        return $query->whereHas(
+            'employee',
+            fn ($employeeQuery) => $employeeQuery->forCompany($companyId)
+        );
     }
 
     public function generate(Request $request)
@@ -42,7 +54,7 @@ class ReportController extends Controller
         $data = [];
         
         if ($type === 'attendance') {
-            $query = AttendanceRecord::with('employee.department');
+            $query = $this->scopeEmployeeCompany(AttendanceRecord::with('employee.department'));
             if ($startDate && $endDate) {
                 $query->whereBetween('date', [$startDate, $endDate]);
             }
@@ -56,7 +68,7 @@ class ReportController extends Controller
             }
             $data = $query->orderBy('date', 'desc')->get();
         } elseif ($type === 'leave') {
-            $query = LeaveRequest::with(['employee.department']);
+            $query = $this->scopeEmployeeCompany(LeaveRequest::with(['employee.department']));
             if ($startDate && $endDate) {
                 $query->whereBetween('start_date', [$startDate, $endDate]);
             }
@@ -70,7 +82,8 @@ class ReportController extends Controller
             }
             $data = $query->orderBy('start_date', 'desc')->get();
         } elseif ($type === 'payroll') {
-            $query = Payroll::with('employee.department');
+            $query = Payroll::with('employee.department')
+                ->where('company_id', CompanyHelper::getCurrentCompanyId());
             if ($startDate && $endDate) {
                 $query->where(function($q) use ($startDate, $endDate) {
                     $q->where('pay_period_start', '>=', $startDate)
@@ -86,6 +99,20 @@ class ReportController extends Controller
                 });
             }
             $data = $query->orderBy('pay_period_start', 'desc')->get();
+        } elseif ($type === 'official_business') {
+            $query = $this->scopeEmployeeCompany(
+                OfficialBusinessRequest::with(['employee.department', 'reviewer.employee'])
+            );
+            if ($startDate && $endDate) {
+                $query->whereBetween('date', [$startDate, $endDate]);
+            }
+            if ($employeeId) {
+                $query->where('employee_id', $employeeId);
+            }
+            if ($departmentId) {
+                $query->whereHas('employee', fn ($employee) => $employee->where('department_id', $departmentId));
+            }
+            $data = $query->orderBy('date', 'desc')->get();
         }
 
         $user = auth()->user();
@@ -106,7 +133,7 @@ class ReportController extends Controller
         $data = [];
         
         if ($type === 'attendance') {
-            $query = AttendanceRecord::with('employee.department');
+            $query = $this->scopeEmployeeCompany(AttendanceRecord::with('employee.department'));
             if ($startDate && $endDate) {
                 $query->whereBetween('date', [$startDate, $endDate]);
             }
@@ -120,7 +147,7 @@ class ReportController extends Controller
             }
             $data = $query->orderBy('date', 'desc')->get();
         } elseif ($type === 'leave') {
-            $query = LeaveRequest::with(['employee.department']);
+            $query = $this->scopeEmployeeCompany(LeaveRequest::with(['employee.department']));
             if ($startDate && $endDate) {
                 $query->whereBetween('start_date', [$startDate, $endDate]);
             }
@@ -134,7 +161,8 @@ class ReportController extends Controller
             }
             $data = $query->orderBy('start_date', 'desc')->get();
         } elseif ($type === 'payroll') {
-            $query = Payroll::with('employee.department');
+            $query = Payroll::with('employee.department')
+                ->where('company_id', CompanyHelper::getCurrentCompanyId());
             if ($startDate && $endDate) {
                 $query->where(function($q) use ($startDate, $endDate) {
                     $q->where('pay_period_start', '>=', $startDate)
@@ -150,6 +178,20 @@ class ReportController extends Controller
                 });
             }
             $data = $query->orderBy('pay_period_start', 'desc')->get();
+        } elseif ($type === 'official_business') {
+            $query = $this->scopeEmployeeCompany(
+                OfficialBusinessRequest::with(['employee.department', 'reviewer.employee'])
+            );
+            if ($startDate && $endDate) {
+                $query->whereBetween('date', [$startDate, $endDate]);
+            }
+            if ($employeeId) {
+                $query->where('employee_id', $employeeId);
+            }
+            if ($departmentId) {
+                $query->whereHas('employee', fn ($employee) => $employee->where('department_id', $departmentId));
+            }
+            $data = $query->orderBy('date', 'desc')->get();
         }
 
         $fileName = "{$type}_report_" . date('Y_m_d_His');

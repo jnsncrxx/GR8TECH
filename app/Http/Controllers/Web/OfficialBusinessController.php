@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Helpers\CompanyHelper;
 use App\Http\Controllers\Concerns\CalculatesAttendanceWithOfficialBusiness;
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceRecord;
@@ -20,6 +21,13 @@ use Illuminate\Support\Facades\DB;
 
 class OfficialBusinessController extends Controller
 {
+    private function currentCompanyObOrFail(string $id): OfficialBusinessRequest
+    {
+        return OfficialBusinessRequest::query()
+            ->whereHas('employee', fn ($query) => $query->forCompany(CompanyHelper::getCurrentCompanyId()))
+            ->findOrFail($id);
+    }
+
     use CalculatesAttendanceWithOfficialBusiness;
 
     public function __construct(
@@ -104,6 +112,11 @@ class OfficialBusinessController extends Controller
      */
     private function applyFilters($query, Request $request, bool $isReviewer)
     {
+        $currentCompany = CompanyHelper::getCurrentCompany();
+        if ($currentCompany) {
+            $query->whereHas('employee', fn ($employee) => $employee->forCompany($currentCompany->id));
+        }
+
         if (!$isReviewer) {
             $query->where('employee_id', $this->currentEmployeeId());
 
@@ -204,14 +217,24 @@ class OfficialBusinessController extends Controller
             'expired' => (clone $summaryBase)->expired()->count(),
         ];
 
-        $departments = $reviewerRole === 'manager'
-            ? Department::where('manager_id', $user->employee_id)->orderBy('name')->get()
-            : Department::orderBy('name')->get();
+        $currentCompany = CompanyHelper::getCurrentCompany();
+
+        $departmentsQuery = $reviewerRole === 'manager'
+            ? Department::where('manager_id', $user->employee_id)->orderBy('name')
+            : Department::orderBy('name');
+        if ($currentCompany) {
+            $departmentsQuery->forCompany($currentCompany->id);
+        }
+        $departments = $departmentsQuery->get();
+
         $employeesQuery = Employee::with('department')
             ->orderBy('first_name')
             ->orderBy('last_name');
         if ($reviewerRole === 'manager') {
             $employeesQuery->managedBy($user->employee_id);
+        }
+        if ($currentCompany) {
+            $employeesQuery->forCompany($currentCompany->id);
         }
         $employees = $employeesQuery->get();
 
@@ -266,13 +289,18 @@ class OfficialBusinessController extends Controller
             return back()->with('error', 'Unsupported export format.');
         }
 
+        $personalMode = $request->query('scope') === 'mine';
+        if ($personalMode && !$this->currentEmployeeId()) {
+            return back()->with('error', 'No employee record is linked to this account.');
+        }
+
         $query = $this->applyFilters(
             OfficialBusinessRequest::with([
                 'employee.department',
                 'reviewer.employee',
             ]),
             $request,
-            $this->isReviewer()
+            $this->isReviewer() && !$personalMode
         );
 
         $requests = $query
@@ -398,28 +426,6 @@ class OfficialBusinessController extends Controller
             $startTime,
             $endTime
         );
-
-        $existingAttendance =
-                AttendanceRecord::query()
-                    ->where(
-                        'employee_id',
-                        $employeeId
-                    )
-                    ->whereDate(
-                        'date',
-                        $obDate
-                    )
-                    ->whereNotNull('time_in')
-                    ->first();
-            if ($existingAttendance) {
-                return back()
-                    ->withInput()
-                    ->with(
-                        'error',
-                        'This date already has an attendance record. Official Business requests cannot be filed for dates you have already clocked in for.'
-                    );
-            }
-
 
         if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($employeeId, $obDate)) {
             return back()->withInput()->with(
@@ -565,7 +571,7 @@ class OfficialBusinessController extends Controller
         ]);
 
         $obRequest =
-            OfficialBusinessRequest::findOrFail($id);
+            $this->currentCompanyObOrFail($id);
 
         $this->expireIfPastDeadline(
             $obRequest
@@ -819,7 +825,7 @@ class OfficialBusinessController extends Controller
         $id
     ) {
         $obRequest =
-            OfficialBusinessRequest::findOrFail($id);
+            $this->currentCompanyObOrFail($id);
 
         $this->expireIfPastDeadline(
             $obRequest
@@ -928,7 +934,7 @@ class OfficialBusinessController extends Controller
      */
     public function updateApproved(Request $request, $id)
     {
-        $obRequest = OfficialBusinessRequest::findOrFail($id);
+        $obRequest = $this->currentCompanyObOrFail($id);
 
         if (!$obRequest->isApproved()) {
             return back()->with('error', 'Only approved Official Business requests can be edited here.');
@@ -1069,7 +1075,8 @@ class OfficialBusinessController extends Controller
     public function getStatistics(
         Request $request
     ) {
-        $isReviewer = $this->isReviewer();
+        $personalMode = $request->query('scope') === 'mine';
+        $isReviewer = $this->isReviewer() && !$personalMode;
 
         $employeeId = $this->currentEmployeeId();
 
@@ -1082,12 +1089,11 @@ class OfficialBusinessController extends Controller
             );
         }
 
-        $query = $isReviewer
-            ? OfficialBusinessRequest::query()
-            : OfficialBusinessRequest::where(
-                'employee_id',
-                $employeeId
-            );
+        $query = $this->applyFilters(
+            OfficialBusinessRequest::query(),
+            $request,
+            $isReviewer
+        );
 
         return response()->json([
             'total' =>

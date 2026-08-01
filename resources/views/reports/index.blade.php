@@ -6,7 +6,7 @@
 <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="mb-8">
         <h1 class="text-2xl font-bold text-gray-900">Reports</h1>
-        <p class="mt-1 text-sm text-gray-600">Generate and export attendance, leave, and payroll reports.</p>
+        <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">Generate and export attendance, leave, Official Business, and payroll reports.</p>
     </div>
 
     @if(session('error'))
@@ -21,7 +21,7 @@
                 
                 <div class="mb-6">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Report Type <span class="text-red-500">*</span></label>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                         <!-- Attendance -->
                         <label class="relative block cursor-pointer">
                             <input type="radio" name="report_type" value="attendance" class="peer sr-only" required>
@@ -61,6 +61,18 @@
                                     </span>
                                 </span>
                                 <i class="fas fa-money-bill-wave text-green-500 mt-1"></i>
+                            </div>
+                        </label>
+
+                        <!-- Official Business -->
+                        <label class="relative block cursor-pointer">
+                            <input type="radio" name="report_type" value="official_business" class="peer sr-only">
+                            <div class="flex rounded-lg border border-violet-200 bg-white p-4 shadow-sm transition-all duration-200 hover:border-violet-400 hover:bg-violet-50 hover:shadow-md peer-checked:border-violet-500 peer-checked:bg-violet-50 peer-checked:ring-1 peer-checked:ring-violet-500 active:scale-[0.98] dark:border-gray-600 dark:bg-gray-800 dark:hover:border-violet-400 dark:hover:bg-gray-700 dark:peer-checked:bg-gray-700">
+                                <span class="flex flex-1 flex-col">
+                                    <span class="text-sm font-medium text-gray-900 dark:text-white">Official Business Report</span>
+                                    <span class="mt-1 text-sm text-gray-500 dark:text-gray-300">OB schedules, credited hours, reasons, and status.</span>
+                                </span>
+                                <i class="fas fa-briefcase mt-1 text-violet-500"></i>
                             </div>
                         </label>
                     </div>

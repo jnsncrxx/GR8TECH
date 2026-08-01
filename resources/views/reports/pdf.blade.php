@@ -75,6 +75,14 @@
                     <th>Deductions</th>
                     <th>Net Pay</th>
                     <th>Status</th>
+                @elseif($type === 'official_business')
+                    <th>Employee Name</th>
+                    <th>Department</th>
+                    <th>Date</th>
+                    <th>OB Schedule</th>
+                    <th>Credited Hours</th>
+                    <th>Reason</th>
+                    <th>Status</th>
                 @endif
             </tr>
         </thead>
@@ -102,6 +110,14 @@
                         <td>{{ number_format($row->gross_pay, 2) }}</td>
                         <td>{{ number_format($row->deductions, 2) }}</td>
                         <td>{{ number_format($row->net_pay, 2) }}</td>
+                        <td>{{ ucfirst($row->status) }}</td>
+                    @elseif($type === 'official_business')
+                        <td>{{ optional($row->employee)->full_name ?? 'N/A' }}</td>
+                        <td>{{ optional(optional($row->employee)->department)->name ?? 'N/A' }}</td>
+                        <td>{{ \Carbon\Carbon::parse($row->date)->format('M d, Y') }}</td>
+                        <td>{{ $row->ob_start_time?->format('h:i A') ?? '--' }} – {{ $row->ob_end_time?->format('h:i A') ?? '--' }}</td>
+                        <td>{{ number_format((float) ($row->credited_hours ?? $row->computeCreditedHours()), 2) }}</td>
+                        <td>{{ $row->reason }}</td>
                         <td>{{ ucfirst($row->status) }}</td>
                     @endif
                 </tr>
