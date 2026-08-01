@@ -347,12 +347,12 @@ class TimeInOutController extends Controller
                     ->exists();
 
                 if (!$hasOtRequest) {
-                    $startTime = $assignedSchedule?->time_out
-                        ? Carbon::parse(
-                            $attendanceRecord->date->format('Y-m-d').' '.$assignedSchedule->time_out
-                        )
-                        : $now->copy()->subMinutes(round($extraHours * 60));
                     $endTime = $now;
+                    // Keep the suggested range exactly aligned with the detected
+                    // rendered overtime. Using the scheduled end time is wrong for
+                    // late arrivals or unpaid breaks and causes quick-submit
+                    // validation to reject its own generated values.
+                    $startTime = $endTime->copy()->subMinutes(round($extraHours * 60));
 
                     $reminder = \App\Models\OvertimeReminder::updateOrCreate(
                         [
@@ -597,6 +597,10 @@ class TimeInOutController extends Controller
             }
 
             $attendanceRecord = $this->findActiveAttendanceRecord($employee);
+            $scheduleDate = $attendanceRecord?->date ?? Carbon::today();
+            $assignedSchedule = \App\Models\EmployeeSchedule::where('employee_id', $employee->id)
+                ->whereDate('date', Carbon::parse($scheduleDate)->toDateString())
+                ->first();
 
             $pendingOtReminders = \App\Models\OvertimeReminder::where('employee_id', $employee->id)
                 ->where('status', \App\Models\OvertimeReminder::PENDING)
@@ -639,6 +643,12 @@ class TimeInOutController extends Controller
                 'total_hours' => 0,
                 'regular_hours' => 0,
                 'overtime_hours' => 0,
+                'required_hours' => (float) ($assignedSchedule?->required_hours ?? 8),
+                'schedule_time_in' => $assignedSchedule?->time_in,
+                'schedule_time_out' => $assignedSchedule?->time_out,
+                'is_flexible_schedule' => $assignedSchedule?->isFlexible() ?? false,
+                'late_minutes' => 0,
+                'late_progress_percentage' => 0,
                 'can_time_in' => true,
                 'can_time_out' => false,
                 'can_break_start' => false,
@@ -724,6 +734,38 @@ class TimeInOutController extends Controller
 
             $status['overtime_hours'] =
                 $attendanceRecord->overtime_hours;
+
+            $status['late_minutes'] = $attendanceRecord->isLate()
+                ? $attendanceRecord->getLateMinutes()
+                : 0;
+
+            // Keep the progress bar's late segment consistent with the
+            // dashboard. The API owns this calculation so every role/page
+            // applies the same grace-period and fixed-schedule rules.
+            if (
+                $assignedSchedule
+                && !$assignedSchedule->isFlexible()
+                && $assignedSchedule->time_in
+                && $assignedSchedule->time_out
+                && $status['late_minutes'] > 0
+            ) {
+                $shiftStart = Carbon::parse(
+                    Carbon::parse($scheduleDate)->toDateString().' '.$assignedSchedule->time_in
+                );
+                $shiftEnd = Carbon::parse(
+                    Carbon::parse($scheduleDate)->toDateString().' '.$assignedSchedule->time_out
+                );
+
+                if ($shiftEnd->lte($shiftStart)) {
+                    $shiftEnd->addDay();
+                }
+
+                $shiftMinutes = max(1, $shiftStart->diffInMinutes($shiftEnd));
+                $status['late_progress_percentage'] = min(
+                    100,
+                    round(($status['late_minutes'] / $shiftMinutes) * 100, 2)
+                );
+            }
 
             $status['attendance_record'] =
                 $attendanceRecord;

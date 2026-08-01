@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\LoginLog;
 use App\Models\Account;
+use App\Models\OvertimeReminder;
 use Illuminate\Http\Request;
 
 class NotificationController extends Controller
@@ -90,7 +91,7 @@ class NotificationController extends Controller
     {
         $account = auth()->user();
 
-        $notifications = $account->notifications()
+        $requestNotifications = $account->notifications()
             ->latest()
             ->limit(20)
             ->get()
@@ -99,12 +100,54 @@ class NotificationController extends Controller
                     'id' => $notification->id,
                     'read' => !is_null($notification->read_at),
                     'time_ago' => $notification->created_at->diffForHumans(),
+                    'sort_at' => $notification->created_at,
                 ] + $notification->data;
             });
 
+        $overtimeReminders = collect();
+        if ($account->employee_id) {
+            $overtimeReminders = OvertimeReminder::query()
+                ->where('employee_id', $account->employee_id)
+                ->where('status', OvertimeReminder::PENDING)
+                ->latest('date')
+                ->get()
+                ->map(function (OvertimeReminder $reminder) {
+                    $hours = number_format((float) $reminder->extra_hours, 2);
+
+                    return [
+                        'id' => 'ot-reminder-'.$reminder->id,
+                        'read' => false,
+                        'persistent' => true,
+                        'request_type' => 'overtime_reminder',
+                        'title' => 'Unfiled Overtime Reminder',
+                        'message' => "You rendered {$hours} extra hour(s) on {$reminder->date->format('M j, Y')}. Submit or dismiss this reminder from Time In/Out.",
+                        'icon' => 'fa-user-clock',
+                        'color' => 'orange',
+                        'time_ago' => $reminder->created_at->diffForHumans(),
+                        'url' => route('attendance.time-in-out', [
+                            'overtime_reminder' => $reminder->id,
+                        ]),
+                        'sort_at' => $reminder->created_at,
+                    ];
+                });
+        }
+
+        $notifications = $requestNotifications
+            ->map(function (array $notification) {
+                $notification['sort_at'] = $notification['sort_at'] ?? now()->subYears(100);
+                return $notification;
+            })
+            ->concat($overtimeReminders)
+            ->sortByDesc('sort_at')
+            ->map(function (array $notification) {
+                unset($notification['sort_at']);
+                return $notification;
+            })
+            ->values();
+
         return response()->json([
             'notifications' => $notifications,
-            'unread_count' => $account->unreadNotifications()->count(),
+            'unread_count' => $account->unreadNotifications()->count() + $overtimeReminders->count(),
         ]);
     }
 

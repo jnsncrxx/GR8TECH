@@ -327,7 +327,8 @@
 
     function showSidebarMessage(message, type) {
         const toast = document.createElement('div');
-        toast.className = `fixed top-4 right-4 ${type === 'success' ? 'bg-green-500' : 'bg-red-500'} text-white px-6 py-3 rounded-lg shadow-lg z-50`;
+        toast.className = `fixed top-5 left-1/2 -translate-x-1/2 ${type === 'success' ? 'bg-green-600' : 'bg-red-600'} text-white px-6 py-3 rounded-xl shadow-2xl font-semibold text-center max-w-lg w-[calc(100%-2rem)]`;
+        toast.style.zIndex = '10050';
         toast.textContent = message;
         document.body.appendChild(toast);
         setTimeout(() => {
@@ -385,8 +386,6 @@
     updateTime();
     setInterval(updateTime, 60000);
     </script>
-    @unless(request()->routeIs('attendance.time-in-out'))
-        <x-overtime-reminder-modal />
-    @endunless
+    <x-overtime-reminder-modal />
 </body>
 </html>

@@ -551,6 +551,25 @@ class OvertimeController extends Controller
 
             $hours = round($startTime->diffInMinutes($endTime) / 60, 2);
             $detectedHours = (float) $reminder->extra_hours;
+            $usesStoredReminderRange = $reminder->start_time
+                && $reminder->end_time
+                && $validated['start_time'] === $reminder->start_time->format('H:i')
+                && $validated['end_time'] === $reminder->end_time->format('H:i');
+
+            // Reminders created before the range-alignment fix may contain a
+            // scheduled-end start time that does not equal the detected extra
+            // duration. When the unchanged stored suggestion is submitted,
+            // repair it transparently instead of rejecting the employee's own
+            // system-generated values.
+            if (
+                $usesStoredReminderRange
+                && abs($hours - (float) $validated['extra_hours']) > 0.02
+                && abs((float) $validated['extra_hours'] - $detectedHours) <= 0.02
+            ) {
+                $hours = round((float) $validated['extra_hours'], 2);
+                $startTime = $endTime->copy()->subMinutes(round($hours * 60));
+            }
+
             if ($hours > $detectedHours + 0.01 || abs($hours - (float) $validated['extra_hours']) > 0.02) {
                 return response()->json([
                     'error' => 'Requested overtime must match the selected time range and cannot exceed the detected extra hours.',

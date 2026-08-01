@@ -177,6 +177,16 @@
                     <div class="text-lg opacity-90">Working for:</div>
                     <div class="text-2xl font-bold" id="working-time">0h 0m</div>
                 </div>
+                <div id="hours-progress-container" class="mt-4 hidden">
+                    <div class="flex h-1.5 w-full overflow-hidden rounded-full bg-white/20">
+                        <div id="hours-late-bar" class="h-1.5 transition-all" style="width: 0%; background-color: #ef4444;"></div>
+                        <div id="hours-progress-bar" class="h-1.5 bg-white transition-all" style="width: 0%"></div>
+                    </div>
+                    <div class="mt-1 flex justify-between text-xs opacity-80">
+                        <span id="hours-progress-text">0.0h of 8.0h</span>
+                        <span id="hours-progress-pct">0%</span>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -433,49 +443,6 @@
      data-pending-reminders='{!! json_encode($pendingOtReminders ?? []) !!}'
      style="display: none;"></div>
 
-<!-- Overtime Prompt Modal on Clock Out -->
-<div id="overtime-prompt-modal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onclick="closeOvertimePromptModal()"></div>
-        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-        
-        <div class="inline-block align-bottom bg-white dark:bg-slate-800 rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-gray-100 dark:border-slate-700">
-            <div class="bg-gradient-to-r from-orange-500 to-amber-600 px-6 py-4 flex items-center justify-between text-white">
-                <div class="flex items-center space-x-3">
-                    <div class="p-2 bg-white/20 rounded-lg">
-                        <i class="fas fa-user-clock text-xl"></i>
-                    </div>
-                    <h3 class="text-lg font-bold">Overtime Detected</h3>
-                </div>
-                <button type="button" onclick="closeOvertimePromptModal()" class="text-white/80 hover:text-white transition-colors">
-                    <i class="fas fa-times text-lg"></i>
-                </button>
-            </div>
-            
-            <div class="p-6 space-y-4">
-                <div class="p-4 bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800/50 rounded-xl text-center">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-orange-800 dark:text-orange-300">Worked Extra Hours Today</p>
-                    <p class="text-3xl font-extrabold text-orange-600 dark:text-orange-400 mt-1" id="ot-prompt-hours">0.00 hour(s)</p>
-                    <p class="text-xs text-orange-700 dark:text-orange-300 mt-1" id="ot-prompt-time-range"></p>
-                </div>
-
-                <p class="text-gray-700 dark:text-slate-300 text-center text-sm">
-                    You worked extra hours today beyond your required schedule. Would you like to submit an Overtime Request now?
-                </p>
-            </div>
-
-            <div class="bg-gray-50 dark:bg-slate-900/50 px-6 py-4 flex flex-col sm:flex-row gap-3 justify-end border-t border-gray-100 dark:border-slate-700">
-                <button type="button" id="ot-prompt-maybe-later" onclick="closeOvertimePromptModal()" class="w-full sm:w-auto px-5 py-2.5 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 font-medium rounded-lg hover:bg-gray-100 transition-colors text-center">
-                    <i class="fas fa-clock mr-2 text-gray-400"></i>Maybe Later
-                </button>
-                <button type="button" id="ot-prompt-request-now" onclick="submitQuickOvertimeFromModal()" class="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-semibold rounded-lg shadow-md transition-all flex items-center justify-center">
-                    <i class="fas fa-paper-plane mr-2"></i>Request OT Now
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
 // Global variables
 let currentStatus = null;
@@ -704,10 +671,65 @@ function updateRealTimeStatus() {
     }
 }
 
+function updateHoursProgress() {
+    const container = document.getElementById('hours-progress-container');
+    if (!container || !currentStatus) return;
+
+    const requiredHours = Math.max(0.01, Number(currentStatus.required_hours || 8));
+    const entries = Array.isArray(currentStatus.time_entries) ? currentStatus.time_entries : [];
+    let workedHours = entries
+        .filter(entry => entry.time_out)
+        .reduce((sum, entry) => sum + Number(entry.hours_worked || 0), 0);
+
+    const activeEntry = currentStatus.active_time_entry;
+    if (activeEntry?.time_in && !activeEntry.time_out) {
+        workedHours += Math.max(0, getPhilippineTime() - new Date(activeEntry.time_in)) / 3600000;
+    } else if (!entries.length) {
+        workedHours = Number(currentStatus.total_hours || 0);
+    }
+
+    let progressPct = Math.min(100, Math.max(0, (workedHours / requiredHours) * 100));
+    let latePct = 0;
+
+    if (
+        !currentStatus.is_flexible_schedule
+        && currentStatus.schedule_time_in
+        && currentStatus.schedule_time_out
+    ) {
+        const reference = activeEntry?.time_in
+            ? new Date(activeEntry.time_in)
+            : new Date(currentStatus.time_in || Date.now());
+        const [startHour, startMinute] = currentStatus.schedule_time_in.split(':').map(Number);
+        const [endHour, endMinute] = currentStatus.schedule_time_out.split(':').map(Number);
+        const shiftStart = new Date(reference);
+        shiftStart.setHours(startHour, startMinute, 0, 0);
+        const shiftEnd = new Date(reference);
+        shiftEnd.setHours(endHour, endMinute, 0, 0);
+        if (shiftEnd <= shiftStart) shiftEnd.setDate(shiftEnd.getDate() + 1);
+
+        const shiftMinutes = Math.max(1, (shiftEnd - shiftStart) / 60000);
+        const elapsedMinutes = Math.max(0, (getPhilippineTime() - shiftStart) / 60000);
+        progressPct = Math.min(100, Math.max(0, (elapsedMinutes / shiftMinutes) * 100));
+        const serverLatePct = Number(currentStatus.late_progress_percentage);
+        const calculatedLatePct = (Number(currentStatus.late_minutes || 0) / shiftMinutes) * 100;
+        latePct = Math.min(
+            progressPct,
+            Number.isFinite(serverLatePct) ? serverLatePct : calculatedLatePct
+        );
+    }
+
+    document.getElementById('hours-late-bar').style.width = `${latePct}%`;
+    document.getElementById('hours-progress-bar').style.width = `${Math.max(0, progressPct - latePct)}%`;
+    document.getElementById('hours-progress-text').textContent = `${workedHours.toFixed(1)}h of ${requiredHours.toFixed(1)}h`;
+    document.getElementById('hours-progress-pct').textContent = `${Math.round(progressPct)}%`;
+    container.classList.remove('hidden');
+}
+
 // Update working time display
 function updateWorkingTime() {
     const workingTimeElement = document.getElementById('working-time');
     const breakTimeElement = document.getElementById('break-time');
+    updateHoursProgress();
     
     // Check both attendanceRecord and currentStatus for time_in and break_start
     let timeIn = null;
@@ -1492,9 +1514,8 @@ async function timeOut() {
             // Update status immediately without page reload
             await loadAttendanceStatus();
 
-            // Check if overtime was detected on clock out
-            if (data.overtime_detected && data.reminder) {
-                showOvertimePromptModal(data.reminder);
+            if (data.overtime_detected && data.reminder && typeof showOvertimePromptModal === 'function') {
+                showOvertimePromptModal(data.reminder, true);
             }
         } else {
             showError(data.error || 'Failed to clock out');
@@ -1608,7 +1629,8 @@ async function breakEnd() {
 function showSuccess(message) {
     // Create a simple toast notification
     const toast = document.createElement('div');
-    toast.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+    toast.className = 'fixed top-5 left-1/2 -translate-x-1/2 bg-green-600 text-white px-6 py-3 rounded-xl shadow-2xl font-semibold text-center max-w-lg w-[calc(100%-2rem)]';
+    toast.style.zIndex = '10050';
     toast.textContent = message;
     document.body.appendChild(toast);
     
@@ -1621,7 +1643,8 @@ function showSuccess(message) {
 function showError(message) {
     // Create a simple toast notification
     const toast = document.createElement('div');
-    toast.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+    toast.className = 'fixed top-5 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-xl shadow-2xl font-semibold text-center max-w-lg w-[calc(100%-2rem)]';
+    toast.style.zIndex = '10050';
     toast.textContent = message;
     document.body.appendChild(toast);
     
@@ -1637,11 +1660,12 @@ function updateRecentActivity() {
     // In a more advanced implementation, we could make an AJAX call to get fresh recent activity
 }
 
-// Overtime Reminder Modal & Banner Management
-let currentOtReminder = null;
+// Legacy page-local modal helpers retained temporarily for compatibility.
+// The dashboard layout now provides the active shared OT prompt.
+let legacyCurrentOtReminder = null;
 
-function showOvertimePromptModal(reminder) {
-    currentOtReminder = reminder;
+function legacyShowOvertimePromptModal(reminder) {
+    legacyCurrentOtReminder = reminder;
     const modal = document.getElementById('overtime-prompt-modal');
     const hoursEl = document.getElementById('ot-prompt-hours');
     const rangeEl = document.getElementById('ot-prompt-time-range');
@@ -1652,13 +1676,13 @@ function showOvertimePromptModal(reminder) {
     if (modal) modal.classList.remove('hidden');
 }
 
-function closeOvertimePromptModal() {
+function legacyCloseOvertimePromptModal() {
     const modal = document.getElementById('overtime-prompt-modal');
     if (modal) modal.classList.add('hidden');
 }
 
-async function submitQuickOvertimeFromModal() {
-    if (!currentOtReminder) return;
+async function legacySubmitQuickOvertimeFromModal() {
+    if (!legacyCurrentOtReminder) return;
 
     const btn = document.getElementById('ot-prompt-request-now');
     const originalContent = btn.innerHTML;
@@ -1673,18 +1697,18 @@ async function submitQuickOvertimeFromModal() {
                 'X-CSRF-TOKEN': '{{ csrf_token() }}'
             },
             body: JSON.stringify({
-                reminder_id: currentOtReminder.id,
-                date: currentOtReminder.date,
-                extra_hours: currentOtReminder.extra_hours,
-                start_time: currentOtReminder.start_time,
-                end_time: currentOtReminder.end_time
+                reminder_id: legacyCurrentOtReminder.id,
+                date: legacyCurrentOtReminder.date,
+                extra_hours: legacyCurrentOtReminder.extra_hours,
+                start_time: legacyCurrentOtReminder.start_time,
+                end_time: legacyCurrentOtReminder.end_time
             })
         });
 
         const data = await response.json();
         if (response.ok && data.success) {
             showSuccess(data.message || 'Overtime request submitted successfully!');
-            closeOvertimePromptModal();
+            legacyCloseOvertimePromptModal();
             await loadAttendanceStatus();
         } else {
             showError(data.error || 'Failed to submit overtime request');
@@ -1697,6 +1721,12 @@ async function submitQuickOvertimeFromModal() {
         btn.innerHTML = originalContent;
     }
 }
+
+window.addEventListener('overtime-reminder-deferred', function (event) {
+    if (event.detail) {
+        renderPendingOtReminders([event.detail]);
+    }
+});
 
 async function submitPendingOtReminder(reminderId, date, extraHours, startTime, endTime) {
     try {
@@ -1759,8 +1789,10 @@ function renderPendingOtReminders(reminders) {
 
     let html = '';
     reminders.forEach(r => {
+        const highlightedReminderId = new URLSearchParams(window.location.search).get('overtime_reminder');
+        const isHighlighted = highlightedReminderId === String(r.id);
         html += `
-            <div id="ot-reminder-banner-${r.id}" class="p-4 rounded-2xl shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4" style="background-color: #fff7ed; border: 1px solid #ffedd5; padding: 16px; border-radius: 16px;">
+            <div id="ot-reminder-banner-${r.id}" class="p-4 rounded-2xl shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${isHighlighted ? 'ring-2 ring-orange-500 ring-offset-2' : ''}" style="background-color: #fff7ed; border: 1px solid ${isHighlighted ? '#f97316' : '#ffedd5'}; padding: 16px; border-radius: 16px;">
                 <div class="flex items-start space-x-3" style="display: flex; align-items: flex-start; gap: 12px;">
                     <div class="p-2.5 rounded-xl flex-shrink-0 mt-0.5" style="background-color: #ea580c; color: #ffffff; padding: 10px; border-radius: 12px;">
                         <i class="fas fa-bell text-lg" style="color: #ffffff;"></i>
@@ -1789,6 +1821,14 @@ function renderPendingOtReminders(reminders) {
 
     container.innerHTML = html;
     container.classList.remove('hidden');
+
+    const highlightedReminderId = new URLSearchParams(window.location.search).get('overtime_reminder');
+    if (highlightedReminderId) {
+        requestAnimationFrame(() => {
+            document.getElementById(`ot-reminder-banner-${highlightedReminderId}`)
+                ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+    }
 }
 
 // Initialize page

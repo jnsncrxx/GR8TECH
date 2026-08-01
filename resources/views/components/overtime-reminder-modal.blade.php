@@ -2,7 +2,7 @@
 <div id="overtime-prompt-modal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true" style="z-index: 9999;">
     <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:p-0">
         <!-- Backdrop -->
-        <div class="fixed inset-0 transition-opacity" aria-hidden="true" onclick="closeOvertimePromptModal()" style="background-color: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px);"></div>
+        <div class="fixed inset-0 transition-opacity" aria-hidden="true" onclick="deferOvertimePromptModal()" style="background-color: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px);"></div>
         <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
         
         <!-- Modal Card -->
@@ -14,17 +14,20 @@
                         <i class="fas fa-user-clock text-xl" style="font-size: 20px; color: #ffffff;"></i>
                     </div>
                     <div>
-                        <h3 class="text-lg font-bold" style="margin: 0; font-size: 18px; font-weight: 700; color: #ffffff;">Flexible Overtime Request</h3>
+                        <h3 class="text-lg font-bold" style="margin: 0; font-size: 18px; font-weight: 700; color: #ffffff;">Overtime Detected</h3>
                         <p id="ot-prompt-date-subtitle" style="margin: 0; font-size: 12px; opacity: 0.9; color: #ffffff;"></p>
                     </div>
                 </div>
-                <button type="button" onclick="closeOvertimePromptModal()" style="background: transparent; border: none; color: #ffffff; opacity: 0.9; cursor: pointer; font-size: 18px;" class="hover:opacity-100 transition-opacity">
+                <button type="button" onclick="deferOvertimePromptModal()" style="background: transparent; border: none; color: #ffffff; opacity: 0.9; cursor: pointer; font-size: 18px;" class="hover:opacity-100 transition-opacity" aria-label="Request overtime later">
                     <i class="fas fa-times" style="color: #ffffff;"></i>
                 </button>
             </div>
             
             <!-- Modal Body -->
             <div class="p-6 space-y-4" style="padding: 24px;">
+                <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; padding: 12px 16px; border-radius: 12px; margin-bottom: 16px; color: #047857; font-size: 13px; font-weight: 600;">
+                    <i class="fas fa-check-circle" style="margin-right: 6px;"></i>Your clock-out has already been recorded. Filing this OT request is a separate action.
+                </div>
                 <div style="background-color: #fff7ed; border: 1px solid #ffedd5; padding: 12px 16px; border-radius: 12px; margin-bottom: 16px; text-align: center;">
                     <p style="margin: 0; font-size: 13px; font-weight: 600; color: #c2410c;">
                         <i class="fas fa-edit mr-1" style="margin-right: 6px;"></i>Feel free to select your preferred Overtime Start & End Time:
@@ -69,7 +72,7 @@
 
             <!-- Modal Footer -->
             <div class="px-6 py-4 flex flex-col sm:flex-row gap-3 justify-end border-t border-gray-100" style="background-color: #f8fafc; padding: 16px 24px; display: flex; gap: 12px; justify-content: flex-end; border-top: 1px solid #f1f5f9;">
-                <button type="button" id="ot-prompt-maybe-later" onclick="closeOvertimePromptModal()" style="padding: 10px 18px; background-color: #ffffff; border: 1px solid #cbd5e1; color: #475569; font-weight: 600; font-size: 14px; border-radius: 8px; cursor: pointer; transition: all 0.2s;" class="hover:bg-slate-100">
+                <button type="button" id="ot-prompt-maybe-later" onclick="deferOvertimePromptModal()" style="padding: 10px 18px; background-color: #ffffff; border: 1px solid #cbd5e1; color: #475569; font-weight: 600; font-size: 14px; border-radius: 8px; cursor: pointer; transition: all 0.2s;" class="hover:bg-slate-100">
                     <i class="fas fa-clock mr-2" style="margin-right: 6px; color: #94a3b8;"></i>Maybe Later
                 </button>
                 <button type="button" id="ot-prompt-request-now" onclick="submitQuickOvertimeFromModal()" style="padding: 10px 20px; background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%); border: none; color: #ffffff !important; font-weight: 700; font-size: 14px; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 6px -1px rgba(234, 88, 12, 0.3); transition: all 0.2s;" class="hover:opacity-95">
@@ -127,6 +130,16 @@ function closeOvertimePromptModal() {
     if (otModalReloadOnClose) {
         window.location.reload();
     }
+}
+
+function deferOvertimePromptModal() {
+    const message = 'OT request deferred. It remains available in Notifications and on Time In/Out.';
+    if (typeof showSidebarMessage === 'function') {
+        showSidebarMessage(message, 'success');
+    } else if (typeof showSuccess === 'function') {
+        showSuccess(message);
+    }
+    closeOvertimePromptModal();
 }
 
 async function submitQuickOvertimeFromModal() {

@@ -168,7 +168,7 @@ class AutoOvertimeReminderTest extends TestCase
         $response = $this->actingAs($this->account)
             ->postJson(route('attendance.time-out'));
 
-        $response->assertStatus(200);
+        $this->assertSame(200, $response->status(), $response->getContent());
         $response->assertJson([
             'success' => true,
             'overtime_detected' => false,
@@ -212,6 +212,10 @@ class AutoOvertimeReminderTest extends TestCase
             'employee_id' => $this->employee->id,
             'status' => OvertimeReminder::PENDING,
         ]);
+
+        $reminder = OvertimeReminder::where('employee_id', $this->employee->id)->firstOrFail();
+        $rangeHours = $reminder->start_time->diffInMinutes($reminder->end_time) / 60;
+        $this->assertEqualsWithDelta((float) $reminder->extra_hours, $rangeHours, 0.01);
     }
 
     public function test_quick_submit_overtime_request_creates_ot_request_and_updates_reminder()
@@ -281,6 +285,46 @@ class AutoOvertimeReminderTest extends TestCase
         $this->assertEquals(OvertimeReminder::DISMISSED, $reminder->fresh()->status);
     }
 
+    public function test_quick_submit_repairs_a_legacy_misaligned_reminder_range()
+    {
+        $date = Carbon::parse('2026-07-28');
+        $attendance = AttendanceRecord::create([
+            'employee_id' => $this->employee->id,
+            'date' => $date,
+            'time_in' => $date->copy()->setHour(9),
+            'time_out' => $date->copy()->setHour(19),
+            'total_hours' => 9,
+            'status' => 'completed',
+        ]);
+        $reminder = OvertimeReminder::create([
+            'employee_id' => $this->employee->id,
+            'attendance_record_id' => $attendance->id,
+            'date' => $date,
+            'required_hours' => 8,
+            'worked_hours' => 9,
+            'extra_hours' => 1,
+            'start_time' => $date->copy()->setHour(17),
+            'end_time' => $date->copy()->setHour(19),
+            'status' => OvertimeReminder::PENDING,
+        ]);
+
+        $response = $this->actingAs($this->account)
+            ->postJson(route('attendance.overtime.quick-submit'), [
+                'reminder_id' => $reminder->id,
+                'date' => $date->toDateString(),
+                'extra_hours' => 1,
+                'start_time' => '17:00',
+                'end_time' => '19:00',
+            ]);
+
+        $response->assertOk()->assertJson(['success' => true]);
+        $this->assertDatabaseHas('overtime_requests', [
+            'employee_id' => $this->employee->id,
+            'hours' => 1,
+            'status' => OvertimeRequest::PENDING,
+        ]);
+    }
+
     public function test_pending_reminders_returned_in_attendance_status()
     {
         $date = Carbon::parse('2026-07-27');
@@ -297,10 +341,71 @@ class AutoOvertimeReminderTest extends TestCase
         $response = $this->actingAs($this->account)
             ->getJson(route('attendance.status'));
 
-        $response->assertStatus(200);
+        $this->assertSame(200, $response->status(), $response->getContent());
         $response->assertJsonFragment([
             'id' => $reminder->id,
             'extra_hours' => 2.0,
         ]);
+    }
+
+    public function test_all_pending_overtime_reminders_are_persistent_notifications()
+    {
+        $first = OvertimeReminder::create([
+            'employee_id' => $this->employee->id,
+            'date' => '2026-07-27',
+            'required_hours' => 8,
+            'worked_hours' => 10,
+            'extra_hours' => 2,
+            'status' => OvertimeReminder::PENDING,
+        ]);
+        $second = OvertimeReminder::create([
+            'employee_id' => $this->employee->id,
+            'date' => '2026-07-28',
+            'required_hours' => 8,
+            'worked_hours' => 9.5,
+            'extra_hours' => 1.5,
+            'status' => OvertimeReminder::PENDING,
+        ]);
+
+        $response = $this->actingAs($this->account)
+            ->getJson(route('notifications.mine'));
+
+        $response->assertOk();
+        $response->assertJsonPath('unread_count', 2);
+        $response->assertJsonFragment([
+            'id' => 'ot-reminder-'.$first->id,
+            'persistent' => true,
+            'title' => 'Unfiled Overtime Reminder',
+        ]);
+        $response->assertJsonFragment([
+            'id' => 'ot-reminder-'.$second->id,
+            'persistent' => true,
+            'title' => 'Unfiled Overtime Reminder',
+        ]);
+    }
+
+    public function test_time_in_out_page_has_one_post_clock_out_modal_and_reminder_banner()
+    {
+        $attendance = AttendanceRecord::create([
+            'employee_id' => $this->employee->id,
+            'date' => Carbon::today(),
+            'time_in' => Carbon::now()->subHour(),
+            'status' => 'present',
+        ]);
+        TimeEntry::create([
+            'attendance_record_id' => $attendance->id,
+            'time_in' => Carbon::now()->subHour(),
+            'entry_type' => 'regular',
+        ]);
+
+        $response = $this->actingAs($this->account)
+            ->get(route('attendance.time-in-out'));
+
+        $response->assertOk();
+        $this->assertSame(1, substr_count($response->getContent(), 'id="overtime-prompt-modal"'));
+        $response->assertSee('Overtime Detected');
+        $response->assertSee('Your clock-out has already been recorded');
+        $response->assertSee('pending-ot-reminders-container');
+        $response->assertSee('hours-progress-container');
     }
 }
