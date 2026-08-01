@@ -31,7 +31,7 @@
     <!-- Form -->
     <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-            <form id="scheduleForm" class="p-6 space-y-6">
+            <form id="scheduleForm" action="{{ route('schedule-v2.update', $schedule) }}" method="POST" class="p-6 space-y-6">
                 @csrf
                 @method('PUT')
                 
@@ -62,6 +62,23 @@
                     </div>
                 </div>
 
+                <!-- Schedule Template -->
+                <div>
+                    <label for="schedule_template_id" class="block text-sm font-medium text-gray-700 mb-2">Schedule Template</label>
+                    <select name="schedule_template_id" id="schedule_template_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('schedule_template_id') border-red-500 @enderror">
+                        <option value="">Custom schedule (no template)</option>
+                        @foreach($templates as $template)
+                            <option value="{{ $template->id }}" {{ (string) old('schedule_template_id', $schedule->schedule_template_id) === (string) $template->id ? 'selected' : '' }}>
+                                {{ $template->code }} — {{ $template->name }} ({{ $template->window_label }})
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">Selecting a template fills its schedule type and hours. Choose custom schedule to enter hours manually.</p>
+                    @error('schedule_template_id')
+                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+
                 <!-- Status -->
                 <div>
                     <label for="status" class="block text-sm font-medium text-gray-700 mb-2">Status</label>
@@ -70,6 +87,7 @@
                         <option value="Working" {{ old('status', $schedule->status) == 'Working' ? 'selected' : '' }}>Scheduled Workday</option>
                         <option value="Day Off" {{ old('status', $schedule->status) == 'Day Off' ? 'selected' : '' }}>Day Off</option>
                         <option value="Leave" {{ old('status', $schedule->status) == 'Leave' ? 'selected' : '' }}>Leave</option>
+                        <option value="Official Business" {{ old('status', $schedule->status) == 'Official Business' ? 'selected' : '' }}>Official Business</option>
                         <option value="Absent" {{ old('status', $schedule->status) == 'Absent' ? 'selected' : '' }}>Absent</option>
                         <option value="Regular Holiday" {{ old('status', $schedule->status) == 'Regular Holiday' ? 'selected' : '' }}>Regular Holiday</option>
                         <option value="Special Holiday" {{ old('status', $schedule->status) == 'Special Holiday' ? 'selected' : '' }}>Special Holiday</option>
@@ -87,6 +105,7 @@
                         <option value="flexible" {{ old('schedule_type', $schedule->schedule_type) === 'flexible' ? 'selected' : '' }}>Flexible hours</option>
                     </select>
                     <p class="mt-1 text-xs text-gray-500">Fixed hours are editable. Flexible schedules are evaluated using required hours.</p>
+                </div>
                 <div id="timeFields" class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                         <label for="time_in" class="block text-sm font-medium text-gray-700 mb-2">Time In</label>
@@ -205,22 +224,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     syncScheduleFields();
     
-    // Update button - set form to update action
-    updateBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        form.action = '{{ route("schedule-v2.update", $schedule) }}';
-        form.method = 'POST';
-        
-        // Add method override for PUT
-        const methodInput = document.createElement('input');
-        methodInput.type = 'hidden';
-        methodInput.name = '_method';
-        methodInput.value = 'PUT';
-        form.appendChild(methodInput);
-        
-        form.submit();
-    });
-    
     // Delete button - set form to delete action
     deleteBtn.addEventListener('click', function(e) {
         e.preventDefault();
@@ -228,13 +231,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (confirm('Are you sure you want to delete this schedule?')) {
             form.action = '{{ route("schedule-v2.destroy", $schedule) }}';
             form.method = 'POST';
-            
-            // Add method override for DELETE
-            const methodInput = document.createElement('input');
-            methodInput.type = 'hidden';
-            methodInput.name = '_method';
-            methodInput.value = 'DELETE';
-            form.appendChild(methodInput);
+            form.querySelector('input[name="_method"]').value = 'DELETE';
             
             form.submit();
         }

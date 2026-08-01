@@ -151,6 +151,7 @@
                                         <option value="Working" {{ old('status', $defaultStatus ?? '') == 'Working' ? 'selected' : '' }}>Scheduled Workday</option>
                                         <option value="Day Off" {{ old('status', $defaultStatus ?? '') == 'Day Off' ? 'selected' : '' }}>Day Off</option>
                                         <option value="Leave" {{ old('status', $defaultStatus ?? '') == 'Leave' ? 'selected' : '' }}>Leave</option>
+                                        <option value="Official Business" {{ old('status', $defaultStatus ?? '') == 'Official Business' ? 'selected' : '' }}>Official Business</option>
                                         <option value="Absent" {{ old('status', $defaultStatus ?? '') == 'Absent' ? 'selected' : '' }}>Absent</option>
                                         <option value="Regular Holiday" {{ old('status', $defaultStatus ?? '') == 'Regular Holiday' ? 'selected' : '' }}>Regular Holiday</option>
                                         <option value="Special Holiday" {{ old('status', $defaultStatus ?? '') == 'Special Holiday' ? 'selected' : '' }}>Special Holiday</option>

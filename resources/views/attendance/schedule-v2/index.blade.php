@@ -33,6 +33,9 @@
         .schedule-calendar.is-compact .schedule-employee-column { width: 190px; min-width: 190px; max-width: 190px; }
         .schedule-calendar.is-compact .schedule-date-column { width: 42px; min-width: 42px; }
         .schedule-calendar.is-compact .calendar-cell-detail { display: none; }
+        .schedule-calendar .calendar-cell-compact-label { display: none; }
+        .schedule-calendar.is-compact .calendar-cell-detailed-label { display: none; }
+        .schedule-calendar.is-compact .calendar-cell-compact-label { display: inline-flex; }
         .schedule-calendar.is-compact .schedule-grid-cell { height: 52px; }
         .schedule-calendar.is-compact .schedule-calendar-table { width: 100%; min-width: 1450px; table-layout: fixed; }
         .schedule-density-button[aria-pressed="true"] { background: #fff; color: #1f2937; box-shadow: 0 1px 2px rgb(0 0 0 / 0.08); }
@@ -266,6 +269,7 @@
                                     $statusAbbr = match($schedule->status) {
                                         'Day Off' => 'OFF',
                                         'Leave' => 'LV',
+                                        'Official Business' => 'OB',
                                         'Absent' => 'AB',
                                         'Regular Holiday' => 'RH',
                                         'Special Holiday' => 'SH',
@@ -286,6 +290,16 @@
                                             . strtolower(substr(\Carbon\Carbon::createFromFormat('H:i:s', $schedule->time_out)->format('A'), 0, 1)),
                                         default => $statusAbbr,
                                     };
+                                    $compactCellLabel = match(true) {
+                                        $hasRequestConflict => '!',
+                                        $isApprovedOb => 'OB',
+                                        $isApprovedLeave => 'LV',
+                                        $schedule->status === 'Day Off' => 'OFF',
+                                        $schedule->status === 'Absent' => 'AB',
+                                        in_array($schedule->status, ['Holiday', 'Regular Holiday', 'Special Holiday'], true) => $statusAbbr,
+                                        filled($schedule->schedule_template_id) && filled($schedule->scheduleTemplate?->code) => $schedule->scheduleTemplate->code,
+                                        default => $cellLabel,
+                                    };
                                     $badgeColor = match(true) {
                                         $hasRequestConflict => 'bg-red-100 text-red-800 ring-1 ring-inset ring-red-300',
                                         $isApprovedOb, $isApprovedLeave => 'bg-violet-100 text-violet-800 ring-1 ring-inset ring-violet-300',
@@ -293,12 +307,12 @@
                                         $schedule->status === 'Day Off' => 'bg-amber-50 text-amber-700',
                                         $schedule->status === 'Absent' => 'bg-red-100 text-red-800 ring-1 ring-inset ring-red-300',
                                         in_array($schedule->status, ['Holiday', 'Regular Holiday', 'Special Holiday'], true) => 'bg-blue-100 text-blue-800 ring-1 ring-inset ring-blue-300',
-                                        $schedule->status === 'Leave' => 'bg-violet-100 text-violet-800 ring-1 ring-inset ring-violet-300',
+                                        in_array($schedule->status, ['Leave', 'Official Business'], true) => 'bg-violet-100 text-violet-800 ring-1 ring-inset ring-violet-300',
                                         default => 'bg-gray-100 text-gray-700',
                                     };
                                     $badgeTone = match(true) {
                                         $hasRequestConflict, $schedule->status === 'Absent' => 'absent',
-                                        $isApprovedOb, $isApprovedLeave, $schedule->status === 'Leave' => 'covered',
+                                        $isApprovedOb, $isApprovedLeave, in_array($schedule->status, ['Leave', 'Official Business'], true) => 'covered',
                                         in_array($schedule->status, ['Holiday', 'Regular Holiday', 'Special Holiday'], true) => 'holiday',
                                         $schedule->status === 'Day Off' => 'off',
                                         default => 'shift',
@@ -323,8 +337,11 @@
                                         value="{{ $schedule->id }}"
                                         onclick="event.stopPropagation()"
                                         onchange="updateBulkDeleteButton()">
-                                    <span class="schedule-status-badge inline-flex max-w-full items-center rounded px-1.5 py-1 {{ $badgeColor }} text-[10px] font-bold leading-none whitespace-nowrap" data-schedule-tone="{{ $badgeTone }}">
+                                    <span class="schedule-status-badge calendar-cell-detailed-label inline-flex max-w-full items-center rounded px-1.5 py-1 {{ $badgeColor }} text-[10px] font-bold leading-none whitespace-nowrap" data-schedule-tone="{{ $badgeTone }}">
                                         {{ $cellLabel }}
+                                    </span>
+                                    <span class="schedule-status-badge calendar-cell-compact-label max-w-full items-center rounded px-1.5 py-1 {{ $badgeColor }} text-[10px] font-bold leading-none whitespace-nowrap" data-schedule-tone="{{ $badgeTone }}">
+                                        {{ $compactCellLabel }}
                                     </span>
                                     <span class="calendar-cell-detail max-w-full truncate text-[9px] font-medium text-gray-500" title="{{ $hasRequestConflict || $isApprovedOb || $isApprovedLeave ? $history['label'] : ($schedule->scheduleTemplate->name ?? $schedule->status_label) }}">
                                         {{ $hasRequestConflict || $isApprovedOb || $isApprovedLeave ? $history['label'] : ($schedule->scheduleTemplate->code ?? $schedule->status_label) }}
@@ -555,6 +572,7 @@
                                 </label>
                                 <select name="department_id" id="bulk_department_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                     <option value="">Select Department</option>
+                                    <option value="all">All Departments</option>
                                     @foreach($departments as $department)
                                     <option value="{{ $department->id }}">{{ $department->name }}</option>
                                     @endforeach
@@ -663,6 +681,7 @@
                                     <option value="Working">Scheduled Workday</option>
                                     <option value="Day Off">Day Off</option>
                                     <option value="Leave">Leave</option>
+                                    <option value="Official Business">Official Business</option>
                                     <option value="Regular Holiday">Regular Holiday</option>
                                     <option value="Special Holiday">Special Holiday</option>
                                     <option value="Overtime">Overtime</option>
@@ -705,6 +724,9 @@
         // Open the modal - toggle both classes since Tailwind's `hidden`
         // and `flex` both set `display`, so only one can apply at a time
         const modal = document.getElementById('bulkModal');
+        if (modal.parentElement !== document.body) {
+            document.body.appendChild(modal);
+        }
         modal.classList.remove('hidden');
         modal.classList.add('flex');
     }
@@ -826,13 +848,19 @@
         const selectAllCheckbox = document.getElementById('selectAllEmployees');
 
         if (departmentId) {
-            // Filter employees by department
-            filteredEmployees = allEmployees.filter(emp => emp.department_id === departmentId);
+            filteredEmployees = departmentId === 'all'
+                ? [...allEmployees]
+                : allEmployees.filter(emp => emp.department_id === departmentId);
 
             // Clear search and reset selections
             employeeSearch.value = '';
             selectedEmployees.clear();
-            selectAllCheckbox.checked = false;
+            if (departmentId === 'all') {
+                filteredEmployees.forEach(emp => selectedEmployees.add(emp.id));
+                selectAllCheckbox.checked = true;
+            } else {
+                selectAllCheckbox.checked = false;
+            }
 
             // Render employee list
             renderEmployeeList();
@@ -850,7 +878,9 @@
         const departmentId = document.getElementById('bulk_department_id').value;
 
         if (departmentId) {
-            const departmentEmployees = allEmployees.filter(emp => emp.department_id === departmentId);
+            const departmentEmployees = departmentId === 'all'
+                ? allEmployees
+                : allEmployees.filter(emp => emp.department_id === departmentId);
             filteredEmployees = departmentEmployees.filter(emp =>
                 emp.first_name.toLowerCase().includes(searchTerm) ||
                 emp.last_name.toLowerCase().includes(searchTerm) ||
@@ -1399,6 +1429,7 @@
                             <option value="Working">Scheduled Workday</option>
                             <option value="Day Off">Day Off</option>
                             <option value="Leave">Leave</option>
+                            <option value="Official Business">Official Business</option>
                             <option value="Absent">Absent</option>
                             <option value="Regular Holiday">Regular Holiday</option>
                             <option value="Special Holiday">Special Holiday</option>
@@ -1412,6 +1443,17 @@
                             <option value="fixed">Fixed hours</option>
                             <option value="flexible">Flexible hours</option>
                         </select>
+                    </div>
+
+                    <div>
+                        <label for="selectedDateTemplateId" class="block text-sm font-medium text-gray-700 mb-2">Schedule Template</label>
+                        <select id="selectedDateTemplateId" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+                            <option value="">Custom schedule (no template)</option>
+                            @foreach($templates as $template)
+                            <option value="{{ $template->id }}">{{ $template->code }} — {{ $template->name }} ({{ $template->window_label }})</option>
+                            @endforeach
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500">Selecting a template fills the schedule fields for every selected date.</p>
                     </div>
                     
                             <div id="selectedDateTimeFields" class="grid grid-cols-2 gap-4">
@@ -1575,6 +1617,16 @@
             if (e.target && (e.target.id === 'statusSelect' || e.target.id === 'scheduleTypeSelect')) {
                 syncSelectedDateScheduleFields();
             }
+            if (e.target?.id === 'selectedDateTemplateId') {
+                const template = bulkScheduleTemplates[e.target.value];
+                if (template) {
+                    document.getElementById('scheduleTypeSelect').value = template.schedule_type;
+                    document.getElementById('timeIn').value = template.time_in;
+                    document.getElementById('timeOut').value = template.time_out;
+                    document.getElementById('selectedDateRequiredHours').value = template.required_hours;
+                    syncSelectedDateScheduleFields();
+                }
+            }
         });
     });
 
@@ -1590,6 +1642,7 @@
     function saveDateSchedule() {
         const status = document.getElementById('statusSelect').value;
         const scheduleType = document.getElementById('scheduleTypeSelect').value;
+        const scheduleTemplateId = document.getElementById('selectedDateTemplateId').value;
         const timeIn = document.getElementById('timeIn').value;
         const timeOut = document.getElementById('timeOut').value;
         const requiredHours = document.getElementById('selectedDateRequiredHours').value;
@@ -1621,6 +1674,7 @@
         const requestData = {
             employee_schedules: employeeSchedules,
             status: status,
+            schedule_template_id: scheduleTemplateId || null,
             schedule_type: scheduleType,
             required_hours: scheduleType === 'flexible' ? requiredHours : null,
             time_in: timeIn || null,
