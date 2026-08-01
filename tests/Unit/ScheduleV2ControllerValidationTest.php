@@ -115,4 +115,18 @@ class ScheduleV2ControllerValidationTest extends TestCase
         $this->assertNull($details['time_in']);
         $this->assertNull($details['time_out']);
     }
+
+    public function test_official_business_schedule_carries_no_manual_shift_hours(): void
+    {
+        $details = $this->normalize([
+            'status' => 'Official Business',
+            'schedule_type' => 'fixed',
+            'time_in' => '08:00',
+            'time_out' => '17:00',
+        ]);
+
+        $this->assertSame(0, $details['required_hours']);
+        $this->assertNull($details['time_in']);
+        $this->assertNull($details['time_out']);
+    }
 }

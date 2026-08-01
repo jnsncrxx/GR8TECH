@@ -114,7 +114,8 @@ class EmployeeSchedule extends Model
         return match ($this->status) {
             'Working' => 'green',
             'Day Off' => 'yellow',
-            'Leave', 'Holiday', 'Regular Holiday', 'Special Holiday', 'Absent' => 'red',
+            'Leave', 'Official Business' => 'violet',
+            'Holiday', 'Regular Holiday', 'Special Holiday', 'Absent' => 'red',
             'Overtime' => 'blue',
             default => 'gray'
         };

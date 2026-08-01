@@ -251,7 +251,7 @@ class ScheduleV2Controller extends Controller
                 fn ($query) => $query->where('company_id', \App\Helpers\CompanyHelper::getCurrentCompanyId())
             )],
             'date' => ['required', 'date'],
-            'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
+            'status' => ['required', 'in:Working,Day Off,Leave,Official Business,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
             'schedule_template_id' => ['nullable', Rule::exists('schedule_templates', 'id')->where(
                 fn ($query) => $query->where('company_id', \App\Helpers\CompanyHelper::getCurrentCompanyId())
             )],
@@ -320,7 +320,7 @@ class ScheduleV2Controller extends Controller
             )],
             'employee_schedules.*.dates' => ['required', 'array', 'min:1'],
             'employee_schedules.*.dates.*' => ['required', 'date'],
-            'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
+            'status' => ['required', 'in:Working,Day Off,Leave,Official Business,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
             'schedule_template_id' => ['nullable', Rule::exists('schedule_templates', 'id')->where(
                 fn ($query) => $query->where('company_id', \App\Helpers\CompanyHelper::getCurrentCompanyId())
             )],
@@ -385,12 +385,12 @@ class ScheduleV2Controller extends Controller
             'employee_ids.*' => [Rule::exists('employees', 'id')->where(
                 fn ($query) => $query->where('company_id', \App\Helpers\CompanyHelper::getCurrentCompanyId())
             )],
-            'department_id' => ['required', Rule::exists('departments', 'id')->where(
-                fn ($query) => $query->where('company_id', \App\Helpers\CompanyHelper::getCurrentCompanyId())
-            )],
+            // The department selector can be "all"; employee IDs remain the
+            // authoritative, company-scoped selection validated above.
+            'department_id' => ['nullable', 'string'],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
-            'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
+            'status' => ['required', 'in:Working,Day Off,Leave,Official Business,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
             'schedule_template_id' => ['nullable', Rule::exists('schedule_templates', 'id')->where(
                 fn ($query) => $query->where('company_id', \App\Helpers\CompanyHelper::getCurrentCompanyId())
             )],
@@ -417,11 +417,12 @@ class ScheduleV2Controller extends Controller
         $createdCount = 0;
 
         foreach ($validated['employee_ids'] as $employeeId) {
+            $employee = \App\Models\Employee::findOrFail($employeeId);
             for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
                 \App\Models\EmployeeSchedule::updateOrCreate(
                     ['employee_id' => $employeeId, 'date' => $date->format('Y-m-d')],
                     [
-                        'department_id' => $validated['department_id'],
+                        'department_id' => $employee->department_id,
                         'status' => $validated['status'],
                         ...$details,
                         'schedule_template_id' => $validated['schedule_template_id'] ?? null,
@@ -523,7 +524,7 @@ class ScheduleV2Controller extends Controller
         }
 
         $validated = $request->validate([
-            'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
+            'status' => ['required', 'in:Working,Day Off,Leave,Official Business,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
             'schedule_template_id' => ['nullable', Rule::exists('schedule_templates', 'id')->where(
                 fn ($query) => $query->where('company_id', \App\Helpers\CompanyHelper::getCurrentCompanyId())
             )],
