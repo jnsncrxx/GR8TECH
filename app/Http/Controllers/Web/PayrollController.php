@@ -4038,13 +4038,15 @@ class PayrollController extends Controller
                     // A linked/incomplete office log must not overwrite it as an
                     // attendance exception or absence.
                     if ($hasApprovedOb) {
+                        $obHours = (float) ($approvedObRequest->credited_hours
+                            ?? $approvedObRequest->computeCreditedHours());
+                        $combinedCreditedHours = max(
+                            $obHours,
+                            (float) ($attendanceRecord?->total_hours ?? 0)
+                        );
                         $workedHours = $approvedObRequest->is_full_day
                             ? $scheduledHoursValue
-                            : min(
-                                $scheduledHoursValue,
-                                (float) ($approvedObRequest->credited_hours
-                                    ?? $approvedObRequest->computeCreditedHours())
-                            );
+                            : min($scheduledHoursValue, $combinedCreditedHours);
                         $attendanceStatus = 'Official Business';
                     // Calculate worked hours if attendance record exists
                     } elseif ($attendanceRecord && $attendanceRecord->time_in && $attendanceRecord->time_out) {

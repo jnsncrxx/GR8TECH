@@ -120,7 +120,7 @@
                     <i class="fas fa-chevron-down ml-2 text-xs"></i>
                 </button>
 
-                <div x-show="open" @click.away="open = false" x-transition
+                <div x-show="open" x-cloak @click.away="open = false" x-transition
                      class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
                     <div class="py-1">
                         <a href="{{ route('attendance.official-business.export', ['format' => 'pdf']) . '?' . http_build_query(request()->query()) }}"

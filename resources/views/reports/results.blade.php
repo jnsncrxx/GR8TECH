@@ -72,6 +72,14 @@
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deductions</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net Pay</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        @elseif($type === 'official_business')
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">OB Schedule</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hours</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                         @endif
                     </tr>
                 </thead>
@@ -122,6 +130,14 @@
                                         {{ ucfirst($row->status) }}
                                     </span>
                                 </td>
+                            @elseif($type === 'official_business')
+                                <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{{ optional($row->employee)->full_name ?? 'N/A' }}</td>
+                                <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-300">{{ optional(optional($row->employee)->department)->name ?? 'N/A' }}</td>
+                                <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-300">{{ \Carbon\Carbon::parse($row->date)->format('M d, Y') }}</td>
+                                <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-300">{{ $row->ob_start_time?->format('h:i A') ?? '--' }} – {{ $row->ob_end_time?->format('h:i A') ?? '--' }}</td>
+                                <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-300">{{ number_format((float) ($row->credited_hours ?? $row->computeCreditedHours()), 2) }}</td>
+                                <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-300">{{ $row->reason }}</td>
+                                <td class="px-6 py-4 text-sm"><span class="rounded-full px-2 py-1 text-xs font-semibold {{ $row->status === 'approved' ? 'bg-green-100 text-green-800' : ($row->status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800') }}">{{ ucfirst($row->status) }}</span></td>
                             @endif
                         </tr>
                     @empty

@@ -56,6 +56,11 @@ class ReportExport implements FromCollection, WithHeadings, WithMapping, WithSty
                 'Net Pay',
                 'Status',
             ];
+        } elseif ($this->type === 'official_business') {
+            return [
+                'Employee Name', 'Department', 'Date', 'OB Start', 'OB End',
+                'Credited Hours', 'Reason', 'Status', 'Reviewed By',
+            ];
         }
         return [];
     }
@@ -90,6 +95,18 @@ class ReportExport implements FromCollection, WithHeadings, WithMapping, WithSty
                 number_format($row->deductions, 2),
                 number_format($row->net_pay, 2),
                 ucfirst($row->status),
+            ];
+        } elseif ($this->type === 'official_business') {
+            return [
+                optional($row->employee)->full_name ?? 'N/A',
+                optional(optional($row->employee)->department)->name ?? 'N/A',
+                Carbon::parse($row->date)->format('M d, Y'),
+                $row->ob_start_time?->format('h:i A') ?? '--',
+                $row->ob_end_time?->format('h:i A') ?? '--',
+                number_format((float) ($row->credited_hours ?? $row->computeCreditedHours()), 2),
+                $row->reason,
+                ucfirst($row->status),
+                optional(optional($row->reviewer)->employee)->full_name ?? 'N/A',
             ];
         }
         return [];

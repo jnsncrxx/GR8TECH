@@ -1409,7 +1409,10 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             $status = $record['attendance_status'] ?? null;
 
             if ($status === 'Official Business') {
-                $totalHours += $this->hoursToDecimal($record['scheduled_hours'] ?? 0);
+                $obHours = $record['worked_hours'] ?? null;
+                $totalHours += is_numeric($obHours)
+                    ? $this->hoursToDecimal($obHours)
+                    : $this->hoursToDecimal($record['scheduled_hours'] ?? 0);
                 continue;
             }
 

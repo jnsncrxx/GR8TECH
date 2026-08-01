@@ -53,6 +53,20 @@ class PayrollGenerationServiceAttendanceHoursTest extends TestCase
         $this->assertSame(7.5, $this->invoke('sumWorkedHours', $records));
     }
 
+    public function test_partial_official_business_uses_credited_hours_in_days_worked(): void
+    {
+        $records = collect([
+            [
+                'schedule_status' => 'Working',
+                'attendance_status' => 'Official Business',
+                'scheduled_hours' => 8,
+                'worked_hours' => 4,
+            ],
+        ]);
+
+        $this->assertSame(0.5, $this->invoke('calculateDaysWorkedFromRecords', $records));
+    }
+
     public function test_allowances_do_not_grant_five_unrequested_incentive_leave_days(): void
     {
         $allowances = $this->invoke(
