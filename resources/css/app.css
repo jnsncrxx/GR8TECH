@@ -1443,6 +1443,129 @@ html.dark .hris-content [class*="rounded"][class*="bg-"]:has(> span:first-child)
     border-color: #52525b !important;
 }
 
+/* Schedule Management: custom calendar, sticky grid, and modal surfaces. */
+html.dark .schedule-management-page,
+html.dark .schedule-management-page .schedule-calendar-scroll {
+    background: #18181b !important;
+    color: #fafafa !important;
+    color-scheme: dark;
+}
+
+html.dark .schedule-management-page :is(.schedule-filter-card, .schedule-calendar-card),
+html.dark :is(#scheduleDetailModal, #bulkModal, #bulkDeleteModal) > div {
+    background: #242427 !important;
+    border-color: #3f3f46 !important;
+    color: #fafafa !important;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34) !important;
+}
+
+html.dark .schedule-management-page .schedule-calendar-header {
+    background: linear-gradient(135deg, #303034, #29292d) !important;
+    border-color: #52525b !important;
+}
+
+html.dark .schedule-management-page .schedule-calendar-help {
+    background: #202023 !important;
+    border-color: #3f3f46 !important;
+    color: #d4d4d8 !important;
+}
+
+html.dark .schedule-management-page .schedule-calendar-table,
+html.dark .schedule-management-page .schedule-calendar-table tbody,
+html.dark .schedule-management-page .schedule-calendar-table tbody tr,
+html.dark .schedule-management-page .schedule-calendar-table tbody tr:nth-child(even) {
+    background: #222225 !important;
+}
+
+html.dark .schedule-management-page .schedule-calendar-table :is(th, td) {
+    border-color: #3f3f46 !important;
+}
+
+html.dark .schedule-management-page .schedule-calendar-table th,
+html.dark .schedule-management-page .schedule-employee-column {
+    background: #2c2c30 !important;
+    color: #f4f4f5 !important;
+}
+
+html.dark .schedule-management-page .schedule-calendar-table td.schedule-date-column {
+    background: #222225 !important;
+}
+
+html.dark .schedule-management-page .schedule-calendar-table td.schedule-date-column:hover,
+html.dark .schedule-management-page .schedule-calendar-table tbody tr:hover td.schedule-date-column {
+    background: #303034 !important;
+}
+
+html.dark .schedule-management-page .schedule-calendar-table :is(th, td)[class*="bg-indigo-"] {
+    background: #312e3f !important;
+    box-shadow: inset 0 0 0 1px #6366f1 !important;
+}
+
+html.dark .schedule-management-page .schedule-density-button {
+    color: #d4d4d8 !important;
+}
+
+html.dark .schedule-management-page .schedule-density-button[aria-pressed="true"] {
+    background: #3f3f46 !important;
+    color: #ffffff !important;
+}
+
+html.dark .schedule-management-page .schedule-status-badge[data-schedule-tone="shift"] {
+    background: rgba(20, 83, 45, 0.68) !important;
+    border-color: #22c55e !important;
+    color: #bbf7d0 !important;
+}
+
+html.dark .schedule-management-page .schedule-status-badge[data-schedule-tone="off"] {
+    background: rgba(113, 63, 18, 0.68) !important;
+    border-color: #eab308 !important;
+    color: #fef08a !important;
+}
+
+html.dark .schedule-management-page .schedule-status-badge[data-schedule-tone="absent"] {
+    background: rgba(127, 29, 29, 0.7) !important;
+    border-color: #ef4444 !important;
+    color: #fecaca !important;
+}
+
+html.dark .schedule-management-page .schedule-status-badge[data-schedule-tone="covered"] {
+    background: rgba(88, 28, 135, 0.7) !important;
+    border-color: #a855f7 !important;
+    color: #e9d5ff !important;
+}
+
+html.dark .schedule-management-page .schedule-status-badge[data-schedule-tone="holiday"] {
+    background: rgba(30, 64, 175, 0.68) !important;
+    border-color: #3b82f6 !important;
+    color: #bfdbfe !important;
+}
+
+html.dark .schedule-management-page .calendar-cell-detail,
+html.dark .schedule-management-page .schedule-calendar-table .text-gray-300,
+html.dark .schedule-management-page .schedule-calendar-table .text-gray-400,
+html.dark .schedule-management-page .schedule-calendar-table .text-gray-500 {
+    color: #d4d4d8 !important;
+}
+
+html.dark :is(#scheduleDetailModal, #bulkModal, #bulkDeleteModal) {
+    background-color: rgba(9, 9, 11, 0.78) !important;
+}
+
+html.dark :is(#scheduleDetailModal, #bulkModal, #bulkDeleteModal) :is(h2, h3, h4, label, p, span) {
+    color: #f4f4f5 !important;
+}
+
+html.dark :is(#scheduleDetailModal, #bulkModal, #bulkDeleteModal) :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+    background: #2c2c30 !important;
+    border-color: #52525b !important;
+    color: #ffffff !important;
+}
+
+html.dark :is(#scheduleDetailModal, #bulkModal, #bulkDeleteModal) :is(.bg-gray-50, .bg-white) {
+    background: #29292d !important;
+    border-color: #3f3f46 !important;
+}
+
 @media (max-width: 767px) {
     .hris-content table {
         font-size: 0.8rem;

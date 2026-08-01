@@ -18,11 +18,17 @@ class ScheduleV2Controller extends Controller
 
         $user = Auth::user();
         $isManager = $user->role === 'manager';
+        $currentCompany = \App\Helpers\CompanyHelper::getCurrentCompany();
 
-        $departments = $isManager
-            ? \App\Models\Department::where('manager_id', $user->employee_id)->orderBy('name')->get()
-            : \App\Models\Department::orderBy('name')->get();
-        $allEmployeesQuery = \App\Models\Employee::with(['department', 'position'])->orderBy('first_name');
+        $departmentsQuery = $isManager
+            ? \App\Models\Department::where('manager_id', $user->employee_id)
+            : \App\Models\Department::query();
+        $departmentsQuery->when($currentCompany, fn ($query) => $query->forCompany($currentCompany->id));
+        $departments = $departmentsQuery->orderBy('name')->get();
+
+        $allEmployeesQuery = \App\Models\Employee::with(['department', 'position'])
+            ->when($currentCompany, fn ($query) => $query->forCompany($currentCompany->id))
+            ->orderBy('first_name');
         if ($isManager) {
             $allEmployeesQuery->managedBy($user->employee_id);
         }
@@ -30,7 +36,8 @@ class ScheduleV2Controller extends Controller
 
         // always run the query now, so a fresh page load shows everyone by default
         // (empty department/search just means no WHERE clause = all employees)
-        $query = \App\Models\Employee::with(['department', 'position']);
+        $query = \App\Models\Employee::with(['department', 'position'])
+            ->when($currentCompany, fn ($query) => $query->forCompany($currentCompany->id));
         if ($isManager) {
             // Managers never see other departments' employees, regardless of
             // what department_id a crafted request tries to pass.
@@ -102,16 +109,14 @@ class ScheduleV2Controller extends Controller
                     $leave = $leaveByDay->get($key);
                     $ob = $officialBusiness->get($key);
 
-                    if ($date->isFuture()) {
-                        continue;
-                    }
-
                     if ($leave && $ob) {
                         $history = ['label' => 'Leave / OB Conflict', 'tone' => 'red'];
                     } elseif ($leave) {
                         $history = ['label' => \App\Models\LeaveRequest::labelFor($leave->leave_type), 'tone' => 'indigo'];
                     } elseif ($ob) {
                         $history = ['label' => 'Official Business', 'tone' => 'indigo'];
+                    } elseif ($date->isFuture()) {
+                        continue;
                     } elseif ($record && (($record->time_in && !$record->time_out) || (!$record->time_in && $record->time_out))) {
                         $history = ['label' => 'Incomplete Log', 'tone' => 'red'];
                     } elseif ($record && $record->hasInvalidTimeSpan()) {
@@ -167,11 +172,17 @@ class ScheduleV2Controller extends Controller
     {
         $user = Auth::user();
         $isManager = $user->role === 'manager';
+        $currentCompany = \App\Helpers\CompanyHelper::getCurrentCompany();
 
-        $departments = $isManager
-            ? \App\Models\Department::where('manager_id', $user->employee_id)->orderBy('name')->get()
-            : \App\Models\Department::orderBy('name')->get();
-        $employeesQuery = \App\Models\Employee::with('department')->orderBy('first_name');
+        $departmentsQuery = $isManager
+            ? \App\Models\Department::where('manager_id', $user->employee_id)
+            : \App\Models\Department::query();
+        $departmentsQuery->when($currentCompany, fn ($query) => $query->forCompany($currentCompany->id));
+        $departments = $departmentsQuery->orderBy('name')->get();
+
+        $employeesQuery = \App\Models\Employee::with('department')
+            ->when($currentCompany, fn ($query) => $query->forCompany($currentCompany->id))
+            ->orderBy('first_name');
         if ($isManager) {
             $employeesQuery->managedBy($user->employee_id);
         }
@@ -221,6 +232,10 @@ class ScheduleV2Controller extends Controller
     private function assertEmployeeManageable(\App\Models\Employee $employee): void
     {
         $user = Auth::user();
+        $companyId = \App\Helpers\CompanyHelper::getCurrentCompanyId();
+        if ($companyId && $employee->company_id !== $companyId) {
+            abort(404);
+        }
         if ($user->role === 'manager' && !$employee->isManagedBy($user->employee_id)) {
             abort(403, 'You can only manage schedules for your own department.');
         }
@@ -229,11 +244,17 @@ class ScheduleV2Controller extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'employee_id' => ['required', 'exists:employees,id'],
-            'department_id' => ['required', 'exists:departments,id'],
+            'employee_id' => ['required', Rule::exists('employees', 'id')->where(
+                fn ($query) => $query->where('company_id', \App\Helpers\CompanyHelper::getCurrentCompanyId())
+            )],
+            'department_id' => ['required', Rule::exists('departments', 'id')->where(
+                fn ($query) => $query->where('company_id', \App\Helpers\CompanyHelper::getCurrentCompanyId())
+            )],
             'date' => ['required', 'date'],
             'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
-            'schedule_template_id' => ['nullable', 'exists:schedule_templates,id'],
+            'schedule_template_id' => ['nullable', Rule::exists('schedule_templates', 'id')->where(
+                fn ($query) => $query->where('company_id', \App\Helpers\CompanyHelper::getCurrentCompanyId())
+            )],
             ...$this->scheduleDetailRules($request),
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
@@ -294,11 +315,15 @@ class ScheduleV2Controller extends Controller
     {
         $validated = $request->validate([
             'employee_schedules' => ['required', 'array', 'min:1'],
-            'employee_schedules.*.employee_id' => ['required', 'exists:employees,id'],
+            'employee_schedules.*.employee_id' => ['required', Rule::exists('employees', 'id')->where(
+                fn ($query) => $query->where('company_id', \App\Helpers\CompanyHelper::getCurrentCompanyId())
+            )],
             'employee_schedules.*.dates' => ['required', 'array', 'min:1'],
             'employee_schedules.*.dates.*' => ['required', 'date'],
             'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
-            'schedule_template_id' => ['nullable', 'exists:schedule_templates,id'],
+            'schedule_template_id' => ['nullable', Rule::exists('schedule_templates', 'id')->where(
+                fn ($query) => $query->where('company_id', \App\Helpers\CompanyHelper::getCurrentCompanyId())
+            )],
             ...$this->scheduleDetailRules($request),
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
@@ -357,12 +382,18 @@ class ScheduleV2Controller extends Controller
     {
         $validated = $request->validate([
             'employee_ids' => ['required', 'array', 'min:1'],
-            'employee_ids.*' => ['exists:employees,id'],
-            'department_id' => ['required', 'exists:departments,id'],
+            'employee_ids.*' => [Rule::exists('employees', 'id')->where(
+                fn ($query) => $query->where('company_id', \App\Helpers\CompanyHelper::getCurrentCompanyId())
+            )],
+            'department_id' => ['required', Rule::exists('departments', 'id')->where(
+                fn ($query) => $query->where('company_id', \App\Helpers\CompanyHelper::getCurrentCompanyId())
+            )],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
-            'schedule_template_id' => ['nullable', 'exists:schedule_templates,id'],
+            'schedule_template_id' => ['nullable', Rule::exists('schedule_templates', 'id')->where(
+                fn ($query) => $query->where('company_id', \App\Helpers\CompanyHelper::getCurrentCompanyId())
+            )],
             ...$this->scheduleDetailRules($request),
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
@@ -493,7 +524,9 @@ class ScheduleV2Controller extends Controller
 
         $validated = $request->validate([
             'status' => ['required', 'in:Working,Day Off,Leave,Holiday,Overtime,Regular Holiday,Special Holiday,Absent'],
-            'schedule_template_id' => ['nullable', 'exists:schedule_templates,id'],
+            'schedule_template_id' => ['nullable', Rule::exists('schedule_templates', 'id')->where(
+                fn ($query) => $query->where('company_id', \App\Helpers\CompanyHelper::getCurrentCompanyId())
+            )],
             ...$this->scheduleDetailRules($request),
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
