@@ -478,48 +478,71 @@
                 <h3 class="text-lg font-semibold text-gray-900">Quick Actions</h3>
             </div>
             <div class="space-y-4">
-                <!-- Time In Button -->
+                <!-- Clock Status / Time In / Time Out -->
                 @if(!$todayAttendance || !$todayAttendance->hasActiveTimeEntry())
                 <button id="quick-time-in-btn" onclick="confirmTimeIn()" class="w-full flex items-center justify-center px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
                     <i class="fas fa-sign-in-alt mr-2"></i>
                     Time In
                 </button>
                 @else
-                <button disabled class="w-full flex items-center justify-center px-4 py-3 bg-gray-400 text-white rounded-lg cursor-not-allowed">
-                    <i class="fas fa-check mr-2"></i>
-                    Already Clocked In
-                </button>
-                @endif
-
-                <!-- Time Out Button -->
-                @if($todayAttendance && $todayAttendance->hasActiveTimeEntry())
+                <div class="w-full flex items-center justify-center px-4 py-3 bg-green-50 text-green-700 rounded-lg font-medium">
+                    <span class="w-2.5 h-2.5 rounded-full bg-green-500 mr-2"></span>
+                    You're Clocked In
+                </div>
                 <button id="quick-time-out-btn" onclick="confirmTimeOut()" class="w-full flex items-center justify-center px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
                     <i class="fas fa-sign-out-alt mr-2"></i>
                     Time Out
                 </button>
+                @endif
+
+                <!-- Apply Leave -->
+                <a href="{{ route('attendance.leave-management', ['scope' => 'mine']) }}" class="w-full flex items-center justify-center px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
+                    <i class="fas fa-calendar-times mr-2"></i>
+                    Apply Leave
+                </a>
+
+                <!-- Download Payslip -->
+                @php
+                    $latestQuickPayroll = null;
+                    try {
+                        if (isset($user->employee) && $user->employee) {
+                            $latestQuickPayroll = \App\Models\Payroll::where('employee_id', $user->employee->id)
+                                ->whereIn('status', ['approved', 'paid'])
+                                ->latest()
+                                ->first();
+                        }
+                    } catch (\Exception $e) {
+                        $latestQuickPayroll = null;
+                    }
+                @endphp
+                @if($latestQuickPayroll)
+                <button onclick="downloadEmployeePayslip('{{ $latestQuickPayroll->id }}')" class="w-full flex items-center justify-center px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    <i class="fas fa-download mr-2"></i>
+                    Download Payslip
+                </button>
                 @else
-                <button disabled class="w-full flex items-center justify-center px-4 py-3 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed">
-                    <i class="fas fa-sign-out-alt mr-2"></i>
-                    Time Out (Clock In First)
+                <button disabled class="w-full flex items-center justify-center px-4 py-3 bg-gray-200 text-gray-500 rounded-lg cursor-not-allowed">
+                    <i class="fas fa-download mr-2"></i>
+                    No Payslip Available
                 </button>
                 @endif
 
-                <!-- Update Profile Button -->
-                <a href="{{ route('hr.profile') }}" class="w-full flex items-center justify-center px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
-                    <i class="fas fa-edit mr-2"></i>
-                    Update Profile
+                <!-- Contact HR -->
+                <a href="{{ route('hr.contact.index') }}" class="w-full flex items-center justify-center px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
+                    <i class="fas fa-question-circle mr-2"></i>
+                    Contact HR
                 </a>
 
-                <!-- Forgot Time In/Out Button -->
+                <!-- Help & Support -->
+                <a href="{{ route('hr.help-support') }}" class="w-full flex items-center justify-center px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
+                    <i class="fas fa-life-ring mr-2"></i>
+                    Help & Support
+                </a>
+
+                <!-- Forgot Time In/Out -->
                 <button type="button" onclick="openForgotTimeModal()" class="w-full flex items-center justify-center px-4 py-3 bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200 transition-colors">
                     <i class="fas fa-clock mr-2"></i>
                     Forgot to time in / out?
-                </button>
-                
-                <!-- Contact HR Button -->
-                <button class="w-full flex items-center justify-center px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
-                    <i class="fas fa-question-circle mr-2"></i>
-                    Contact HR
                 </button>
             </div>
         </div>

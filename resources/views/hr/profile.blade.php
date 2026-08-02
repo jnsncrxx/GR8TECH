@@ -1,501 +1,501 @@
 @extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'hr.profile'])
 
-@section('title', 'HR Profile')
+@section('title', 'Profile')
 
 @section('content')
-<div class="space-y-6">
-    <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+<div style="max-width:960px; margin:0 auto;">
+
+    {{-- Page Header --}}
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.5rem;gap:1rem;flex-wrap:wrap;">
         <div>
-            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center">
-                <i class="fas fa-user-circle mr-3 text-blue-600"></i>
-                HR Profile
-            </h1>
-            <p class="mt-1 text-sm text-gray-600">Manage your personal information and professional details</p>
+            <h1 style="font-size:1.375rem;font-weight:700;color:#111827;margin:0;">Profile</h1>
+            <p style="margin:.25rem 0 0;font-size:.875rem;color:#6b7280;">Employee Details</p>
         </div>
-        <div class="mt-4 sm:mt-0">
-            <button class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                <i class="fas fa-edit mr-2"></i>
-                Edit Profile
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap;">
+            <button type="button" onclick="document.getElementById('profile-edit-form')?.scrollIntoView({behavior:'smooth'})" class="btn-cancel">
+                <i class="fas fa-edit"></i> Edit Profile
             </button>
         </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Profile Card -->
-        <div class="lg:col-span-1">
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <!-- Profile Picture -->
-                <div class="text-center">
-                    @if(!empty($photoUrl))
-                        <div class="w-32 h-32 mx-auto mb-4 overflow-hidden rounded-full border border-gray-200">
-                            <img src="{{ $photoUrl }}" alt="Profile photo" class="w-full h-full object-cover">
-                        </div>
-                    @else
-                        <div class="w-32 h-32 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <i class="fas fa-user text-white text-3xl"></i>
-                        </div>
-                    @endif
-                    <h3 class="text-xl font-semibold text-gray-900">{{ $employee ? $employee->full_name : $user->full_name }}</h3>
-                    <p class="text-sm text-gray-500">{{ $user->email }}</p>
-                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mt-2">
-                        <i class="fas fa-crown mr-1"></i>
-                        {{ ucfirst($user->role) }}
+    <div style="display:grid;grid-template-columns:1fr 260px;gap:1.5rem;align-items:start;">
+
+        {{-- ══ LEFT COLUMN ══ --}}
+        <div>
+
+        {{-- Profile Photo & Number --}}
+        <div class="emp-card sec-personal" style="margin-bottom:1.5rem;">
+            <div class="emp-card-header">
+                <div class="section-icon"><i class="fas fa-user-circle"></i></div>
+                <div>
+                    <h3>Profile Overview</h3>
+                    <p>Photo and employee identification</p>
+                </div>
+            </div>
+            <div class="emp-card-body" style="display:flex;gap:1.5rem;align-items:center;flex-wrap:wrap;">
+                {{-- Photo / Avatar --}}
+                @if(!empty($photoUrl))
+                    <img src="{{ $photoUrl }}" alt="{{ $employee ? $employee->full_name : $user->full_name }}"
+                         style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid #e5e7eb;flex-shrink:0;">
+                @else
+                    <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#2563eb);display:flex;align-items:center;justify-content:center;flex-shrink:0;border:3px solid #e5e7eb;">
+                        <span style="font-size:1.5rem;font-weight:700;color:#fff;">{{ strtoupper(substr($employee?->first_name ?? $user->first_name ?? 'U', 0, 1)) }}{{ strtoupper(substr($employee?->last_name ?? $user->last_name ?? 'U', 0, 1)) }}</span>
+                    </div>
+                @endif
+                <div>
+                    <p style="font-size:1.125rem;font-weight:700;color:#111827;margin:0;">{{ $employee ? $employee->full_name : $user->full_name }}</p>
+                    <p style="font-size:.875rem;color:#6b7280;margin:.25rem 0;">{{ $employee?->position?->name ?? '—' }} &mdash; {{ $employee?->department?->name ?? 'N/A' }}</p>
+                    <div class="emp-num-badge" style="margin-top:.5rem;">
+                        <i class="fas fa-id-badge"></i>
+                        <span>{{ $employee?->employee_id ?? 'N/A' }}</span>
+                    </div>
+                </div>
+                <div style="margin-left:auto;">
+                    @php
+                        $statusColor = match($employee?->employee_status) {
+                            'Regular'     => ['bg'=>'#f0fdf4','border'=>'#86efac','text'=>'#16a34a'],
+                            'Probationary'=> ['bg'=>'#fefce8','border'=>'#fde68a','text'=>'#ca8a04'],
+                            'Contractual' => ['bg'=>'#eff6ff','border'=>'#93c5fd','text'=>'#2563eb'],
+                            'Resigned'    => ['bg'=>'#fef2f2','border'=>'#fca5a5','text'=>'#dc2626'],
+                            default       => ['bg'=>'#f9fafb','border'=>'#d1d5db','text'=>'#6b7280'],
+                        };
+                    @endphp
+                    <span style="display:inline-flex;align-items:center;gap:.4rem;padding:.35rem .75rem;border-radius:9999px;font-size:.75rem;font-weight:600;
+                                 background:{{ $statusColor['bg'] }};border:1px solid {{ $statusColor['border'] }};color:{{ $statusColor['text'] }};">
+                        <span style="width:7px;height:7px;border-radius:50%;background:{{ $statusColor['text'] }};display:inline-block;"></span>
+                        {{ $employee?->employee_status ?? 'N/A' }}
                     </span>
                 </div>
+            </div>
+        </div>
 
-                <form method="POST" action="{{ route('hr.profile.photo.upload') }}" enctype="multipart/form-data" class="mt-6 space-y-4">
-                    @csrf
+        {{-- Personal Information --}}
+        <div class="emp-card sec-personal" style="margin-bottom:1.5rem;" id="profile-edit-form">
+            <div class="emp-card-header">
+                <div class="section-icon"><i class="fas fa-user"></i></div>
+                <div>
+                    <h3>Personal Information</h3>
+                    <p>Basic identification and demographic details</p>
+                </div>
+            </div>
+            <div class="emp-card-body">
+                <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:1.25rem;align-items:start;">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Profile Photo</label>
-                        <input type="file" name="photo" accept=".jpg,.jpeg,.png" class="block w-full text-sm text-gray-600 border border-gray-300 rounded-lg cursor-pointer bg-white focus:outline-none" />
-                        @error('photo')
-                            <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                        @enderror
+                        <label class="form-label">Last Name</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;word-break:break-word;">{{ $employee?->last_name ?? '—' }}</p>
                     </div>
-                    <button type="submit" class="inline-flex items-center justify-center w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                        <i class="fas fa-upload mr-2"></i>
-                        Upload / Change Photo
-                    </button>
-                </form>
+                    <div>
+                        <label class="form-label">First Name</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;word-break:break-word;">{{ $employee?->first_name ?? '—' }}</p>
+                    </div>
+                    <div>
+                        <label class="form-label">Middle Name</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;word-break:break-word;">{{ $employee?->middle_name ?? '—' }}</p>
+                    </div>
 
-                <!-- Quick Stats -->
-                <div class="mt-6 space-y-4">
-                    <div class="flex items-center justify-between py-2 border-b border-gray-100">
-                        <span class="text-sm text-gray-600">Employee ID</span>
-                        <span class="text-sm font-medium text-gray-900">{{ $employee?->employee_id ?? 'N/A' }}</span>
+                    <div>
+                        <label class="form-label">Date of Birth</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;word-break:break-word;">{{ $employee?->date_of_birth ? $employee->date_of_birth->format('M d, Y') : '—' }}</p>
                     </div>
-                    <div class="flex items-center justify-between py-2 border-b border-gray-100">
-                        <span class="text-sm text-gray-600">Department</span>
-                        <span class="text-sm font-medium text-gray-900">{{ $employee && $employee->department ? $employee->department->name : 'N/A' }}</span>
+                    <div>
+                        <label class="form-label">Civil Status</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;word-break:break-word;">{{ $employee?->civil_status ?? '—' }}</p>
                     </div>
-                    <div class="flex items-center justify-between py-2 border-b border-gray-100">
-                        <span class="text-sm text-gray-600">Hire Date</span>
-                        <span class="text-sm font-medium text-gray-900">{{ $employee && $employee->hire_date ? $employee->hire_date->format('M d, Y') : 'N/A' }}</span>
+                    <div>
+                        <label class="form-label">Email Address</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;word-break:break-word;">{{ $employee?->account?->email ?? $user->email }}</p>
                     </div>
-                    <div class="flex items-center justify-between py-2">
-                        <span class="text-sm text-gray-600">Status</span>
-                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            <i class="fas fa-check-circle mr-1"></i>
-                            {{ $user->is_active ? 'Active' : 'Inactive' }}
+
+                    <div>
+                        <label class="form-label">Mobile Number</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;word-break:break-word;">{{ $employee?->mobile_number ?? '—' }}</p>
+                    </div>
+                    <div>
+                        <label class="form-label">Home Address</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee?->home_address ?? '—' }}</p>
+                    </div>
+                    <div>
+                        <label class="form-label">Current Address</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee?->current_address ?? '—' }}</p>
+                    </div>
+
+                    @if($employee?->facebook_link || $employee?->linkedin_link || $employee?->ig_link || $employee?->other_link)
+                        @if($employee->facebook_link)
+                        <div>
+                            <label class="form-label">Facebook</label>
+                            <a href="{{ $employee->facebook_link }}" target="_blank" rel="noopener" style="font-size:.875rem;color:#2563eb;">{{ $employee->facebook_link }}</a>
+                        </div>
+                        @endif
+                        @if($employee->linkedin_link)
+                        <div>
+                            <label class="form-label">LinkedIn</label>
+                            <a href="{{ $employee->linkedin_link }}" target="_blank" rel="noopener" style="font-size:.875rem;color:#2563eb;">{{ $employee->linkedin_link }}</a>
+                        </div>
+                        @endif
+                        @if($employee->ig_link)
+                        <div>
+                            <label class="form-label">Instagram</label>
+                            <a href="{{ $employee->ig_link }}" target="_blank" rel="noopener" style="font-size:.875rem;color:#2563eb;">{{ $employee->ig_link }}</a>
+                        </div>
+                        @endif
+                        @if($employee->other_link)
+                        <div>
+                            <label class="form-label">Other Link</label>
+                            <a href="{{ $employee->other_link }}" target="_blank" rel="noopener" style="font-size:.875rem;color:#2563eb;">{{ $employee->other_link }}</a>
+                        </div>
+                        @endif
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        {{-- Emergency Contact --}}
+        @if($employee?->emergency_full_name || $employee?->emergency_relationship || $employee?->emergency_home_address || $employee?->emergency_current_address || $employee?->emergency_mobile_number || $employee?->emergency_email || $employee?->emergency_facebook_link)
+        <div class="emp-card sec-emergency" style="margin-bottom:1.5rem;">
+            <div class="emp-card-header">
+                <div class="section-icon"><i class="fas fa-phone-alt"></i></div>
+                <div>
+                    <h3>In Case of an Emergency</h3>
+                    <p>Emergency contact person details</p>
+                </div>
+            </div>
+            <div class="emp-card-body">
+                <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:1.25rem;align-items:start;">
+                    @if($employee->emergency_full_name)
+                    <div>
+                        <label class="form-label">Full Name</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee->emergency_full_name }}</p>
+                    </div>
+                    @endif
+                    @if($employee->emergency_relationship)
+                    <div>
+                        <label class="form-label">Relationship</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee->emergency_relationship }}</p>
+                    </div>
+                    @endif
+                    @if($employee->emergency_home_address)
+                    <div>
+                        <label class="form-label">Home Address</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee->emergency_home_address }}</p>
+                    </div>
+                    @endif
+                    @if($employee->emergency_current_address)
+                    <div>
+                        <label class="form-label">Current Address</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee->emergency_current_address }}</p>
+                    </div>
+                    @endif
+                    @if($employee->emergency_mobile_number)
+                    <div>
+                        <label class="form-label">Mobile Number</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee->emergency_mobile_number }}</p>
+                    </div>
+                    @endif
+                    @if($employee->emergency_email)
+                    <div>
+                        <label class="form-label">Email</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee->emergency_email }}</p>
+                    </div>
+                    @endif
+                    @if($employee->emergency_facebook_link)
+                    <div>
+                        <label class="form-label">Facebook</label>
+                        <a href="{{ $employee->emergency_facebook_link }}" target="_blank" rel="noopener" style="font-size:.875rem;color:#2563eb;">{{ $employee->emergency_facebook_link }}</a>
+                    </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+        @endif
+
+        {{-- Work Information --}}
+        <div class="emp-card sec-work" style="margin-bottom:1.5rem;">
+            <div class="emp-card-header">
+                <div class="section-icon"><i class="fas fa-briefcase"></i></div>
+                <div>
+                    <h3>Work Information</h3>
+                    <p>Position, salary, and employment dates</p>
+                </div>
+            </div>
+            <div class="emp-card-body">
+                <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:1.25rem;align-items:start;">
+                    <div>
+                        <label class="form-label">Position</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee?->position?->name ?? '—' }}</p>
+                    </div>
+                    <div>
+                        <label class="form-label">Department</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee?->department?->name ?? '—' }}</p>
+                    </div>
+                    <div>
+                        <label class="form-label">Monthly Salary</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee?->salary ? '₱' . number_format($employee->salary, 2) : '—' }}</p>
+                    </div>
+                    <div>
+                        <label class="form-label">Hire Date</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee?->hire_date ? $employee->hire_date->format('M d, Y') : '—' }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- Loans --}}
+        @if($employee?->loan_start_date || $employee?->loan_end_date || !is_null($employee?->loan_total_amount) || !is_null($employee?->loan_monthly_amortization))
+        <div class="emp-card sec-loans" style="margin-bottom:1.5rem;">
+            <div class="emp-card-header">
+                <div class="section-icon"><i class="fas fa-hand-holding-usd"></i></div>
+                <div>
+                    <h3>Employee Loans</h3>
+                    <p>Loan details and amortization schedule</p>
+                </div>
+            </div>
+            <div class="emp-card-body">
+                <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:1.25rem;align-items:start;">
+                    @if($employee->loan_start_date)
+                    <div>
+                        <label class="form-label">Start Date</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee->loan_start_date->format('M d, Y') }}</p>
+                    </div>
+                    @endif
+                    @if($employee->loan_end_date)
+                    <div>
+                        <label class="form-label">End Date</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee->loan_end_date->format('M d, Y') }}</p>
+                    </div>
+                    @endif
+                    @if(!is_null($employee->loan_total_amount))
+                    <div>
+                        <label class="form-label">Total Amount</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">₱{{ number_format($employee->loan_total_amount, 2) }}</p>
+                    </div>
+                    @endif
+                    @if(!is_null($employee->loan_monthly_amortization))
+                    <div>
+                        <label class="form-label">Monthly Amortization</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">₱{{ number_format($employee->loan_monthly_amortization, 2) }}</p>
+                    </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+        @endif
+
+        {{-- Payment Information --}}
+        @if($employee?->info?->payment_method || $employee?->info?->account_no || $employee?->info?->bank)
+        <div class="emp-card sec-payment" style="margin-bottom:1.5rem;">
+            <div class="emp-card-header">
+                <div class="section-icon"><i class="fas fa-money-check-dollar"></i></div>
+                <div>
+                    <h3>Payment Information</h3>
+                    <p>How you receive your pay</p>
+                </div>
+            </div>
+            <div class="emp-card-body">
+                <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:1.25rem;align-items:start;">
+                    @if($employee->info?->payment_method)
+                    <div>
+                        <label class="form-label">Payment Method</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee->info->payment_method }}</p>
+                    </div>
+                    @endif
+                    @if($employee->info?->account_no)
+                    <div>
+                        <label class="form-label">Account No.</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee->info->account_no }}</p>
+                    </div>
+                    @endif
+                    @if($employee->info?->bank)
+                    <div>
+                        <label class="form-label">Bank</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee->info->bank }}</p>
+                    </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+        @endif
+
+        {{-- Account Information --}}
+        <div class="emp-card sec-account" style="margin-bottom:1.5rem;">
+            <div class="emp-card-header">
+                <div class="section-icon"><i class="fas fa-user-shield"></i></div>
+                <div>
+                    <h3>Account Information</h3>
+                    <p>System access role and activity</p>
+                </div>
+            </div>
+            <div class="emp-card-body">
+                <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:1.25rem;align-items:start;">
+                    <div>
+                        <label class="form-label">Role</label>
+                        @php
+                            $roleClass = match($employee?->account?->role ?? $user->role) {
+                                'admin'   => 'background:#fef2f2;color:#b91c1c;border-color:#fca5a5;',
+                                'hr'      => 'background:#fdf4ff;color:#7e22ce;border-color:#e9d5ff;',
+                                'manager' => 'background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;',
+                                default   => 'background:#f0fdf4;color:#15803d;border-color:#86efac;',
+                            };
+                        @endphp
+                        <span style="display:inline-flex;padding:.25rem .625rem;border-radius:9999px;font-size:.75rem;font-weight:600;border:1px solid;{{ $roleClass }}">
+                            {{ ucfirst($employee?->account?->role ?? $user->role) }}
                         </span>
                     </div>
-                </div>
-
-                <!-- Contact Information -->
-                <div class="mt-6">
-                    <h4 class="text-sm font-medium text-gray-900 mb-3">Contact Information</h4>
-                    <div class="space-y-2">
-                        <div class="flex items-center text-sm text-gray-600">
-                            <i class="fas fa-phone w-4 h-4 mr-3 text-gray-400"></i>
-                            {{ $employee?->phone ?? 'N/A' }}
-                        </div>
-                        <div class="flex items-center text-sm text-gray-600">
-                            <i class="fas fa-envelope w-4 h-4 mr-3 text-gray-400"></i>
-                            {{ $user->email }}
-                        </div>
-                        <div class="flex items-center text-sm text-gray-600">
-                            <i class="fas fa-map-marker-alt w-4 h-4 mr-3 text-gray-400"></i>
-                            Manila, Philippines
-                        </div>
+                    <div>
+                        <label class="form-label">Status</label>
+                        @php $isActive = $employee?->account?->is_active ?? $user->is_active; @endphp
+                        <span style="display:inline-flex;align-items:center;gap:.375rem;padding:.25rem .625rem;border-radius:9999px;font-size:.75rem;font-weight:600;
+                                     {{ $isActive ? 'background:#f0fdf4;color:#15803d;border:1px solid #86efac;' : 'background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;' }}">
+                            <span style="width:6px;height:6px;border-radius:50%;background:{{ $isActive ? '#22c55e' : '#ef4444' }};display:inline-block;"></span>
+                            {{ $isActive ? 'Active' : 'Inactive' }}
+                        </span>
+                    </div>
+                    <div>
+                        <label class="form-label">Last Login</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee?->account?->last_login_at ? $employee->account->last_login_at->format('M d, Y g:i A') : ($user->last_login_at ? $user->last_login_at->format('M d, Y g:i A') : 'Never') }}</p>
+                    </div>
+                    <div>
+                        <label class="form-label">Account Created</label>
+                        <p style="font-size:.9rem;color:#111827;margin:0;">{{ $employee?->account?->created_at?->format('M d, Y') ?? ($user->created_at ? $user->created_at->format('M d, Y') : 'N/A') }}</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Main Content -->
-        @php($canEditRestricted = in_array($user->role, ['admin', 'hr']))
-        <div class="lg:col-span-2 space-y-6">
-            <!-- Personal Information -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-semibold text-gray-900">Personal Information</h3>
+        {{-- Attendance Records --}}
+        <div class="emp-card sec-work" style="margin-bottom:1.5rem;">
+            <div class="emp-card-header">
+                <div class="section-icon"><i class="fas fa-clock"></i></div>
+                <div style="flex:1;">
+                    <h3>Attendance Records</h3>
+                    <p>Recent time-in/time-out log</p>
                 </div>
-                <div class="p-6">
-                    <form id="profile-form" method="POST" action="{{ route('hr.profile.update') }}" class="space-y-6">
-                        @csrf
-                        @method('PUT')
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">First Name</label>
-                                <input type="text" name="first_name" value="{{ $employee?->first_name ?? '' }}" 
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                @error('first_name')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
-                                <input type="text" name="last_name" value="{{ $employee?->last_name ?? '' }}" 
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                @error('last_name')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
-                                <input type="email" name="email" value="{{ $user->email }}" 
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                @error('email')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
-                                <input type="tel" name="phone" value="{{ $employee?->phone ?? '' }}" 
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                @error('phone')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
-                                <input type="date" name="date_of_birth" value="{{ old('date_of_birth', $employee?->date_of_birth?->format('Y-m-d')) }}"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                @error('date_of_birth')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Employee's Civil Status</label>
-                                <input type="text" name="civil_status" value="{{ old('civil_status', $employee?->civil_status) }}"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                @error('civil_status')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Gender</label>
-                                <select name="gender" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                    <option value="">Select Gender</option>
-                                    <option value="Male">Male</option>
-                                    <option value="Female">Female</option>
-                                    <option value="Other">Other</option>
-                                </select>
-                                @error('gender')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Employee's Mobile Number</label>
-                                <input type="text" name="mobile_number" value="{{ old('mobile_number', $employee?->mobile_number) }}"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                @error('mobile_number')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Facebook Link</label>
-                                <input type="url" name="facebook_link" value="{{ old('facebook_link', $employee?->facebook_link) }}"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                @error('facebook_link')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">LinkedIn Link</label>
-                                <input type="url" name="linkedin_link" value="{{ old('linkedin_link', $employee?->linkedin_link) }}"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                @error('linkedin_link')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">IG Link</label>
-                                <input type="url" name="ig_link" value="{{ old('ig_link', $employee?->ig_link) }}"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                @error('ig_link')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Others Link</label>
-                                <input type="url" name="other_link" value="{{ old('other_link', $employee?->other_link) }}"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                @error('other_link')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Employee's Home Address</label>
-                            <textarea name="home_address" rows="3" placeholder="Enter home address" 
-                                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">{{ old('home_address', $employee?->home_address) }}</textarea>
-                            @error('home_address')
-                                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                            @enderror
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Employee's Current Address</label>
-                            <textarea name="current_address" rows="3" placeholder="Enter current address" 
-                                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">{{ old('current_address', $employee?->current_address) }}</textarea>
-                            @error('current_address')
-                                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                            @enderror
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Address</label>
-                            <textarea name="address" rows="3" placeholder="Enter your full address" 
-                                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
-                            @error('address')
-                                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                            @enderror
-                        </div>
-                    </form>
-                </div>
+                <a href="{{ route('attendance.my') }}"
+                   style="font-size:.8rem;color:#2563eb;font-weight:500;text-decoration:none;">
+                    View All →
+                </a>
             </div>
-
-            <!-- Professional Information -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-semibold text-gray-900">Professional Information</h3>
+            <div class="emp-card-body">
+                @php $attendanceRecords = $attendanceRecords ?? collect(); @endphp
+                @if($attendanceRecords->count() > 0)
+                <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;font-size:.8125rem;">
+                        <thead>
+                            <tr style="background:#f9fafb;border-bottom:1px solid #e5e7eb;">
+                                <th style="text-align:left;padding:.5rem .75rem;color:#6b7280;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;">Date</th>
+                                <th style="text-align:left;padding:.5rem .75rem;color:#6b7280;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;">Time In</th>
+                                <th style="text-align:left;padding:.5rem .75rem;color:#6b7280;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;">Time Out</th>
+                                <th style="text-align:left;padding:.5rem .75rem;color:#6b7280;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;">Total Hours</th>
+                                <th style="text-align:left;padding:.5rem .75rem;color:#6b7280;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($attendanceRecords as $record)
+                            <tr style="border-bottom:1px solid #f1f3f5;">
+                                <td style="padding:.5rem .75rem;color:#111827;">{{ \Carbon\Carbon::parse($record->date)->format('M d, Y') }}</td>
+                                <td style="padding:.5rem .75rem;color:#111827;">
+                                    {{ $record->time_in ? \Carbon\Carbon::parse($record->time_in)->format('g:i A') : '—' }}
+                                </td>
+                                <td style="padding:.5rem .75rem;color:#111827;">
+                                    @if($record->time_out)
+                                        {{ \Carbon\Carbon::parse($record->time_out)->format('g:i A') }}
+                                    @elseif($record->time_in && \Carbon\Carbon::parse($record->date)->isToday())
+                                        <span style="display:inline-flex;align-items:center;gap:.3rem;font-size:.72rem;background:#dbeafe;color:#1d4ed8;padding:.2rem .5rem;border-radius:9999px;">
+                                            <span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;" class="animate-pulse"></span> Working
+                                        </span>
+                                    @else
+                                        <span style="color:#9ca3af;">{{ $record->time_in ? 'Not Clocked Out' : '—' }}</span>
+                                    @endif
+                                </td>
+                                <td style="padding:.5rem .75rem;color:#111827;">
+                                    {{ ($record->time_out && $record->total_hours) ? \App\Helpers\TimezoneHelper::formatHours($record->total_hours) : '—' }}
+                                </td>
+                                <td style="padding:.5rem .75rem;">
+                                    @php
+                                        $sc = ['present'=>'#f0fdf4;color:#16a34a','absent'=>'#fef2f2;color:#dc2626','late'=>'#fefce8;color:#ca8a04','half_day'=>'#dbeafe;color:#1d4ed8','on_leave'=>'#eef2ff;color:#4338ca'];
+                                        $s = $sc[$record->status] ?? '#f9fafb;color:#4b5563';
+                                    @endphp
+                                    <span style="font-size:.7rem;font-weight:600;padding:.2rem .5rem;border-radius:9999px;background:{{ $s }};">
+                                        {{ ucfirst(str_replace('_',' ',$record->status)) }}
+                                    </span>
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
                 </div>
-                <div class="p-6">
-                    @unless($canEditRestricted)
-                        <div class="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
-                            Only Admin/HR can edit Professional Information.
-                        </div>
-                    @endunless
-                    <form method="POST" action="{{ route('hr.profile.update') }}" class="space-y-6">
-                        @csrf
-                        @method('PUT')
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Employee ID</label>
-                                <input type="text" value="{{ $employee?->employee_id ?? 'N/A' }}" readonly 
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Position</label>
-                                <input type="text" name="position" value="{{ $employee?->position ?? '' }}" {{ $canEditRestricted ? '' : 'readonly' }}
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                @error('position')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Department</label>
-                                <select name="department_id" {{ $canEditRestricted ? '' : 'disabled' }} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                    <option value="">Select Department</option>
-                                    @foreach($departments as $department)
-                                        <option value="{{ $department->id }}" 
-                                                {{ $employee && $employee->department_id == $department->id ? 'selected' : '' }}>
-                                            {{ $department->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                                @error('department_id')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Employment Type</label>
-                                <select name="employment_type" {{ $canEditRestricted ? '' : 'disabled' }} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                    <option value="">Select Type</option>
-                                    <option value="Full-time">Full-time</option>
-                                    <option value="Part-time">Part-time</option>
-                                    <option value="Contract">Contract</option>
-                                </select>
-                                @error('employment_type')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Hire Date</label>
-                                <input type="date" name="hire_date" value="{{ $employee && $employee->hire_date ? $employee->hire_date->format('Y-m-d') : '' }}" {{ $canEditRestricted ? '' : 'readonly' }}
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                @error('hire_date')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Salary</label>
-                                <input type="number" name="salary" value="{{ $employee?->salary ?? '' }}" step="0.01" {{ $canEditRestricted ? '' : 'readonly' }}
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                @error('salary')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Job Description</label>
-                            <textarea name="job_description" rows="4" placeholder="Describe your role and responsibilities" {{ $canEditRestricted ? '' : 'readonly' }}
-                                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
-                            @error('job_description')
-                                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                            @enderror
-                        </div>
-                    </form>
+                <div style="margin-top:1rem;">{{ $attendanceRecords->links() }}</div>
+                @else
+                <div style="text-align:center;padding:2rem 0;">
+                    <i class="fas fa-clock" style="font-size:2rem;color:#d1d5db;margin-bottom:.75rem;display:block;"></i>
+                    <p style="font-size:.875rem;color:#6b7280;margin:0;">No attendance records found.</p>
                 </div>
-            </div>
-
-            <!-- Emergency Contact -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-semibold text-gray-900">Emergency Contact</h3>
-                </div>
-                <div class="p-6">
-                    <form class="space-y-6" id="emergency-form" onsubmit="return false;">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Contact Name</label>
-                                <input type="text" name="emergency_full_name" form="profile-form" value="{{ old('emergency_full_name', $employee?->emergency_full_name) }}" placeholder="Full name" 
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Relationship</label>
-                                <input type="text" name="emergency_relationship" form="profile-form" value="{{ old('emergency_relationship', $employee?->emergency_relationship) }}" placeholder="Relationship"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Home Address</label>
-                                <input type="text" name="emergency_home_address" form="profile-form" value="{{ old('emergency_home_address', $employee?->emergency_home_address) }}" placeholder="Home address"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Current Address</label>
-                                <input type="text" name="emergency_current_address" form="profile-form" value="{{ old('emergency_current_address', $employee?->emergency_current_address) }}" placeholder="Current address"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
-                                <input type="tel" name="emergency_mobile_number" form="profile-form" value="{{ old('emergency_mobile_number', $employee?->emergency_mobile_number) }}" placeholder="+63 912 345 6789" 
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
-                                <input type="email" name="emergency_email" form="profile-form" value="{{ old('emergency_email', $employee?->emergency_email) }}" placeholder="contact@example.com" 
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            </div>
-                            <div class="md:col-span-2">
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Facebook Link</label>
-                                <input type="url" name="emergency_facebook_link" form="profile-form" value="{{ old('emergency_facebook_link', $employee?->emergency_facebook_link) }}" placeholder="https://facebook.com/..."
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <!-- Employee Loans -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-semibold text-gray-900">Employee Loans</h3>
-                </div>
-                <div class="p-6">
-                    @unless($canEditRestricted)
-                        <div class="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
-                            Only Admin/HR can edit Employee Loans.
-                        </div>
-                    @endunless
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
-                            <input type="date" name="loan_start_date" form="profile-form" value="{{ old('loan_start_date', $employee?->loan_start_date?->format('Y-m-d')) }}" {{ $canEditRestricted ? '' : 'readonly' }}
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">End Date</label>
-                            <input type="date" name="loan_end_date" form="profile-form" value="{{ old('loan_end_date', $employee?->loan_end_date?->format('Y-m-d')) }}" {{ $canEditRestricted ? '' : 'readonly' }}
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Total Amount</label>
-                            <input type="number" step="0.01" min="0" name="loan_total_amount" form="profile-form" value="{{ old('loan_total_amount', $employee?->loan_total_amount) }}" {{ $canEditRestricted ? '' : 'readonly' }}
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Monthly Amortization</label>
-                            <input type="number" step="0.01" min="0" name="loan_monthly_amortization" form="profile-form" value="{{ old('loan_monthly_amortization', $employee?->loan_monthly_amortization) }}" {{ $canEditRestricted ? '' : 'readonly' }}
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Skills & Certifications -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <div class="flex items-center justify-between">
-                        <h3 class="text-lg font-semibold text-gray-900">Skills & Certifications</h3>
-                        <button class="text-blue-600 hover:text-blue-700 text-sm font-medium">
-                            <i class="fas fa-plus mr-1"></i>
-                            Add New
-                        </button>
-                    </div>
-                </div>
-                <div class="p-6">
-                    <div class="space-y-4">
-                        <!-- Skills -->
-                        <div>
-                            <h4 class="text-sm font-medium text-gray-900 mb-3">Skills</h4>
-                            <div class="flex flex-wrap gap-2">
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800">
-                                    Human Resources Management
-                                    <button class="ml-2 text-blue-600 hover:text-blue-800">
-                                        <i class="fas fa-times text-xs"></i>
-                                    </button>
-                                </span>
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-green-100 text-green-800">
-                                    Payroll Processing
-                                    <button class="ml-2 text-green-600 hover:text-green-800">
-                                        <i class="fas fa-times text-xs"></i>
-                                    </button>
-                                </span>
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-purple-100 text-purple-800">
-                                    Employee Relations
-                                    <button class="ml-2 text-purple-600 hover:text-purple-800">
-                                        <i class="fas fa-times text-xs"></i>
-                                    </button>
-                                </span>
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-yellow-100 text-yellow-800">
-                                    Labor Law Compliance
-                                    <button class="ml-2 text-yellow-600 hover:text-yellow-800">
-                                        <i class="fas fa-times text-xs"></i>
-                                    </button>
-                                </span>
-                            </div>
-                        </div>
-
-                        <!-- Certifications -->
-                        <div>
-                            <h4 class="text-sm font-medium text-gray-900 mb-3">Certifications</h4>
-                            <div class="space-y-3">
-                                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                    <div>
-                                        <p class="text-sm font-medium text-gray-900">Professional in Human Resources (PHR)</p>
-                                        <p class="text-xs text-gray-500">HR Certification Institute • Issued 2022</p>
-                                    </div>
-                                    <button class="text-red-600 hover:text-red-700 text-sm">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
-                                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                    <div>
-                                        <p class="text-sm font-medium text-gray-900">Certified Payroll Professional (CPP)</p>
-                                        <p class="text-xs text-gray-500">American Payroll Association • Issued 2021</p>
-                                    </div>
-                                    <button class="text-red-600 hover:text-red-700 text-sm">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Action Buttons -->
-            <div class="flex justify-end space-x-3">
-                <button type="button" class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
-                    Cancel
-                </button>
-                <button type="submit" form="profile-form" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                    <i class="fas fa-save mr-2"></i>
-                    Save Changes
-                </button>
+                @endif
             </div>
         </div>
+
+        </div>{{-- end left col --}}
+
+        {{-- ══ RIGHT SIDEBAR ══ --}}
+        <div>
+
+        {{-- Quick Actions --}}
+        <div class="emp-card sec-account" style="margin-bottom:1.5rem;">
+            <div class="emp-card-header">
+                <div class="section-icon"><i class="fas fa-bolt"></i></div>
+                <div>
+                    <h3>Quick Actions</h3>
+                    <p>Manage your own profile</p>
+                </div>
+            </div>
+            <div class="emp-card-body" style="padding:1rem;">
+                <div style="display:flex;flex-direction:column;gap:.5rem;">
+                    <a href="{{ route('employee.payroll.history') }}"
+                       style="display:flex;align-items:center;justify-content:center;gap:.5rem;padding:.6rem 1rem;border:1px solid #d1d5db;border-radius:8px;font-size:.875rem;font-weight:500;color:#374151;background:#fff;text-decoration:none;">
+                        <i class="fas fa-money-bill-wave"></i> View Payroll
+                    </a>
+                    <a href="{{ route('attendance.my') }}"
+                       style="display:flex;align-items:center;justify-content:center;gap:.5rem;padding:.6rem 1rem;border:1px solid #d1d5db;border-radius:8px;font-size:.875rem;font-weight:500;color:#374151;background:#fff;text-decoration:none;">
+                        <i class="fas fa-clock"></i> View Attendance
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        {{-- Recent Payrolls --}}
+        @if($employee && $employee->payrolls && $employee->payrolls->count() > 0)
+        <div class="emp-card sec-loans" style="margin-bottom:1.5rem;">
+            <div class="emp-card-header">
+                <div class="section-icon"><i class="fas fa-receipt"></i></div>
+                <div>
+                    <h3>Recent Payrolls</h3>
+                    <p>Last 3 payroll records</p>
+                </div>
+            </div>
+            <div class="emp-card-body" style="padding:1rem;">
+                <div style="display:flex;flex-direction:column;gap:.5rem;">
+                    @foreach($employee->payrolls->take(3) as $payroll)
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:.625rem .75rem;background:#f9fafb;border-radius:8px;border:1px solid #f1f3f5;">
+                        <div>
+                            <p style="font-size:.8125rem;font-weight:600;color:#111827;margin:0;">{{ $payroll->pay_period_start->format('M d') }} – {{ $payroll->pay_period_end->format('M d, Y') }}</p>
+                            <p style="font-size:.7rem;color:#9ca3af;margin:.1rem 0 0;">{{ $payroll->created_at->format('M d, Y') }}</p>
+                        </div>
+                        <div style="text-align:right;">
+                            <p style="font-size:.8125rem;font-weight:600;color:#111827;margin:0;">₱{{ number_format($payroll->gross_pay, 2) }}</p>
+                            @php $pc = $payroll->status === 'paid' ? 'background:#f0fdf4;color:#15803d;' : ($payroll->status === 'pending' ? 'background:#fefce8;color:#ca8a04;' : 'background:#fef2f2;color:#dc2626;'); @endphp
+                            <span style="font-size:.65rem;font-weight:600;padding:.15rem .45rem;border-radius:9999px;{{ $pc }}">{{ ucfirst($payroll->status) }}</span>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+                <div style="margin-top:.75rem;">
+                    <a href="{{ route('employee.payroll.history') }}" style="font-size:.8rem;color:#2563eb;text-decoration:none;">View all payrolls →</a>
+                </div>
+            </div>
+        </div>
+        @endif
+
+        </div>{{-- end right col --}}
     </div>
+
 </div>
 @endsection
