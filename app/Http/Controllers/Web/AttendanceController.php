@@ -131,6 +131,7 @@ class AttendanceController extends Controller
     private function buildDailyAttendanceSnapshots(Collection $employees, Carbon $date): Collection
     {
         $dateString = $date->toDateString();
+        $isFutureDate = $this->isFutureAttendanceDate($date);
         $employeeIds = $employees->pluck('id');
 
         $attendance = AttendanceRecord::query()
@@ -161,7 +162,7 @@ class AttendanceController extends Controller
             ->get()
             ->keyBy('employee_id');
 
-        return $employees->mapWithKeys(function (Employee $employee) use ($attendance, $schedules, $leaves, $officialBusiness) {
+        return $employees->mapWithKeys(function (Employee $employee) use ($attendance, $schedules, $leaves, $officialBusiness, $isFutureDate) {
             $record = $attendance->get($employee->id);
             $schedule = $schedules->get($employee->id);
             $leave = $leaves->get($employee->id);
@@ -203,6 +204,10 @@ class AttendanceController extends Controller
                     ? ($isReviewedRestDayDuty ? 'Rest-day Duty' : 'Rest-day Duty Review')
                     : $schedule->status;
                 $severity = $code === 'rest_day_duty' && !$isReviewedRestDayDuty ? 'review' : 'clear';
+            } elseif ($isWorking && $isFutureDate && (!$record || (!$record->time_in && !$record->time_out))) {
+                $code = 'scheduled';
+                $label = 'Scheduled';
+                $severity = 'neutral';
             } elseif ($isWorking && (!$record || (!$record->time_in && !$record->time_out))) {
                 $code = 'absent';
                 $label = 'Absent';
@@ -230,6 +235,11 @@ class AttendanceController extends Controller
                 'is_scheduled_working' => $isWorking,
             ]];
         });
+    }
+
+    private function isFutureAttendanceDate(Carbon $date): bool
+    {
+        return $date->copy()->startOfDay()->isAfter(Carbon::today($date->timezone));
     }
 
     /**
