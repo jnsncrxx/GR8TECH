@@ -688,9 +688,21 @@
             <!-- User Menu Dropdown -->
             <div class="relative" x-data="{ open: false }">
                 <button @click="open = !open" class="flex items-center space-x-1 sm:space-x-2 p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 transition-colors dark:hover:bg-slate-700">
-                    <div class="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
-                        <i class="fas fa-user text-white text-xs sm:text-sm"></i>
-                    </div>
+                    @php
+                        $userProfilePhoto = null;
+                        if ($user->employee && $user->employee->profile_photo) {
+                            $userProfilePhoto = asset('storage/' . $user->employee->profile_photo);
+                        } elseif ($user->employee && $user->employee->otherInfo && $user->employee->otherInfo->photo_path) {
+                            $userProfilePhoto = asset('storage/' . $user->employee->otherInfo->photo_path);
+                        }
+                    @endphp
+                    @if($userProfilePhoto)
+                        <img src="{{ $userProfilePhoto }}" alt="{{ $user->full_name }}" class="w-6 h-6 sm:w-8 sm:h-8 rounded-full object-cover border border-gray-200 shadow-sm">
+                    @else
+                        <div class="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm">
+                            <span class="text-white text-xs sm:text-sm font-semibold">{{ strtoupper(substr($user->first_name, 0, 1)) }}{{ strtoupper(substr($user->last_name, 0, 1)) }}</span>
+                        </div>
+                    @endif
                     <span class="hidden lg:block text-sm font-medium text-gray-700 dark:text-gray-200">{{ $user->full_name }}</span>
                     <i class="fas fa-chevron-down text-gray-400 text-xs hidden sm:block dark:text-gray-500" :class="{ 'rotate-180': open }"></i>
                 </button>

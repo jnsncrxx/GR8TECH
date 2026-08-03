@@ -123,8 +123,16 @@
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
                                 <div class="flex-shrink-0 h-10 w-10">
-                                    @if($employee->profile_photo)
-                                        <img src="{{ asset('storage/' . $employee->profile_photo) }}" alt="{{ $employee->full_name }}" class="h-10 w-10 rounded-full object-cover">
+                                    @php
+                                        $idxPhotoUrl = null;
+                                        if ($employee->profile_photo) {
+                                            $idxPhotoUrl = asset('storage/' . $employee->profile_photo);
+                                        } elseif ($employee->otherInfo && $employee->otherInfo->photo_path) {
+                                            $idxPhotoUrl = asset('storage/' . $employee->otherInfo->photo_path);
+                                        }
+                                    @endphp
+                                    @if($idxPhotoUrl)
+                                        <img src="{{ $idxPhotoUrl }}" alt="{{ $employee->full_name }}" class="h-10 w-10 rounded-full object-cover border border-gray-200">
                                     @else
                                         <div class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center">
                                             <span class="text-sm font-medium text-white">

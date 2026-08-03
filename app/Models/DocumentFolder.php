@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Document extends Model
+class DocumentFolder extends Model
 {
     use HasFactory;
 
@@ -16,11 +16,7 @@ class Document extends Model
     protected $fillable = [
         'id',
         'employee_id',
-        'folder_id',
         'name',
-        'type',
-        'path',
-        'description'
     ];
 
     public function employee()
@@ -28,8 +24,8 @@ class Document extends Model
         return $this->belongsTo(Employee::class);
     }
 
-    public function folder()
+    public function documents()
     {
-        return $this->belongsTo(DocumentFolder::class, 'folder_id');
+        return $this->hasMany(Document::class, 'folder_id');
     }
 }

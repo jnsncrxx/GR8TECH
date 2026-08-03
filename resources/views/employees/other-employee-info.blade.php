@@ -46,8 +46,18 @@
             </div>
             <div class="emp-card-body">
             <div class="w-52 h-52 mx-auto border border-gray-300 rounded-full bg-gray-50 overflow-hidden flex items-center justify-center mb-3">
-                @if($selectedEmployee && data_get($selectedEmployee, 'profile_photo'))
-                    <img src="{{ asset('storage/' . data_get($selectedEmployee, 'profile_photo')) }}" alt="Employee Photo" class="w-full h-full object-cover">
+                @php
+                    $otherPhotoUrl = null;
+                    if ($selectedEmployee) {
+                        if (data_get($selectedEmployee, 'profile_photo')) {
+                            $otherPhotoUrl = asset('storage/' . data_get($selectedEmployee, 'profile_photo'));
+                        } elseif (data_get($selectedEmployee, 'otherInfo.photo_path')) {
+                            $otherPhotoUrl = asset('storage/' . data_get($selectedEmployee, 'otherInfo.photo_path'));
+                        }
+                    }
+                @endphp
+                @if($otherPhotoUrl)
+                    <img src="{{ $otherPhotoUrl }}" alt="Employee Photo" class="w-full h-full object-cover">
                 @else
                     <span class="text-sm text-gray-500">No photo uploaded</span>
                 @endif

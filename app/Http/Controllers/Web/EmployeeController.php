@@ -941,6 +941,14 @@ class EmployeeController extends Controller
         }
         $employees = $employeesQuery->get();
         $selectedEmployee = null;
+        $folders = collect();
+        $documentsByDate = collect([
+            'Today' => collect(),
+            'Yesterday' => collect(),
+            'Last week' => collect(),
+            'Last month' => collect(),
+            'Older' => collect(),
+        ]);
 
         if ($request->has('employee_id')) {
             $selectedEmployeeQuery = Employee::where('id', $request->employee_id);
@@ -948,48 +956,93 @@ class EmployeeController extends Controller
                 $selectedEmployeeQuery->forCompany($currentCompany->id);
             }
             $selectedEmployee = $selectedEmployeeQuery->first();
-        }
+            
+            if ($selectedEmployee) {
+                // Load folders with their documents
+                $folders = \App\Models\DocumentFolder::where('employee_id', $selectedEmployee->id)
+                    ->with(['documents' => fn($q) => $q->orderBy('created_at', 'desc')])
+                    ->orderBy('name')
+                    ->get();
 
-        return view('employees.documents', compact('user', 'employees', 'selectedEmployee'));
+                // Only show unfiled (root-level) documents in date groups
+                $selectedEmployee->load(['documents' => function($q) {
+                    $q->whereNull('folder_id')->orderBy('created_at', 'desc');
+                }]);
+                
+                $now = now();
+                foreach ($selectedEmployee->documents as $doc) {
+                    if ($doc->created_at->isToday()) {
+                        $documentsByDate['Today']->push($doc);
+                    } elseif ($doc->created_at->isYesterday()) {
+                        $documentsByDate['Yesterday']->push($doc);
+                    } elseif ($doc->created_at->isSameWeek($now)) {
+                        $documentsByDate['Last week']->push($doc);
+                    } elseif ($doc->created_at->isSameMonth($now)) {
+                        $documentsByDate['Last month']->push($doc);
+                    } else {
+                        $documentsByDate['Older']->push($doc);
+                    }
+                }
+            }
+        }
+        
+        $documentsByDate = $documentsByDate->filter(fn($group) => $group->isNotEmpty());
+
+        return view('employees.documents', compact('user', 'employees', 'selectedEmployee', 'documentsByDate', 'folders'));
     }
 
     public function saveDocuments(Request $request)
     {
         $request->validate([
             'employee_id' => 'required|exists:employees,id',
+            'documents' => 'required|array',
+            'documents.*' => 'required|file|max:10240',
         ]);
 
         $employee = Employee::findOrFail($request->employee_id);
-        
-        // Loop through all document slots (1-36 covering both columns)
-        for ($i = 1; $i <= 36; $i++) {
-            if ($request->hasFile("document_{$i}")) {
-                $file = $request->file("document_{$i}");
-                $path = $file->store("documents/{$employee->id}", 'public');
-                
-                // Check if a document with this type slot already exists for the employee
-                $existing = $employee->documents()->where('type', "document_{$i}")->first();
 
-                if ($existing) {
-                    // Update existing record
-                    $existing->update([
-                        'name' => $file->getClientOriginalName(),
-                        'path' => $path,
-                    ]);
-                } else {
-                    // Create new record with a manually generated UUID
-                    $employee->documents()->create([
-                        'id'          => \Illuminate\Support\Str::uuid()->toString(),
-                        'type'        => "document_{$i}",
-                        'name'        => $file->getClientOriginalName(),
-                        'path'        => $path,
-                        'description' => null,
-                    ]);
-                }
+        if ($request->hasFile('documents')) {
+            foreach ($request->file('documents') as $file) {
+                $path = $file->store("documents/{$employee->id}", 'public');
+                $extension = $file->getClientOriginalExtension();
+                
+                $employee->documents()->create([
+                    'id'          => \Illuminate\Support\Str::uuid()->toString(),
+                    'type'        => empty($extension) ? 'document' : strtolower($extension),
+                    'name'        => $file->getClientOriginalName(),
+                    'path'        => $path,
+                    'description' => null,
+                    'folder_id'   => $request->folder_id ?? null,
+                ]);
             }
         }
 
         return redirect()->route('employees.documents', ['employee_id' => $employee->id])
             ->with('success', 'Documents uploaded successfully.');
+    }
+
+    public function createDocumentFolder(Request $request)
+    {
+        $request->validate([
+            'employee_id' => 'required|exists:employees,id',
+            'name' => 'required|string|max:255',
+        ]);
+
+        \App\Models\DocumentFolder::create([
+            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'employee_id' => $request->employee_id,
+            'name' => $request->name,
+        ]);
+
+        return redirect()->route('employees.documents', ['employee_id' => $request->employee_id])
+            ->with('success', 'Folder "' . $request->name . '" created successfully.');
+    }
+
+    public function deleteDocumentFolder(\App\Models\DocumentFolder $folder)
+    {
+        $folder->delete();
+
+        return redirect()->route('employees.documents', ['employee_id' => $folder->employee_id])
+            ->with('success', 'Folder deleted. Documents inside were moved to the root.');
     }
 }
