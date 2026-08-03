@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\Rule;
 
 class AttendanceController extends Controller
 {
@@ -553,6 +554,13 @@ class AttendanceController extends Controller
             ->whereDate('date', '>=', $dateFrom->toDateString())
             ->whereDate('date', '<=', $dateTo->toDateString());
 
+        $reportsCompany = CompanyHelper::getCurrentCompany();
+        if ($reportsCompany) {
+            $baseQuery->whereHas('employee', function ($query) use ($reportsCompany) {
+                $query->forCompany($reportsCompany->id);
+            });
+        }
+
         // If employee (not HR/Admin), filter by their own employee_id
         if (!$isHrOrAdmin) {
             $employee = Employee::find($user->employee_id);
@@ -702,17 +710,24 @@ class AttendanceController extends Controller
             ->values()
             ->toArray();
 
+        $currentCompanyForFilters = CompanyHelper::getCurrentCompany();
+
         if ($isHrOrAdmin) {
-            $employees = Employee::with('department')
-                ->orderBy('first_name')
-                ->get();
+            $employeesQuery = Employee::with('department')->orderBy('first_name');
+            if ($currentCompanyForFilters) {
+                $employeesQuery->forCompany($currentCompanyForFilters->id);
+            }
+            $employees = $employeesQuery->get();
         } else {
             $employee = Employee::find($user->employee_id);
             $employees = $employee ? collect([$employee]) : collect();
         }
 
-        $departments = \App\Models\Department::orderBy('name')
-            ->get();
+        $departmentsQuery = \App\Models\Department::orderBy('name');
+        if ($currentCompanyForFilters) {
+            $departmentsQuery->forCompany($currentCompanyForFilters->id);
+        }
+        $departments = $departmentsQuery->get();
 
         return view('attendance.reports', [
             'user' => $user,
@@ -870,7 +885,9 @@ class AttendanceController extends Controller
 
             foreach ($importedRecords as $record) {
                 try {
-                    $employee = Employee::where('employee_id', $record['employee_id'])->first();
+                    $employee = Employee::forCompany(CompanyHelper::getCurrentCompanyId())
+                        ->where('employee_id', $record['employee_id'])
+                        ->first();
 
                     if (!$employee) {
                         $errorCount++;
@@ -949,6 +966,7 @@ class AttendanceController extends Controller
     public function tempTimekeeping(Request $request)
     {
         $employees = Employee::with('department')
+            ->forCompany(CompanyHelper::getCurrentCompanyId())
             ->orderBy('first_name')
             ->get();
 
@@ -977,6 +995,7 @@ class AttendanceController extends Controller
         }
 
         $employees = Employee::with('department')
+            ->forCompany(CompanyHelper::getCurrentCompanyId())
             ->orderBy('first_name')
             ->get();
 
@@ -996,8 +1015,15 @@ class AttendanceController extends Controller
             return redirect()->route('dashboard')->with('error', 'Unauthorized access.');
         }
 
+        $companyId = CompanyHelper::getCurrentCompanyId()
+            ?? Employee::find(Auth::user()->employee_id)?->company_id;
         $validated = $request->validate([
-            'employee_id' => 'required|exists:employees,id',
+            'employee_id' => [
+                'required',
+                Rule::exists('employees', 'id')->where(
+                    fn ($query) => $query->where('company_id', $companyId)
+                ),
+            ],
             'date' => 'required|date',
             'status' => 'required|string|in:' . implode(',', AttendanceRecord::STATUSES),
             'is_full_day' => 'nullable|in:0,1',
@@ -1233,8 +1259,16 @@ class AttendanceController extends Controller
             return redirect()->route('dashboard')->with('error', 'Unauthorized access.');
         }
 
+        $companyId = CompanyHelper::getCurrentCompanyId()
+            ?? Employee::find(Auth::user()->employee_id)?->company_id;
+
         $validated = $request->validate([
-            'employee_id' => ['required', 'exists:employees,id'],
+            'employee_id' => [
+                'required',
+                Rule::exists('employees', 'id')->where(
+                    fn ($query) => $query->where('company_id', $companyId)
+                ),
+            ],
             'date' => ['required', 'date'],
             'status' => ['required', 'in:present,absent,late,half_day,on_leave,official_business'],
             'time_in' => ['nullable', 'date_format:H:i'],
@@ -1245,7 +1279,6 @@ class AttendanceController extends Controller
             'correction_reason' => ['required', 'string', 'max:1000'],
         ]);
 
-        $companyId = CompanyHelper::getCurrentCompanyId() ?? Auth::user()->employee?->company_id;
         $attendanceRecord = AttendanceRecord::whereHas('employee', fn ($query) => $query->forCompany($companyId))
             ->findOrFail($id);
         Employee::forCompany($companyId)->findOrFail($validated['employee_id']);

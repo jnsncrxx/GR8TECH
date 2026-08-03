@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Department;
+use App\Helpers\CompanyHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\Rule;
 
 class HrController extends Controller
 {
@@ -56,7 +58,9 @@ class HrController extends Controller
     {
         $user = Auth::user();
         $employee = $user->employee?->load(['otherInfo', 'info']);
-        $departments = Department::all();
+        $departments = Department::forCompany(CompanyHelper::getCurrentCompanyId())
+            ->orderBy('name')
+            ->get();
         $photoUrl = null;
 
         if ($employee && $employee->otherInfo && $employee->otherInfo->photo_path) {
@@ -113,7 +117,12 @@ class HrController extends Controller
 
         if ($canEditRestricted) {
             $rules['position'] = 'nullable|string|max:255';
-            $rules['department_id'] = 'nullable|exists:departments,id';
+            $rules['department_id'] = [
+                'nullable',
+                Rule::exists('departments', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ];
             $rules['employment_type'] = 'nullable|string|max:255';
             $rules['hire_date'] = 'nullable|date';
             $rules['salary'] = 'nullable|numeric|min:0';
@@ -222,7 +231,7 @@ class HrController extends Controller
         // Employees may view their own account settings, but they must not
         // receive company-wide HR configuration data.
         $departments = $canManageHrSettings
-            ? Department::orderBy('name')->get()
+            ? Department::forCompany(CompanyHelper::getCurrentCompanyId())->orderBy('name')->get()
             : collect();
 
         return view('hr.settings', compact(
@@ -252,7 +261,12 @@ class HrController extends Controller
         ];
 
         if ($canManageHrSettings) {
-            $rules['department_id'] = ['nullable', 'exists:departments,id'];
+            $rules['department_id'] = [
+                'nullable',
+                Rule::exists('departments', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ];
         }
 
         $validated = $request->validate($rules);

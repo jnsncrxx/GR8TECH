@@ -17,11 +17,19 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use ReflectionMethod;
 use Throwable;
 
 class PeriodManagementController extends Controller
 {
+    private function currentCompanyPeriodOrFail(string $id): Period
+    {
+        return Period::query()
+            ->where('company_id', CompanyHelper::getCurrentCompanyId())
+            ->findOrFail($id);
+    }
+
     /**
      * Display all payroll periods.
      */
@@ -171,9 +179,13 @@ class PeriodManagementController extends Controller
             'period_type' => ['required', 'in:regular,special,final_pay,13th_month'],
             'processing_type' => ['required', 'in:regular,resigned_only,leaves_only'],
             'description' => ['nullable', 'string', 'max:2000'],
-            'department_id' => ['nullable', 'exists:departments,id'],
+            'department_id' => ['nullable', Rule::exists('departments', 'id')->where(
+                fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+            )],
             'employee_ids' => ['nullable', 'array'],
-            'employee_ids.*' => ['exists:employees,id'],
+            'employee_ids.*' => [Rule::exists('employees', 'id')->where(
+                fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+            )],
         ]);
 
         $startDate = Carbon::parse($validated['start_date'])->startOfDay();
@@ -336,7 +348,7 @@ class PeriodManagementController extends Controller
         $period = Period::with([
             'company',
             'department',
-        ])->findOrFail($id);
+        ])->where('company_id', CompanyHelper::getCurrentCompanyId())->findOrFail($id);
 
         $startDate = Carbon::parse($period->start_date)->startOfDay();
         $endDate = Carbon::parse($period->end_date)->startOfDay();
@@ -454,7 +466,7 @@ class PeriodManagementController extends Controller
      */
     public function destroy($id)
     {
-        $period = Period::findOrFail($id);
+        $period = $this->currentCompanyPeriodOrFail($id);
 
         if (!$period->canBeDeleted()) {
             return back()->with(
@@ -475,7 +487,7 @@ class PeriodManagementController extends Controller
      */
     public function updateStatus(Request $request, $period)
     {
-        $periodModel = Period::findOrFail($period);
+        $periodModel = $this->currentCompanyPeriodOrFail($period);
 
         $validated = $request->validate([
             'status' => ['required', 'in:' . implode(',', Period::STATUSES)],
@@ -560,7 +572,7 @@ class PeriodManagementController extends Controller
         $period,
         string $component
     ) {
-        $periodModel = Period::findOrFail($period);
+        $periodModel = $this->currentCompanyPeriodOrFail($period);
 
         if (!in_array($component, Period::VALIDATION_COMPONENTS, true)) {
             abort(404);
@@ -628,7 +640,7 @@ class PeriodManagementController extends Controller
      */
     public function resetValidationComponent($period, string $component)
     {
-        $periodModel = Period::findOrFail($period);
+        $periodModel = $this->currentCompanyPeriodOrFail($period);
 
         if (!in_array($component, Period::VALIDATION_COMPONENTS, true)) {
             abort(404);
@@ -668,7 +680,7 @@ class PeriodManagementController extends Controller
      */
     public function refreshCutoffData($period)
     {
-        $periodModel = Period::findOrFail($period);
+        $periodModel = $this->currentCompanyPeriodOrFail($period);
 
         if (in_array($periodModel->status, [Period::STATUS_FINALIZED, Period::STATUS_LOCKED], true)) {
             return back()->with('error', 'Finalized or locked periods cannot be refreshed.');
@@ -906,7 +918,7 @@ class PeriodManagementController extends Controller
         $period,
         PayrollGenerationService $payrollService
     ) {
-        $periodModel = Period::findOrFail($period);
+        $periodModel = $this->currentCompanyPeriodOrFail($period);
 
         if ($periodModel->status !== Period::STATUS_READY
             || !$periodModel->hasCompletedValidation()) {
@@ -995,7 +1007,7 @@ class PeriodManagementController extends Controller
         $period,
         PayrollGenerationService $payrollService
     ) {
-        $periodModel = Period::findOrFail($period);
+        $periodModel = $this->currentCompanyPeriodOrFail($period);
 
         if ($periodModel->status !== Period::STATUS_READY) {
             return back()->with(
@@ -1024,10 +1036,14 @@ class PeriodManagementController extends Controller
 
         $validated = $request->validate([
             'employee_ids' => ['nullable', 'array'],
-            'employee_ids.*' => ['exists:employees,id'],
+            'employee_ids.*' => [Rule::exists('employees', 'id')->where(
+                fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+            )],
             'payroll_template_id' => [
                 'nullable',
-                'exists:payroll_templates,id',
+                Rule::exists('payroll_templates', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
             ],
         ]);
 
@@ -1152,7 +1168,7 @@ class PeriodManagementController extends Controller
      */
     public function showPayrollSummary($period)
     {
-        $periodModel = Period::findOrFail($period);
+        $periodModel = $this->currentCompanyPeriodOrFail($period);
 
         $payrolls = Payroll::with(['employee', 'employee.department', 'employee.position'])
             ->where('period_id', $periodModel->id)
@@ -1184,7 +1200,7 @@ class PeriodManagementController extends Controller
      */
     public function submitForReview($period)
     {
-        $periodModel = Period::findOrFail($period);
+        $periodModel = $this->currentCompanyPeriodOrFail($period);
 
         if ($periodModel->status !== Period::STATUS_PROCESSING) {
             return back()->with('error', 'Only a payroll in Processing can be submitted for review.');
@@ -1219,7 +1235,7 @@ class PeriodManagementController extends Controller
      */
     public function returnToProcessing(Request $request, $period)
     {
-        $periodModel = Period::findOrFail($period);
+        $periodModel = $this->currentCompanyPeriodOrFail($period);
 
         if ($periodModel->status !== Period::STATUS_FOR_REVIEW) {
             return back()->with('error', 'Only payrolls under review can be returned to Processing.');
@@ -1263,7 +1279,7 @@ class PeriodManagementController extends Controller
      */
     public function finalizePayroll(Request $request, $period)
     {
-        $periodModel = Period::findOrFail($period);
+        $periodModel = $this->currentCompanyPeriodOrFail($period);
 
         if ($periodModel->status !== Period::STATUS_FOR_REVIEW) {
             return back()->with('error', 'Only payrolls under review can be finalized.');
@@ -1325,7 +1341,7 @@ class PeriodManagementController extends Controller
      */
     public function lockPayroll(Request $request, $period)
     {
-        $periodModel = Period::findOrFail($period);
+        $periodModel = $this->currentCompanyPeriodOrFail($period);
 
         if ($periodModel->status !== Period::STATUS_FINALIZED) {
             return back()->with('error', 'Only finalized payroll can be locked.');
@@ -1351,7 +1367,7 @@ class PeriodManagementController extends Controller
         $period,
         PayrollGenerationService $payrollService
     ) {
-        $periodModel = Period::findOrFail($period);
+        $periodModel = $this->currentCompanyPeriodOrFail($period);
 
         try {
             $periodData = [

@@ -21,11 +21,24 @@ use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 
 class PayrollController extends Controller
 {
     protected $payrollService;
     protected $cutoffService;
+
+    private function ensurePayrollCompany(Payroll $payroll): void
+    {
+        abort_unless($payroll->company_id === CompanyHelper::getCurrentCompanyId(), 404);
+    }
+
+    private function currentCompanyPayrollOrFail(string $id): Payroll
+    {
+        return Payroll::query()
+            ->where('company_id', CompanyHelper::getCurrentCompanyId())
+            ->findOrFail($id);
+    }
 
     public function __construct(PayrollGenerationService $payrollService, CutoffPeriodService $cutoffService)
     {
@@ -340,9 +353,13 @@ class PayrollController extends Controller
         $employees = $employeesQuery->get();
 
         // Get departments for the filter (managers only see their own)
-        $departments = $isReadOnly
-            ? Department::where('manager_id', $user->employee->id)->get()
-            : Department::all();
+        $departmentsQuery = $isReadOnly
+            ? Department::where('manager_id', $user->employee->id)
+            : Department::query();
+        if ($currentCompany) {
+            $departmentsQuery->forCompany($currentCompany->id);
+        }
+        $departments = $departmentsQuery->get();
 
         // Calculate summary statistics - get ALL payrolls for the period (using same logic)
         $summaryQuery = Payroll::query();
@@ -383,7 +400,10 @@ class PayrollController extends Controller
             'paid_net_pay' => $allPayrolls->where('status', 'paid')->sum('net_pay'),
         ];
 
-        $payrollTemplates = \App\Models\PayrollTemplate::all();
+        $payrollTemplates = \App\Models\PayrollTemplate::query()
+            ->where('company_id', CompanyHelper::getCurrentCompanyId())
+            ->orderBy('name')
+            ->get();
         
         return view('payroll.index', compact('payrolls', 'employees', 'summary', 'departments', 'payrollTemplates', 'lockedRuns', 'selectedRun', 'isReadOnly'));
     }
@@ -391,7 +411,12 @@ class PayrollController extends Controller
     public function checkDuplicatePayroll(Request $request)
     {
         $request->validate([
-            'employee_id' => 'required|exists:employees,id',
+            'employee_id' => [
+                'required',
+                Rule::exists('employees', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
             'start_date' => 'required|date',
             'end_date' => 'required|date'
         ]);
@@ -423,7 +448,12 @@ class PayrollController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'employee_id' => 'required|exists:employees,id',
+            'employee_id' => [
+                'required',
+                Rule::exists('employees', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
             'pay_period_start' => 'required|date',
             'pay_period_end' => 'required|date|after:pay_period_start',
             'basic_salary' => 'required|numeric|min:0',
@@ -434,7 +464,9 @@ class PayrollController extends Controller
             'tax_amount' => 'nullable|numeric|min:0',
         ]);
 
-        Payroll::create($request->validated());
+        Payroll::create(array_merge($request->validated(), [
+            'company_id' => CompanyHelper::getCurrentCompanyId(),
+        ]));
 
         return redirect()->route('payrolls.index')
             ->with('success', 'Payroll created successfully.');
@@ -442,12 +474,14 @@ class PayrollController extends Controller
 
     public function show(Payroll $payroll)
     {
+        $this->ensurePayrollCompany($payroll);
         $payroll->load('employee.department');
         return view('payroll.show', compact('payroll'));
     }
 
     public function edit(Payroll $payroll)
     {
+        $this->ensurePayrollCompany($payroll);
         $currentCompany = CompanyHelper::getCurrentCompany();
 
         $employeesQuery = Employee::query();
@@ -461,8 +495,14 @@ class PayrollController extends Controller
 
     public function update(Request $request, Payroll $payroll)
     {
+        $this->ensurePayrollCompany($payroll);
         $request->validate([
-            'employee_id' => 'required|exists:employees,id',
+            'employee_id' => [
+                'required',
+                Rule::exists('employees', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
             'pay_period_start' => 'required|date',
             'pay_period_end' => 'required|date|after:pay_period_start',
             'basic_salary' => 'required|numeric|min:0',
@@ -481,6 +521,7 @@ class PayrollController extends Controller
 
     public function destroy(Payroll $payroll)
     {
+        $this->ensurePayrollCompany($payroll);
         $payroll->delete();
 
         return redirect()->route('payrolls.index')
@@ -489,6 +530,7 @@ class PayrollController extends Controller
 
     public function process(Payroll $payroll)
     {
+        $this->ensurePayrollCompany($payroll);
         try {
             // Calculate net pay
             $grossPay = $payroll->basic_salary +
@@ -685,6 +727,7 @@ class PayrollController extends Controller
      */
     public function payOne(Payroll $payroll)
     {
+        $this->ensurePayrollCompany($payroll);
         $payroll->loadMissing(['period', 'employee']);
 
         if (!$payroll->period || $payroll->period->status !== Period::STATUS_LOCKED) {
@@ -881,10 +924,19 @@ class PayrollController extends Controller
     public function generateFromPeriod()
 {
     $user = auth()->user() ?? (object)['role' => 'admin'];
+    $currentCompany = CompanyHelper::getCurrentCompany();
 
-    $periods = Period::with('department')->latest()->get();
-    $employees = Employee::with('department')->get();
-    $departments = Department::all();
+    $periodsQuery = Period::with('department')->latest();
+    $employeesQuery = Employee::with('department');
+    $departmentsQuery = Department::query();
+    if ($currentCompany) {
+        $periodsQuery->where('company_id', $currentCompany->id);
+        $employeesQuery->forCompany($currentCompany->id);
+        $departmentsQuery->forCompany($currentCompany->id);
+    }
+    $periods = $periodsQuery->get();
+    $employees = $employeesQuery->get();
+    $departments = $departmentsQuery->get();
 
     return view('payroll.generate-from-period', compact(
         'user',
@@ -908,7 +960,8 @@ class PayrollController extends Controller
 
         try {
             // Get period data from database
-            $period = Period::find($request->period_id);
+            $currentCompanyId = CompanyHelper::getCurrentCompanyId();
+            $period = Period::where('company_id', $currentCompanyId)->find($request->period_id);
 
             if (!$period) {
                 return redirect()->back()->with('error', 'Period not found.');
@@ -930,6 +983,7 @@ class PayrollController extends Controller
 
             // Get employees for the period
             $employees = Employee::with('department');
+            $employees->forCompany($currentCompanyId);
             if (!empty($period->department_id)) {
                 $employees = $employees->where('department_id', $period->department_id);
             }
@@ -1225,7 +1279,7 @@ class PayrollController extends Controller
     public function approvePayroll(Request $request, $payrollId)
     {
         try {
-            $payroll = Payroll::findOrFail($payrollId);
+            $payroll = $this->currentCompanyPayrollOrFail($payrollId);
             $user = Auth::user();
 
             // Authorization check
@@ -1281,7 +1335,7 @@ class PayrollController extends Controller
     public function rejectPayroll(Request $request, $payrollId)
     {
         try {
-            $payroll = Payroll::findOrFail($payrollId);
+            $payroll = $this->currentCompanyPayrollOrFail($payrollId);
             $user = Auth::user();
 
             // Authorization check
@@ -1768,6 +1822,7 @@ class PayrollController extends Controller
      */
     public function updateStatus(Request $request, Payroll $payroll)
     {
+        $this->ensurePayrollCompany($payroll);
         try {
             $request->validate([
                 'status' => 'required|in:pending,processed,approved,paid,cancelled'
@@ -3402,7 +3457,9 @@ class PayrollController extends Controller
 
             $count = 0;
             foreach ($request->payroll_ids as $payrollId) {
-                $payroll = Payroll::find($payrollId);
+                $payroll = Payroll::query()
+                    ->where('company_id', CompanyHelper::getCurrentCompanyId())
+                    ->find($payrollId);
 
                 if ($payroll && $payroll->status === 'pending') {
                     // Calculate gross pay if not set
@@ -3851,7 +3908,7 @@ class PayrollController extends Controller
     public function generateSinglePayslip(Request $request, $payrollId)
     {
         try {
-            $payroll = Payroll::findOrFail($payrollId);
+            $payroll = $this->currentCompanyPayrollOrFail($payrollId);
 
             $result = $this->payrollService->generatePayslip($payroll);
 
@@ -3876,7 +3933,7 @@ class PayrollController extends Controller
     public function downloadPayslip($payrollId)
     {
         try {
-            $payroll = Payroll::findOrFail($payrollId);
+            $payroll = $this->currentCompanyPayrollOrFail($payrollId);
             $user = Auth::user();
 
             // Authorization check: Employees can only download their own payslips

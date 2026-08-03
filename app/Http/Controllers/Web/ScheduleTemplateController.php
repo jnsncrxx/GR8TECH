@@ -11,6 +11,11 @@ use Illuminate\Validation\Rule;
 
 class ScheduleTemplateController extends Controller
 {
+    private function ensureCurrentCompany(ScheduleTemplate $scheduleTemplate): void
+    {
+        abort_unless($scheduleTemplate->company_id === CompanyHelper::getCurrentCompanyId(), 404);
+    }
+
     public function index(Request $request)
     {
         $currentCompany = CompanyHelper::getCurrentCompany();
@@ -56,6 +61,7 @@ class ScheduleTemplateController extends Controller
 
     public function edit(ScheduleTemplate $scheduleTemplate)
     {
+        $this->ensureCurrentCompany($scheduleTemplate);
         return view('attendance.schedule-templates.edit', [
             'template' => $scheduleTemplate,
             'user' => Auth::user(),
@@ -64,6 +70,7 @@ class ScheduleTemplateController extends Controller
 
     public function update(Request $request, ScheduleTemplate $scheduleTemplate)
     {
+        $this->ensureCurrentCompany($scheduleTemplate);
         $validated = $this->validated($request, $scheduleTemplate->company_id, $scheduleTemplate->id);
 
         $scheduleTemplate->update($validated);
@@ -74,6 +81,7 @@ class ScheduleTemplateController extends Controller
 
     public function destroy(ScheduleTemplate $scheduleTemplate)
     {
+        $this->ensureCurrentCompany($scheduleTemplate);
         $inUseCount = $scheduleTemplate->employeeSchedules()->count();
 
         if ($inUseCount > 0) {
