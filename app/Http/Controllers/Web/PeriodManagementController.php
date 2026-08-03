@@ -312,10 +312,6 @@ class PeriodManagementController extends Controller
                 'payroll_date' => $payrollDate->toDateString(),
                 'start_date' => $startDate->toDateString(),
                 'end_date' => $endDate->toDateString(),
-                'request_deadline_at' => $endDate->copy()->endOfDay()->addHours(24),
-                'preparation_deadline_at' => $endDate->copy()->endOfDay()->addDays(2),
-                'validation_deadline_at' => $endDate->copy()->endOfDay()->addDays(3),
-                'lock_deadline_at' => $payrollDate->copy()->subDay()->endOfDay(),
                 'working_days' => $workingDays,
                 'status' => Period::STATUS_DRAFT,
                 'department_id' => $validated['department_id'] ?? null,
@@ -487,13 +483,6 @@ class PeriodManagementController extends Controller
 
         $targetStatus = $validated['status'];
 
-        if (
-            $targetStatus === Period::STATUS_FOR_VALIDATION
-            && $periodModel->deadlineHasPassed('preparation_deadline_at')
-        ) {
-            return back()->with('error', 'The payroll preparation deadline has passed. Extend the deadline with a documented reason before continuing.');
-        }
-
         if (!$periodModel->canTransitionTo($targetStatus)) {
             return back()->with(
                 'error',
@@ -575,10 +564,6 @@ class PeriodManagementController extends Controller
 
         if (!in_array($component, Period::VALIDATION_COMPONENTS, true)) {
             abort(404);
-        }
-
-        if ($periodModel->deadlineHasPassed('validation_deadline_at')) {
-            return back()->with('error', 'The payroll validation deadline has passed. Extend the deadline with a documented reason before confirming validation.');
         }
 
         if (!in_array($periodModel->status, [
@@ -1357,39 +1342,6 @@ class PeriodManagementController extends Controller
         ]);
 
         return back()->with('success', 'Payroll period locked. Payroll records are now view/export only.');
-    }
-
-    /**
-     * Extend one or more payroll deadlines. This never approves requests,
-     * validates data, finalizes payroll, or locks the period automatically.
-     */
-    public function extendDeadlines(Request $request, $period)
-    {
-        $periodModel = Period::findOrFail($period);
-
-        if ($periodModel->isLocked()) {
-            return back()->with('error', 'Locked payroll deadlines can no longer be changed.');
-        }
-
-        $validated = $request->validate([
-            'request_deadline_at' => ['required', 'date'],
-            'preparation_deadline_at' => ['required', 'date', 'after_or_equal:request_deadline_at'],
-            'validation_deadline_at' => ['required', 'date', 'after_or_equal:preparation_deadline_at'],
-            'lock_deadline_at' => ['required', 'date', 'after_or_equal:validation_deadline_at'],
-            'reason' => ['required', 'string', 'min:10', 'max:1000'],
-        ]);
-
-        $periodModel->update([
-            'request_deadline_at' => $validated['request_deadline_at'],
-            'preparation_deadline_at' => $validated['preparation_deadline_at'],
-            'validation_deadline_at' => $validated['validation_deadline_at'],
-            'lock_deadline_at' => $validated['lock_deadline_at'],
-            'deadline_extended_at' => now(),
-            'deadline_extended_by' => auth()->id(),
-            'deadline_extension_reason' => $validated['reason'],
-        ]);
-
-        return back()->with('success', 'Payroll deadlines updated. The extension reason was recorded for audit.');
     }
 
     /**

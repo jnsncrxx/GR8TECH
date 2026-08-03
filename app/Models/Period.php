@@ -374,6 +374,11 @@ class Period extends Model
         return $this->start_date->gt(now()->startOfDay());
     }
 
+    public function needsLockReminder(): bool
+    {
+        return $this->end_date->lt(now()->startOfDay()) && !$this->isLocked();
+    }
+
     public function deadlineHasPassed(string $field): bool
     {
         $deadline = $this->{$field};

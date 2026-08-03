@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\CompanyHelper;
 use App\Models\LoginLog;
 use App\Models\Account;
 use App\Models\OvertimeReminder;
+use App\Models\Period;
 use Illuminate\Http\Request;
 
 class NotificationController extends Controller
@@ -37,8 +39,7 @@ class NotificationController extends Controller
                 ->get();
         }
 
-        return response()->json([
-            'logs' => $logs->map(function($log) {
+        $loginNotifications = $logs->map(function($log) {
                 $employeeName = $log->account && $log->account->employee 
                     ? $log->account->employee->first_name . ' ' . $log->account->employee->last_name
                     : ($log->account ? 'System Account' : 'Unknown Employee');
@@ -51,11 +52,45 @@ class NotificationController extends Controller
                     'user_agent' => $this->parseUserAgent($log->user_agent),
                     'login_time' => $log->created_at->format('M d, Y g:i A'),
                     'time_ago' => $log->created_at->diffForHumans(),
+                    'icon' => 'fa-sign-in-alt',
+                    'color' => 'blue',
+                    'url' => null,
                 ];
-            }),
-            'unread_count' => $this->getUnreadCount($user),
+            });
+        $payrollReminders = $this->payrollLockReminders();
+
+        return response()->json([
+            'logs' => $payrollReminders->concat($loginNotifications)->values(),
+            'unread_count' => min($this->getUnreadCount($user) + $payrollReminders->count(), 99),
             'user_role' => $user->role,
         ]);
+    }
+
+    private function payrollLockReminders()
+    {
+        $currentCompany = CompanyHelper::getCurrentCompany();
+
+        return Period::query()
+            ->when($currentCompany, fn ($query) => $query->where('company_id', $currentCompany->id))
+            ->when(!$currentCompany, fn ($query) => $query->whereNull('company_id'))
+            ->whereDate('end_date', '<', now()->toDateString())
+            ->where('status', '!=', Period::STATUS_LOCKED)
+            ->latest('end_date')
+            ->limit(10)
+            ->get()
+            ->map(fn (Period $period) => [
+                'id' => 'payroll-lock-'.$period->id,
+                'employee_name' => 'Payroll Lock Reminder',
+                'employee_email' => "{$period->name} ended on {$period->end_date->format('M j, Y')} and is still {$period->status_label}.",
+                'ip_address' => $period->status_label,
+                'user_agent' => 'Review and lock payroll',
+                'login_time' => $period->end_date->format('M d, Y'),
+                'time_ago' => $period->end_date->diffForHumans(),
+                'icon' => 'fa-lock-open',
+                'color' => 'orange',
+                'url' => route('attendance.period-management.show', $period->id),
+                'persistent' => true,
+            ]);
     }
 
     private function parseUserAgent($userAgent)
