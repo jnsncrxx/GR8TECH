@@ -11,6 +11,11 @@ use Illuminate\Support\Facades\Auth;
 
 class PayrollTemplateController extends Controller
 {
+    private function ensureCurrentCompany(PayrollTemplate $payrollTemplate): void
+    {
+        abort_unless($payrollTemplate->company_id === CompanyHelper::getCurrentCompanyId(), 404);
+    }
+
     public function index(Request $request)
     {
         $currentCompany = CompanyHelper::getCurrentCompany();
@@ -65,12 +70,13 @@ class PayrollTemplateController extends Controller
 
     public function edit(PayrollTemplate $payrollTemplate)
     {
-        // Simple authorization check (assuming you might want to restrict by company later)
+        $this->ensureCurrentCompany($payrollTemplate);
         return view('payroll-templates.form', ['template' => $payrollTemplate]);
     }
 
     public function update(Request $request, PayrollTemplate $payrollTemplate)
     {
+        $this->ensureCurrentCompany($payrollTemplate);
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -99,6 +105,7 @@ class PayrollTemplateController extends Controller
 
     public function destroy(PayrollTemplate $payrollTemplate)
     {
+        $this->ensureCurrentCompany($payrollTemplate);
         // Prevent deletion if in use
         if ($payrollTemplate->employees()->exists() || $payrollTemplate->positions()->exists()) {
             return redirect()->route('payroll-templates.index')->with('error', 'Cannot archive template because it is currently assigned to one or more employees or positions. Please reassign them first.');
@@ -113,7 +120,9 @@ class PayrollTemplateController extends Controller
 
     public function restore($id)
     {
-        $payrollTemplate = PayrollTemplate::onlyTrashed()->findOrFail($id);
+        $payrollTemplate = PayrollTemplate::onlyTrashed()
+            ->where('company_id', CompanyHelper::getCurrentCompanyId())
+            ->findOrFail($id);
         $payrollTemplate->restore();
 
         ActivityLogger::log('restore', 'Payroll Template', "Restored payroll template \"{$payrollTemplate->name}\".");

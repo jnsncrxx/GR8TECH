@@ -20,6 +20,11 @@ use Illuminate\Support\Facades\Storage;
 
 class EmployeeController extends Controller
 {
+    private function ensureEmployeeBelongsToCurrentCompany(Employee $employee): void
+    {
+        abort_unless($employee->company_id === CompanyHelper::getCurrentCompanyId(), 404);
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -37,9 +42,25 @@ class EmployeeController extends Controller
         $employees = $query->orderBy('created_at', 'desc')
             ->paginate(15);
 
+        $companyId = $currentCompany?->id;
+        $departments = Department::query()
+            ->when($companyId, fn ($departmentQuery) => $departmentQuery->forCompany($companyId))
+            ->orderBy('name')
+            ->get();
+        $companyEmployees = Employee::query()
+            ->when($companyId, fn ($employeeQuery) => $employeeQuery->forCompany($companyId));
+        $employeeStats = [
+            'total' => (clone $companyEmployees)->count(),
+            'active' => (clone $companyEmployees)
+                ->whereHas('account', fn ($accountQuery) => $accountQuery->where('is_active', true))
+                ->count(),
+            'departments' => $departments->count(),
+            'average_salary' => (float) ((clone $companyEmployees)->avg('salary') ?? 0),
+        ];
+
         $user = Auth::user();
 
-        return view('employees.index', compact('employees', 'user'));
+        return view('employees.index', compact('employees', 'departments', 'employeeStats', 'user'));
     }
 
     /**
@@ -63,6 +84,7 @@ class EmployeeController extends Controller
         $positions = $positions->active()->with('department')->orderBy('name')->get();
         
         $payrollTemplates = \App\Models\PayrollTemplate::query()
+            ->where('company_id', CompanyHelper::getCurrentCompanyId())
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
@@ -87,8 +109,18 @@ class EmployeeController extends Controller
             'email'                     => 'required|email|unique:accounts,email',
             'phone'                     => 'nullable|string|max:20',
             'mobile_number'             => 'nullable|string|max:20',
-            'position_id'               => 'required|exists:positions,id',
-            'department_id'             => 'required|exists:departments,id',
+            'position_id'               => [
+                'required',
+                \Illuminate\Validation\Rule::exists('positions', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
+            'department_id'             => [
+                'required',
+                \Illuminate\Validation\Rule::exists('departments', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
             'salary'                    => 'required|numeric|min:0',
             'hire_date'                 => 'required|date',
             'employee_status'           => 'nullable|string|max:50',
@@ -119,7 +151,12 @@ class EmployeeController extends Controller
             'password_confirmation'     => 'required|string|same:password',
             'role'                      => 'nullable|in:admin,hr,manager,employee',
             'employee_id'               => 'nullable|string|max:50|unique:employees,employee_id',
-            'payroll_template_id'       => 'nullable|exists:payroll_templates,id',
+            'payroll_template_id'       => [
+                'nullable',
+                \Illuminate\Validation\Rule::exists('payroll_templates', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
             'profile_photo'             => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072',
         ], [
             'password_confirmation.same' => 'The confirm password does not match the password.',
@@ -224,6 +261,7 @@ class EmployeeController extends Controller
      */
     public function show(Employee $employee)
     {
+        $this->ensureEmployeeBelongsToCurrentCompany($employee);
         $user = Auth::user();
         $requestedEmployeeId = $employee->id;
         
@@ -268,6 +306,7 @@ class EmployeeController extends Controller
      */
     public function edit(Employee $employee)
     {
+        $this->ensureEmployeeBelongsToCurrentCompany($employee);
         $currentCompany = CompanyHelper::getCurrentCompany();
         
         $departments = Department::query();
@@ -283,6 +322,7 @@ class EmployeeController extends Controller
         $positions = $positions->active()->with('department')->orderBy('name')->get();
         
         $payrollTemplates = \App\Models\PayrollTemplate::query()
+            ->where('company_id', CompanyHelper::getCurrentCompanyId())
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
@@ -297,6 +337,7 @@ class EmployeeController extends Controller
      */
     public function update(Request $request, Employee $employee)
     {
+        $this->ensureEmployeeBelongsToCurrentCompany($employee);
         $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -304,8 +345,18 @@ class EmployeeController extends Controller
             'phone' => 'nullable|string|max:20',
             'mobile_number' => 'nullable|string|max:20',
             'profile_photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072',
-            'position_id' => 'required|exists:positions,id',
-            'department_id' => 'required|exists:departments,id',
+            'position_id' => [
+                'required',
+                \Illuminate\Validation\Rule::exists('positions', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
+            'department_id' => [
+                'required',
+                \Illuminate\Validation\Rule::exists('departments', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
             'salary' => 'required|numeric|min:0',
             'hire_date' => 'required|date',
             'date_of_birth' => 'nullable|date',
@@ -334,7 +385,12 @@ class EmployeeController extends Controller
             'control_no' => 'nullable|string|max:100',
             'active_status' => 'nullable|in:Active,Inactive',
             'role' => 'required|in:admin,hr,manager,employee',
-            'payroll_template_id' => 'nullable|exists:payroll_templates,id',
+            'payroll_template_id' => [
+                'nullable',
+                \Illuminate\Validation\Rule::exists('payroll_templates', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
             'edit_reason' => 'required|string|max:1000',
         ], [
             'account_no.required_if' => 'The account no. field is required when payment method is Bank.',
@@ -428,6 +484,7 @@ class EmployeeController extends Controller
      */
     public function destroy(Employee $employee)
     {
+        $this->ensureEmployeeBelongsToCurrentCompany($employee);
         // Delete account first if it exists
         if ($employee->account) {
             $employee->account->delete();
@@ -445,6 +502,7 @@ class EmployeeController extends Controller
      */
     public function payroll(Employee $employee)
     {
+        $this->ensureEmployeeBelongsToCurrentCompany($employee);
         $employee->load(['payrolls' => function($query) {
             $query->orderBy('created_at', 'desc');
         }]);
@@ -761,12 +819,22 @@ class EmployeeController extends Controller
     public function employeeInfo(Request $request)
     {
         $user = Auth::user();
-        $employees = Employee::orderBy('last_name')->orderBy('first_name')->get();
+        $currentCompany = CompanyHelper::getCurrentCompany();
+
+        $employeesQuery = Employee::orderBy('last_name')->orderBy('first_name');
+        if ($currentCompany) {
+            $employeesQuery->forCompany($currentCompany->id);
+        }
+        $employees = $employeesQuery->get();
         $selectedEmployee = null;
         $employeeBalance = null;
 
         if ($request->has('employee_id')) {
-            $selectedEmployee = Employee::with('info')->find($request->employee_id);
+            $selectedEmployeeQuery = Employee::with('info')->where('id', $request->employee_id);
+            if ($currentCompany) {
+                $selectedEmployeeQuery->forCompany($currentCompany->id);
+            }
+            $selectedEmployee = $selectedEmployeeQuery->first();
             if ($selectedEmployee) {
                 $employeeBalance = \App\Models\LeaveBalance::where('employee_id', $selectedEmployee->id)
                     ->where('year', now()->year)
@@ -780,11 +848,19 @@ class EmployeeController extends Controller
     public function employeeInfoSearch(Request $request)
     {
         $query = $request->get('query');
-        
-        $employees = Employee::where('first_name', 'like', "%{$query}%")
-            ->orWhere('last_name', 'like', "%{$query}%")
-            ->orWhere('employee_id', 'like', "%{$query}%")
-            ->limit(10)
+        $currentCompany = CompanyHelper::getCurrentCompany();
+
+        $employeesQuery = Employee::where(function ($q) use ($query) {
+            $q->where('first_name', 'like', "%{$query}%")
+                ->orWhere('last_name', 'like', "%{$query}%")
+                ->orWhere('employee_id', 'like', "%{$query}%");
+        });
+
+        if ($currentCompany) {
+            $employeesQuery->forCompany($currentCompany->id);
+        }
+
+        $employees = $employeesQuery->limit(10)
             ->get(['id', 'employee_id', 'first_name', 'last_name']);
             
         return response()->json($employees);
@@ -857,11 +933,21 @@ class EmployeeController extends Controller
     public function documents(Request $request)
     {
         $user = Auth::user();
-        $employees = Employee::orderBy('last_name')->orderBy('first_name')->get();
+        $currentCompany = CompanyHelper::getCurrentCompany();
+
+        $employeesQuery = Employee::orderBy('last_name')->orderBy('first_name');
+        if ($currentCompany) {
+            $employeesQuery->forCompany($currentCompany->id);
+        }
+        $employees = $employeesQuery->get();
         $selectedEmployee = null;
 
         if ($request->has('employee_id')) {
-            $selectedEmployee = Employee::find($request->employee_id);
+            $selectedEmployeeQuery = Employee::where('id', $request->employee_id);
+            if ($currentCompany) {
+                $selectedEmployeeQuery->forCompany($currentCompany->id);
+            }
+            $selectedEmployee = $selectedEmployeeQuery->first();
         }
 
         return view('employees.documents', compact('user', 'employees', 'selectedEmployee'));

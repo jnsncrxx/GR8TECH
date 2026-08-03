@@ -10,9 +10,20 @@ use App\Models\Loan;
 use App\Models\LoanType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class LoanController extends Controller
 {
+    private function ensureLoanCompany(Loan $loan): void
+    {
+        abort_unless($loan->company_id === CompanyHelper::getCurrentCompanyId(), 404);
+    }
+
+    private function ensureEmployeeCompany(Employee $employee): void
+    {
+        abort_unless($employee->company_id === CompanyHelper::getCurrentCompanyId(), 404);
+    }
+
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -54,7 +65,12 @@ class LoanController extends Controller
                 $employeesQuery->forCompany($currentCompany->id);
             }
             $employees = $employeesQuery->get();
-            $departments = Department::orderBy('name')->get();
+
+            $departmentsQuery = Department::orderBy('name');
+            if ($currentCompany) {
+                $departmentsQuery->forCompany($currentCompany->id);
+            }
+            $departments = $departmentsQuery->get();
 
             $loanTypesQuery = \App\Models\LoanType::withCount('loans')->orderBy('name');
             if ($currentCompany) {
@@ -110,13 +126,19 @@ class LoanController extends Controller
         }
 
         $validated = $request->validate([
-            'loan_type_id' => ['required', 'exists:loan_types,id'],
+            'loan_type_id' => [
+                'required',
+                Rule::exists('loan_types', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
             'principal_amount' => ['required', 'numeric', 'min:1'],
             'term_months' => ['required', 'integer', 'min:1', 'max:60'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $loanType = LoanType::findOrFail($validated['loan_type_id']);
+        $loanType = LoanType::forCompany(CompanyHelper::getCurrentCompanyId())
+            ->findOrFail($validated['loan_type_id']);
         $currentCompany = CompanyHelper::getCurrentCompany();
 
         $loan = new Loan([
@@ -143,6 +165,7 @@ class LoanController extends Controller
 
     public function show(Loan $loan)
     {
+        $this->ensureLoanCompany($loan);
         $user = Auth::user();
 
         // An employee may only view their own loan request - never
@@ -164,6 +187,7 @@ class LoanController extends Controller
      */
     public function employeeHistory(Employee $employee)
     {
+        $this->ensureEmployeeCompany($employee);
         $loans = Loan::with(['loanType', 'payments'])
             ->where('employee_id', $employee->id)
             ->latest()
@@ -178,6 +202,7 @@ class LoanController extends Controller
 
     public function approve(Request $request, Loan $loan)
     {
+        $this->ensureLoanCompany($loan);
         if ($loan->status !== 'pending') {
             return back()->with('error', 'Only pending loan requests can be approved.');
         }
@@ -189,6 +214,7 @@ class LoanController extends Controller
 
     public function reject(Request $request, Loan $loan)
     {
+        $this->ensureLoanCompany($loan);
         if ($loan->status !== 'pending') {
             return back()->with('error', 'Only pending loan requests can be rejected.');
         }
@@ -204,6 +230,7 @@ class LoanController extends Controller
 
     public function destroy(Loan $loan)
     {
+        $this->ensureLoanCompany($loan);
         if ($loan->status === 'approved' && $loan->payments()->exists()) {
             return back()->with('error', 'Cannot delete a loan that already has recorded payments. Cancel it instead.');
         }

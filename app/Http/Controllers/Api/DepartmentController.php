@@ -6,9 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Helpers\CompanyHelper;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class DepartmentController extends Controller
 {
+    private function ensureCurrentCompany(Department $department): void
+    {
+        abort_unless($department->company_id === CompanyHelper::getCurrentCompanyId(), 404);
+    }
+
     public function index()
     {
         $currentCompany = CompanyHelper::getCurrentCompany();
@@ -38,7 +44,12 @@ class DepartmentController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255|unique:departments',
+            'name' => [
+                'required', 'string', 'max:255',
+                Rule::unique('departments', 'name')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
             'description' => 'nullable|string|max:1000',
             'budget' => 'nullable|numeric|min:0',
         ]);
@@ -58,6 +69,7 @@ class DepartmentController extends Controller
 
     public function show(Department $department)
     {
+        $this->ensureCurrentCompany($department);
         $department->load(['employees.position', 'manager']);
         $user = auth()->user();
         return view('departments.show', compact('department', 'user'));
@@ -65,14 +77,21 @@ class DepartmentController extends Controller
 
     public function edit(Department $department)
     {
+        $this->ensureCurrentCompany($department);
         $user = auth()->user();
         return view('departments.form', compact('department', 'user'));
     }
 
     public function update(Request $request, Department $department)
     {
+        $this->ensureCurrentCompany($department);
         $request->validate([
-            'name' => 'required|string|max:255|unique:departments,name,' . $department->id,
+            'name' => [
+                'required', 'string', 'max:255',
+                Rule::unique('departments', 'name')
+                    ->where(fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId()))
+                    ->ignore($department->id),
+            ],
             'description' => 'nullable|string|max:1000',
             'budget' => 'nullable|numeric|min:0',
         ]);
@@ -85,6 +104,7 @@ class DepartmentController extends Controller
 
     public function destroy(Department $department)
     {
+        $this->ensureCurrentCompany($department);
         $department->archived_at = \Illuminate\Support\Carbon::now();
         $department->save();
 
@@ -115,6 +135,7 @@ class DepartmentController extends Controller
 
     public function restore(Department $department)
     {
+        $this->ensureCurrentCompany($department);
         $department->archived_at = null;
         $department->save();
 
@@ -124,6 +145,7 @@ class DepartmentController extends Controller
 
     public function employees(Department $department)
     {
+        $this->ensureCurrentCompany($department);
         $currentCompany = CompanyHelper::getCurrentCompany();
 
         $query = $department->employees()->with('account');
@@ -145,8 +167,14 @@ class DepartmentController extends Controller
 
     public function updateManager(Request $request, Department $department)
     {
+        $this->ensureCurrentCompany($department);
         $validated = $request->validate([
-            'employee_id' => 'nullable|uuid|exists:employees,id',
+            'employee_id' => [
+                'nullable', 'uuid',
+                Rule::exists('employees', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
         ]);
 
         $employeeId = $validated['employee_id'] ?? null;

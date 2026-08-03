@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Developer;
 
 use App\Http\Controllers\Controller;
 use App\Helpers\ActivityLogger;
+use App\Helpers\CompanyHelper;
 use App\Mail\PasswordResetMail;
 use App\Models\Account;
 use App\Models\Employee;
@@ -19,7 +20,9 @@ class AccountController extends Controller
     {
         $accounts = Account::with('employee')->orderBy('created_at', 'desc')->get();
         $trashedAccounts = Account::onlyTrashed()->with('employee')->orderBy('deleted_at', 'desc')->get();
-        $employees = Employee::doesntHave('account')->get();
+        $employees = Employee::forCompany(CompanyHelper::getCurrentCompanyId())
+            ->doesntHave('account')
+            ->get();
         $user = auth()->user();
         $activeRoute = 'developer.accounts.index';
 
@@ -49,7 +52,7 @@ class AccountController extends Controller
     public function edit(Account $account)
     {
         $user = auth()->user();
-        $employees = Employee::all();
+        $employees = Employee::forCompany(CompanyHelper::getCurrentCompanyId())->get();
         $activeRoute = 'developer.accounts.edit';
 
         return view('developer.accounts.edit', compact('account', 'user', 'employees', 'activeRoute'));
@@ -58,7 +61,13 @@ class AccountController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'employee_id' => ['nullable', 'exists:employees,id', Rule::unique('accounts', 'employee_id')],
+            'employee_id' => [
+                'nullable',
+                Rule::exists('employees', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+                Rule::unique('accounts', 'employee_id'),
+            ],
             'email' => 'required|email|unique:accounts,email',
             'role' => 'required|in:admin,hr,manager,employee',
             'password' => 'required|min:8',
@@ -84,7 +93,9 @@ class AccountController extends Controller
         $request->validate([
             'employee_id' => [
                 'nullable',
-                'exists:employees,id',
+                Rule::exists('employees', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
                 Rule::unique('accounts', 'employee_id')->ignore($account->id),
             ],
             'email' => ['required', 'email', Rule::unique('accounts')->ignore($account->id)],
@@ -203,7 +214,10 @@ class AccountController extends Controller
     public function linkForm()
     {
         $unlinkedAccounts = Account::whereNull('employee_id')->orderBy('email')->get();
-        $unlinkedEmployees = Employee::doesntHave('account')->orderBy('first_name')->get();
+        $unlinkedEmployees = Employee::forCompany(CompanyHelper::getCurrentCompanyId())
+            ->doesntHave('account')
+            ->orderBy('first_name')
+            ->get();
         $linkedAccounts = Account::whereNotNull('employee_id')->with('employee')->orderBy('email')->get();
         $user = auth()->user();
         $activeRoute = 'developer.accounts.link';
@@ -219,7 +233,12 @@ class AccountController extends Controller
     {
         $request->validate([
             'account_id' => 'required|exists:accounts,id',
-            'employee_id' => 'required|exists:employees,id',
+            'employee_id' => [
+                'required',
+                Rule::exists('employees', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
         ]);
 
         $account = Account::findOrFail($request->account_id);
@@ -234,7 +253,8 @@ class AccountController extends Controller
 
         $account->update(['employee_id' => $request->employee_id]);
 
-        $employee = Employee::find($request->employee_id);
+        $employee = Employee::forCompany(CompanyHelper::getCurrentCompanyId())
+            ->find($request->employee_id);
         ActivityLogger::log('update', 'Account', "Linked account {$account->email} to employee {$employee?->full_name}.");
 
         return redirect()->route('developer.accounts.link')->with('success', 'Account linked to employee successfully!');

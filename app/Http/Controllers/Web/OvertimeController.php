@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Helpers\CompanyHelper;
 use App\Http\Controllers\Controller;
 use App\Notifications\RequestStatusChanged;
 use Carbon\Carbon;
@@ -10,6 +11,13 @@ use Illuminate\Support\Facades\Auth;
 
 class OvertimeController extends Controller
 {
+    private function currentCompanyOvertimeOrFail(string $id): \App\Models\OvertimeRequest
+    {
+        return \App\Models\OvertimeRequest::query()
+            ->whereHas('employee', fn ($query) => $query->forCompany(CompanyHelper::getCurrentCompanyId()))
+            ->findOrFail($id);
+    }
+
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -27,7 +35,13 @@ class OvertimeController extends Controller
             'updated_at' => now(),
         ]);
 
-        $applyFilters = function ($query) use ($request, $user, $isReviewer, $personalMode) {
+        $currentCompany = CompanyHelper::getCurrentCompany();
+
+        $applyFilters = function ($query) use ($request, $user, $isReviewer, $personalMode, $currentCompany) {
+            if ($currentCompany) {
+                $query->whereHas('employee', fn ($employee) => $employee->forCompany($currentCompany->id));
+            }
+
             if ($personalMode) {
                 return $query->where('employee_id', $user->employee_id);
             }
@@ -90,14 +104,22 @@ class OvertimeController extends Controller
             "total_hours" => (clone $summaryQuery)->where('status', 'approved')->sum('hours'),
         ];
         
-        $departments = ($user->role ?? null) === 'manager'
-            ? \App\Models\Department::where('manager_id', $user->employee_id)->orderBy('name')->get()
-            : \App\Models\Department::orderBy('name')->get();
+        $departmentsQuery = ($user->role ?? null) === 'manager'
+            ? \App\Models\Department::where('manager_id', $user->employee_id)->orderBy('name')
+            : \App\Models\Department::orderBy('name');
+        if ($currentCompany) {
+            $departmentsQuery->forCompany($currentCompany->id);
+        }
+        $departments = $departmentsQuery->get();
+
         $employeesQuery = \App\Models\Employee::with('department')
             ->orderBy('first_name')
             ->orderBy('last_name');
         if (($user->role ?? null) === 'manager') {
             $employeesQuery->managedBy($user->employee_id);
+        }
+        if ($currentCompany) {
+            $employeesQuery->forCompany($currentCompany->id);
         }
         $employees = $employeesQuery->get();
 
@@ -222,7 +244,7 @@ class OvertimeController extends Controller
 
             $request->validate(['status' => 'required|in:approved,rejected']);
             
-            $overtime = \App\Models\OvertimeRequest::findOrFail($id);
+            $overtime = $this->currentCompanyOvertimeOrFail($id);
 
             if ($user->employee_id && $overtime->employee_id === $user->employee_id) {
                 return response()->json(['error' => 'You cannot approve or reject your own overtime request.'], 403);
@@ -311,7 +333,7 @@ class OvertimeController extends Controller
     {
         try {
             $user = Auth::user();
-            $overtime = \App\Models\OvertimeRequest::findOrFail($id);
+            $overtime = $this->currentCompanyOvertimeOrFail($id);
 
             $isReviewer = in_array($user->role ?? null, ['admin', 'hr', 'manager'], true);
             $ownsRequest = $user->employee_id && $overtime->employee_id === $user->employee_id;
@@ -377,7 +399,7 @@ class OvertimeController extends Controller
     {
         try {
             $user = Auth::user();
-            $overtime = \App\Models\OvertimeRequest::findOrFail($id);
+            $overtime = $this->currentCompanyOvertimeOrFail($id);
 
             if ($overtime->status !== \App\Models\OvertimeRequest::APPROVED) {
                 return response()->json(['error' => 'Only approved overtime requests can be edited here.'], 422);

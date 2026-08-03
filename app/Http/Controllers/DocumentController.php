@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\CompanyHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -19,7 +20,9 @@ class DocumentController extends Controller
 
     public function export(Request $request)
     {
-        $employees = \App\Models\Employee::all();
+        $employees = \App\Models\Employee::with(['department', 'positionModel'])
+            ->forCompany(CompanyHelper::getCurrentCompanyId())
+            ->get();
         $filename = "employees_export_" . date('Y-m-d_H-i-s') . ".csv";
 
         $headers = [

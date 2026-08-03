@@ -22,25 +22,25 @@
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
         <x-dashboard.stats-card 
             title="Total Employees" 
-            :value="$employees->total()" 
+            :value="$employeeStats['total']"
             icon="fas fa-users" 
             color="blue" 
         />
         <x-dashboard.stats-card 
             title="Active Employees" 
-            :value="$employees->where('account.is_active', true)->count()" 
+            :value="$employeeStats['active']"
             icon="fas fa-user-check" 
             color="green" 
         />
         <x-dashboard.stats-card 
             title="Departments" 
-            :value="\App\Models\Department::count()" 
+            :value="$employeeStats['departments']"
             icon="fas fa-building" 
             color="purple" 
         />
         <x-dashboard.stats-card 
             title="Avg Salary" 
-            :value="'₱' . number_format($employees->avg('salary'), 2)" 
+            :value="'₱' . number_format($employeeStats['average_salary'], 2)"
             icon="fas fa-money-bill-wave" 
             color="yellow" 
         />
@@ -66,7 +66,7 @@
             <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 lg:flex-shrink-0">
                 <select id="departmentFilter" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
                     <option value="">All Departments</option>
-                    @foreach(\App\Models\Department::all() as $department)
+                    @foreach($departments as $department)
                         <option value="{{ $department->id }}">{{ $department->name }}</option>
                     @endforeach
                 </select>

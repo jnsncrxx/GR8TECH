@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Helpers\CompanyHelper;
 use App\Http\Controllers\Controller;
 use App\Exports\LeaveRequestExport;
 use App\Models\AttendanceRecord;
@@ -16,11 +17,19 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Maatwebsite\Excel\Facades\Excel;
 
 class LeaveController extends Controller
 {
+    private function currentCompanyLeave(string $id): ?LeaveRequest
+    {
+        return LeaveRequest::query()
+            ->whereHas('employee', fn ($query) => $query->forCompany(CompanyHelper::getCurrentCompanyId()))
+            ->find($id);
+    }
+
     protected array $leaveTypes = [
         'vacation',
         'sick',
@@ -59,18 +68,32 @@ class LeaveController extends Controller
             'rejected' => (clone $summaryQuery)->where('status', 'rejected')->count(),
         ];
 
+        $currentCompany = CompanyHelper::getCurrentCompany();
+
         $employeesQuery = Employee::with('department');
         if ($user->role === 'manager') {
             $employeesQuery->managedBy($user->employee_id);
         }
+        if ($currentCompany) {
+            $employeesQuery->forCompany($currentCompany->id);
+        }
         $employees = $employeesQuery->get();
-        $departments = $user->role === 'manager'
-            ? Department::where('manager_id', $user->employee_id)->orderBy('name')->get()
-            : Department::orderBy('name')->get();
 
-        $hasEmployeesWithoutBalances = Employee::whereDoesntHave('leaveBalances', function ($query) {
+        $departmentsQuery = $user->role === 'manager'
+            ? Department::where('manager_id', $user->employee_id)->orderBy('name')
+            : Department::orderBy('name');
+        if ($currentCompany) {
+            $departmentsQuery->forCompany($currentCompany->id);
+        }
+        $departments = $departmentsQuery->get();
+
+        $hasEmployeesWithoutBalancesQuery = Employee::whereDoesntHave('leaveBalances', function ($query) {
             $query->where('year', Carbon::now()->year);
-        })->exists();
+        });
+        if ($currentCompany) {
+            $hasEmployeesWithoutBalancesQuery->forCompany($currentCompany->id);
+        }
+        $hasEmployeesWithoutBalances = $hasEmployeesWithoutBalancesQuery->exists();
 
         return view('attendance.leave-management', [
             'user' => $user,
@@ -141,7 +164,11 @@ class LeaveController extends Controller
         $availableDays = [];
 
         if (in_array($user->role, ['admin', 'hr'], true) && !$personalMode) {
-            $employees = Employee::with('department')->get();
+            $employees = Employee::with('department')
+                ->forCompany(CompanyHelper::getCurrentCompanyId())
+                ->orderBy('first_name')
+                ->orderBy('last_name')
+                ->get();
         }
 
         if ($employee) {
@@ -244,7 +271,12 @@ class LeaveController extends Controller
             'start_date'       => ['required', 'date'],
             'end_date'         => ['required', 'date', 'after_or_equal:start_date'],
             'reason'           => ['required', 'string', 'max:500'],
-            'employee_id'      => ['required', 'exists:employees,id'],
+            'employee_id'      => [
+                'required',
+                Rule::exists('employees', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
             'replace_leave_id' => ['nullable', 'exists:leave_requests,id'],
         ];
 
@@ -282,7 +314,8 @@ class LeaveController extends Controller
                 ->withInput();
         }
 
-        $employee = Employee::find($data['employee_id']);
+        $employee = Employee::forCompany(CompanyHelper::getCurrentCompanyId())
+            ->find($data['employee_id']);
         if (!$employee) {
             return back()->with('error', 'Employee not found.');
         }
@@ -334,7 +367,7 @@ class LeaveController extends Controller
 
         // If replacement is specified, delete the old leave request
         if (!empty($data['replace_leave_id'])) {
-            $oldLeave = LeaveRequest::find($data['replace_leave_id']);
+            $oldLeave = $this->currentCompanyLeave($data['replace_leave_id']);
             if ($oldLeave && $oldLeave->employee_id == $employee->id && $oldLeave->status === 'pending') {
                 $oldLeave->delete();
             } else {
@@ -378,7 +411,7 @@ class LeaveController extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        $leaveRequest = LeaveRequest::find($id);
+        $leaveRequest = $this->currentCompanyLeave($id);
         if (!$leaveRequest) {
             return response()->json(['error' => 'Leave request not found'], 404);
         }
@@ -625,7 +658,7 @@ class LeaveController extends Controller
     public function cancel(Request $request, $id)
     {
         $user = Auth::user();
-        $leaveRequest = LeaveRequest::find($id);
+        $leaveRequest = $this->currentCompanyLeave($id);
 
         if (!$leaveRequest) {
             return response()->json(['error' => 'Leave request not found'], 404);
@@ -704,7 +737,7 @@ class LeaveController extends Controller
     public function updateApproved(Request $request, $id)
     {
         $user = Auth::user();
-        $leaveRequest = LeaveRequest::find($id);
+        $leaveRequest = $this->currentCompanyLeave($id);
 
         if (!$leaveRequest) {
             return response()->json(['error' => 'Leave request not found'], 404);
@@ -918,9 +951,16 @@ class LeaveController extends Controller
 
         $employeeIds = [];
         if ($data['employee_id'] === 'all') {
-            $employeeIds = Employee::pluck('id')->toArray();
+            $employeeIds = Employee::forCompany(CompanyHelper::getCurrentCompanyId())
+                ->pluck('id')
+                ->toArray();
         } else {
-            $employeeIds = [$data['employee_id']];
+            $employeeIds = Employee::forCompany(CompanyHelper::getCurrentCompanyId())
+                ->whereKey($data['employee_id'])
+                ->pluck('id')
+                ->toArray();
+
+            abort_if(empty($employeeIds), 404);
         }
 
         foreach ($employeeIds as $employeeId) {
@@ -951,7 +991,9 @@ class LeaveController extends Controller
         if (!in_array($user->role, ['admin', 'hr'], true)) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
-        $balance = LeaveBalance::find($id);
+        $balance = LeaveBalance::query()
+            ->whereHas('employee', fn ($query) => $query->forCompany(CompanyHelper::getCurrentCompanyId()))
+            ->find($id);
         if (!$balance) {
             return response()->json(['error' => 'Leave balance record not found'], 404);
         }
@@ -983,6 +1025,11 @@ class LeaveController extends Controller
 
     private function applyFilters($query, Request $request, $user)
     {
+        $currentCompany = CompanyHelper::getCurrentCompany();
+        if ($currentCompany) {
+            $query->whereHas('employee', fn ($employee) => $employee->forCompany($currentCompany->id));
+        }
+
         $personalMode = $request->query('scope') === 'mine' && $user->employee;
 
         if (($user->role === 'employee' || $personalMode) && $user->employee) {
