@@ -112,6 +112,13 @@
                     <option value="manager_review" @selected(request('exception') === 'manager_review')>All manager-review records</option>
                     <option value="incomplete" @selected(request('exception') === 'incomplete')>Incomplete log</option>
                     <option value="invalid_duration" @selected(request('exception') === 'invalid_duration')>Invalid duration</option>
+                    <option value="absence_with_attendance" @selected(request('exception') === 'absence_with_attendance')>Absent with punches</option>
+                    <option value="unverified_leave" @selected(request('exception') === 'unverified_leave')>Unverified leave</option>
+                    <option value="unverified_official_business" @selected(request('exception') === 'unverified_official_business')>Unverified official business</option>
+                    <option value="leave_conflict" @selected(request('exception') === 'leave_conflict')>Leave conflict</option>
+                    <option value="ot_without_attendance" @selected(request('exception') === 'ot_without_attendance')>OT without attendance</option>
+                    <option value="ot_before_required_hours" @selected(request('exception') === 'ot_before_required_hours')>OT before required hours</option>
+                    <option value="ot_overlaps_leave" @selected(request('exception') === 'ot_overlaps_leave')>OT overlaps leave</option>
                     <option value="missing_schedule" @selected(request('exception') === 'missing_schedule')>Missing schedule</option>
                     <option value="possible_wrong_schedule" @selected(request('exception') === 'possible_wrong_schedule')>Possible wrong schedule</option>
                     <option value="rest_day_attendance" @selected(request('exception') === 'rest_day_attendance')>Rest-day duty review</option>

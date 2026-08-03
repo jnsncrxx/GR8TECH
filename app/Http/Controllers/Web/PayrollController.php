@@ -11,6 +11,7 @@ use App\Models\AttendanceRecord;
 use App\Models\EmployeeSchedule;
 use App\Services\PayrollGenerationService;
 use App\Services\CutoffPeriodService;
+use App\Services\AttendanceExceptionService;
 use App\Helpers\CompanyHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -4148,58 +4149,23 @@ class PayrollController extends Controller
                 // enforced on Confirm Validation but never surfaced in the
                 // Schedule & Attendance Exceptions table. Both consumers now
                 // read from this single array instead.
-                $validationIssues = [];
-
-                $shapeIssue = $this->scheduleAttendanceValidationIssue(
+                $workedHoursNumeric = is_numeric($workedHours) ? (float) $workedHours : 0.0;
+                $validationIssues = collect(app(AttendanceExceptionService::class)->evaluate(
                     $attendanceRecord,
                     $schedule,
+                    $workedHoursNumeric,
+                    $hasApprovedLeave,
                     $hasApprovedOb,
-                    $hasApprovedLeave
-                );
-                if ($shapeIssue !== null) {
-                    $validationIssues[] = $shapeIssue;
-                }
-
-                $workedHoursNumeric = is_numeric($workedHours) ? (float) $workedHours : 0.0;
+                    (float) $overtime
+                ))->map(fn (array $issue) => $this->payrollValidationLabel($issue['code'], $issue['label']))
+                    ->values()
+                    ->all();
 
                 if (
                     in_array($attendanceStatus, ['Present', 'Late', 'Half Day'], true)
                     && $workedHoursNumeric <= 0
                 ) {
                     $validationIssues[] = 'Zero Worked Hours';
-                }
-
-                if (
-                    $attendanceRecord
-                    && $attendanceRecord->status === AttendanceRecord::OFFICIAL_BUSINESS
-                    && $attendanceStatus !== 'Official Business'
-                    && !in_array('Unverified Official Business', $validationIssues, true)
-                ) {
-                    $validationIssues[] = 'Unverified Official Business';
-                }
-
-                if (
-                    $hasApprovedLeave
-                    && ($workedHoursNumeric > 0 || $attendanceStatus === 'Official Business' || $overtime > 0)
-                ) {
-                    $validationIssues[] = 'Leave Conflict';
-                }
-
-                if ($overtime > 0 && (empty($attendanceRecord?->time_in) || empty($attendanceRecord?->time_out))) {
-                    $validationIssues[] = 'OT Without Attendance';
-                }
-
-                if (
-                    $overtime > 0
-                    && !in_array($scheduleStatus, ['Day Off', 'Rest Day'], true)
-                    && $scheduledHoursValue > 0
-                    && $workedHoursNumeric < $scheduledHoursValue
-                ) {
-                    $validationIssues[] = 'OT Before Required Hours';
-                }
-
-                if ($hasApprovedLeave && $overtime > 0) {
-                    $validationIssues[] = 'OT Overlaps Leave';
                 }
 
                 // Kept for any existing callers still reading a single value.
@@ -4249,6 +4215,25 @@ class PayrollController extends Controller
         }
 
         return $comprehensiveData;
+    }
+
+    private function payrollValidationLabel(string $code, string $fallback): string
+    {
+        return match ($code) {
+            'missing_schedule' => 'No Schedule',
+            'unverified_leave' => 'Unverified Leave',
+            'unverified_official_business' => 'Unverified Official Business',
+            'incomplete' => 'Incomplete Log',
+            'invalid_duration' => 'Invalid Duration',
+            'absence_with_attendance' => 'Absence With Attendance',
+            'leave_conflict' => 'Leave Conflict',
+            'ot_without_attendance' => 'OT Without Attendance',
+            'ot_before_required_hours' => 'OT Before Required Hours',
+            'ot_overlaps_leave' => 'OT Overlaps Leave',
+            'rest_day_attendance' => 'Rest Day Duty Review',
+            'possible_wrong_schedule' => 'Possible Wrong Schedule',
+            default => $fallback,
+        };
     }
 
     private function scheduleAttendanceValidationIssue(
