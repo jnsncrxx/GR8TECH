@@ -36,6 +36,11 @@ class ReportExport implements FromCollection, WithHeadings, WithMapping, WithSty
                 'Time Out',
                 'Status',
             ];
+        } elseif ($this->type === 'timekeeping') {
+            return [
+                'Employee Name', 'Department', 'Date', 'Assigned Schedule',
+                'Actual Log', 'Worked Hours', 'Exception', 'Severity',
+            ];
         } elseif ($this->type === 'leave') {
             return [
                 'Employee Name',
@@ -75,6 +80,22 @@ class ReportExport implements FromCollection, WithHeadings, WithMapping, WithSty
                 $row->time_in ? Carbon::parse($row->time_in)->format('h:i A') : '--',
                 $row->time_out ? Carbon::parse($row->time_out)->format('h:i A') : '--',
                 ucfirst($row->status),
+            ];
+        } elseif ($this->type === 'timekeeping') {
+            $schedule = $row->assignedSchedule;
+            $scheduleLabel = $schedule?->time_in && $schedule?->time_out
+                ? Carbon::parse($schedule->time_in)->format('h:i A') . ' - ' . Carbon::parse($schedule->time_out)->format('h:i A')
+                : ($schedule?->status ?? '--');
+
+            return [
+                optional($row->employee)->full_name ?? 'N/A',
+                optional(optional($row->employee)->department)->name ?? 'N/A',
+                Carbon::parse($row->date)->format('M d, Y'),
+                $scheduleLabel,
+                $row->time_in ? Carbon::parse($row->time_in)->format('h:i A') . ' - ' . ($row->time_out ? Carbon::parse($row->time_out)->format('h:i A') : '--') : '--',
+                number_format((float) $row->display_worked_hours, 2),
+                $row->exception_label,
+                ucfirst($row->exception_severity),
             ];
         } elseif ($this->type === 'leave') {
             return [

@@ -79,9 +79,9 @@
                 <!-- Time In -->
                 <div>
                     <label for="time_in" class="block text-sm font-medium text-gray-700 mb-2">
-                        Time In <span class="text-red-500">*</span>
+                        Time In <span id="timeInRequiredMarker" class="text-red-500">*</span>
                     </label>
-                    <input type="time" name="time_in" id="time_in" value="{{ old('time_in', $attendanceRecord->time_in ? $attendanceRecord->time_in->format('H:i') : '') }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors @error('time_in') border-red-500 @enderror">
+                    <input type="time" name="time_in" id="time_in" value="{{ old('time_in', $attendanceRecord->time_in ? $attendanceRecord->time_in->format('H:i') : '') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 @error('time_in') border-red-500 @enderror">
                     @error('time_in')
                         <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                     @enderror
@@ -201,15 +201,32 @@
 <script>
 // Auto-calculate total hours when time fields change
 document.addEventListener('DOMContentLoaded', function() {
+    const statusInput = document.getElementById('status');
     const timeInInput = document.getElementById('time_in');
     const timeOutInput = document.getElementById('time_out');
+    const breakStartInput = document.getElementById('break_start');
+    const breakEndInput = document.getElementById('break_end');
+    const timeInRequiredMarker = document.getElementById('timeInRequiredMarker');
     const dateInput = document.getElementById('date');
+
+    function syncAttendanceFields() {
+        const isAbsent = statusInput.value === 'absent';
+        const attendanceInputs = [timeInInput, timeOutInput, breakStartInput, breakEndInput];
+
+        attendanceInputs.forEach(input => {
+            input.disabled = isAbsent;
+            if (isAbsent) input.value = '';
+        });
+
+        timeInInput.required = !isAbsent;
+        timeInRequiredMarker.classList.toggle('hidden', isAbsent);
+    }
 
     function calculateTotalHours() {
         const timeIn = timeInInput.value;
         const timeOut = timeOutInput.value;
-        const breakStart = document.getElementById('break_start').value;
-        const breakEnd = document.getElementById('break_end').value;
+        const breakStart = breakStartInput.value;
+        const breakEnd = breakEndInput.value;
         const date = dateInput.value;
 
         if (timeIn && timeOut && date) {
@@ -271,9 +288,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     timeInInput.addEventListener('change', calculateTotalHours);
     timeOutInput.addEventListener('change', calculateTotalHours);
-    document.getElementById('break_start').addEventListener('change', calculateTotalHours);
-    document.getElementById('break_end').addEventListener('change', calculateTotalHours);
+    breakStartInput.addEventListener('change', calculateTotalHours);
+    breakEndInput.addEventListener('change', calculateTotalHours);
     dateInput.addEventListener('change', calculateTotalHours);
+    statusInput.addEventListener('change', syncAttendanceFields);
+    syncAttendanceFields();
 });
 </script>
 @endsection

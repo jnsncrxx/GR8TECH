@@ -60,6 +60,15 @@
                     <th>Time In</th>
                     <th>Time Out</th>
                     <th>Status</th>
+                @elseif($type === 'timekeeping')
+                    <th>Employee</th>
+                    <th>Department</th>
+                    <th>Date</th>
+                    <th>Assigned Schedule</th>
+                    <th>Actual Log</th>
+                    <th>Hours</th>
+                    <th>Exception</th>
+                    <th>Severity</th>
                 @elseif($type === 'leave')
                     <th>Employee Name</th>
                     <th>Department</th>
@@ -96,6 +105,21 @@
                         <td>{{ $row->time_in ? \Carbon\Carbon::parse($row->time_in)->format('h:i A') : '--' }}</td>
                         <td>{{ $row->time_out ? \Carbon\Carbon::parse($row->time_out)->format('h:i A') : '--' }}</td>
                         <td>{{ ucfirst($row->status) }}</td>
+                    @elseif($type === 'timekeeping')
+                        <td>{{ optional($row->employee)->full_name ?? 'N/A' }}</td>
+                        <td>{{ optional(optional($row->employee)->department)->name ?? 'N/A' }}</td>
+                        <td>{{ \Carbon\Carbon::parse($row->date)->format('M d, Y') }}</td>
+                        <td>
+                            @if($row->assignedSchedule?->time_in && $row->assignedSchedule?->time_out)
+                                {{ \Carbon\Carbon::parse($row->assignedSchedule->time_in)->format('h:i A') }} - {{ \Carbon\Carbon::parse($row->assignedSchedule->time_out)->format('h:i A') }}
+                            @else
+                                {{ $row->assignedSchedule?->status ?? '--' }}
+                            @endif
+                        </td>
+                        <td>{{ $row->time_in ? \Carbon\Carbon::parse($row->time_in)->format('h:i A') : '--' }} - {{ $row->time_out ? \Carbon\Carbon::parse($row->time_out)->format('h:i A') : '--' }}</td>
+                        <td>{{ number_format((float) $row->display_worked_hours, 2) }}</td>
+                        <td>{{ $row->exception_label }}</td>
+                        <td>{{ ucfirst($row->exception_severity) }}</td>
                     @elseif($type === 'leave')
                         <td>{{ optional($row->employee)->full_name ?? 'N/A' }}</td>
                         <td>{{ optional(optional($row->employee)->department)->name ?? 'N/A' }}</td>
@@ -123,7 +147,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="6" style="text-align: center;">No records found.</td>
+                    <td colspan="8" style="text-align: center;">No records found.</td>
                 </tr>
             @endforelse
         </tbody>
