@@ -269,7 +269,7 @@
                     <!-- Header -->
                     <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white dark:from-slate-800 dark:to-slate-900 dark:border-slate-700">
                         <div>
-                            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Recent Login Activity</h3>
+                            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Notifications</h3>
                             <p class="text-xs text-gray-500 mt-0.5 dark:text-gray-400" x-text="userRole === 'admin' ? 'Admin View' : 'HR View'"></p>
                         </div>
                         <div class="flex items-center space-x-2">
@@ -287,8 +287,8 @@
                         <template x-if="notifications.length === 0 && !loading">
                             <div class="px-4 py-8 text-center">
                                 <i class="fas fa-bell-slash text-gray-300 text-3xl mb-2 dark:text-slate-600"></i>
-                                <p class="text-sm text-gray-500 dark:text-gray-400">No recent login activity</p>
-                                <p class="text-xs text-gray-400 mt-1 dark:text-gray-500">Login activity will appear here</p>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">No notifications</p>
+                                <p class="text-xs text-gray-400 mt-1 dark:text-gray-500">Payroll reminders and login activity will appear here</p>
                             </div>
                         </template>
 
@@ -302,11 +302,15 @@
                         </template>
 
                         <template x-for="notification in notifications" :key="notification.id">
-                            <div class="px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors dark:border-slate-800 dark:hover:bg-slate-800">
+                            <div @click="notification.url && (window.location.href = notification.url)"
+                                 :class="notification.url ? 'cursor-pointer' : ''"
+                                 class="px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors dark:border-slate-800 dark:hover:bg-slate-800">
                                 <div class="flex items-start">
                                     <div class="flex-shrink-0">
-                                        <div class="w-8 h-8 rounded-full bg-gradient-to-r from-blue-100 to-blue-50 flex items-center justify-center shadow-sm dark:from-slate-700 dark:to-slate-800">
-                                            <i class="fas fa-sign-in-alt text-blue-600 text-sm dark:text-blue-400"></i>
+                                        <div class="w-8 h-8 rounded-full flex items-center justify-center shadow-sm"
+                                             :class="notification.color === 'orange' ? 'bg-orange-100 dark:bg-orange-900/40' : 'bg-blue-100 dark:bg-slate-700'">
+                                            <i class="fas text-sm"
+                                               :class="[notification.icon || 'fa-bell', notification.color === 'orange' ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400']"></i>
                                         </div>
                                     </div>
                                     <div class="ml-3 flex-1 min-w-0">
@@ -335,10 +339,10 @@
                     <div class="px-4 py-2 border-t border-gray-100 bg-gray-50 dark:border-slate-700 dark:bg-slate-800/50">
                         <div class="flex items-center justify-between">
                             <p class="text-xs text-gray-500 dark:text-gray-400">
-                                <span x-text="notifications.length"></span> recent logins
+                                <span x-text="notifications.length"></span> notification(s)
                             </p>
-                            <button @click="markAllAsRead()" class="text-xs text-blue-600 hover:text-blue-800 font-medium dark:text-blue-400 dark:hover:text-blue-300">
-                                Mark as read
+                            <button @click="loadNotifications()" class="text-xs text-blue-600 hover:text-blue-800 font-medium dark:text-blue-400 dark:hover:text-blue-300">
+                                Refresh
                             </button>
                         </div>
                     </div>

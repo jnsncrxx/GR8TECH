@@ -485,9 +485,6 @@ Route::prefix('loans')->name('loans.')->middleware('auth')->group(function () {
                 Route::post('/{period}/refresh-cutoff', [PeriodManagementController::class, 'refreshCutoffData'])
                     ->name('refresh-cutoff');
 
-                Route::patch('/{period}/deadlines', [PeriodManagementController::class, 'extendDeadlines'])
-                    ->name('deadlines');
-
                 Route::post(
                     '/{period}/validate/{component}',
                     [PeriodManagementController::class, 'validateComponent']
