@@ -5,7 +5,7 @@
 @section('content')
 <div class="min-h-screen bg-gray-50">
     <div class="bg-white shadow-sm border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 lg:px-8">
             <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
                     <h1 class="text-2xl font-bold text-gray-900">Payroll Period Management</h1>
@@ -21,7 +21,7 @@
         </div>
     </div>
 
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div class="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 lg:px-8">
         @foreach(['success' => 'green', 'warning' => 'yellow', 'error' => 'red', 'info' => 'blue'] as $key => $color)
             @if(session($key))
                 <div class="mb-5 rounded-lg border border-{{ $color }}-200 bg-{{ $color }}-50 p-4 text-sm text-{{ $color }}-800">
@@ -51,13 +51,14 @@
             </div>
         </div>
 
-        <div class="mb-6 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-            <div class="flex flex-col gap-2 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div class="grid items-start gap-6 xl:grid-cols-12">
+        <aside class="order-2 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800 xl:col-span-3">
+            <div class="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
                 <div>
-                    <h2 class="font-semibold text-gray-900">Yearly Period Status Matrix</h2>
-                    <p class="mt-1 text-sm text-gray-500">Quickly check whether each monthly period is used, processed, or locked.</p>
+                    <h2 class="text-sm font-semibold text-gray-900 dark:text-white">Yearly Period Status Matrix</h2>
+                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Monthly status at a glance.</p>
                 </div>
-                <div class="flex flex-wrap gap-2 text-xs">
+                <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
                     <span class="rounded-full bg-blue-100 px-2.5 py-1 font-medium text-blue-700">U · Used / Open</span>
                     <span class="rounded-full bg-purple-100 px-2.5 py-1 font-medium text-purple-700">P · Processed</span>
                     <span class="rounded-full bg-slate-200 px-2.5 py-1 font-medium text-slate-800">L · Locked</span>
@@ -67,16 +68,16 @@
                 <table class="min-w-full border-collapse text-center text-xs">
                     <thead>
                         <tr class="bg-gray-50 text-gray-600">
-                            <th class="sticky left-0 z-10 border-b border-r border-gray-200 bg-gray-50 px-3 py-2 text-left">Month</th>
+                            <th class="sticky left-0 z-10 border-b border-r border-gray-200 bg-gray-50 px-2 py-1.5 text-left dark:border-gray-700 dark:bg-gray-800">Month</th>
                             @foreach($calendarYears as $year)
-                                <th colspan="5" class="border-b border-r border-gray-200 px-3 py-2 font-semibold">{{ $year }}</th>
+                                <th colspan="5" class="border-b border-r border-gray-200 px-1 py-1.5 font-semibold dark:border-gray-700">{{ $year }}</th>
                             @endforeach
                         </tr>
                         <tr class="bg-gray-50 text-gray-500">
-                            <th class="sticky left-0 z-10 border-b border-r border-gray-200 bg-gray-50 px-3 py-2"></th>
+                            <th class="sticky left-0 z-10 border-b border-r border-gray-200 bg-gray-50 px-2 py-1 dark:border-gray-700 dark:bg-gray-800"></th>
                             @foreach($calendarYears as $year)
                                 @foreach(range(1, 5) as $periodNo)
-                                    <th class="w-12 border-b border-r border-gray-200 px-2 py-2">{{ $periodNo }}</th>
+                                    <th class="w-8 border-b border-r border-gray-200 px-1 py-1 dark:border-gray-700">{{ $periodNo }}</th>
                                 @endforeach
                             @endforeach
                         </tr>
@@ -84,7 +85,7 @@
                     <tbody>
                         @foreach(range(1, 12) as $month)
                             <tr>
-                                <th class="sticky left-0 z-10 border-b border-r border-gray-200 bg-white px-3 py-2 text-left font-medium text-gray-700">
+                                <th class="sticky left-0 z-10 border-b border-r border-gray-200 bg-white px-2 py-1 text-left font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
                                     {{ \Carbon\Carbon::create(null, $month, 1)->format('M') }}
                                 </th>
                                 @foreach($calendarYears as $year)
@@ -110,15 +111,15 @@
                                                 }
                                             }
                                         @endphp
-                                        <td class="border-b border-r border-gray-200 p-1.5">
+                                        <td class="border-b border-r border-gray-200 p-1 dark:border-gray-700">
                                             @if($matrixPeriod)
                                                 <a href="{{ route('attendance.period-management.show', $matrixPeriod->id) }}"
                                                    title="{{ $matrixPeriod->name }} — {{ $matrixPeriod->status_label }}"
-                                                   class="mx-auto flex h-7 w-7 items-center justify-center rounded font-bold {{ $matrixClasses }} hover:ring-2 hover:ring-green-500">
+                                                   class="mx-auto flex h-6 w-6 items-center justify-center rounded text-[11px] font-bold {{ $matrixClasses }} hover:ring-2 hover:ring-green-500">
                                                     {{ $matrixCode }}
                                                 </a>
                                             @else
-                                                <span class="mx-auto flex h-7 w-7 items-center justify-center rounded {{ $matrixClasses }}">—</span>
+                                                <span class="mx-auto flex h-6 w-6 items-center justify-center rounded {{ $matrixClasses }}">—</span>
                                             @endif
                                         </td>
                                     @endforeach
@@ -128,9 +129,10 @@
                     </tbody>
                 </table>
             </div>
-        </div>
+        </aside>
 
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6 p-4">
+        <section class="order-1 min-w-0 space-y-4 xl:col-span-9">
+        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
             <div class="flex flex-col gap-3 md:flex-row">
                 <div class="flex-1 relative">
                     <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
@@ -143,6 +145,12 @@
                         <option value="{{ $status }}">{{ \App\Models\Period::labelForStatus($status) }}</option>
                     @endforeach
                 </select>
+                <select id="yearFilter" class="rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                    <option value="">All Years</option>
+                    @foreach($calendarYears as $year)
+                        <option value="{{ $year }}">{{ $year }}</option>
+                    @endforeach
+                </select>
             </div>
         </div>
 
@@ -153,10 +161,10 @@
                 <p class="mt-2 text-sm text-gray-500">Create the first official cutoff period to begin payroll validation.</p>
             </div>
         @else
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <div class="overflow-x-auto">
+            <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <div class="max-h-[900px] overflow-auto">
                     <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
+                        <thead class="sticky top-0 z-10 bg-gray-50 shadow-sm dark:bg-gray-800">
                             <tr>
                                 <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payroll Period</th>
                                 <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Coverage</th>
@@ -195,6 +203,7 @@
                                 @endphp
                                 <tr class="period-row hover:bg-gray-50"
                                     data-status="{{ $period->status }}"
+                                    data-year="{{ $period->start_date->year }}"
                                     data-search="{{ strtolower($period->name . ' ' . ($period->company->name ?? '') . ' ' . $period->status_label . ' ' . $period->start_date->format('Y-m-d') . ' ' . $period->end_date->format('Y-m-d')) }}">
                                     <td class="px-5 py-4">
                                         <div class="font-medium text-gray-900">{{ $period->name }}</div>
@@ -265,6 +274,8 @@
                 <div id="noResults" class="hidden py-10 text-center text-sm text-gray-500">No matching payroll periods.</div>
             </div>
         @endif
+        </section>
+        </div>
     </div>
 </div>
 
@@ -320,17 +331,20 @@
 <script>
 const searchInput = document.getElementById('searchInput');
 const statusFilter = document.getElementById('statusFilter');
+const yearFilter = document.getElementById('yearFilter');
 
 function filterPeriods() {
     const search = searchInput.value.toLowerCase().trim();
     const status = statusFilter.value;
+    const year = yearFilter.value;
     const rows = [...document.querySelectorAll('.period-row')];
     let visible = 0;
 
     rows.forEach(row => {
         const matchesSearch = !search || row.dataset.search.includes(search);
         const matchesStatus = !status || row.dataset.status === status;
-        const show = matchesSearch && matchesStatus;
+        const matchesYear = !year || row.dataset.year === year;
+        const show = matchesSearch && matchesStatus && matchesYear;
         row.classList.toggle('hidden', !show);
         if (show) visible++;
     });
@@ -340,6 +354,7 @@ function filterPeriods() {
 
 searchInput?.addEventListener('input', filterPeriods);
 statusFilter?.addEventListener('change', filterPeriods);
+yearFilter?.addEventListener('change', filterPeriods);
 
 document.addEventListener('DOMContentLoaded', function () {
     const modal = document.getElementById('statusConfirmationModal');
