@@ -647,7 +647,7 @@ body.auth-app {
     background: linear-gradient(135deg, rgba(45, 147, 68, 0.09), rgba(255, 255, 255, 0.88)) !important;
 }
 
-.hris-content [class*="bg-red-50"] {
+.hris-content [class*="bg-red-50"]:not([class*="bg-red-500"]):not([class*="bg-red-600"]):not([class*="bg-red-700"]):not([class*="bg-red-800"]):not([class*="bg-red-900"]) {
     background: linear-gradient(135deg, rgba(237, 53, 64, 0.085), rgba(255, 255, 255, 0.9)) !important;
 }
 
@@ -1290,7 +1290,7 @@ html.dark .hris-content [class*="bg-yellow-50"],
 html.dark .hris-content [class*="bg-yellow-100"],
 html.dark .hris-content [class*="bg-amber-50"],
 html.dark .hris-content [class*="bg-amber-100"],
-html.dark .hris-content [class*="bg-red-50"],
+html.dark .hris-content [class*="bg-red-50"]:not([class*="bg-red-500"]):not([class*="bg-red-600"]):not([class*="bg-red-700"]):not([class*="bg-red-800"]):not([class*="bg-red-900"]),
 html.dark .hris-content [class*="bg-red-100"],
 html.dark .hris-content [class*="bg-purple-50"],
 html.dark .hris-content [class*="bg-purple-100"] {
@@ -1535,9 +1535,9 @@ html.dark .schedule-management-page .schedule-status-badge[data-schedule-tone="c
 }
 
 html.dark .schedule-management-page .schedule-status-badge[data-schedule-tone="holiday"] {
-    background: rgba(30, 64, 175, 0.68) !important;
-    border-color: #3b82f6 !important;
-    color: #bfdbfe !important;
+    background: rgba(127, 29, 29, 0.7) !important;
+    border-color: #ef4444 !important;
+    color: #fecaca !important;
 }
 
 html.dark .schedule-management-page .calendar-cell-detail,

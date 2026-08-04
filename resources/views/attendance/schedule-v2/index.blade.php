@@ -193,15 +193,11 @@
                             OFF
                         </span>
                         <span class="flex items-center">
-                            <div class="w-2.5 h-2.5 rounded-full bg-red-500 mr-1.5"></div>
-                            Absent
-                        </span>
-                        <span class="flex items-center">
                             <div class="w-2.5 h-2.5 rounded-full bg-violet-500 mr-1.5"></div>
                             OB / LV
                         </span>
                         <span class="flex items-center">
-                            <div class="w-2.5 h-2.5 rounded-full bg-blue-500 mr-1.5"></div>
+                            <div class="w-2.5 h-2.5 rounded-full bg-red-500 mr-1.5"></div>
                             Holiday
                         </span>
                     </div>
@@ -306,7 +302,7 @@
                                         $isWorkDay => 'bg-emerald-50 text-emerald-700',
                                         $schedule->status === 'Day Off' => 'bg-amber-50 text-amber-700',
                                         $schedule->status === 'Absent' => 'bg-red-100 text-red-800 ring-1 ring-inset ring-red-300',
-                                        in_array($schedule->status, ['Holiday', 'Regular Holiday', 'Special Holiday'], true) => 'bg-blue-100 text-blue-800 ring-1 ring-inset ring-blue-300',
+                                        in_array($schedule->status, ['Holiday', 'Regular Holiday', 'Special Holiday'], true) => 'bg-red-100 text-red-800 ring-1 ring-inset ring-red-300',
                                         in_array($schedule->status, ['Leave', 'Official Business'], true) => 'bg-violet-100 text-violet-800 ring-1 ring-inset ring-violet-300',
                                         default => 'bg-gray-100 text-gray-700',
                                     };
