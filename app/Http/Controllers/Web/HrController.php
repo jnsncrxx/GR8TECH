@@ -63,7 +63,9 @@ class HrController extends Controller
             ->get();
         $photoUrl = null;
 
-        if ($employee && $employee->otherInfo && $employee->otherInfo->photo_path) {
+        if ($employee && $employee->profile_photo) {
+            $photoUrl = asset('storage/' . $employee->profile_photo);
+        } elseif ($employee && $employee->otherInfo && $employee->otherInfo->photo_path) {
             $photoUrl = asset('storage/' . $employee->otherInfo->photo_path);
         }
 
@@ -697,15 +699,50 @@ class HrController extends Controller
     {
         $user = Auth::user();
         $employee = $user->employee;
-        $existingDocuments = collect();
+        
+        $documentsByDate = collect([
+            'Today' => collect(),
+            'Yesterday' => collect(),
+            'Last week' => collect(),
+            'Last month' => collect(),
+            'Older' => collect(),
+        ]);
+        $folders = collect();
 
         if ($employee) {
-            $employee->load('documents');
-            $existingDocuments = $employee->documents->keyBy('type');
-        }
+            // Load folders with their documents
+            $folders = \App\Models\DocumentFolder::where('employee_id', $employee->id)
+                ->with(['documents' => fn($q) => $q->orderBy('created_at', 'desc')])
+                ->orderBy('name')
+                ->get();
 
-        return view('hr.my-information.documents', compact('user', 'employee', 'existingDocuments'));
+            // Only show unfiled (root-level) documents in date groups
+            $employee->load(['documents' => function($q) {
+                $q->whereNull('folder_id')->orderBy('created_at', 'desc');
+            }]);
+            
+            $now = now();
+            foreach ($employee->documents as $doc) {
+                if ($doc->created_at->isToday()) {
+                    $documentsByDate['Today']->push($doc);
+                } elseif ($doc->created_at->isYesterday()) {
+                    $documentsByDate['Yesterday']->push($doc);
+                } elseif ($doc->created_at->isSameWeek($now)) {
+                    $documentsByDate['Last week']->push($doc);
+                } elseif ($doc->created_at->isSameMonth($now)) {
+                    $documentsByDate['Last month']->push($doc);
+                } else {
+                    $documentsByDate['Older']->push($doc);
+                }
+            }
+        }
+        
+        // Remove empty groups
+        $documentsByDate = $documentsByDate->filter(fn($group) => $group->isNotEmpty());
+
+        return view('hr.my-information.documents', compact('user', 'employee', 'documentsByDate', 'folders'));
     }
+
 
     public function saveMyDocuments(Request $request)
     {
@@ -716,33 +753,69 @@ class HrController extends Controller
                 ->with('error', 'No employee record was found for your account.');
         }
 
-        for ($i = 1; $i <= 36; $i++) {
-            if ($request->hasFile("document_{$i}")) {
-                $file = $request->file("document_{$i}");
+        $request->validate([
+            'documents' => 'required|array',
+            'documents.*' => 'required|file|max:10240', // 10MB max
+        ]);
+
+        if ($request->hasFile('documents')) {
+            foreach ($request->file('documents') as $file) {
                 $path = $file->store("documents/{$employee->id}", 'public');
-
-                $existing = $employee->documents()->where('type', "document_{$i}")->first();
-
-                if ($existing) {
-                    $existing->update([
-                        'name' => $file->getClientOriginalName(),
-                        'path' => $path,
-                    ]);
-                } else {
-                    $employee->documents()->create([
-                        'id' => Str::uuid()->toString(),
-                        'type' => "document_{$i}",
-                        'name' => $file->getClientOriginalName(),
-                        'path' => $path,
-                        'description' => null,
-                    ]);
-                }
+                $extension = $file->getClientOriginalExtension();
+                
+                $employee->documents()->create([
+                    'id' => Str::uuid()->toString(),
+                    'type' => empty($extension) ? 'document' : strtolower($extension),
+                    'name' => $file->getClientOriginalName(),
+                    'path' => $path,
+                    'description' => null,
+                    'folder_id' => $request->folder_id ?? null,
+                ]);
             }
         }
 
         return redirect()->route('hr.my-information.documents')
             ->with('success', 'Documents uploaded successfully.');
     }
+
+    public function createMyDocumentFolder(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+        ]);
+
+        $employee = Auth::user()->employee;
+
+        if (! $employee) {
+            return redirect()->route('hr.my-information.documents')
+                ->with('error', 'No employee record was found for your account.');
+        }
+
+        \App\Models\DocumentFolder::create([
+            'id' => Str::uuid()->toString(),
+            'employee_id' => $employee->id,
+            'name' => $request->name,
+        ]);
+
+        return redirect()->route('hr.my-information.documents')
+            ->with('success', 'Folder "' . $request->name . '" created successfully.');
+    }
+
+    public function deleteMyDocumentFolder(\App\Models\DocumentFolder $folder)
+    {
+        $employee = Auth::user()->employee;
+
+        if (!$employee || $folder->employee_id !== $employee->id) {
+            abort(403, 'Unauthorized.');
+        }
+
+        // Documents inside are set to folder_id = null (cascade set null in migration)
+        $folder->delete();
+
+        return redirect()->route('hr.my-information.documents')
+            ->with('success', 'Folder deleted. Documents inside were moved to the root.');
+    }
+
 
     /**
      * YTD-INFO tab.

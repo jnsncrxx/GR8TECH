@@ -106,6 +106,8 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
     Route::post('/employees/prev-emp-oth', [EmployeeController::class, 'savePrevEmpOth'])->name('employees.prev-emp-oth.save')->middleware('role:admin,hr');
     Route::get('/employees/documents', [EmployeeController::class, 'documents'])->name('employees.documents')->middleware('role:admin,hr');
     Route::post('/employees/documents', [EmployeeController::class, 'saveDocuments'])->name('employees.documents.save')->middleware('role:admin,hr');
+    Route::post('/employees/documents/folders', [EmployeeController::class, 'createDocumentFolder'])->name('employees.documents.folders.create')->middleware('role:admin,hr');
+    Route::delete('/employees/documents/folders/{folder}', [EmployeeController::class, 'deleteDocumentFolder'])->name('employees.documents.folders.delete')->middleware('role:admin,hr');
     Route::resource('employees', EmployeeController::class);
     Route::get('/employees/{employee}/payroll', [EmployeeController::class, 'payroll'])->name('employees.payroll');
 
@@ -375,6 +377,8 @@ Route::prefix('loans')->name('loans.')->middleware('auth')->group(function () {
 
             Route::get('/documents', [App\Http\Controllers\Web\HrController::class, 'myDocuments'])->name('documents');
             Route::post('/documents', [App\Http\Controllers\Web\HrController::class, 'saveMyDocuments'])->name('documents.save');
+            Route::post('/documents/folders', [App\Http\Controllers\Web\HrController::class, 'createMyDocumentFolder'])->name('documents.folders.create');
+            Route::delete('/documents/folders/{folder}', [App\Http\Controllers\Web\HrController::class, 'deleteMyDocumentFolder'])->name('documents.folders.delete');
 
             Route::get('/ytd-info', [App\Http\Controllers\Web\HrController::class, 'myYtdInfo'])->name('ytd-info');
             Route::get('/bio-zk', [App\Http\Controllers\Web\HrController::class, 'myBioZk'])->name('bio-zk');

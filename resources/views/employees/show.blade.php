@@ -34,8 +34,16 @@
             </div>
             <div class="emp-card-body" style="display:flex;gap:1.5rem;align-items:center;flex-wrap:wrap;">
                 {{-- Photo / Avatar --}}
-                @if($employee->profile_photo)
-                    <img src="{{ asset('storage/' . $employee->profile_photo) }}" alt="{{ $employee->full_name }}"
+                @php
+                    $empPhotoUrl = null;
+                    if ($employee->profile_photo) {
+                        $empPhotoUrl = asset('storage/' . $employee->profile_photo);
+                    } elseif ($employee->otherInfo && $employee->otherInfo->photo_path) {
+                        $empPhotoUrl = asset('storage/' . $employee->otherInfo->photo_path);
+                    }
+                @endphp
+                @if($empPhotoUrl)
+                    <img src="{{ $empPhotoUrl }}" alt="{{ $employee->full_name }}"
                          style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid #e5e7eb;flex-shrink:0;">
                 @else
                     <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#2563eb);display:flex;align-items:center;justify-content:center;flex-shrink:0;border:3px solid #e5e7eb;">

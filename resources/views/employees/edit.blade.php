@@ -95,11 +95,19 @@
                 <div>
                     <p class="form-label" style="margin-bottom:.5rem;">Profile Photo</p>
                     <div class="photo-wrap" onclick="document.getElementById('profile_photo').click();" title="Click to change photo">
-                        @if($employee->profile_photo)
+                        @php
+                            $editPhotoUrl = null;
+                            if ($employee->profile_photo) {
+                                $editPhotoUrl = asset('storage/' . $employee->profile_photo);
+                            } elseif ($employee->otherInfo && $employee->otherInfo->photo_path) {
+                                $editPhotoUrl = asset('storage/' . $employee->otherInfo->photo_path);
+                            }
+                        @endphp
+                        @if($editPhotoUrl)
                             <div class="photo-placeholder" id="photoPlaceholder" style="display:none;">
                                 <i class="fas fa-user"></i>
                             </div>
-                            <img id="photoPreview" src="{{ asset('storage/' . $employee->profile_photo) }}" alt="Profile" style="display:block;width:100px;height:100px;border-radius:50%;object-fit:cover;border:3px solid #e5e7eb;">
+                            <img id="photoPreview" src="{{ $editPhotoUrl }}" alt="Profile" style="display:block;width:100px;height:100px;border-radius:50%;object-fit:cover;border:3px solid #e5e7eb;">
                         @else
                             <div class="photo-placeholder" id="photoPlaceholder">
                                 <i class="fas fa-user"></i>

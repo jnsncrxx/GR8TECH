@@ -57,8 +57,16 @@
             </div>
             <div class="emp-card-body">
             <div class="w-52 h-52 mx-auto border border-gray-300 rounded-full bg-gray-50 overflow-hidden flex items-center justify-center mb-3">
-                @if($employee->profile_photo)
-                    <img src="{{ asset('storage/' . $employee->profile_photo) }}" alt="Employee Photo" class="w-full h-full object-cover">
+                @php
+                    $hrOtherPhotoUrl = null;
+                    if ($employee->profile_photo) {
+                        $hrOtherPhotoUrl = asset('storage/' . $employee->profile_photo);
+                    } elseif ($employee->otherInfo && $employee->otherInfo->photo_path) {
+                        $hrOtherPhotoUrl = asset('storage/' . $employee->otherInfo->photo_path);
+                    }
+                @endphp
+                @if($hrOtherPhotoUrl)
+                    <img src="{{ $hrOtherPhotoUrl }}" alt="Employee Photo" class="w-full h-full object-cover">
                 @else
                     <span class="text-sm text-gray-500">No photo uploaded</span>
                 @endif
