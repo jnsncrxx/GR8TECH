@@ -301,7 +301,13 @@ class AttendanceController extends Controller
         }
 
         $allAttendanceRecords = (clone $baseQuery)
-            ->with(['employee.department', 'breaks', 'timeEntries'])
+            ->with([
+                'employee.department',
+                'breaks',
+                'timeEntries',
+                'correctedBy.employee',
+                'corrections.correctedBy.employee',
+            ])
             ->orderBy('date', 'desc')
             ->get();
 
@@ -1241,7 +1247,11 @@ class AttendanceController extends Controller
         }
 
         $companyId = CompanyHelper::getCurrentCompanyId() ?? Auth::user()->employee?->company_id;
-        $attendanceRecord = AttendanceRecord::with('employee.department')
+        $attendanceRecord = AttendanceRecord::with([
+                'employee.department',
+                'correctedBy.employee',
+                'corrections.correctedBy.employee',
+            ])
             ->whereHas('employee', fn ($query) => $query->forCompany($companyId))
             ->findOrFail($id);
         $employees = Employee::with('department')

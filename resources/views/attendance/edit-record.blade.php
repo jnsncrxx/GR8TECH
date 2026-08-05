@@ -163,6 +163,35 @@
                 </div>
             </div>
 
+            @if($attendanceRecord->corrections->isNotEmpty())
+                <div class="rounded-lg border border-blue-200 bg-blue-50/70 p-4 dark:border-blue-900 dark:bg-gray-800">
+                    <div class="mb-3 flex items-center justify-between gap-3">
+                        <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+                            <i class="fas fa-clock-rotate-left mr-2 text-blue-600 dark:text-blue-300" aria-hidden="true"></i>
+                            Correction History
+                        </h3>
+                        <span class="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800 dark:bg-blue-950 dark:text-blue-200">
+                            {{ $attendanceRecord->corrections->count() }} change(s)
+                        </span>
+                    </div>
+                    <div class="space-y-3">
+                        @foreach($attendanceRecord->corrections as $correction)
+                            <div class="rounded-lg border border-blue-100 bg-white p-3 text-sm dark:border-gray-700 dark:bg-gray-900">
+                                <div class="flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
+                                    <span class="font-semibold text-gray-900 dark:text-white">
+                                        {{ $correction->correctedBy?->full_name ?? 'Unknown account' }}
+                                    </span>
+                                    <span class="text-xs text-gray-500 dark:text-gray-300">
+                                        {{ $correction->created_at->format('M d, Y g:i A') }}
+                                    </span>
+                                </div>
+                                <p class="mt-2 text-gray-700 dark:text-gray-100">{{ $correction->reason }}</p>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
             <!-- Form Actions -->
             <div class="flex flex-col sm:flex-row sm:justify-end space-y-3 sm:space-y-0 sm:space-x-3 pt-6 border-t border-gray-200">
                 <a href="{{ route('attendance.timekeeping') }}" class="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">

@@ -239,6 +239,9 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Exception / Action
                         </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Corrected
+                        </th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -296,6 +299,7 @@
                                 <div class="text-sm text-gray-900">{{ \App\Helpers\TimezoneHelper::formatHours((float) (optional($record->getRelation('assignedSchedule'))->required_hours ?? 0)) }} required</div>
                                 <div class="text-xs text-gray-500">{{ \App\Helpers\TimezoneHelper::formatHours((float) $record->display_worked_hours) }} credited</div>
                             </td>
+                            {{-- Exception / Action --}}
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ match($record->exception_severity) {
                                     'blocking' => 'bg-red-100 text-red-800',
@@ -305,29 +309,66 @@
                                 } }}">
                                     {{ $record->exception_label }}
                                 </span>
+
                                 @if(in_array($user->role, ['admin', 'hr']))
-                                    <a href="{{ route('attendance.edit-record', $record->id) }}"
-                                       class="ui-icon-action ui-action-edit ml-2"
-                                       title="Edit attendance record"
-                                       aria-label="Edit attendance record">
-                                        <i class="fas fa-pen" aria-hidden="true"></i>
-                                    </a>
-                                    <form action="{{ route('attendance.delete-record', $record->id) }}" method="POST" class="inline-flex ml-2" onsubmit="return confirm('Are you sure you want to delete this attendance record?');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit"
-                                                class="ui-icon-action ui-action-delete"
-                                                title="Delete attendance record"
-                                                aria-label="Delete attendance record">
-                                            <i class="fas fa-trash" aria-hidden="true"></i>
-                                        </button>
-                                    </form>
+                                    <div class="mt-2 flex items-center gap-2">
+                                        <a href="{{ route('attendance.edit-record', $record->id) }}"
+                                           class="ui-icon-action ui-action-edit"
+                                           title="Edit attendance record"
+                                           aria-label="Edit attendance record">
+                                            <i class="fas fa-pen" aria-hidden="true"></i>
+                                        </a>
+
+                                        <form action="{{ route('attendance.delete-record', $record->id) }}"
+                                              method="POST"
+                                              class="inline-flex"
+                                              onsubmit="return confirm('Are you sure you want to delete this attendance record?');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit"
+                                                    class="ui-icon-action ui-action-delete"
+                                                    title="Delete attendance record"
+                                                    aria-label="Delete attendance record">
+                                                <i class="fas fa-trash" aria-hidden="true"></i>
+                                            </button>
+                                        </form>
+                                    </div>
                                 @endif
+                            </td>
+
+                            {{-- Corrected --}}
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                @if($record->corrected_at)
+                                    <details class="max-w-xs whitespace-normal text-xs">
+                                        <summary class="inline-flex cursor-pointer items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2.5 py-1 font-medium text-green-800 hover:bg-green-100 dark:border-green-800 dark:bg-green-950/50 dark:text-green-200">
+                                            <i class="fas fa-pen-to-square" aria-hidden="true"></i>
+                                            Corrected{{ $record->corrections->count() > 1 ? ' ('.$record->corrections->count().')' : '' }}
+                                        </summary>
+
+                                        <div class="mt-2 rounded-lg border border-green-100 bg-green-50/70 p-3 text-gray-700 shadow-sm dark:border-green-900 dark:bg-gray-800 dark:text-gray-100">
+                                            <p class="font-semibold text-gray-900 dark:text-white">
+                                                {{ $record->correctedBy?->full_name ?? 'Unknown account' }}
+                                            </p>
+                                            <p class="mt-0.5 text-gray-500 dark:text-gray-300">
+                                                {{ $record->corrected_at->format('M d, Y g:i A') }}
+                                            </p>
+                                            <p class="mt-2 leading-relaxed">
+                                                {{ $record->correction_reason ?: 'No reason recorded.' }}
+                                            </p>
+                                            @if($record->corrections->count() > 1)
+                                                <p class="mt-2 text-gray-500 dark:text-gray-400">
+                                                    {{ $record->corrections->count() }} audited changes recorded. Open Edit to view the full history.
+                                                </p>
+                                            @endif
+                                        </div>
+                                    </details>
+                                @endif
+                            </td>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-6 py-4 text-center">
+                            <td colspan="7" class="px-6 py-4 text-center">
                                 <div class="flex flex-col items-center justify-center py-8">
                                     <i class="fas fa-clock text-gray-400 text-4xl mb-4"></i>
                                     <p class="text-gray-500 text-lg font-medium mb-2">No attendance records found</p>
@@ -543,6 +584,16 @@
                             </div>
                             @endif
                         </div>
+                        @if($record->corrected_at)
+                            <div class="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm dark:border-blue-800 dark:bg-gray-800">
+                                <div class="flex items-center gap-2 font-medium text-blue-800 dark:text-blue-200">
+                                    <i class="fas fa-pen-to-square" aria-hidden="true"></i>
+                                    Corrected by {{ $record->correctedBy?->full_name ?? 'Unknown account' }}
+                                </div>
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-300">{{ $record->corrected_at->format('M d, Y g:i A') }}</p>
+                                <p class="mt-2 text-gray-700 dark:text-gray-100">{{ $record->correction_reason ?: 'No reason recorded.' }}</p>
+                            </div>
+                        @endif
                     </div>
                 @empty
                     <div class="text-center py-8">
