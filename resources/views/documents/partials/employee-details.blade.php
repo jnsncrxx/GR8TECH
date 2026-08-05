@@ -10,7 +10,7 @@
         </div>
         <div>
             <h4 class="text-2xl font-bold text-gray-900">{{ $employee->full_name }}</h4>
-            <p class="text-lg text-gray-600">{{ $employee->position ?? 'No position' }}</p>
+            <p class="text-lg text-gray-600">{{ $employee->position?->name ?? 'No position' }}</p>
             <p class="text-gray-500">{{ $employee->department->name ?? 'No Department' }}</p>
             @if($employee->company)
                 <p class="text-sm text-gray-400">
@@ -33,7 +33,7 @@
                 </div>
                 <div>
                     <span class="text-sm font-medium text-gray-700">Email:</span>
-                    <p class="text-sm text-gray-900">{{ $employee->email ?? 'Not provided' }}</p>
+                    <p class="text-sm text-gray-900">{{ $employee->account?->email ?? 'Not provided' }}</p>
                 </div>
                 <div>
                     <span class="text-sm font-medium text-gray-700">Phone:</span>
@@ -53,10 +53,10 @@
                 <div>
                     <span class="text-sm font-medium text-gray-700">Status:</span>
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                        @if($employee->status == 'active') bg-green-100 text-green-800
-                        @elseif($employee->status == 'on-leave') bg-yellow-100 text-yellow-800
+                        @if($employee->employee_status == 'active') bg-green-100 text-green-800
+                        @elseif(in_array($employee->employee_status, ['on-leave', 'on_leave'])) bg-yellow-100 text-yellow-800
                         @else bg-red-100 text-red-800 @endif">
-                        {{ ucfirst($employee->status ?? 'active') }}
+                        {{ str($employee->employee_status ?? 'inactive')->replace(['-', '_'], ' ')->title() }}
                     </span>
                 </div>
                 <div>
@@ -142,7 +142,7 @@
         
         <div class="text-center py-4 bg-gray-50 rounded-lg">
             <i class="fas fa-file text-gray-400 text-2xl mb-2"></i>
-            <p class="text-gray-600">No documents uploaded</p>
+            <p class="text-gray-600">{{ $employee->documents_count }} document(s)</p>
             <p class="text-sm text-gray-500 mt-1">Click "View Documents" to manage employee documents</p>
         </div>
     </div>

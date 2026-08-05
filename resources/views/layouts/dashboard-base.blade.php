@@ -386,6 +386,7 @@
     updateTime();
     setInterval(updateTime, 60000);
     </script>
+    @stack('scripts')
     <x-overtime-reminder-modal />
 </body>
 </html>

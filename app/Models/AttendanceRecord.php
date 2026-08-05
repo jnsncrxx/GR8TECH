@@ -135,6 +135,22 @@ class AttendanceRecord extends Model
     }
 
     /**
+     * Account responsible for the latest persisted correction marker.
+     */
+    public function correctedBy(): BelongsTo
+    {
+        return $this->belongsTo(Account::class, 'corrected_by');
+    }
+
+    /**
+     * Immutable history of audited changes to this attendance record.
+     */
+    public function corrections(): HasMany
+    {
+        return $this->hasMany(AttendanceCorrection::class)->latest('created_at');
+    }
+
+    /**
      * Attendance logs relationship.
      */
     public function logs(): HasMany
