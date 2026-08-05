@@ -23,11 +23,6 @@ class RequireTimeInMiddleware
             return $next($request);
         }
 
-        // Allow admin, hr, and manager roles to access all modules regardless of time-in status
-        if (in_array(strtolower($user->role), ['admin', 'hr', 'manager'])) {
-            return $next($request);
-        }
-
         // Try to get employee relationship, or find by employee_id if relationship fails
         $employee = $user->employee;
         
@@ -49,6 +44,7 @@ class RequireTimeInMiddleware
             'attendance.time-in',
             'attendance.time-out',
             'attendance.status',
+            'attendance.time-in-out',
             'attendance.overtime.quick-submit',
             'attendance.overtime.dismiss-reminder',
             'companies.switch',
