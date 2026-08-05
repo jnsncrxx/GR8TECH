@@ -5,7 +5,7 @@
 
     $isCurrentlyTimedIn = false;
     $todayAttendance = null;
-    if (in_array($user->role, ['employee', 'manager'], true) && $user->employee) {
+    if ($user->employee) {
         $todayAttendance = $user->employee->getTodayAttendance();
         $isCurrentlyTimedIn = $todayAttendance && $todayAttendance->hasActiveTimeEntry();
     }
@@ -88,12 +88,12 @@
                 <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }"></i>
             </button>
             <div x-show="open" x-transition class="ml-8 mt-2 space-y-1 rounded-lg border border-gray-200 bg-gray-50 p-2">
-                @if($user->role !== 'admin' && $user->role !== 'hr')
-                <a href="{{ route('attendance.time-in-out') }}" class="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-white hover:text-blue-600">
-                    <i class="fas fa-sign-in-alt mr-3 text-sm text-gray-400"></i><span>Time In / Out</span>
-                    <span class="ml-auto bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded-full">Live</span>
-                </a>
-                @endif
+                <a href="{{ route('attendance.time-in-out') }}"
+                    class="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-white hover:text-blue-600">
+                        <i class="fas fa-sign-in-alt mr-3 text-sm text-gray-400"></i>
+                        <span>Time In / Out</span>
+                        <span class="ml-auto bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded-full">Live</span>
+                    </a>
                 <a href="{{ route('attendance.my') }}" class="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-white hover:text-blue-600">
                     <i class="fas fa-calendar-check mr-3 text-sm text-gray-400"></i><span>My Attendance</span>
                 </a>
@@ -469,7 +469,7 @@
         </a>
         @endif
 
-        @if(in_array($user->role, ['employee', 'manager'], true))
+        @if($user->employee)
             @if(!$todayAttendance || !$todayAttendance->time_in || $todayAttendance->time_out)
                 <button onclick="sidebarConfirmTimeIn()" class="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-green-600 rounded-lg transition-all duration-200 group">
                     <i class="fas fa-sign-in-alt mr-3 text-lg text-gray-400 group-hover:text-green-600"></i>
