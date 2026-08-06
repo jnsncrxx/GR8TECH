@@ -141,6 +141,15 @@
                     </tr>
                     @endif
                     
+                    @if(($payroll->other_earnings ?? 0) > 0)
+                    <tr>
+                        <td>Other Earnings / Adjustments</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>₱{{ number_format($payroll->other_earnings, 2) }}</td>
+                    </tr>
+                    @endif
+                    
                     <!-- Total Earnings -->
                     <tr class="total-row">
                         <td colspan="3" style="text-align: right;"><strong>TOTAL EARNINGS:</strong></td>
