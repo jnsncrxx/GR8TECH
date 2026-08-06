@@ -272,6 +272,16 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
         ]);
     });
 
+    // Payroll Adjustments and Benefits
+    Route::prefix('payroll-adjustments')->name('payroll-adjustments.')->middleware('role:admin,hr')->group(function () {
+        Route::get('/', [App\Http\Controllers\Web\PayrollAdjustmentController::class, 'index'])->name('index');
+        Route::get('/create', [App\Http\Controllers\Web\PayrollAdjustmentController::class, 'create'])->name('create');
+        Route::post('/', [App\Http\Controllers\Web\PayrollAdjustmentController::class, 'store'])->name('store');
+        Route::get('/{payrollAdjustment}/edit', [App\Http\Controllers\Web\PayrollAdjustmentController::class, 'edit'])->name('edit');
+        Route::put('/{payrollAdjustment}', [App\Http\Controllers\Web\PayrollAdjustmentController::class, 'update'])->name('update');
+        Route::delete('/{payrollAdjustment}', [App\Http\Controllers\Web\PayrollAdjustmentController::class, 'destroy'])->name('destroy');
+    });
+
     // Loan Type and Loan routes
     Route::prefix('loan-types')->name('loan-types.')->middleware('role:admin,hr')->group(function () {
     Route::get('/', [App\Http\Controllers\Web\LoanTypeController::class, 'index'])->name('index');
