@@ -42,10 +42,12 @@
     ];
 
     $payrollFinanceRoutes = [
-        'payroll.index', 'payroll.team', 'payroll.runs',
-        'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit',
-        'loan-types.index', 'loan-types.create', 'loan-types.edit',
-        'tax-brackets.index', 'reports.index', 'payrolls.summary',
+    'payroll.index', 'payroll.team', 'payroll.runs',
+    'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit', 
+    'payroll-adjustments.index', 'payroll-adjustments.create', 'payroll-adjustments.edit',
+    'loans.index', 'loans.create', 'loans.show',
+    'loan-types.index', 'loan-types.create', 'loan-types.edit',
+    'tax-brackets.index', 'reports.index', 'payrolls.summary',
     ];
 
     $accessSecurityRoutes = [
@@ -419,7 +421,7 @@
             </h3>
         </div>
 
-        @php $payrollRunRoutes = ['payroll.index', 'payroll.team', 'payroll.runs', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit', 'loans.index', 'loans.show', 'loan-types.index', 'loan-types.create', 'loan-types.edit']; @endphp
+        @php $payrollRunRoutes = ['payroll.index', 'payroll.team', 'payroll.runs', 'payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit', 'loans.index', 'loans.show', 'loan-types.index', 'loan-types.create', 'loan-types.edit', 'payroll-adjustments.index', 'payroll-adjustments.create', 'payroll-adjustments.edit']; @endphp
         <div class="relative" x-data="{ open: {{ in_array($activeRoute, $payrollRunRoutes) ? 'true' : 'false' }} }">
             <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, $payrollRunRoutes) ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
                 <div class="flex items-center">
@@ -430,12 +432,74 @@
             </button>
             <div x-show="open" x-transition class="ml-8 mt-2 space-y-1 bg-gray-50 rounded-lg p-2 border border-gray-200">
                 @if($user->role === 'admin' || $user->role === 'hr')
-                <a href="{{ route('payroll.index') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group {{ $activeRoute === 'payroll.index' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : '' }}"><i class="fas fa-list mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Payroll Payments</span></a>
-                <a href="{{ route('payroll.runs') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group {{ $activeRoute === 'payroll.runs' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : '' }}"><i class="fas fa-layer-group mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Payroll Runs</span></a>
-                <a href="{{ route('payroll-templates.index') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group {{ in_array($activeRoute, ['payroll-templates.index', 'payroll-templates.create', 'payroll-templates.edit']) ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : '' }}"><i class="fas fa-file-invoice mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Payroll Templates</span></a>
-                <a href="{{ route('loans.index') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group {{ in_array($activeRoute, ['loans.index', 'loans.show', 'loan-types.index', 'loan-types.create', 'loan-types.edit']) ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : '' }}"><i class="fas fa-hand-holding-dollar mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Loan Management</span></a>
+                    <a href="{{ route('payroll.index') }}"
+                       class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group
+                       {{ $activeRoute === 'payroll.index'
+                            ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600'
+                            : '' }}">
+                        <i class="fas fa-list mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                        <span>Payroll Payments</span>
+                    </a>
+
+                    <a href="{{ route('payroll.runs') }}"
+                       class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group
+                       {{ $activeRoute === 'payroll.runs'
+                            ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600'
+                            : '' }}">
+                        <i class="fas fa-layer-group mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                        <span>Payroll Runs</span>
+                    </a>
+
+                    <a href="{{ route('payroll-templates.index') }}"
+                       class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group
+                       {{ in_array($activeRoute, [
+                            'payroll-templates.index',
+                            'payroll-templates.create',
+                            'payroll-templates.edit',
+                       ], true)
+                            ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600'
+                            : '' }}">
+                        <i class="fas fa-file-invoice mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                        <span>Payroll Templates</span>
+                    </a>
+
+                    <a href="{{ route('payroll-adjustments.index') }}"
+                       class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group
+                       {{ in_array($activeRoute, [
+                            'payroll-adjustments.index',
+                            'payroll-adjustments.create',
+                            'payroll-adjustments.edit',
+                       ], true)
+                            ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600'
+                            : '' }}">
+                        <i class="fas fa-sliders-h mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                        <span>Payroll Adjustments</span>
+                    </a>
+
+                    <a href="{{ route('loans.index') }}"
+                       class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group
+                       {{ in_array($activeRoute, [
+                            'loans.index',
+                            'loans.create',
+                            'loans.show',
+                            'loan-types.index',
+                            'loan-types.create',
+                            'loan-types.edit',
+                       ], true)
+                            ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600'
+                            : '' }}">
+                        <i class="fas fa-hand-holding-dollar mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                        <span>Loan Management</span>
+                    </a>
                 @else
-                <a href="{{ route('payroll.team') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group {{ $activeRoute === 'payroll.team' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : '' }}"><i class="fas fa-eye mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>My Team's Payroll</span></a>
+                    <a href="{{ route('payroll.team') }}"
+                       class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group
+                       {{ $activeRoute === 'payroll.team'
+                            ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600'
+                            : '' }}">
+                        <i class="fas fa-eye mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                        <span>My Team's Payroll</span>
+                    </a>
                 @endif
             </div>
         </div>

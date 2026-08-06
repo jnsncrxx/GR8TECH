@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\AttendanceRecord;
 use App\Models\EmployeeSchedule;
 use App\Models\LeaveRequest;
+use App\Models\PayrollAdjustment;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -1257,6 +1258,7 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             ? (float) $template->deductions
             : 0.0;
         $scheduledLoanDeduction = $this->calculateLoanDeduction($employee, $periodData);
+        $payrollAdjustments = $this->calculatePayrollAdjustments($employee, $periodData);
 
         // Calculate gross pay using Excel formula pattern
         $grossPay = $this->calculateGrossPayWithExcelFormula(
@@ -1265,8 +1267,8 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             $nightDiffData['total_pay'],
             $holidayData['total_pay'],
             $restDayData['total_pay'],
-            $allowances,
-            0 // bonuses
+            $allowances['total'] + $payrollAdjustments['allowances'],
+            $payrollAdjustments['bonuses'] + $payrollAdjustments['other_earnings']
         );
 
         // Attendance penalties can consume the basic salary earned for the
@@ -1299,7 +1301,7 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
         // Withholding tax is based on compensation remaining after absence,
         // late, undertime, and unpaid-leave adjustments—not the unreduced
         // fixed salary. Never withhold more than the employee can receive.
-        $taxablePay = $remainingPay;
+        $taxablePay = max(0, $remainingPay - $payrollAdjustments['non_taxable_earnings']);
         $scheduledTaxAmount = $this->calculateTax($taxablePay);
         $taxAmount = min($scheduledTaxAmount, $remainingPay);
         $remainingPay -= $taxAmount;
@@ -1317,7 +1319,7 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
         $appliedSss = $applyDeduction((float) $statutoryDeductions['sss']);
         $appliedPhic = $applyDeduction((float) $statutoryDeductions['phic']);
         $appliedHdmf = $applyDeduction((float) $statutoryDeductions['hdmf']);
-        $appliedOtherDeductions = $applyDeduction($otherDeductions);
+        $appliedOtherDeductions = $applyDeduction($otherDeductions + $payrollAdjustments['deductions']);
         $loanDeduction = $applyDeduction($scheduledLoanDeduction);
 
         $totalDeductions = round(
@@ -1345,9 +1347,9 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             'night_differential_rate' => $hourlyRate * 0.10, // Excel: 10% of hourly rate
             'night_differential_pay' => $nightDiffData['total_pay'],
             'rest_day_premium_pay' => $restDayData['total_pay'],
-            'allowances' => $allowances['total'],
-            'bonuses' => 0,
-            'other_earnings' => 0,
+            'allowances' => $allowances['total'] + $payrollAdjustments['allowances'],
+            'bonuses' => $payrollAdjustments['bonuses'],
+            'other_earnings' => $payrollAdjustments['other_earnings'],
             'paid_leave_days' => $leaveData['paid_leave_days'] ?? 0,
             'paid_leave_pay' => $leaveData['paid_leave_pay'] ?? 0,
             'unpaid_leave_days' => $leaveData['unpaid_leave_days'] ?? 0,
@@ -1369,6 +1371,7 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
                 $scheduledAttendanceDeductions
                 + array_sum($statutoryDeductions)
                 + $otherDeductions
+                + $payrollAdjustments['deductions']
                 + $scheduledLoanDeduction,
                 2
             ),
@@ -1377,7 +1380,7 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
                 + max(0, $statutoryDeductions['sss'] - $appliedSss)
                 + max(0, $statutoryDeductions['phic'] - $appliedPhic)
                 + max(0, $statutoryDeductions['hdmf'] - $appliedHdmf)
-                + max(0, $otherDeductions - $appliedOtherDeductions)
+                + max(0, ($otherDeductions + $payrollAdjustments['deductions']) - $appliedOtherDeductions)
                 + max(0, $scheduledLoanDeduction - $loanDeduction),
                 2
             ),
@@ -1672,6 +1675,31 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
         return round($absentDays * $dailyRate, 2);
     }
 
+
+    /**
+     * Resolve active one-time and recurring adjustments for a payroll cutoff.
+     * One-time entries apply only to the cutoff containing effective_from.
+     */
+    private function calculatePayrollAdjustments(Employee $employee, array $periodData): array
+    {
+        $start = Carbon::parse($periodData['start_date'])->toDateString();
+        $end = Carbon::parse($periodData['end_date'])->toDateString();
+
+        $items = PayrollAdjustment::query()
+            ->where('employee_id', $employee->id)
+            ->when($employee->company_id, fn ($q) => $q->where('company_id', $employee->company_id))
+            ->applicableToPeriod($start, $end)
+            ->get();
+
+        return [
+            'bonuses' => round((float) $items->where('category', 'bonus')->where('direction', 'earning')->sum('amount'), 2),
+            'allowances' => round((float) $items->where('category', 'allowance')->where('direction', 'earning')->sum('amount'), 2),
+            'other_earnings' => round((float) $items->where('category', 'manual')->where('direction', 'earning')->sum('amount'), 2),
+            'deductions' => round((float) $items->where('direction', 'deduction')->sum('amount'), 2),
+            'non_taxable_earnings' => round((float) $items->where('direction', 'earning')->where('is_taxable', false)->sum('amount'), 2),
+        ];
+    }
+
     /**
      * Calculate allowances (incentive leave)
      */
@@ -1682,8 +1710,12 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
         // employees' gross pay even when no leave was approved.
         $incentiveLeaveDays = 0;
         $incentiveLeavePay = 0;
-        $paidLeavePay = $leaveData['paid_leave_pay'] ?? 0;
-        $totalAllowance = $incentiveLeavePay + $paidLeavePay;
+        $paidLeavePay = (float) ($leaveData['paid_leave_pay'] ?? 0);
+
+        // Paid leave is already covered by the employee's fixed basic salary.
+        // Keep it as an informational component only; adding it to allowances
+        // or gross pay would result in duplicate compensation.
+        $totalAllowance = $incentiveLeavePay;
 
         return [
             'incentive_leave_days' => $incentiveLeaveDays,
