@@ -4132,10 +4132,20 @@ class PayrollController extends Controller
                             true
                         ) ? 'Unpaid Leave' : 'Paid Leave';
                     } else {
-                        // A valid working schedule with no complete log is absent/incomplete.
-                        $attendanceStatus = ($attendanceRecord && ($attendanceRecord->time_in || $attendanceRecord->time_out))
-                            ? 'Incomplete Log'
-                            : 'Absent';
+                        // A future scheduled workday is not an absence yet. Keep it
+                        // visible as Scheduled until the date is reached. Once the
+                        // date is today/past, incomplete or missing logs may become
+                        // attendance exceptions and payroll blockers.
+                        $recordDate = $currentDate->copy()->startOfDay();
+                        $today = Carbon::today(config('app.timezone', 'Asia/Manila'));
+
+                        if ($recordDate->gt($today)) {
+                            $attendanceStatus = 'Scheduled';
+                        } else {
+                            $attendanceStatus = ($attendanceRecord && ($attendanceRecord->time_in || $attendanceRecord->time_out))
+                                ? 'Incomplete Log'
+                                : 'Absent';
+                        }
                     }
                 } elseif (
                     in_array($scheduleStatus, ['Day Off', 'Rest Day'], true)
@@ -4207,23 +4217,36 @@ class PayrollController extends Controller
                 // Schedule & Attendance Exceptions table. Both consumers now
                 // read from this single array instead.
                 $workedHoursNumeric = is_numeric($workedHours) ? (float) $workedHours : 0.0;
-                $validationIssues = collect(app(AttendanceExceptionService::class)->evaluate(
+                $validationExceptionItems = collect(app(AttendanceExceptionService::class)->evaluate(
                     $attendanceRecord,
                     $schedule,
                     $workedHoursNumeric,
                     $hasApprovedLeave,
                     $hasApprovedOb,
                     (float) $overtime
-                ))->map(fn (array $issue) => $this->payrollValidationLabel($issue['code'], $issue['label']))
-                    ->values()
-                    ->all();
+                ))->map(function (array $issue) {
+                    return [
+                        'code' => $issue['code'],
+                        'label' => $this->payrollValidationLabel($issue['code'], $issue['label']),
+                        'severity' => $issue['severity'],
+                    ];
+                })->values();
 
                 if (
                     in_array($attendanceStatus, ['Present', 'Late', 'Half Day'], true)
                     && $workedHoursNumeric <= 0
                 ) {
-                    $validationIssues[] = 'Zero Worked Hours';
+                    $validationExceptionItems->push([
+                        'code' => 'zero_worked_hours',
+                        'label' => 'Zero Worked Hours',
+                        'severity' => 'blocking',
+                    ]);
                 }
+
+                $validationExceptionItems = $validationExceptionItems
+                    ->unique('code')
+                    ->values();
+                $validationIssues = $validationExceptionItems->pluck('label')->all();
 
                 // Kept for any existing callers still reading a single value.
                 $validationIssue = $validationIssues[0] ?? null;
@@ -4246,6 +4269,7 @@ class PayrollController extends Controller
                     'attendance_status' => $attendanceStatus,
                     'validation_issue' => $validationIssue,
                     'validation_issues' => $validationIssues,
+                    'validation_exception_items' => $validationExceptionItems->all(),
                     'has_attendance_record' => $attendanceRecord !== null,
                     'attendance_record_status' => $attendanceRecord?->status,
                     'approved_leave_type' => $approvedLeaveRequest?->leave_type,
@@ -4449,6 +4473,15 @@ class PayrollController extends Controller
         }
 
         if (!$attendanceRecord) {
+            $scheduleDate = $schedule?->date
+                ? Carbon::parse($schedule->date)->startOfDay()
+                : null;
+            $today = Carbon::today(config('app.timezone', 'Asia/Manila'));
+
+            if ($scheduleStatus === 'Working' && $scheduleDate?->gt($today)) {
+                return 'Scheduled';
+            }
+
             if (in_array($scheduleStatus, [
                 'Day Off',
                 'Rest Day',

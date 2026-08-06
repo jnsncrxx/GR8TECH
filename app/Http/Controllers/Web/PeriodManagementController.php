@@ -9,6 +9,9 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmployeeSchedule;
 use App\Models\AttendanceRecord;
+use App\Models\LeaveRequest;
+use App\Models\OfficialBusinessRequest;
+use App\Models\OvertimeRequest;
 use App\Models\Payroll;
 use App\Models\Period;
 use App\Services\PayrollGenerationService;
@@ -353,6 +356,13 @@ class PeriodManagementController extends Controller
         $startDate = Carbon::parse($period->start_date)->startOfDay();
         $endDate = Carbon::parse($period->end_date)->startOfDay();
 
+        // Attendance can only be evaluated through today. Future scheduled
+        // dates inside the cutoff must not be treated as missing biometric
+        // logs or unresolved absences.
+        $attendanceValidationEndDate = $endDate->copy()->min(
+            Carbon::today(config('app.timezone'))
+        );
+
         /*
          * Find the employees included in this period.
          */
@@ -416,31 +426,103 @@ class PeriodManagementController extends Controller
         );
 
         $scheduleExceptions = collect($comprehensiveData)
+            ->filter(function (array $record) use ($attendanceValidationEndDate) {
+                $recordDate = !empty($record['date'])
+                    ? Carbon::parse($record['date'])->startOfDay()
+                    : null;
+
+                return $recordDate && $recordDate->lte($attendanceValidationEndDate);
+            })
+            ->map(function (array $record) {
+                $issues = $record['validation_issues'] ?? [];
+
+                // A scheduled workday with no biometric log, approved Leave,
+                // or approved OB is an unresolved attendance item. Keep it
+                // visible in the exceptions table until HR confirms the
+                // absence or corrects the source record.
+                $isUnresolvedAbsence = ($record['schedule_status'] ?? null) === 'Working'
+                    && ($record['attendance_status'] ?? null) === 'Absent'
+                    && empty($record['has_attendance_record']);
+
+                if ($isUnresolvedAbsence && !in_array('No Bio / Unresolved Absence', $issues, true)) {
+                    $issues[] = 'No Bio / Unresolved Absence';
+                }
+
+                $record['validation_issues'] = array_values(array_unique($issues));
+
+                return $record;
+            })
             ->filter(fn ($record) => !empty($record['validation_issues']))
             ->values();
 
-        $validationSummary = [
-            'attendance' => [
-                'label' => 'Attendance',
-                'validated' => $period->isComponentValidated('attendance'),
-                'validated_at' => $period->attendance_validated_at,
-            ],
-            'leave' => [
-                'label' => 'Leave',
-                'validated' => $period->isComponentValidated('leave'),
-                'validated_at' => $period->leave_validated_at,
-            ],
-            'ob' => [
-                'label' => 'Official Business',
-                'validated' => $period->isComponentValidated('ob'),
-                'validated_at' => $period->ob_validated_at,
-            ],
-            'overtime' => [
-                'label' => 'Overtime',
-                'validated' => $period->isComponentValidated('overtime'),
-                'validated_at' => $period->overtime_validated_at,
-            ],
+        // Always inspect the current source data. Validation timestamps are only
+        // an audit trail; they must not hide newly filed or unresolved records.
+        $componentLabels = [
+            'attendance' => 'Attendance',
+            'leave' => 'Leave',
+            'ob' => 'Official Business',
+            'overtime' => 'Overtime',
         ];
+
+        $validationSummary = collect(Period::VALIDATION_COMPONENTS)
+            ->mapWithKeys(function (string $component) use ($period, $componentLabels) {
+                $report = $this->inspectValidationComponent($period, $component);
+                $fields = Period::validationFieldsFor($component);
+                $wasValidated = $period->isComponentValidated($component);
+                $currentlyPassed = empty($report['errors']);
+
+                return [$component => [
+                    'label' => $componentLabels[$component],
+                    'validated' => $wasValidated && $currentlyPassed,
+                    'was_validated' => $wasValidated,
+                    'passed' => $currentlyPassed,
+                    'validated_at' => $period->{$fields['date']},
+                    'checked_at' => $report['checked_at'] ?? null,
+                    'errors' => $report['errors'] ?? [],
+                    'warnings' => $report['warnings'] ?? [],
+                    'issue_count' => count($report['details'] ?? []) ?: count($report['errors'] ?? []),
+                    'details' => $report['details'] ?? [],
+                ]];
+            })
+            ->all();
+
+        // If a previously validated component now has a blocking issue, make
+        // the period return to validation immediately. This keeps the page and
+        // workflow proactive when Leave/OB/OT/Attendance records change.
+        $invalidatedComponents = collect($validationSummary)
+            ->filter(fn (array $item) => $item['was_validated'] && !$item['passed'])
+            ->keys();
+
+        if ($invalidatedComponents->isNotEmpty()
+            && !$period->hasGeneratedPayrolls()
+            && in_array($period->status, [Period::STATUS_FOR_VALIDATION, Period::STATUS_READY], true)) {
+            $updates = [
+                'validation_results' => collect($period->validation_results ?? [])
+                    ->except($invalidatedComponents->all())
+                    ->all(),
+            ];
+
+            foreach ($invalidatedComponents as $component) {
+                $fields = Period::validationFieldsFor($component);
+                $updates[$fields['date']] = null;
+                $updates[$fields['user']] = null;
+            }
+
+            if ($period->status === Period::STATUS_READY) {
+                $updates['status'] = Period::STATUS_FOR_VALIDATION;
+                $updates['ready_at'] = null;
+                $updates['ready_by'] = null;
+            }
+
+            $period->update($updates);
+            $period->refresh();
+
+            foreach ($invalidatedComponents as $component) {
+                $validationSummary[$component]['validated'] = false;
+                $validationSummary[$component]['was_validated'] = false;
+                $validationSummary[$component]['validated_at'] = null;
+            }
+        }
 
         $existingPayrolls = Payroll::query()
             ->where('period_id', $period->id)
@@ -748,69 +830,113 @@ class PeriodManagementController extends Controller
 
         $errors = [];
         $warnings = [];
+        $details = [];
 
         if ($employees->isEmpty()) {
             $errors[] = 'No eligible employees are covered by this payroll period.';
         }
 
         if ($component === 'attendance') {
-            if ($records->isEmpty()) {
-                $errors[] = 'No attendance data was found for the cutoff.';
+            $attendanceValidationEndDate = Carbon::parse($periodModel->end_date)
+                ->startOfDay()
+                ->min(Carbon::today(config('app.timezone')));
+
+            $attendanceRecords = $records
+                ->filter(function ($record) use ($attendanceValidationEndDate) {
+                    if (empty($record['date'])) {
+                        return false;
+                    }
+
+                    return Carbon::parse($record['date'])
+                        ->startOfDay()
+                        ->lte($attendanceValidationEndDate);
+                })
+                ->values();
+
+            if ($attendanceValidationEndDate->lt(
+                Carbon::parse($periodModel->start_date)->startOfDay()
+            )) {
+                $warnings[] = 'Attendance validation has not started because the payroll period begins in the future.';
+            } elseif ($attendanceRecords->isEmpty()) {
+                $errors[] = 'No attendance data was found for the elapsed portion of the cutoff.';
             }
 
-            $hasIssue = fn ($record, string $issue) => in_array($issue, $record['validation_issues'] ?? [], true);
+            /*
+             * Use the same structured exceptions produced by
+             * AttendanceExceptionService for the Timekeeping filter. This
+             * keeps Timekeeping and period validation on one source of truth.
+             * The Timekeeping dropdown remains a filter only; it is not moved
+             * or changed by this validation workflow.
+             */
+            $attendanceRecords = $attendanceRecords->map(function ($record) {
+                $items = collect($record['validation_exception_items'] ?? []);
 
-            $missingSchedules = $records->filter(fn ($r) => $hasIssue($r, 'No Schedule'))->count();
-            $incompleteLogs = $records->filter(fn ($r) => $hasIssue($r, 'Incomplete Log'))->count();
-            $invalidDurations = $records->filter(fn ($r) => $hasIssue($r, 'Invalid Duration'))->count();
-            $possibleWrongSchedules = $records->filter(fn ($r) => $hasIssue($r, 'Possible Wrong Schedule'))->count();
-            $restDayDutyReviews = $records->filter(fn ($r) => $hasIssue($r, 'Rest Day Duty Review'))->count();
+                // Backward compatibility for older comprehensive data.
+                if ($items->isEmpty()) {
+                    $items = collect($record['validation_issues'] ?? [])->map(function ($label) {
+                        $managerReview = in_array($label, [
+                            'Possible Wrong Schedule',
+                            'Rest Day Duty Review',
+                        ], true);
 
-            if ($missingSchedules > 0) {
-                $errors[] = "$missingSchedules employee-day record(s) have no assigned schedule. Assign or correct the schedule before validating attendance.";
-            }
+                        return [
+                            'code' => str($label)->snake()->toString(),
+                            'label' => $label,
+                            'severity' => $managerReview ? 'review' : 'blocking',
+                        ];
+                    });
+                }
 
-            if ($incompleteLogs > 0) {
-                $errors[] = "$incompleteLogs attendance record(s) have an incomplete time-in/time-out pair.";
-            }
-
-            if ($invalidDurations > 0) {
-                $errors[] = "$invalidDurations attendance record(s) contain an impossible or cross-date duration. Correct the time entries before validating attendance.";
-            }
-
-            if ($possibleWrongSchedules > 0) {
-                $errors[] = "$possibleWrongSchedules attendance record(s) are four or more hours outside the assigned shift and may have the wrong schedule.";
-            }
-
-            if ($restDayDutyReviews > 0) {
-                $warnings[] = "$restDayDutyReviews rest-day attendance record(s) require manager review and the applicable approved duty/overtime filing.";
-            }
-
-            $presentWithoutWorkedHours = $records->filter(fn ($r) => $hasIssue($r, 'Zero Worked Hours'))->count();
-
-            if ($presentWithoutWorkedHours > 0) {
-                $errors[] = "$presentWithoutWorkedHours present attendance record(s) have zero or invalid computed working hours.";
-            }
-
-            $assumedAbsences = $records->filter(function ($record) {
-                return ($record['schedule_status'] ?? null) === 'Working'
+                $isUnresolvedAbsence = ($record['schedule_status'] ?? null) === 'Working'
                     && ($record['attendance_status'] ?? null) === 'Absent'
                     && empty($record['has_attendance_record']);
-            })->count();
 
-            if ($assumedAbsences > 0) {
-                $warnings[] = "$assumedAbsences scheduled working day(s) have no bio, leave, or OB and will be treated as absent for payroll.";
+                if ($isUnresolvedAbsence) {
+                    $items->push([
+                        'code' => 'unresolved_absence',
+                        'label' => 'No Bio / Unresolved Absence',
+                        'severity' => 'blocking',
+                    ]);
+                }
+
+                $record['validation_exception_items'] = $items
+                    ->unique('code')
+                    ->values()
+                    ->all();
+                $record['validation_issues'] = $items
+                    ->pluck('label')
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                return $record;
+            });
+
+            $allExceptionItems = $attendanceRecords->flatMap(
+                fn ($record) => $record['validation_exception_items'] ?? []
+            );
+
+            $blockingCounts = $allExceptionItems
+                ->where('severity', 'blocking')
+                ->countBy('label');
+            $reviewCounts = $allExceptionItems
+                ->where('severity', 'review')
+                ->countBy('label');
+
+            foreach ($blockingCounts as $label => $count) {
+                $errors[] = "$count attendance exception(s): $label. Resolve these records before validating attendance.";
             }
 
-            $orphanOfficialBusiness = $records->filter(fn ($r) => $hasIssue($r, 'Unverified Official Business'))->count();
-
-            if ($orphanOfficialBusiness > 0) {
-                $errors[] = "$orphanOfficialBusiness attendance record(s) are marked Official Business without a matching approved OB request.";
+            foreach ($reviewCounts as $label => $count) {
+                $warnings[] = "$count manager-review record(s): $label. Review these records before finalizing payroll.";
             }
 
             $invalidRestDayHours = EmployeeSchedule::query()
                 ->whereIn('employee_id', $employees->pluck('id'))
-                ->whereBetween('date', [$periodModel->start_date, $periodModel->end_date])
+                ->whereBetween('date', [
+                    $periodModel->start_date,
+                    $attendanceValidationEndDate->toDateString(),
+                ])
                 ->whereIn('status', ['Day Off', 'Rest Day'])
                 ->where('required_hours', '>', 0)
                 ->count();
@@ -818,8 +944,72 @@ class PeriodManagementController extends Controller
             if ($invalidRestDayHours > 0) {
                 $errors[] = "$invalidRestDayHours day-off/rest-day schedule(s) still contain required hours. Set required hours to zero or mark the schedule Working.";
             }
+
+            $details = $attendanceRecords
+                ->filter(function ($record) {
+                    return collect($record['validation_exception_items'] ?? [])
+                        ->contains(fn ($item) => ($item['severity'] ?? null) === 'blocking');
+                })
+                ->take(100)
+                ->map(function ($record) {
+                    $items = collect($record['validation_exception_items'] ?? []);
+                    $blocking = $items->where('severity', 'blocking')->pluck('label');
+                    $review = $items->where('severity', 'review')->pluck('label');
+
+                    return [
+                        'type' => 'Attendance',
+                        'employee_id' => $record['employee_id'] ?? null,
+                        'employee_code' => $record['employee_code'] ?? null,
+                        'employee_name' => $record['employee_name'] ?? 'Unknown employee',
+                        'department' => $record['department'] ?? null,
+                        'date' => $record['date'] ?? null,
+                        'date_label' => $record['date_formatted'] ?? $record['date'] ?? '—',
+                        'summary' => $items->pluck('label')->implode(', '),
+                        'status' => $blocking->isNotEmpty()
+                            ? 'Blocking'
+                            : 'Manager review',
+                        'severity' => $blocking->isNotEmpty() ? 'blocking' : 'review',
+                    ];
+                })
+                ->values()
+                ->all();
         } elseif ($component === 'leave') {
             $hasIssue = fn ($record, string $issue) => in_array($issue, $record['validation_issues'] ?? [], true);
+
+            $pendingLeaveRecords = LeaveRequest::query()
+                ->with(['employee.department'])
+                ->whereIn('employee_id', $employees->pluck('id'))
+                ->where('status', LeaveRequest::PENDING)
+                ->whereDate('start_date', '<=', $periodModel->end_date)
+                ->whereDate('end_date', '>=', $periodModel->start_date)
+                ->orderBy('start_date')
+                ->get();
+
+            $pendingLeaves = $pendingLeaveRecords->count();
+
+            if ($pendingLeaves > 0) {
+                $errors[] = "$pendingLeaves pending leave request(s) fall within this payroll period. Approve, reject, cancel, or expire them before validating leave.";
+
+                $details = $pendingLeaveRecords->map(function ($leave) {
+                    return [
+                        'type' => 'Leave',
+                        'employee_id' => $leave->employee_id,
+                        'employee_code' => $leave->employee->employee_id ?? null,
+                        'employee_name' => $leave->employee->full_name ?? 'Unknown employee',
+                        'department' => $leave->employee->department->name ?? null,
+                        'date' => optional($leave->start_date)->format('Y-m-d'),
+                        'date_label' => trim(
+                            optional($leave->start_date)->format('M j, Y')
+                            . (($leave->end_date && $leave->end_date->ne($leave->start_date))
+                                ? ' – ' . $leave->end_date->format('M j, Y')
+                                : '')
+                        ),
+                        'summary' => ucfirst(str_replace('_', ' ', (string) ($leave->leave_type ?? 'Leave request'))),
+                        'reason' => $leave->reason ?? null,
+                        'status' => ucfirst((string) $leave->status),
+                    ];
+                })->values()->all();
+            }
 
             $unverifiedLeaves = $records->filter(fn ($r) => $hasIssue($r, 'Unverified Leave'))->count();
             $leaveConflicts = $records->filter(fn ($r) => $hasIssue($r, 'Leave Conflict'))->count();
@@ -834,6 +1024,34 @@ class PeriodManagementController extends Controller
         } elseif ($component === 'ob') {
             $hasIssue = fn ($record, string $issue) => in_array($issue, $record['validation_issues'] ?? [], true);
 
+            $pendingOfficialBusinessRecords = OfficialBusinessRequest::query()
+                ->with(['employee.department'])
+                ->whereIn('employee_id', $employees->pluck('id'))
+                ->where('status', OfficialBusinessRequest::PENDING)
+                ->whereBetween('date', [$periodModel->start_date, $periodModel->end_date])
+                ->orderBy('date')
+                ->get();
+
+            $pendingOfficialBusiness = $pendingOfficialBusinessRecords->count();
+
+            if ($pendingOfficialBusiness > 0) {
+                $errors[] = "$pendingOfficialBusiness pending Official Business request(s) fall within this payroll period. Resolve them before validating Official Business.";
+
+                $details = $pendingOfficialBusinessRecords->map(function ($ob) {
+                    return [
+                        'type' => 'Official Business',
+                        'employee_id' => $ob->employee_id,
+                        'employee_code' => $ob->employee->employee_id ?? null,
+                        'employee_name' => $ob->employee->full_name ?? 'Unknown employee',
+                        'department' => $ob->employee->department->name ?? null,
+                        'date' => optional($ob->date)->format('Y-m-d'),
+                        'date_label' => optional($ob->date)->format('M j, Y') ?? '—',
+                        'summary' => $ob->reason ?? 'Official Business request',
+                        'status' => ucfirst((string) $ob->status),
+                    ];
+                })->values()->all();
+            }
+
             $orphanOfficialBusiness = $records->filter(fn ($r) => $hasIssue($r, 'Unverified Official Business'))->count();
 
             if ($orphanOfficialBusiness > 0) {
@@ -841,6 +1059,35 @@ class PeriodManagementController extends Controller
             }
         } elseif ($component === 'overtime') {
             $hasIssue = fn ($record, string $issue) => in_array($issue, $record['validation_issues'] ?? [], true);
+
+            $pendingOvertimeRecords = OvertimeRequest::query()
+                ->with(['employee.department'])
+                ->whereIn('employee_id', $employees->pluck('id'))
+                ->where('status', OvertimeRequest::PENDING)
+                ->whereBetween('date', [$periodModel->start_date, $periodModel->end_date])
+                ->orderBy('date')
+                ->get();
+
+            $pendingOvertime = $pendingOvertimeRecords->count();
+
+            if ($pendingOvertime > 0) {
+                $errors[] = "$pendingOvertime pending overtime request(s) fall within this payroll period. Approve, reject, cancel, or expire them before validating overtime.";
+
+                $details = $pendingOvertimeRecords->map(function ($overtime) {
+                    return [
+                        'type' => 'Overtime',
+                        'employee_id' => $overtime->employee_id,
+                        'employee_code' => $overtime->employee->employee_id ?? null,
+                        'employee_name' => $overtime->employee->full_name ?? 'Unknown employee',
+                        'department' => $overtime->employee->department->name ?? null,
+                        'date' => optional($overtime->date)->format('Y-m-d'),
+                        'date_label' => optional($overtime->date)->format('M j, Y') ?? '—',
+                        'summary' => number_format((float) ($overtime->hours ?? 0), 2) . ' hour(s) overtime',
+                        'reason' => $overtime->reason ?? null,
+                        'status' => ucfirst((string) $overtime->status),
+                    ];
+                })->values()->all();
+            }
 
             $otWithoutAttendance = $records->filter(fn ($r) => $hasIssue($r, 'OT Without Attendance'))->count();
             if ($otWithoutAttendance > 0) {
@@ -866,6 +1113,7 @@ class PeriodManagementController extends Controller
             'record_count' => $records->count(),
             'errors' => $errors,
             'warnings' => $warnings,
+            'details' => $details,
         ];
     }
 

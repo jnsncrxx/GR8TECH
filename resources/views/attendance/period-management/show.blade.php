@@ -46,7 +46,7 @@
 <div class="min-h-screen bg-gray-50">
     <!-- Header -->
     <div class="bg-white shadow-sm border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="w-full max-w-none px-4 sm:px-6 lg:px-8 xl:px-10">
             <div class="py-6">
                 <div class="flex items-center justify-between">
                     <div>
@@ -105,7 +105,7 @@
     </div>
 
     <!-- Summary Cards -->
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+    <div class="w-full max-w-none px-4 sm:px-6 lg:px-8 xl:px-10 py-4">
 
         @if($period->needsLockReminder())
             <div class="mb-6 flex flex-col gap-3 rounded-xl border border-amber-300 bg-amber-50 p-5 text-amber-900 shadow-sm dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
@@ -125,14 +125,14 @@
         @endif
 
         <!-- Phase 2 Validation Workflow -->
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div class="w-full max-w-none rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6 mb-6">
+            <div class="flex w-full flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
                     <h2 class="text-lg font-semibold text-gray-900">
                         Pre-Payroll Validation
                     </h2>
                     <p class="mt-1 text-sm text-gray-500">
-                        Confirm Attendance, Leave, Official Business, and Overtime before payroll generation.
+                        Live checks for Attendance, Leave, Official Business, and Overtime. Resolve all blocking items before payroll generation.
                     </p>
                 </div>
 
@@ -140,12 +140,12 @@
                     <div class="flex items-center justify-between text-sm mb-1">
                         <span class="font-medium text-gray-700">Progress</span>
                         <span class="font-semibold text-gray-900">
-                            {{ $period->validation_progress }}%
+                            {{ collect($validationSummary)->where('validated', true)->count() * 25 }}%
                         </span>
                     </div>
                     <div class="h-2 rounded-full bg-gray-200 overflow-hidden">
                         <div class="h-full bg-green-600"
-                             style="width: {{ $period->validation_progress }}%">
+                             style="width: {{ collect($validationSummary)->where('validated', true)->count() * 25 }}%">
                         </div>
                     </div>
                 </div>
@@ -161,27 +161,77 @@
                 </div>
             @endif
 
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-5">
+            @php
+                $attendanceReviewEndDate = $period->end_date->copy()->min(
+                    now(config('app.timezone'))->startOfDay()
+                );
+
+                $componentResolveRoutes = [
+                    'attendance' => route('attendance.timekeeping', [
+                        'date_from' => $period->start_date->format('Y-m-d'),
+                        'date_to' => $attendanceReviewEndDate->format('Y-m-d'),
+                        'exception' => 'blocking',
+                    ]),
+                    'leave' => route('attendance.leave-management', [
+                        'from_date' => $period->start_date->format('Y-m-d'),
+                        'to_date' => $period->end_date->format('Y-m-d'),
+                        'status' => 'pending',
+                    ]),
+                    'ob' => route('attendance.official-business', [
+                        'date_from' => $period->start_date->format('Y-m-d'),
+                        'date_to' => $period->end_date->format('Y-m-d'),
+                        'status' => 'pending',
+                    ]),
+                    'overtime' => route('attendance.overtime', [
+                        'date_from' => $period->start_date->format('Y-m-d'),
+                        'date_to' => $period->end_date->format('Y-m-d'),
+                        'status' => 'pending',
+                    ]),
+                ];
+            @endphp
+
+            <div class="mt-5 grid w-full grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 @foreach($validationSummary as $component => $item)
-                    <div class="rounded-lg border {{ $item['validated'] ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white' }} p-4">
-                        <div class="flex items-start justify-between">
+                    @php
+                        $hasErrors = !empty($item['errors']);
+                        $hasWarnings = !empty($item['warnings']);
+                        $tone = $item['validated'] ? 'green' : ($hasErrors ? 'red' : 'amber');
+                    @endphp
+
+                    <div class="rounded-lg border border-{{ $tone }}-200 bg-{{ $tone }}-50 p-4">
+                        <div class="flex items-start justify-between gap-3">
                             <div>
-                                <p class="text-sm font-semibold text-gray-900">
-                                    {{ $item['label'] }}
-                                </p>
-                                <p class="mt-1 text-xs {{ $item['validated'] ? 'text-green-700' : 'text-gray-500' }}">
+                                <p class="text-sm font-semibold text-gray-900">{{ $item['label'] }}</p>
+                                <p class="mt-1 text-xs text-{{ $tone }}-700">
                                     @if($item['validated'])
-                                        Validated {{ optional($item['validated_at'])->format('M j, Y g:i A') }}
+                                        Passed {{ optional($item['validated_at'])->format('M j, Y g:i A') }}
+                                    @elseif($hasErrors)
+                                        {{ count($item['errors']) }} blocking issue(s)
                                     @else
-                                        Pending validation
+                                        Ready to validate
                                     @endif
                                 </p>
                             </div>
 
-                            <span class="h-8 w-8 rounded-full flex items-center justify-center {{ $item['validated'] ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500' }}">
-                                <i class="fas {{ $item['validated'] ? 'fa-check' : 'fa-hourglass-half' }}"></i>
+                            <span class="h-8 w-8 shrink-0 rounded-full flex items-center justify-center bg-{{ $tone }}-100 text-{{ $tone }}-700">
+                                <i class="fas {{ $item['validated'] ? 'fa-check' : ($hasErrors ? 'fa-exclamation-triangle' : 'fa-hourglass-half') }}"></i>
                             </span>
                         </div>
+
+                        @if($hasErrors)
+                            <ul class="mt-3 space-y-1 text-xs text-red-700 list-disc pl-4">
+                                @foreach(array_slice($item['errors'], 0, 3) as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+
+                            <a href="{{ $componentResolveRoutes[$component] }}"
+                               class="mt-3 inline-flex items-center text-xs font-semibold text-red-700 hover:text-red-900">
+                                <i class="fas fa-external-link-alt mr-1"></i>Resolve issues
+                            </a>
+                        @elseif($hasWarnings)
+                            <p class="mt-3 text-xs text-amber-700">{{ $item['warnings'][0] }}</p>
+                        @endif
 
                         @if($user->role !== 'employee'
                             && in_array($period->status, [
@@ -194,8 +244,10 @@
                                           action="{{ route('attendance.period-management.validate-component', [$period->id, $component]) }}">
                                         @csrf
                                         <button type="submit"
-                                                class="w-full px-3 py-2 rounded-lg bg-green-600 text-sm font-medium text-white hover:bg-green-700">
-                                            Confirm Validation
+                                                @disabled($hasErrors)
+                                                title="{{ $hasErrors ? 'Resolve all blocking issues first.' : 'Run the current validation checks.' }}"
+                                                class="w-full px-3 py-2 rounded-lg text-sm font-medium text-white {{ $hasErrors ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700' }}">
+                                            {{ $hasErrors ? 'Cannot Validate' : 'Run Validation' }}
                                         </button>
                                     </form>
                                 @elseif($existingPayrolls->isEmpty())
@@ -204,9 +256,9 @@
                                         @csrf
                                         @method('DELETE')
                                         <button type="button"
-                                                onclick="openAppConfirmationModal('reset-validation-form-{{ $component }}', 'Reset {{ $item['label'] }} validation?', 'This gate must be reviewed and confirmed again before payroll can proceed.', 'Reset Validation', 'amber')"
+                                                onclick="openAppConfirmationModal('reset-validation-form-{{ $component }}', 'Reset {{ $item['label'] }} validation?', 'This gate must be reviewed and validated again before payroll can proceed.', 'Reset Validation', 'amber')"
                                                 class="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
-                                            Reset
+                                            Revalidate
                                         </button>
                                     </form>
                                 @endif
@@ -216,6 +268,126 @@
                 @endforeach
             </div>
 
+            @php
+                $blockingValidationItems = collect($validationSummary)
+                    ->filter(fn ($item) => !empty($item['errors']))
+                    ->map(function ($item, $component) use ($componentResolveRoutes) {
+                        return [
+                            'component' => $component,
+                            'label' => $item['label'],
+                            'errors' => $item['errors'] ?? [],
+                            'details' => $item['details'] ?? [],
+                            'url' => $componentResolveRoutes[$component] ?? '#',
+                        ];
+                    });
+                $blockingIssueCount = $blockingValidationItems->sum(
+                    fn ($item) => count($item['details']) ?: count($item['errors'])
+                );
+            @endphp
+
+            @if($blockingValidationItems->isNotEmpty())
+                <div class="mt-5 w-full max-w-none overflow-hidden rounded-xl border border-red-200 bg-white shadow-sm">
+                    <div class="flex flex-col gap-3 border-b border-red-200 bg-red-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h3 class="text-base font-semibold text-red-900">
+                                <i class="fas fa-ban mr-2"></i>Payroll Blocking Issues
+                                <span class="ml-1 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">
+                                    {{ $blockingIssueCount }}
+                                </span>
+                            </h3>
+                            <p class="mt-1 text-sm text-red-700">
+                                Payroll cannot proceed until all listed items within this cutoff are resolved.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="divide-y divide-gray-200">
+                        @foreach($blockingValidationItems as $blockingItem)
+                            <section class="w-full py-4">
+                                <div class="mb-3 flex flex-wrap items-center justify-between gap-3 px-5">
+                                    <div class="flex items-center gap-2">
+                                        <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-700">
+                                            <i class="fas fa-exclamation-triangle text-sm"></i>
+                                        </span>
+                                        <div>
+                                            <h4 class="font-semibold text-gray-900">{{ $blockingItem['label'] }}</h4>
+                                            <p class="text-xs text-gray-500">
+                                                {{ count($blockingItem['details']) ?: count($blockingItem['errors']) }} item(s) require action
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <a href="{{ $blockingItem['url'] }}"
+                                       class="inline-flex items-center rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
+                                        Review {{ $blockingItem['label'] }}
+                                        <i class="fas fa-arrow-right ml-2"></i>
+                                    </a>
+                                </div>
+
+                                @if(!empty($blockingItem['details']))
+                                    <div class="w-full max-h-[340px] overflow-x-auto overflow-y-auto border-y border-gray-200">    <table class="w-full table-auto divide-y divide-gray-200 text-sm">
+                                            <thead class="sticky top-0 z-10 bg-gray-50">
+                                                <tr
+                                                    <th class="px-6 py-3 text-left font-medium text-gray-600">Employee</th>
+                                                    <th class="px-6 py-3 text-left font-medium text-gray-600">Date / Coverage</th>
+                                                    <th class="px-6 py-3 text-left font-medium text-gray-600">Issue</th>
+                                                    <th class="px-6 py-3 text-left font-medium text-gray-600">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-gray-100 bg-white">
+                                                @foreach(array_slice($blockingItem['details'], 0, 25) as $detail)
+                                                    <tr class="hover:bg-red-50/40">
+                                                        <td class="px-6 py-3">
+                                                            <div class="font-medium text-gray-900">
+                                                                {{ $detail['employee_code'] ?? '—' }} - {{ $detail['employee_name'] ?? 'Unknown employee' }}
+                                                            </div>
+                                                            @if(!empty($detail['department']))
+                                                                <div class="text-xs text-gray-500">{{ $detail['department'] }}</div>
+                                                            @endif
+                                                        </td>
+                                                        <td class="px-6 py-3 text-gray-700">{{ $detail['date_label'] ?? '—' }}</td>
+                                                        <td class="px-6 py-3">
+                                                            <div class="font-medium text-gray-800">{{ $detail['summary'] ?? 'Requires review' }}</div>
+                                                            @if(!empty($detail['reason']))
+                                                                <div class="mt-0.5 max-w-md truncate text-xs text-gray-500" title="{{ $detail['reason'] }}">
+                                                                    {{ $detail['reason'] }}
+                                                                </div>
+                                                            @endif
+                                                        </td>
+                                                        <td class="px-6 py-3">
+                                                            <span class="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
+                                                                {{ $detail['status'] ?? 'Blocked' }}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    @if(count($blockingItem['details']) > 25)
+                                        <p class="mt-2 px-5 text-xs text-gray-500">
+                                            Showing the first 25 of {{ count($blockingItem['details']) }} items. Open the module to review all records.
+                                        </p>
+                                    @endif
+                                @else
+                                    <div class="px-5">
+                                        <ul class="space-y-1.5 rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-800">
+                                            @foreach($blockingItem['errors'] as $error)
+                                                <li class="flex gap-2">
+                                                    <i class="fas fa-circle mt-1.5 text-[6px]"></i>
+                                                    <span>{{ $error }}</span>
+                                                </li>
+                                            @endforeach
+                                        </ul>
+                                    </div>
+                                @endif
+                            </section>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
             @if($period->status === \App\Models\Period::STATUS_READY)
                 <div class="mt-5 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
                     <i class="fas fa-check-circle mr-2"></i>
@@ -224,102 +396,10 @@
             @endif
         </div>
 
-        @if(isset($scheduleExceptions) && $scheduleExceptions->isNotEmpty())
-            @php
-                $warningOnlyIssues = ['Rest Day Duty Review'];
-                $hasBlockingScheduleExceptions = $scheduleExceptions->contains(
-                    fn ($exception) => collect($exception['validation_issues'] ?? [])
-                        ->contains(fn ($issue) => !in_array($issue, $warningOnlyIssues, true))
-                );
-                $exceptionTone = $hasBlockingScheduleExceptions ? 'red' : 'amber';
-            @endphp
-            <div class="bg-white rounded-lg shadow-sm border border-{{ $exceptionTone }}-200 mb-6 overflow-hidden">
-                <div class="px-6 py-4 bg-{{ $exceptionTone }}-50 border-b border-{{ $exceptionTone }}-200">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <h2 class="text-lg font-semibold text-{{ $exceptionTone }}-900">
-                            <i class="fas fa-exclamation-triangle mr-2"></i>Schedule & Attendance Exceptions
-                        </h2>
-                        <a href="{{ route('attendance.timekeeping', ['date_from' => $period->start_date->format('Y-m-d'), 'date_to' => $period->end_date->format('Y-m-d'), 'exception' => 'attention']) }}" class="ui-solid-danger-action inline-flex items-center rounded-lg border border-{{ $exceptionTone }}-300 bg-white px-3 py-2 text-sm font-medium text-{{ $exceptionTone }}-700 hover:bg-{{ $exceptionTone }}-100">
-                            <i class="fas fa-external-link-alt mr-2"></i>Review in Timekeeping
-                        </a>
-                    </div>
-                    <p class="mt-1 text-sm text-{{ $exceptionTone }}-700">
-                        {{ $hasBlockingScheduleExceptions
-                            ? 'Resolve the blocking items before confirming Attendance Validation.'
-                            : 'Manager review required. A valid rest-day duty may remain a warning when its approved duty/overtime filing is present.' }}
-                    </p>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Employee</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Date</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Schedule</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Actual Log</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Issue(s)</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Review</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100 bg-white">
-                            @php
-                                // Where each issue type gets resolved. Attendance/schedule-shape
-                                // issues live in Timekeeping; the rest belong to their own module.
-                                $issueRouteMap = [
-                                    'Leave Conflict' => 'attendance.leave-management',
-                                    'OT Without Attendance' => 'attendance.overtime',
-                                    'OT Before Required Hours' => 'attendance.overtime',
-                                    'OT Overlaps Leave' => 'attendance.overtime',
-                                    'Unverified Official Business' => 'attendance.official-business',
-                                ];
-                            @endphp
-                            @foreach($scheduleExceptions->take(100) as $exception)
-                                @php
-                                    $issues = $exception['validation_issues'] ?? (
-                                        !empty($exception['validation_issue']) ? [$exception['validation_issue']] : []
-                                    );
-                                    $primaryIssue = $issues[0] ?? null;
-                                    $reviewRoute = $issueRouteMap[$primaryIssue] ?? 'attendance.timekeeping';
-                                @endphp
-                                <tr>
-                                    <td class="px-4 py-3 text-gray-900">
-                                        {{ $exception['employee_code'] ?? '—' }} - {{ $exception['employee_name'] ?? 'Unknown' }}
-                                    </td>
-                                    <td class="px-4 py-3 text-gray-700">{{ $exception['date_formatted'] ?? $exception['date'] ?? '—' }}</td>
-                                    <td class="px-4 py-3 text-gray-700">{{ $exception['schedule_in_out'] ?? '—' }}</td>
-                                    <td class="px-4 py-3 text-gray-700">{{ $exception['actual_in_out'] ?? '—' }}</td>
-                                    <td class="px-4 py-3">
-                                        <div class="flex flex-wrap gap-1.5">
-                                            @foreach($issues as $issue)
-                                                @php
-                                                    $isWarning = in_array($issue, $warningOnlyIssues, true);
-                                                @endphp
-                                                <span class="inline-flex rounded-full bg-{{ $isWarning ? 'amber' : 'red' }}-100 px-2.5 py-1 text-xs font-semibold text-{{ $isWarning ? 'amber' : 'red' }}-700">
-                                                    {{ $issue }}
-                                                </span>
-                                            @endforeach
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        @if(\Illuminate\Support\Facades\Route::has($reviewRoute))
-                                            <a href="{{ route($reviewRoute, ['date_from' => $exception['date'] ?? null, 'date_to' => $exception['date'] ?? null]) }}"
-                                               class="text-sm font-medium text-blue-600 hover:text-blue-800">
-                                                Review
-                                            </a>
-                                        @endif
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-                @if($scheduleExceptions->count() > 100)
-                    <div class="px-6 py-3 bg-gray-50 text-xs text-gray-600">
-                        Showing the first 100 of {{ $scheduleExceptions->count() }} exceptions.
-                    </div>
-                @endif
-            </div>
-        @endif
+        {{-- The former Schedule & Attendance Exceptions table was removed
+             from this page because the same blocking rows are already shown
+             in Payroll Blocking Issues above. The full operational exception
+             table and filters remain available in Timekeeping. --}}
 
         <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
             <!-- Total Employees -->
@@ -419,9 +499,9 @@
                 $groupedData = collect($comprehensiveData)->groupBy('employee_id');
             @endphp
 
-            <div class="space-y-4 p-6">
+            <div class="space-y-3 p-3 sm:p-4">
                 @foreach($groupedData as $employeeId => $employeeRecords)
-                <div class="border border-gray-200 rounded-lg" x-data="{ open: false }">
+                <div class="attendance-employee-accordion border border-gray-200 rounded-lg" x-data="{ open: false }">
                     <!-- Employee Header (Always Visible) -->
                     <div class="bg-gray-50 px-4 py-3 cursor-pointer" @click="open = !open">
                         <div class="flex items-center justify-between">
@@ -445,6 +525,7 @@
 
                                         $presentCount = $employeeRecords->whereIn('attendance_status', $presentStatuses)->count();
                                         $absentCount = $employeeRecords->where('attendance_status', 'Absent')->count();
+                                        $scheduledCount = $employeeRecords->where('attendance_status', 'Scheduled')->count();
                                         $dayOffCount = $employeeRecords->whereIn('attendance_status', $dayOffStatuses)->count();
                                         $holidayCount = $employeeRecords->whereIn('attendance_status', $holidayStatuses)->count();
                                         $incompleteCount = $employeeRecords->filter(function ($record) {
@@ -456,6 +537,9 @@
                                     @endphp
                                     <span class="text-green-600 font-medium">{{ $presentCount }}P</span>
                                     <span class="text-red-600 font-medium">{{ $absentCount }}A</span>
+                                    @if($scheduledCount > 0)
+                                        <span class="text-blue-600 font-medium">{{ $scheduledCount }}S</span>
+                                    @endif
                                     @if($dayOffCount > 0)
                                         <span class="text-slate-600 font-medium">{{ $dayOffCount }}D</span>
                                     @endif
@@ -475,8 +559,8 @@
                     
                     <!-- Employee Records (Collapsible) -->
                     <div x-show="open" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 transform scale-95" x-transition:enter-end="opacity-100 transform scale-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 transform scale-100" x-transition:leave-end="opacity-0 transform scale-95">
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
+                        <div class="w-full overflow-x-auto">
+                            <table class="w-full min-w-[1180px] table-auto divide-y divide-gray-200">
                                 <thead class="bg-gray-50">
                                     <tr>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
@@ -579,41 +663,50 @@
                                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                                                 @if($record['attendance_status'] === 'Present') bg-green-100 text-green-800
                                                 @elseif($record['attendance_status'] === 'Absent') bg-red-100 text-red-800
+                                                @elseif($record['attendance_status'] === 'Scheduled') bg-blue-50 text-blue-700 border border-blue-200
                                                 @elseif($record['attendance_status'] === 'Error') bg-yellow-100 text-yellow-800
                                                 @elseif($record['attendance_status'] === 'Day Off') bg-gray-100 text-gray-800
                                                 @elseif($record['attendance_status'] === 'No Schedule') bg-gray-100 text-gray-500
                                                 @else bg-gray-100 text-gray-800
                                                 @endif">
-                                                @if($record['attendance_status'] === 'Present')
+                                               @if($record['attendance_status'] === 'Present')
                                                     @if($record['schedule_status'] === 'Regular Holiday')
                                                         🟢 <span class="text-yellow-600 font-semibold">{{ $record['combined_status'] }}</span>
                                                     @elseif($record['schedule_status'] === 'Special Holiday')
                                                         🟢 <span class="text-pink-600 font-semibold">{{ $record['combined_status'] }}</span>
                                                     @else
-                                                        🟢 {{ $record['combined_status'] }}
+                                                        🟢 <span class="text-green-600 font-semibold">{{ $record['combined_status'] }}</span>
                                                     @endif
+
                                                 @elseif($record['attendance_status'] === 'Absent')
                                                     @if($record['schedule_status'] === 'Regular Holiday')
                                                         🔴 <span class="text-yellow-600 font-semibold">{{ $record['combined_status'] }}</span>
                                                     @elseif($record['schedule_status'] === 'Special Holiday')
                                                         🔴 <span class="text-pink-600 font-semibold">{{ $record['combined_status'] }}</span>
                                                     @else
-                                                        🔴 {{ $record['combined_status'] }}
+                                                        🔴 <span class="text-red-600 font-semibold">{{ $record['combined_status'] }}</span>
                                                     @endif
+
+                                                @elseif($record['attendance_status'] === 'Scheduled')
+                                                    🔵 <span class="text-black-600 font-semibold">{{ $record['combined_status'] }}</span>
+
                                                 @elseif($record['attendance_status'] === 'Error')
                                                     @if($record['schedule_status'] === 'Regular Holiday')
                                                         🟡 <span class="text-yellow-600 font-semibold">{{ $record['combined_status'] }}</span>
                                                     @elseif($record['schedule_status'] === 'Special Holiday')
                                                         🟡 <span class="text-pink-600 font-semibold">{{ $record['combined_status'] }}</span>
                                                     @else
-                                                        🟡{{ $record['combined_status'] }}
+                                                        🟡 <span class="text-amber-600 font-semibold">{{ $record['combined_status'] }}</span>
                                                     @endif
+
                                                 @elseif($record['attendance_status'] === 'Day Off')
-                                                    ⚪ {{ $record['combined_status'] }}
+                                                    ⚪ <span class="text-gray-500 font-semibold">{{ $record['combined_status'] }}</span>
+
                                                 @elseif($record['attendance_status'] === 'No Schedule')
-                                                    <span class="text-gray-500">{{ $record['combined_status'] }}</span>
+                                                    ⚫ <span class="text-gray-500 font-semibold">{{ $record['combined_status'] }}</span>
+
                                                 @else
-                                                    ⚪ {{ $record['combined_status'] }}
+                                                    ⚪ <span class="text-gray-500">{{ $record['combined_status'] }}</span>
                                                 @endif
                                             </span>
                                         </td>
@@ -690,16 +783,22 @@ function showEmployeeDetails(employeeId, date) {
 }
 
 // Expand/Collapse all functionality
-function expandAll() {
-    document.querySelectorAll('[x-data]').forEach(element => {
-        element._x_dataStack[0].open = true;
+function setAllAttendanceAccordions(open) {
+    document.querySelectorAll('.attendance-employee-accordion').forEach((element) => {
+        const state = element._x_dataStack?.[0];
+
+        if (state && Object.prototype.hasOwnProperty.call(state, 'open')) {
+            state.open = open;
+        }
     });
 }
 
+function expandAll() {
+    setAllAttendanceAccordions(true);
+}
+
 function collapseAll() {
-    document.querySelectorAll('[x-data]').forEach(element => {
-        element._x_dataStack[0].open = false;
-    });
+    setAllAttendanceAccordions(false);
 }
 </script>
 @endsection
