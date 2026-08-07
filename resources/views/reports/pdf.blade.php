@@ -92,6 +92,33 @@
                     <th>Credited Hours</th>
                     <th>Reason</th>
                     <th>Status</th>
+                                @elseif($type === 'absences')
+                    <th>Employee Name</th>
+                    <th>Department</th>
+                    <th>Date</th>
+                @elseif($type === 'overtime')
+                    <th>Employee Name</th>
+                    <th>Department</th>
+                    <th>Total Requests</th>
+                    <th>Total Hours</th>
+                    <th>Average Hours</th>
+                @elseif($type === 'employee_list')
+                    <th>Employee Name</th>
+                    <th>Department</th>
+                    <th>Position</th>
+                    <th>Status</th>
+                @elseif($type === 'leave_balance')
+                    <th>Employee Name</th>
+                    <th>Leave Type</th>
+                    <th>Earned</th>
+                    <th>Used</th>
+                    <th>Pending</th>
+                    <th>Remaining</th>
+                @elseif($type === 'filings')
+                    <th>Employee Name</th>
+                    <th>Filing Type</th>
+                    <th>Date</th>
+                    <th>Status</th>
                 @endif
             </tr>
         </thead>
@@ -142,6 +169,34 @@
                         <td>{{ $row->ob_start_time?->format('h:i A') ?? '--' }} – {{ $row->ob_end_time?->format('h:i A') ?? '--' }}</td>
                         <td>{{ number_format((float) ($row->credited_hours ?? $row->computeCreditedHours()), 2) }}</td>
                         <td>{{ $row->reason }}</td>
+                        <td>{{ ucfirst($row->status) }}</td>
+                                        @elseif($type === 'absences')
+                        <td>{{ optional($row->employee)->full_name ?? 'N/A' }}</td>
+                        <td>{{ optional(optional($row->employee)->department)->name ?? 'N/A' }}</td>
+                        <td>{{ \Carbon\Carbon::parse($row->date)->format('M d, Y') }}</td>
+                    @elseif($type === 'overtime')
+                        @php $employee = $row['employee']; @endphp
+                        <td>{{ $employee->full_name ?? 'N/A' }}</td>
+                        <td>{{ optional($employee->department)->name ?? 'N/A' }}</td>
+                        <td>{{ $row['total_requests'] }}</td>
+                        <td>{{ $row['total_hours'] }}</td>
+                        <td>{{ $row['total_requests'] > 0 ? number_format($row['total_hours'] / $row['total_requests'], 2) : 0 }}</td>
+                    @elseif($type === 'employee_list')
+                        <td>{{ $row->full_name ?? 'N/A' }}</td>
+                        <td>{{ optional($row->department)->name ?? 'N/A' }}</td>
+                        <td>{{ optional($row->position)->title ?? 'N/A' }}</td>
+                        <td>{{ ucfirst($row->employment_status ?? 'Active') }}</td>
+                    @elseif($type === 'leave_balance')
+                        <td>{{ optional($row->employee)->full_name ?? 'N/A' }}</td>
+                        <td>{{ optional($row->leaveType)->name ?? 'N/A' }}</td>
+                        <td>{{ $row->earned_credits ?? 0 }}</td>
+                        <td>{{ $row->used_credits ?? 0 }}</td>
+                        <td>{{ $row->pending_credits ?? 0 }}</td>
+                        <td>{{ $row->remaining_credits ?? 0 }}</td>
+                    @elseif($type === 'filings')
+                        <td>{{ optional($row->employee)->full_name ?? 'N/A' }}</td>
+                        <td>{{ $row->type }}</td>
+                        <td>{{ \Carbon\Carbon::parse($row->date)->format('M d, Y') }}</td>
                         <td>{{ ucfirst($row->status) }}</td>
                     @endif
                 </tr>

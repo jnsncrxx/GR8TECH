@@ -58,6 +58,10 @@
                     <option value="yearly" style="color: #111827 !important;">Yearly Summary</option>
                     <option value="overtime" style="color: #111827 !important;">Overtime Report</option>
                     <option value="leave" style="color: #111827 !important;">Leave Report</option>
+                    <option value="absences" style="color: #111827 !important;">Absences Report</option>
+                    <option value="employee_list" style="color: #111827 !important;">Employee Master List</option>
+                    <option value="leave_balance" style="color: #111827 !important;">Balance of Leaves</option>
+                    <option value="filings" style="color: #111827 !important;">Employee Filings</option>
                 </select>
             </div>
             <div>
@@ -115,8 +119,8 @@
                 </select>
             </div>
 
-            <!-- Overtime/Leave: Date Range - Side by Side -->
-            <div x-show="reportType === 'overtime' || reportType === 'leave'" class="sm:col-span-2">
+            <!-- Overtime/Leave/Absences/Filings: Date Range - Side by Side -->
+            <div x-show="['overtime', 'leave', 'absences', 'filings'].includes(reportType)" class="sm:col-span-2">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label for="dateFrom" class="block text-sm font-medium text-gray-700 mb-2">From Date</label>
@@ -144,20 +148,6 @@
             </button>
         </div>
         </form>
-
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-            <div class="flex items-center">
-                <div class="flex-shrink-0">
-                    <div class="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-file-alt text-purple-600"></i>
-                    </div>
-                </div>
-                <div class="ml-3">
-                    <p class="text-sm font-medium text-gray-500">Report Totals</p>
-                        <p class="text-lg font-semibold text-gray-900">{{ number_format($summary['report'] ?? 0) }}</p>
-                </div>
-            </div>
-        </div>
 
     </div>
 
@@ -282,7 +272,21 @@
         </div>
     @else
         <!-- Attendance Report Summary -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-file-alt text-purple-600"></i>
+                    </div>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-500">Report Totals</p>
+                        <p class="text-lg font-semibold text-gray-900">{{ number_format($summary['report'] ?? 0) }}</p>
+                </div>
+            </div>
+        </div>
+
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
             <div class="flex items-center">
                 <div class="flex-shrink-0">
@@ -375,7 +379,7 @@
         <div class="flex items-center justify-between mb-4">
             <div>
                 <h3 class="text-lg font-medium text-gray-900">Attendance Trend</h3>
-                <p class="text-sm text-gray-600 mt-1">Attendance rate over the selected period</p>
+                <p class="text-sm text-gray-600 mt-1">Attendance rate from {{ $dateFrom->format('M d, Y') }} to {{ $dateTo->format('M d, Y') }}</p>
             </div>
         </div>
         <div class="h-80">
@@ -535,6 +539,14 @@
                 </table>
             </div>
         </div>
+        @elseif($reportType === 'absences' && isset($absencesData))
+        @include('attendance.partials.absences_table')
+    @elseif($reportType === 'employee_list' && isset($employeeListData))
+        @include('attendance.partials.employee_list_table')
+    @elseif($reportType === 'leave_balance' && isset($leaveBalanceData))
+        @include('attendance.partials.leave_balance_table')
+    @elseif($reportType === 'filings' && isset($filingsData))
+        @include('attendance.partials.filings_table')
     @else
     <!-- Department-wise Attendance -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -1508,6 +1520,10 @@ function reportForm() {
                     return this.yearStart || '';
                 case 'overtime':
                 case 'leave':
+                case 'absences':
+                case 'employee_list':
+                case 'leave_balance':
+                case 'filings':
                     return this.dateFrom || '';
                 default:
                     return '';
@@ -1526,6 +1542,10 @@ function reportForm() {
                     return this.yearEnd || '';
                 case 'overtime':
                 case 'leave':
+                case 'absences':
+                case 'employee_list':
+                case 'leave_balance':
+                case 'filings':
                     return this.dateTo || '';
                 default:
                     return '';

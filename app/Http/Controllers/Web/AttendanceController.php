@@ -646,7 +646,10 @@ class AttendanceController extends Controller
 
         $currentDate = $dateFrom->copy();
         while ($currentDate->lte($dateTo)) {
-            $dailyRecords = $attendanceRecords->where('date', $currentDate->format('Y-m-d'));
+            $dateStr = $currentDate->format('Y-m-d');
+            $dailyRecords = $attendanceRecords->filter(function ($r) use ($dateStr) {
+                return \Carbon\Carbon::parse($r->date)->format('Y-m-d') === $dateStr;
+            });
             $dailyPresent = $dailyRecords->whereIn('status', ['present', 'late', 'half_day'])->count();
             $dailyTotal = $dailyRecords->count();
             $attendanceTrend['labels'][] = $currentDate->format('M d');
@@ -745,6 +748,139 @@ class AttendanceController extends Controller
         }
         $departments = $departmentsQuery->get();
 
+        $absencesData = [];
+        $overtimeData = [];
+        $employeeListData = [];
+        $leaveBalanceData = [];
+        $filingsData = [];
+
+        if ($reportType === 'absences') {
+            $absencesData = $attendanceRecords->where('status', 'absent')->values();
+        } elseif ($reportType === 'overtime') {
+            $overtimeQuery = \App\Models\OvertimeRequest::with(['employee.department'])
+                ->whereDate('date', '>=', $dateFrom->toDateString())
+                ->whereDate('date', '<=', $dateTo->toDateString());
+            if ($reportsCompany) {
+                $overtimeQuery->whereHas('employee', function($q) use ($reportsCompany) {
+                    $q->forCompany($reportsCompany->id);
+                });
+            }
+            if (!$isHrOrAdmin) {
+                $overtimeQuery->where('employee_id', $user->employee_id);
+            } elseif ($departmentId) {
+                $overtimeQuery->whereHas('employee', function($q) use ($departmentId) {
+                    $q->where('department_id', $departmentId);
+                });
+            }
+            $rawOvertime = $overtimeQuery->where('status', 'approved')->get();
+            
+            $employeeOvertime = $rawOvertime->groupBy('employee_id')->map(function ($requests) {
+                return [
+                    'employee' => $requests->first()->employee,
+                    'total_requests' => $requests->count(),
+                    'total_hours' => $requests->sum('hours'),
+                ];
+            })->values();
+
+            $totalRequests = $rawOvertime->count();
+            $totalHours = $rawOvertime->sum('hours');
+            $totalEmployees = $employeeOvertime->count();
+
+            $overtimeData = collect([
+                'summary' => [
+                    'total_requests' => $totalRequests,
+                    'total_hours' => $totalHours,
+                    'total_employees' => $totalEmployees,
+                    'average_hours' => $totalRequests > 0 ? $totalHours / $totalRequests : 0,
+                ],
+                'employee_overtime' => $employeeOvertime,
+            ]);
+        } elseif ($reportType === 'employee_list') {
+            $employeeListQuery = \App\Models\Employee::with(['department', 'position', 'payrollTemplate']);
+            if ($reportsCompany) {
+                $employeeListQuery->forCompany($reportsCompany->id);
+            }
+            if (!$isHrOrAdmin) {
+                $employeeListQuery->where('id', $user->employee_id);
+            } elseif ($departmentId) {
+                $employeeListQuery->whereHas('department', function($q) use ($departmentId) {
+                    $q->where('id', $departmentId);
+                });
+            }
+            $employeeListData = $employeeListQuery->orderBy('first_name')->get();
+        } elseif ($reportType === 'leave_balance') {
+            $leaveBalanceQuery = \App\Models\LeaveBalance::with(['employee.department']);
+            if ($reportsCompany) {
+                $leaveBalanceQuery->whereHas('employee', function($q) use ($reportsCompany) {
+                    $q->forCompany($reportsCompany->id);
+                });
+            }
+            if (!$isHrOrAdmin) {
+                $leaveBalanceQuery->where('employee_id', $user->employee_id);
+            } elseif ($departmentId) {
+                $leaveBalanceQuery->whereHas('employee', function($q) use ($departmentId) {
+                    $q->where('department_id', $departmentId);
+                });
+            }
+            
+            $rawBalances = $leaveBalanceQuery->get();
+            $leaveBalanceData = collect();
+            $types = ['vacation', 'sick', 'sil', 'personal', 'emergency', 'maternity', 'paternity', 'bereavement', 'study', 'spl', 'vawc', 'bl'];
+            foreach ($rawBalances as $rb) {
+                foreach ($types as $t) {
+                    $total = $rb->{$t.'_days_total'} ?? 0;
+                    $used = $rb->{$t.'_days_used'} ?? 0;
+                    if ($total > 0 || $used > 0) {
+                        $leaveBalanceData->push((object)[
+                            'employee' => $rb->employee,
+                            'leaveType' => (object)['name' => ucfirst($t)],
+                            'earned_credits' => $total,
+                            'used_credits' => $used,
+                            'pending_credits' => 0,
+                            'remaining_credits' => $total - $used,
+                        ]);
+                    }
+                }
+            }
+        } elseif ($reportType === 'filings') {
+            $leaveReqs = \App\Models\LeaveRequest::with('employee.department')->whereDate('start_date', '>=', $dateFrom)->whereDate('start_date', '<=', $dateTo);
+            $obReqs = \App\Models\OfficialBusinessRequest::with('employee.department')->whereDate('date', '>=', $dateFrom)->whereDate('date', '<=', $dateTo);
+            $otReqs = \App\Models\OvertimeRequest::with('employee.department')->whereDate('date', '>=', $dateFrom)->whereDate('date', '<=', $dateTo);
+            
+            $correctionReqs = \App\Models\AttendanceCorrection::with('attendanceRecord.employee.department')
+                ->whereHas('attendanceRecord', function($q) use ($dateFrom, $dateTo) {
+                    $q->whereDate('date', '>=', $dateFrom)->whereDate('date', '<=', $dateTo);
+                });
+
+            if ($reportsCompany) {
+                $leaveReqs->whereHas('employee', function($q) use ($reportsCompany) { $q->forCompany($reportsCompany->id); });
+                $obReqs->whereHas('employee', function($q) use ($reportsCompany) { $q->forCompany($reportsCompany->id); });
+                $otReqs->whereHas('employee', function($q) use ($reportsCompany) { $q->forCompany($reportsCompany->id); });
+                $correctionReqs->whereHas('attendanceRecord.employee', function($q) use ($reportsCompany) { $q->forCompany($reportsCompany->id); });
+            }
+            
+            if (!$isHrOrAdmin) {
+                $leaveReqs->where('employee_id', $user->employee_id);
+                $obReqs->where('employee_id', $user->employee_id);
+                $otReqs->where('employee_id', $user->employee_id);
+                $correctionReqs->whereHas('attendanceRecord', function($q) use ($user) { $q->where('employee_id', $user->employee_id); });
+            } elseif ($departmentId) {
+                $leaveReqs->whereHas('employee', function($q) use ($departmentId) { $q->where('department_id', $departmentId); });
+                $obReqs->whereHas('employee', function($q) use ($departmentId) { $q->where('department_id', $departmentId); });
+                $otReqs->whereHas('employee', function($q) use ($departmentId) { $q->where('department_id', $departmentId); });
+                $correctionReqs->whereHas('attendanceRecord.employee', function($q) use ($departmentId) { $q->where('department_id', $departmentId); });
+            }
+
+            $filingsData = collect();
+            
+            foreach ($leaveReqs->get() as $l) { $filingsData->push((object)['type' => 'Leave', 'employee' => $l->employee, 'date' => $l->start_date, 'status' => $l->status]); }
+            foreach ($obReqs->get() as $ob) { $filingsData->push((object)['type' => 'Official Business', 'employee' => $ob->employee, 'date' => $ob->date, 'status' => $ob->status]); }
+            foreach ($otReqs->get() as $ot) { $filingsData->push((object)['type' => 'Overtime', 'employee' => $ot->employee, 'date' => $ot->date, 'status' => $ot->status]); }
+            foreach ($correctionReqs->get() as $ac) { $filingsData->push((object)['type' => 'Attendance Correction', 'employee' => $ac->attendanceRecord->employee ?? null, 'date' => $ac->attendanceRecord->date ?? null, 'status' => 'applied']); }
+            
+            $filingsData = $filingsData->sortByDesc('date')->values();
+        }
+
         return view('attendance.reports', [
             'user' => $user,
             'dateFrom' => $dateFrom,
@@ -753,8 +889,12 @@ class AttendanceController extends Controller
             'departments' => $departments,
             'summary' => $summary,
             'reportType' => $reportType,
-            'overtimeData' => [],
+            'overtimeData' => $overtimeData,
             'leaveData' => [],
+            'absencesData' => $absencesData,
+            'employeeListData' => $employeeListData,
+            'leaveBalanceData' => $leaveBalanceData,
+            'filingsData' => $filingsData,
             'attendanceTrend' => $attendanceTrend,
             'departmentStats' => $departmentStats,
             'bestAttendance' => $bestAttendance,
@@ -767,8 +907,43 @@ class AttendanceController extends Controller
      */
     public function exportReports(Request $request, $format)
     {
-        // TODO: Implement reports export
-        return response()->json(['message' => 'Export not yet implemented'], 501);
+        $view = $this->reports($request);
+        $data = $view->getData();
+        $reportType = $data['reportType'];
+        
+        $exportData = collect();
+        if ($reportType === 'absences') {
+            $exportData = $data['absencesData'];
+        } elseif ($reportType === 'overtime') {
+            $exportData = collect($data['overtimeData']['employee_overtime'] ?? []);
+        } elseif ($reportType === 'employee_list') {
+            $exportData = $data['employeeListData'];
+        } elseif ($reportType === 'leave_balance') {
+            $exportData = $data['leaveBalanceData'];
+        } elseif ($reportType === 'filings') {
+            $exportData = $data['filingsData'];
+        } elseif ($reportType === 'leave') {
+            $exportData = collect($data['leaveData']['employee_leave'] ?? []);
+        }
+
+        $fileName = $reportType . '_report_' . now()->format('Y_m_d_His');
+
+        if ($format === 'pdf') {
+            // Re-using the timekeeping pdf template or a new one
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('reports.pdf', [
+                'type' => $reportType,
+                'data' => $exportData,
+                'startDate' => request('date_from'),
+                'endDate' => request('date_to'),
+            ]);
+            return $pdf->download($fileName . '.pdf');
+        }
+
+        $extension = $format === 'csv' ? 'csv' : 'xlsx';
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\HRISReportExport($exportData, $reportType),
+            $fileName . '.' . $extension
+        );
     }
 
     /**
