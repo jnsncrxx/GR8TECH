@@ -162,7 +162,7 @@
                                     @enderror
                                 </div>
 
-                                <div>
+                                <div id="scheduleTypeField">
                                     <label for="schedule_type" class="block text-sm font-medium text-gray-700 mb-2">
                                         <i class="fas fa-business-time mr-1"></i>Schedule Type
                                     </label>
@@ -175,7 +175,7 @@
                                 </div>
 
                                 <!-- Schedule Template -->
-                                <div>
+                                <div id="scheduleTemplateField">
                                     <label for="schedule_template_id" class="block text-sm font-medium text-gray-700 mb-2">
                                         <i class="fas fa-list-check mr-1"></i>Schedule Template
                                     </label>
@@ -306,13 +306,31 @@
     function syncScheduleFields() {
         const statusField = document.getElementById('status');
         const scheduleTypeField = document.getElementById('schedule_type');
+        const scheduleTypeWrapper = document.getElementById('scheduleTypeField');
+        const scheduleTemplateWrapper = document.getElementById('scheduleTemplateField');
+        const scheduleTemplateField = document.getElementById('schedule_template_id');
         const timeFields = document.getElementById('timeFields');
         const timeInField = document.getElementById('time_in');
         const timeOutField = document.getElementById('time_out');
         const requiredHoursField = document.getElementById('requiredHoursField');
         const requiredHoursInput = document.getElementById('required_hours');
+        const isDayOff = statusField.value === 'Day Off';
         const isWorkSchedule = statusField.value === 'Working' || statusField.value === 'Overtime';
         const isFlexible = scheduleTypeField.value === 'flexible';
+
+        // A day off has no shift type or template to pick from - hide both
+        // and clear them so nothing stale gets submitted with the schedule.
+        if (isDayOff) {
+            scheduleTypeWrapper.style.display = 'none';
+            scheduleTemplateWrapper.style.display = 'none';
+            scheduleTypeField.required = false;
+            scheduleTypeField.value = 'fixed';
+            scheduleTemplateField.value = '';
+        } else {
+            scheduleTypeWrapper.style.display = 'block';
+            scheduleTemplateWrapper.style.display = 'block';
+            scheduleTypeField.required = true;
+        }
 
         if (isWorkSchedule && !isFlexible) {
             timeFields.style.display = 'grid';

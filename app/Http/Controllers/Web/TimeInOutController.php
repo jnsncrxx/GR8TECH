@@ -23,7 +23,7 @@ class TimeInOutController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        $employee = $user?->employee;
+        $employee = $user?->employee ?: ($user?->employee_id ? \App\Models\Employee::find($user->employee_id) : null);
 
         $todayAttendance = null;
         $recentActivity = collect();
@@ -123,7 +123,7 @@ class TimeInOutController extends Controller
     {
         try {
             $user = Auth::user();
-            $employee = $user?->employee;
+            $employee = $user?->employee ?: ($user?->employee_id ? \App\Models\Employee::find($user->employee_id) : null);
 
             if (!$employee) {
                 return response()->json([
@@ -412,7 +412,7 @@ class TimeInOutController extends Controller
     {
         try {
             $user = Auth::user();
-            $employee = $user?->employee;
+            $employee = $user?->employee ?: ($user?->employee_id ? \App\Models\Employee::find($user->employee_id) : null);
 
             if (!$employee) {
                 return response()->json([
@@ -496,7 +496,7 @@ class TimeInOutController extends Controller
     {
         try {
             $user = Auth::user();
-            $employee = $user?->employee;
+            $employee = $user?->employee ?: ($user?->employee_id ? \App\Models\Employee::find($user->employee_id) : null);
 
             if (!$employee) {
                 return response()->json([

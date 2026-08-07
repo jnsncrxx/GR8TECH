@@ -387,6 +387,91 @@
     setInterval(updateTime, 60000);
     </script>
     @stack('scripts')
+
+    <!-- Confirmation Modal (shared across all dashboards - admin, hr, manager, employee) -->
+    <div id="confirmation-modal" class="fixed inset-0 hidden z-50 items-center justify-center overflow-y-auto bg-gray-900/60 p-4 backdrop-blur-sm">
+        <div class="mx-auto w-full max-w-sm rounded-xl border border-gray-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-neutral-800">
+            <div class="mt-3">
+                <!-- Modal Icon -->
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4" id="modal-icon-container">
+                    <i id="modal-icon" class="fas fa-question-circle text-blue-600 text-xl"></i>
+                </div>
+
+                <!-- Modal Content -->
+                <div class="text-center">
+                    <h3 id="modal-title" class="text-lg font-medium text-gray-900 mb-2 dark:text-white"></h3>
+                    <p id="modal-message" class="text-sm text-gray-500 mb-4 dark:text-gray-300"></p>
+
+                    <!-- Action Buttons -->
+                    <div class="flex justify-center space-x-4 mt-6">
+                        <button id="modal-cancel-btn" type="button" class="px-5 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-colors dark:bg-neutral-700 dark:text-white dark:hover:bg-neutral-600">
+                            Cancel
+                        </button>
+                        <button id="modal-confirm-btn" type="button" class="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
+                            Confirm
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ============================================================
+    // CONFIRMATION MODAL FUNCTIONS (shared across every dashboard)
+    // ============================================================
+    let pendingAction = null; // Will store the function to execute after confirmation
+
+    function showConfirmationModal(title, message, confirmAction, options = {}) {
+        pendingAction = confirmAction;
+
+        const modalColor = options.color || 'blue';
+        const modalIcon = options.icon || 'fa-question-circle';
+
+        document.getElementById('modal-title').textContent = title;
+        document.getElementById('modal-message').textContent = message;
+        document.getElementById('modal-icon').className = `fas ${modalIcon} text-${modalColor}-600 text-xl`;
+
+        const modalIconContainer = document.getElementById('modal-icon-container');
+        const confirmBtn = document.getElementById('modal-confirm-btn');
+
+        modalIconContainer.className = `mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-${modalColor}-100 mb-4`;
+        confirmBtn.className = `px-5 py-2 bg-${modalColor}-600 text-white rounded-md hover:bg-${modalColor}-700 focus:outline-none focus:ring-2 focus:ring-${modalColor}-500 transition-colors`;
+
+        const modal = document.getElementById('confirmation-modal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function hideConfirmationModal() {
+        const modal = document.getElementById('confirmation-modal');
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+        pendingAction = null;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const modal = document.getElementById('confirmation-modal');
+        const cancelBtn = document.getElementById('modal-cancel-btn');
+        const confirmBtn = document.getElementById('modal-confirm-btn');
+
+        cancelBtn.addEventListener('click', hideConfirmationModal);
+
+        confirmBtn.addEventListener('click', function() {
+            if (pendingAction) {
+                pendingAction();
+            }
+            hideConfirmationModal();
+        });
+
+        modal.addEventListener('click', function(event) {
+            if (event.target === modal) {
+                hideConfirmationModal();
+            }
+        });
+    });
+    </script>
+
     <x-overtime-reminder-modal />
 </body>
 </html>
