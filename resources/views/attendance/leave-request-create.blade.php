@@ -140,15 +140,16 @@
                             <select name="leave_type" id="leave_type" required
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('leave_type') border-red-500 @enderror">
                                 <option value="">Select Leave Type</option>
-                                <option value="vacation" {{ old('leave_type') == 'vacation' ? 'selected' : '' }}>Vacation Leave</option>
-                                <option value="sick" {{ old('leave_type') == 'sick' ? 'selected' : '' }}>Sick Leave</option>
-                                <option value="personal" {{ old('leave_type') == 'personal' ? 'selected' : '' }}>Personal Leave/Leave Without Pay</option>
+                                <option value="vacation" {{ old('leave_type') == 'vacation' ? 'selected' : '' }} {{ (isset($availableDays['vacation']) && $availableDays['vacation'] <= 0) ? 'disabled' : '' }}>Vacation Leave</option>
+                                <option value="sick" {{ old('leave_type') == 'sick' ? 'selected' : '' }} {{ (isset($availableDays['sick']) && $availableDays['sick'] <= 0) ? 'disabled' : '' }}>Sick Leave</option>
+                                <option value="sil" {{ old('leave_type') == 'sil' ? 'selected' : '' }} {{ (isset($availableDays['sil']) && $availableDays['sil'] <= 0) ? 'disabled' : '' }}>SIL (Service Incentive Leave)</option>
+                                <option value="personal" {{ old('leave_type') == 'personal' ? 'selected' : '' }}>Personal Leave / Leave Without Pay</option>
                                 <option value="emergency" {{ old('leave_type') == 'emergency' ? 'selected' : '' }}>Emergency Leave</option>
                                 <option value="maternity" {{ old('leave_type') == 'maternity' ? 'selected' : '' }}>Maternity Leave</option>
                                 <option value="paternity" {{ old('leave_type') == 'paternity' ? 'selected' : '' }}>Paternity Leave</option>
-                                <option value="sil" {{ old('leave_type') == 'sil' ? 'selected' : '' }}>SIL (Service Incentive Leave)</option>
+                                <option value="spl" {{ old('leave_type') == 'spl' ? 'selected' : '' }}>Solo Parent Leave</option>
+                                <option value="vawc" {{ old('leave_type') == 'vawc' ? 'selected' : '' }}>VAWC Leave</option>
                                 <option value="bereavement" {{ old('leave_type') == 'bereavement' ? 'selected' : '' }}>Bereavement Leave</option>
-                                <option value="study" {{ old('leave_type') == 'study' ? 'selected' : '' }}>Others</option>
                             </select>
                             @error('leave_type')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -1097,6 +1098,30 @@ document.addEventListener('DOMContentLoaded', function() {
                             
                             if (typeof updateDateInfo === 'function') {
                                 updateDateInfo();
+                            }
+                            
+                            // Update select dropdown options for disabled state
+                            const leaveTypeSelect = document.getElementById('leave_type');
+                            if (leaveTypeSelect) {
+                                let selectionChanged = false;
+                                Array.from(leaveTypeSelect.options).forEach(option => {
+                                    if (['vacation', 'sick', 'sil'].includes(option.value)) {
+                                        if (data.available_days[option.value] <= 0) {
+                                            option.disabled = true;
+                                            if (option.selected) {
+                                                option.selected = false;
+                                                leaveTypeSelect.value = '';
+                                                selectionChanged = true;
+                                            }
+                                        } else {
+                                            option.disabled = false;
+                                        }
+                                    }
+                                });
+                                if (selectionChanged) {
+                                    // Trigger change event if we had to clear the selection
+                                    leaveTypeSelect.dispatchEvent(new Event('change'));
+                                }
                             }
                         } else {
                             balanceGrid.innerHTML = '<div class="col-span-3 text-center text-sm text-red-600">No leave balance found for this employee.</div>';
