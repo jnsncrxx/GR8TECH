@@ -24,11 +24,18 @@ class Company extends Model
         'website',
         'tax_id',
         'registration_number',
-        'is_active'
+        'is_active',
+        'cutoff_day_1',
+        'cutoff_day_2',
+        'payroll_frequency',
+        'payroll_release_offset',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'cutoff_day_1' => 'integer',
+        'cutoff_day_2' => 'integer',
+        'payroll_release_offset' => 'integer',
     ];
 
     protected $keyType = 'string';
@@ -42,5 +49,20 @@ class Company extends Model
     public function departments()
     {
         return $this->hasMany(Department::class);
+    }
+
+    /**
+     * This company's configured monthly cutoff days, sorted ascending.
+     * Used by CutoffPeriodService in place of config('attendance_cutoff.cutoff_days').
+     *
+     * @return array<int>
+     */
+    public function cutoffDays(): array
+    {
+        return collect([$this->cutoff_day_1, $this->cutoff_day_2])
+            ->filter()
+            ->sort()
+            ->values()
+            ->all();
     }
 }
