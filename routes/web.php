@@ -452,6 +452,12 @@ Route::prefix('loans')->name('loans.')->middleware('auth')->group(function () {
         Route::get('/reports/export/{format}', [App\Http\Controllers\Web\AttendanceController::class, 'exportReports'])->name('reports.export');
         Route::get('/statistics', [App\Http\Controllers\Web\AttendanceController::class, 'getStatistics'])->name('statistics');
 
+        // Attendance settings (admin/hr only)
+        Route::middleware(['role:admin,hr'])->group(function () {
+            Route::get('/settings', [App\Http\Controllers\Web\AttendanceController::class, 'settings'])->name('settings');
+            Route::put('/settings', [App\Http\Controllers\Web\AttendanceController::class, 'updateSettings'])->name('settings.update');
+        });
+
         // Import DTR routes
         Route::get('/import-dtr', [App\Http\Controllers\Web\AttendanceController::class, 'importDtr'])->name('import-dtr');
         Route::post('/import-dtr', [App\Http\Controllers\Web\AttendanceController::class, 'processImportDtr'])->name('import-dtr.process');
@@ -583,9 +589,6 @@ Route::prefix('loans')->name('loans.')->middleware('auth')->group(function () {
 
         // General reports for admin/hr (This is the old route, keeping it to avoid breaking)
         Route::get('/reports-old', [App\Http\Controllers\Web\AttendanceController::class, 'reports'])->name('reports.old');
-
-        Route::get('/settings', [App\Http\Controllers\Web\AttendanceController::class, 'settings'])->name('settings');
-        Route::put('/settings', [App\Http\Controllers\Web\AttendanceController::class, 'updateSettings'])->name('settings.update');
     });
 });
 

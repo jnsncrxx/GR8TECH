@@ -265,7 +265,8 @@ class OfficialBusinessController extends Controller
             'personalMode' => $personalMode,
             'reviewerRole' => $reviewerRole,
             'currentEmployeeId' => $employeeId,
-            'cutoffDays' => config('attendance_cutoff.cutoff_days', [10, 25]),
+            'cutoffDays' => \App\Helpers\CompanyHelper::getCurrentCompany()?->cutoffDays()
+                ?: config('attendance_cutoff.cutoff_days', [10, 25]),
             'graceHours' => config('attendance_cutoff.grace_period_hours', 24),
             'obRequests' => $obRequests,
             'summary' => $summary,

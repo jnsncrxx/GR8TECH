@@ -417,8 +417,8 @@
             <span>Attendance Reports</span>
         </a>
 
-        <a href="{{ route('settings') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ $activeRoute === 'settings' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
-            <i class="fas fa-cog mr-3 text-lg {{ $activeRoute === 'settings' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
+        <a href="{{ route('attendance.settings') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ $activeRoute === 'attendance.settings' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+            <i class="fas fa-cog mr-3 text-lg {{ $activeRoute === 'attendance.settings' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
             <span>Attendance Settings</span>
         </a>
         @endif
@@ -596,8 +596,9 @@
             </h3>
         </div>
 
-        <a href="{{ route('hr.settings') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ $activeRoute === 'hr.settings' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
-            <i class="fas fa-building-user mr-3 text-lg {{ $activeRoute === 'hr.settings' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
+        @php $companyProfileRoutes = ['companies.index', 'companies.create', 'companies.edit', 'companies.show']; @endphp
+        <a href="{{ route('companies.index') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ in_array($activeRoute, $companyProfileRoutes) ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+            <i class="fas fa-building-user mr-3 text-lg {{ in_array($activeRoute, $companyProfileRoutes) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
             <span>Company Profile</span>
         </a>
 

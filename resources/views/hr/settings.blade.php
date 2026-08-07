@@ -8,9 +8,24 @@
         'email_notifications' => true,
         'auto_save' => true,
     ]);
+
+    // Keep the page identity separate from HR permissions.
+    $role = strtolower((string) ($user->role ?? $user->role_name ?? ''));
+    $isAdmin = $role === 'admin' || $role === 'administrator';
+    $isHr = in_array($role, ['hr', 'human resources', 'human_resource', 'human-resources'], true);
+
+    $settingsTitle = $isAdmin
+        ? 'Admin Settings'
+        : ($isHr ? 'HR Settings' : 'Account Settings');
+
+    $settingsDescription = $isAdmin
+        ? 'Manage administrator account preferences and configurations'
+        : ($isHr
+            ? 'Manage HR system preferences and configurations'
+            : 'Manage your personal information, preferences, and password');
 @endphp
 
-@section('title', $canManageHrSettings ? 'HR Settings' : 'Account Settings')
+@section('title', $settingsTitle)
 
 @section('content')
 <div class="space-y-6">
@@ -19,12 +34,10 @@
         <div>
             <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center">
                 <i class="fas fa-cog mr-3 text-blue-600"></i>
-                {{ $canManageHrSettings ? 'HR Settings' : 'Account Settings' }}
+                {{ $settingsTitle }}
             </h1>
             <p class="mt-1 text-sm text-gray-600">
-                {{ $canManageHrSettings
-                    ? 'Manage HR system preferences and configurations'
-                    : 'Manage your personal information, preferences, and password' }}
+                {{ $settingsDescription }}
             </p>
         </div>
     </div>
