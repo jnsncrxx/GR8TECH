@@ -38,6 +38,8 @@ class LeaveController extends Controller
         'emergency',
         'maternity',
         'paternity',
+        'spl',
+        'vawc',
         'bereavement',
         'study',
     ];

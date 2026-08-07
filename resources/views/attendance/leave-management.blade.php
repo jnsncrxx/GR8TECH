@@ -162,11 +162,14 @@
                     <option value="">All Types</option>
                     <option value="vacation" {{ request('leave_type') == 'vacation' ? 'selected' : '' }}>Vacation Leave</option>
                     <option value="sick" {{ request('leave_type') == 'sick' ? 'selected' : '' }}>Sick Leave</option>
-                    <option value="personal" {{ request('leave_type') == 'personal' ? 'selected' : '' }}>Personal Leave/Leave Without Pay</option>
+                    <option value="sil" {{ request('leave_type') == 'sil' ? 'selected' : '' }}>SIL (Service Incentive Leave)</option>
+                    <option value="personal" {{ request('leave_type') == 'personal' ? 'selected' : '' }}>Personal Leave / Leave Without Pay</option>
                     <option value="emergency" {{ request('leave_type') == 'emergency' ? 'selected' : '' }}>Emergency Leave</option>
                     <option value="maternity" {{ request('leave_type') == 'maternity' ? 'selected' : '' }}>Maternity Leave</option>
                     <option value="paternity" {{ request('leave_type') == 'paternity' ? 'selected' : '' }}>Paternity Leave</option>
-                    <option value="bereavement" {{ request('leave_type') == 'bereavement' ? 'selected' : '' }}>SIL (Service Incentive Leave)</option>
+                    <option value="spl" {{ request('leave_type') == 'spl' ? 'selected' : '' }}>Solo Parent Leave</option>
+                    <option value="vawc" {{ request('leave_type') == 'vawc' ? 'selected' : '' }}>VAWC Leave</option>
+                    <option value="bereavement" {{ request('leave_type') == 'bereavement' ? 'selected' : '' }}>Bereavement Leave</option>
                 </select>
             </div>
             <div>
