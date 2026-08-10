@@ -51,6 +51,12 @@ class LeaveController extends Controller
 
     public function index(Request $request)
     {
+        LeaveRequest::pastDeadline()->with('employee.account')->get()->each(function (LeaveRequest $leave) {
+            if ($leave->expireCurrentWindow()) {
+                $this->notifyRequester($leave);
+            }
+        });
+
         $user = Auth::user();
         $personalRequested = $request->query('scope') === 'mine';
         if ($personalRequested && !$user->employee_id) {
@@ -400,6 +406,7 @@ class LeaveController extends Controller
             'days_requested' => $daysRequested,
             'reason' => $data['reason'],
             'status' => 'pending',
+            'expires_at' => now()->addHours(LeaveRequest::EXPIRY_WINDOW_HOURS),
         ]);
 
         return redirect()->route('attendance.leave-management')
@@ -431,7 +438,8 @@ class LeaveController extends Controller
 
         // Flip past-deadline pending requests to expired before any other check.
         if ($leaveRequest->isPastDeadline()) {
-            $leaveRequest->update(['status' => LeaveRequest::EXPIRED]);
+            $leaveRequest->expireCurrentWindow();
+            $this->notifyRequester($leaveRequest);
         }
 
         // Block status changes on expired records.
@@ -523,6 +531,30 @@ class LeaveController extends Controller
         return response()->json(['success' => true, 'message' => 'Leave request status updated successfully.']);
     }
 
+    public function resubmit(Request $request, string $id)
+    {
+        $leave = $this->currentCompanyLeave($id);
+        $user = Auth::user();
+
+        if (!$leave || !$user->employee_id || $leave->employee_id !== $user->employee_id) {
+            return back()->with('error', 'Only the employee who filed this leave request can re-request it.');
+        }
+
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForRange(
+            $leave->employee_id,
+            $leave->start_date->toDateString(),
+            $leave->end_date->toDateString()
+        )) {
+            return back()->with('error', 'This leave request belongs to a locked payroll period and cannot be re-requested.');
+        }
+
+        if (!$leave->resubmitForFinalWindow()) {
+            return back()->with('error', 'This leave request is not eligible for another re-request.');
+        }
+
+        return back()->with('success', 'Leave request resubmitted. This is the final 24-hour review period.');
+    }
+
     protected function notifyRequester(LeaveRequest $leaveRequest): void
     {
         $account = $leaveRequest->employee?->account;
@@ -539,6 +571,7 @@ class LeaveController extends Controller
             $leaveRequest->status,
             $dateLabel,
             $leaveRequest->rejection_reason,
+            finalExpiration: $leaveRequest->status === LeaveRequest::EXPIRED && $leaveRequest->isFinallyExpired(),
         ));
     }
 

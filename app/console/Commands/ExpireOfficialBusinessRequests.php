@@ -33,11 +33,9 @@ class ExpireOfficialBusinessRequests extends Command
             $count = $overdueRequests->count();
 
             foreach ($overdueRequests as $request) {
-                $request->update([
-                    'status' => $modelClass::EXPIRED,
-                ]);
-
-                $this->notifyRequester($request);
+                if ($request->expireCurrentWindow()) {
+                    $this->notifyRequester($request);
+                }
             }
 
             $this->info("{$modelClass}: expired {$count} overdue request(s).");
@@ -85,6 +83,7 @@ class ExpireOfficialBusinessRequests extends Command
             $request->id,
             $request->status,
             $dateLabel,
+            finalExpiration: $request->isFinallyExpired(),
         ));
     }
 }

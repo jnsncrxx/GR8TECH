@@ -338,6 +338,11 @@
                                     {{ Str::limit($leaveRequest->rejection_reason, 40) }}
                                 </div>
                             @endif
+                            @include('attendance.partials.request-expiry-workflow', [
+                                'requestRecord' => $leaveRequest,
+                                'resubmitRoute' => route('attendance.leave-management.resubmit', $leaveRequest->id),
+                                'showAction' => false,
+                            ])
                         </td>
 
                         <td class="px-6 py-4 whitespace-nowrap">
@@ -366,6 +371,11 @@
                                         <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel">
                                             <i class="fas fa-ban"></i>
                                         </button>
+                                    @elseif($leaveRequest->canBeResubmitted() && $leaveRequest->employee_id == $user->employee?->id)
+                                        @include('attendance.partials.request-expiry-workflow', [
+                                            'requestRecord' => $leaveRequest,
+                                            'resubmitRoute' => route('attendance.leave-management.resubmit', $leaveRequest->id),
+                                        ])
                                     @else
                                         <div class="flex justify-center">
                                             <span class="inline-block w-8 h-px bg-gray-300 rounded-full"></span>
@@ -456,6 +466,11 @@
                                 @elseif($leaveRequest->status == 'cancelled' && $leaveRequest->rejection_reason)
                                     <div class="text-xs text-gray-600 mt-1 max-w-[140px]"><span class="font-medium">Cancellation Reason:</span> {{ Str::limit($leaveRequest->rejection_reason, 50) }}</div>
                                 @endif
+                                @include('attendance.partials.request-expiry-workflow', [
+                                    'requestRecord' => $leaveRequest,
+                                    'resubmitRoute' => route('attendance.leave-management.resubmit', $leaveRequest->id),
+                                    'showAction' => false,
+                                ])
                             </div>
                     </div>
                     <div class="mb-3">
@@ -508,6 +523,11 @@
                                 <button data-leave-id="{{ $leaveRequest->id }}" data-action="cancel" class="time-action-btn inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel">
                                     <i class="fas fa-ban"></i>
                                 </button>
+                            @elseif($leaveRequest->canBeResubmitted() && $leaveRequest->employee_id == $user->employee?->id)
+                                @include('attendance.partials.request-expiry-workflow', [
+                                    'requestRecord' => $leaveRequest,
+                                    'resubmitRoute' => route('attendance.leave-management.resubmit', $leaveRequest->id),
+                                ])
                             @else
                                 <div class="flex justify-center">
                                     <span class="inline-block w-8 h-px bg-gray-300 rounded-full"></span>

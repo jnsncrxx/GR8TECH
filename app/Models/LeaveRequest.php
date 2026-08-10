@@ -61,6 +61,10 @@ class LeaveRequest extends Model
         'approved_at',
         'rejection_reason',
         'expires_at',
+        'expiry_attempt',
+        'first_expired_at',
+        'resubmitted_at',
+        'final_expired_at',
     ];
 
     protected $casts = [
@@ -68,6 +72,9 @@ class LeaveRequest extends Model
         'end_date' => 'date',
         'approved_at' => 'datetime',
         'expires_at' => 'datetime',
+        'first_expired_at' => 'datetime',
+        'resubmitted_at' => 'datetime',
+        'final_expired_at' => 'datetime',
     ];
 
     protected static function boot()
