@@ -599,7 +599,7 @@ Route::prefix('loans')->name('loans.')->middleware('auth')->group(function () {
 Route::middleware(['role:admin,hr,manager'])->prefix('reports')->name('reports.')->group(function () {
     Route::get('/', [ReportController::class, 'index'])->name('index');
     Route::get('/generate', [ReportController::class, 'generate'])->name('generate');
-    Route::post('/export', [ReportController::class, 'export'])->name('export');
+    Route::match(['get', 'post'], '/export', [ReportController::class, 'export'])->name('export');
 });
 
 // Tax Bracket Management routes (outside attendance prefix)

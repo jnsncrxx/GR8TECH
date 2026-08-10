@@ -7,10 +7,11 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithTitle;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Carbon\Carbon;
 
-class ReportExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize
+class ReportExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize, WithTitle
 {
     protected $data;
     protected $type;
@@ -21,9 +22,23 @@ class ReportExport implements FromCollection, WithHeadings, WithMapping, WithSty
         $this->type = $type;
     }
 
+    public function title(): string
+    {
+        $titles = [
+            'attendance' => 'Attendance Report',
+            'leave' => 'Leave Report',
+            'overtime' => 'Overtime Report',
+            'payroll' => 'Payroll Report',
+            'official_business' => 'Official Business Report',
+            'timekeeping' => 'Timekeeping Report',
+        ];
+
+        return $titles[$this->type] ?? ucfirst(str_replace('_', ' ', $this->type));
+    }
+
     public function collection()
     {
-        return $this->data;
+        return collect($this->data);
     }
 
     public function headings(): array
@@ -49,6 +64,17 @@ class ReportExport implements FromCollection, WithHeadings, WithMapping, WithSty
                 'Leave Type',
                 'Start Date',
                 'End Date',
+                'Status',
+            ];
+        } elseif ($this->type === 'overtime') {
+            return [
+                'Employee Name',
+                'Department',
+                'Date',
+                'Start Time',
+                'End Time',
+                'Hours',
+                'Reason',
                 'Status',
             ];
         } elseif ($this->type === 'payroll') {
@@ -106,6 +132,17 @@ class ReportExport implements FromCollection, WithHeadings, WithMapping, WithSty
                 Carbon::parse($row->start_date)->format('M d, Y'),
                 Carbon::parse($row->end_date)->format('M d, Y'),
                 ucfirst($row->status),
+            ];
+        } elseif ($this->type === 'overtime') {
+            return [
+                optional($row->employee)->full_name ?? 'N/A',
+                optional(optional($row->employee)->department)->name ?? 'N/A',
+                Carbon::parse($row->date)->format('M d, Y'),
+                $row->start_time ? Carbon::parse($row->start_time)->format('h:i A') : '--',
+                $row->end_time ? Carbon::parse($row->end_time)->format('h:i A') : '--',
+                number_format((float) ($row->hours ?? 0), 2),
+                $row->reason ?? 'N/A',
+                ucfirst($row->status ?? 'pending'),
             ];
         } elseif ($this->type === 'payroll') {
             return [
