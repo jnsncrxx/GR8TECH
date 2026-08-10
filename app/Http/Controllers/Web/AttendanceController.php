@@ -929,7 +929,6 @@ class AttendanceController extends Controller
         $fileName = $reportType . '_report_' . now()->format('Y_m_d_His');
 
         if ($format === 'pdf') {
-            // Re-using the timekeeping pdf template or a new one
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('reports.pdf', [
                 'type' => $reportType,
                 'data' => $exportData,
@@ -940,6 +939,7 @@ class AttendanceController extends Controller
         }
 
         $extension = $format === 'csv' ? 'csv' : 'xlsx';
+
         return \Maatwebsite\Excel\Facades\Excel::download(
             new \App\Exports\HRISReportExport($exportData, $reportType),
             $fileName . '.' . $extension
