@@ -75,9 +75,8 @@ class OfficialBusinessController extends Controller
             $obRequest->isPending()
             && $obRequest->isPastDeadline()
         ) {
-            $obRequest->update([
-                'status' => OfficialBusinessRequest::EXPIRED,
-            ]);
+            $obRequest->expireCurrentWindow();
+            $this->notifyRequester($obRequest);
 
             $obRequest->refresh();
         }
@@ -265,7 +264,8 @@ class OfficialBusinessController extends Controller
             'personalMode' => $personalMode,
             'reviewerRole' => $reviewerRole,
             'currentEmployeeId' => $employeeId,
-            'cutoffDays' => config('attendance_cutoff.cutoff_days', [10, 25]),
+            'cutoffDays' => \App\Helpers\CompanyHelper::getCurrentCompany()?->cutoffDays()
+                ?: config('attendance_cutoff.cutoff_days', [10, 25]),
             'graceHours' => config('attendance_cutoff.grace_period_hours', 24),
             'obRequests' => $obRequests,
             'summary' => $summary,
@@ -525,9 +525,7 @@ class OfficialBusinessController extends Controller
             'cutoff_period_key' =>
                 $period['key'],
 
-            'expires_at' =>
-                $this->cutoffPeriods
-                    ->graceDeadlineFor($obDate),
+            'expires_at' => now()->addHours(OfficialBusinessRequest::EXPIRY_WINDOW_HOURS),
 
             'created_by' => Auth::id(),
         ]);
@@ -787,6 +785,29 @@ class OfficialBusinessController extends Controller
         );
     }
 
+    public function resubmit(Request $request, string $id)
+    {
+        $obRequest = $this->currentCompanyObOrFail($id);
+        $employeeId = $this->currentEmployeeId();
+
+        if (!$employeeId || $obRequest->employee_id !== $employeeId) {
+            return back()->with('error', 'Only the employee who filed this Official Business request can re-request it.');
+        }
+
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate(
+            $obRequest->employee_id,
+            $obRequest->date->toDateString()
+        )) {
+            return back()->with('error', 'This Official Business request belongs to a locked payroll period and cannot be re-requested.');
+        }
+
+        if (!$obRequest->resubmitForFinalWindow()) {
+            return back()->with('error', 'This Official Business request is not eligible for another re-request.');
+        }
+
+        return back()->with('success', 'Official Business request resubmitted. This is the final 24-hour review period.');
+    }
+
     protected function notifyRequester(OfficialBusinessRequest $obRequest): void
     {
         $account = $obRequest->employee?->account;
@@ -802,6 +823,7 @@ class OfficialBusinessController extends Controller
             $obRequest->status,
             $dateLabel,
             $obRequest->rejection_reason,
+            finalExpiration: $obRequest->status === OfficialBusinessRequest::EXPIRED && $obRequest->isFinallyExpired(),
         ));
     }
 

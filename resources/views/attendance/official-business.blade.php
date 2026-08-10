@@ -534,6 +534,11 @@
                                         {{ \Illuminate\Support\Str::limit($ob->rejection_reason, 40) }}
                                     </div>
                                 @endif
+                                @include('attendance.partials.request-expiry-workflow', [
+                                    'requestRecord' => $ob,
+                                    'resubmitRoute' => route('attendance.official-business.resubmit', $ob->id),
+                                    'showAction' => false,
+                                ])
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">{{ $reviewerName !== '' ? $reviewerName : '—' }}</div>
@@ -568,6 +573,11 @@
                                                 title="Cancel approved OB">
                                             <i class="fas fa-ban"></i>
                                         </button>
+                                    @elseif($ob->canBeResubmitted() && $ob->employee_id === $currentEmployeeId)
+                                        @include('attendance.partials.request-expiry-workflow', [
+                                            'requestRecord' => $ob,
+                                            'resubmitRoute' => route('attendance.official-business.resubmit', $ob->id),
+                                        ])
                                     @else
                                         <span class="inline-block w-8 h-px bg-gray-300 rounded-full"></span>
                                     @endif
@@ -707,7 +717,12 @@
                             <div class="text-gray-500">Reason</div>
                             <div class="font-medium">{{ \Illuminate\Support\Str::limit($ob->reason, 50) }}</div>
                         </div>
-                        @if($ob->isPending() || ($ob->isApproved() && $isReviewer))
+                        @include('attendance.partials.request-expiry-workflow', [
+                            'requestRecord' => $ob,
+                            'resubmitRoute' => route('attendance.official-business.resubmit', $ob->id),
+                            'showAction' => false,
+                        ])
+                        @if($ob->isPending() || ($ob->isApproved() && $isReviewer) || ($ob->canBeResubmitted() && $ob->employee_id === $currentEmployeeId))
                         <div class="flex justify-end items-center space-x-2">
                             @if($ob->isPending() && $isReviewer && $ob->employee_id !== $currentEmployeeId)
                                 <button onclick="approveOb('{{ $ob->id }}')"
@@ -734,6 +749,11 @@
                                         title="Cancel approved OB">
                                     <i class="fas fa-ban"></i>
                                 </button>
+                            @elseif($ob->canBeResubmitted() && $ob->employee_id === $currentEmployeeId)
+                                @include('attendance.partials.request-expiry-workflow', [
+                                    'requestRecord' => $ob,
+                                    'resubmitRoute' => route('attendance.official-business.resubmit', $ob->id),
+                                ])
                             @endif
                         </div>
                         @endif

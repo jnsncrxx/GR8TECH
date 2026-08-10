@@ -12,7 +12,7 @@
 <div class="min-h-screen bg-gray-50">
     <!-- Header -->
     <div class="bg-white shadow-sm border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
             <div class="py-6">
                 <div class="flex items-center justify-between">
                     <div>
@@ -43,7 +43,7 @@
     </div>
 
     <!-- Summary Cards -->
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <!-- Total Employees -->
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
@@ -133,11 +133,11 @@
                     <tbody class="bg-white divide-y divide-gray-200">
                         @foreach($payrolls as $payroll)
                         <tr class="hover:bg-gray-50">
-                            <td class="px-6 py-4 whitespace-nowrap">
+                            <td class="px-6 py-4">
                                 <div class="text-sm font-medium text-gray-900">{{ $payroll->employee->employee_id }}</div>
                                 <div class="text-sm text-gray-500">{{ $payroll->employee->full_name }}</div>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <td class="px-6 py-4 text-sm text-gray-900">
                                 <div>{{ $payroll->employee->department->name ?? 'N/A' }}</div>
                                 <div class="text-xs text-gray-500">{{ $payroll->employee->position->name ?? 'N/A' }}</div>
                             </td>

@@ -325,9 +325,10 @@
                                 </div>
 
                                 @if(!empty($blockingItem['details']))
-                                    <div class="w-full max-h-[340px] overflow-x-auto overflow-y-auto border-y border-gray-200">    <table class="w-full table-auto divide-y divide-gray-200 text-sm">
+                                    <div class="w-full max-h-[340px] overflow-x-auto overflow-y-auto border-y border-gray-200">
+                                        <table class="w-full table-auto divide-y divide-gray-200 text-sm">
                                             <thead class="sticky top-0 z-10 bg-gray-50">
-                                                <tr
+                                                <tr>
                                                     <th class="px-6 py-3 text-left font-medium text-gray-600">Employee</th>
                                                     <th class="px-6 py-3 text-left font-medium text-gray-600">Date / Coverage</th>
                                                     <th class="px-6 py-3 text-left font-medium text-gray-600">Issue</th>

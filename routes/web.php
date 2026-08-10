@@ -452,6 +452,12 @@ Route::prefix('loans')->name('loans.')->middleware('auth')->group(function () {
         Route::get('/reports/export/{format}', [App\Http\Controllers\Web\AttendanceController::class, 'exportReports'])->name('reports.export');
         Route::get('/statistics', [App\Http\Controllers\Web\AttendanceController::class, 'getStatistics'])->name('statistics');
 
+        // Attendance settings (admin/hr only)
+        Route::middleware(['role:admin,hr'])->group(function () {
+            Route::get('/settings', [App\Http\Controllers\Web\AttendanceController::class, 'settings'])->name('settings');
+            Route::put('/settings', [App\Http\Controllers\Web\AttendanceController::class, 'updateSettings'])->name('settings.update');
+        });
+
         // Import DTR routes
         Route::get('/import-dtr', [App\Http\Controllers\Web\AttendanceController::class, 'importDtr'])->name('import-dtr');
         Route::post('/import-dtr', [App\Http\Controllers\Web\AttendanceController::class, 'processImportDtr'])->name('import-dtr.process');
@@ -543,6 +549,7 @@ Route::prefix('loans')->name('loans.')->middleware('auth')->group(function () {
     Route::get('/overtime', [App\Http\Controllers\Web\OvertimeController::class, 'index'])->name('attendance.overtime');
     Route::get('/overtime/export/{format}', [App\Http\Controllers\Web\OvertimeController::class, 'exportOvertime'])->name('attendance.overtime.export');
     Route::post('/overtime', [App\Http\Controllers\Web\OvertimeController::class, 'store'])->name('attendance.overtime.store');
+    Route::post('/overtime/{id}/resubmit', [App\Http\Controllers\Web\OvertimeController::class, 'resubmit'])->name('attendance.overtime.resubmit');
     Route::post('/overtime/quick-submit', [App\Http\Controllers\Web\OvertimeController::class, 'quickSubmit'])->name('attendance.overtime.quick-submit');
     Route::post('/overtime/dismiss-reminder/{id}', [App\Http\Controllers\Web\OvertimeController::class, 'dismissReminder'])->name('attendance.overtime.dismiss-reminder');
     Route::put('/overtime/{id}/status', [App\Http\Controllers\Web\OvertimeController::class, 'updateStatus'])->name('attendance.overtime.update-status');
@@ -555,6 +562,7 @@ Route::prefix('loans')->name('loans.')->middleware('auth')->group(function () {
     Route::get('/leave-management/export/{format}', [App\Http\Controllers\Web\LeaveController::class, 'exportLeave'])->name('attendance.leave-management.export');
     Route::get('/leave-management/create', [App\Http\Controllers\Web\LeaveController::class, 'create'])->name('attendance.leave-management.create');
     Route::post('/leave-management', [App\Http\Controllers\Web\LeaveController::class, 'store'])->name('attendance.leave-management.store');
+    Route::post('/leave-management/{id}/resubmit', [App\Http\Controllers\Web\LeaveController::class, 'resubmit'])->name('attendance.leave-management.resubmit');
     Route::put('/leave-management/{id}/status', [App\Http\Controllers\Web\LeaveController::class, 'updateStatus'])->name('attendance.leave-management.update-status');
     Route::put('/leave-management/{id}/edit-approved', [App\Http\Controllers\Web\LeaveController::class, 'updateApproved'])->name('attendance.leave-management.update-approved')->middleware('role:admin,hr,manager');
     Route::delete('/leave-management/{id}/cancel', [App\Http\Controllers\Web\LeaveController::class, 'cancel'])->name('attendance.leave-management.cancel');
@@ -568,6 +576,7 @@ Route::prefix('loans')->name('loans.')->middleware('auth')->group(function () {
     Route::get('/official-business', [App\Http\Controllers\Web\OfficialBusinessController::class, 'index'])->name('attendance.official-business');
     Route::get('/official-business/export/{format}', [App\Http\Controllers\Web\OfficialBusinessController::class, 'exportOfficialBusiness'])->name('attendance.official-business.export');
     Route::post('/official-business', [App\Http\Controllers\Web\OfficialBusinessController::class, 'store'])->name('attendance.official-business.store');
+    Route::post('/official-business/{id}/resubmit', [App\Http\Controllers\Web\OfficialBusinessController::class, 'resubmit'])->name('attendance.official-business.resubmit');
     Route::delete('/official-business/{id}/cancel', [App\Http\Controllers\Web\OfficialBusinessController::class, 'cancel'])->name('attendance.official-business.cancel');
     Route::get('/official-business/statistics', [App\Http\Controllers\Web\OfficialBusinessController::class, 'getStatistics'])->name('attendance.official-business.statistics');
     Route::put('/official-business/{id}/status', [App\Http\Controllers\Web\OfficialBusinessController::class, 'updateStatus'])
@@ -583,9 +592,6 @@ Route::prefix('loans')->name('loans.')->middleware('auth')->group(function () {
 
         // General reports for admin/hr (This is the old route, keeping it to avoid breaking)
         Route::get('/reports-old', [App\Http\Controllers\Web\AttendanceController::class, 'reports'])->name('reports.old');
-
-        Route::get('/settings', [App\Http\Controllers\Web\AttendanceController::class, 'settings'])->name('settings');
-        Route::put('/settings', [App\Http\Controllers\Web\AttendanceController::class, 'updateSettings'])->name('settings.update');
     });
 });
 

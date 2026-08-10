@@ -11,14 +11,23 @@
     }
 
     // ---- group membership, used to decide which group starts open ----
+    // attendance.overtime / leave-management / official-business are shared
+    // pages: HR/admin can view either "my own" (My Portal, ?scope=mine) or
+    // the team-wide management view (Time & Workforce). Only the query
+    // param tells them apart, so they're deliberately left out of the plain
+    // route-name arrays below and handled via $isMineScope instead -
+    // otherwise both sections would light up/open at once regardless of
+    // which view is actually showing.
+    $isMineScope = request()->query('scope') === 'mine';
+    $sharedScopedRoutes = ['attendance.overtime', 'attendance.leave-management', 'attendance.official-business'];
+
     $myPortalRoutes = [
         'attendance.time-in-out', 'attendance.my', 'employee.schedule',
-        'attendance.overtime', 'attendance.leave-management', 'attendance.official-business',
         'employee.payroll.history', 'loans.index', 'loans.create', 'loans.show',
         'hr.my-information.info', 'hr.my-information.other-info', 'hr.my-information.education-training-rating',
         'hr.my-information.prev-emp-oth', 'hr.my-information.documents', 'hr.my-information.ytd-info', 'hr.my-information.bio-zk',
     ];
-    $myPortalActive = request()->query('scope') === 'mine' || in_array($activeRoute, $myPortalRoutes, true);
+    $myPortalActive = $isMineScope || in_array($activeRoute, $myPortalRoutes, true);
 
     // Force My Portal to be active if on Time In/Out page
     if ($activeRoute === 'attendance.time-in-out') {
@@ -35,11 +44,12 @@
         'attendance.daily', 'attendance.timekeeping', 'attendance.import-dtr',
         'schedule-v2.index', 'schedule-v2.create', 'schedule-v2.show', 'schedule-v2.edit',
         'schedule-templates.index', 'schedule-templates.create', 'schedule-templates.edit',
-        'attendance.overtime', 'attendance.leave-management', 'attendance.leave-management.create',
-        'attendance.official-business', 'attendance.period-management.index',
+        'attendance.leave-management.create', 'attendance.period-management.index',
         'attendance.period-management.create', 'attendance.period-management.show',
-        'attendance.reports', 'settings',
+        'attendance.reports',
     ];
+    $timeRoutesActive = in_array($activeRoute, $timeRoutes, true)
+        || (!$isMineScope && in_array($activeRoute, $sharedScopedRoutes, true));
 
     $payrollFinanceRoutes = [
     'payroll.index', 'payroll.team', 'payroll.runs',
@@ -384,7 +394,7 @@
         <div class="relative" x-data="{ open: false }">
             <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-lg transition-all duration-200 group">
                 <div class="flex items-center">
-                    <i class="fas fa-file-chart mr-3 text-lg text-gray-400 group-hover:text-blue-600"></i>
+                    <i class="fas fa-chart-bar mr-3 text-lg text-gray-400 group-hover:text-blue-600"></i>
                     <span>Timekeeping & HRIS Reports</span>
                 </div>
                 <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }"></i>
@@ -407,8 +417,8 @@
             <span>Attendance Reports</span>
         </a>
 
-        <a href="{{ route('settings') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ $activeRoute === 'settings' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
-            <i class="fas fa-cog mr-3 text-lg {{ $activeRoute === 'settings' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
+        <a href="{{ route('attendance.settings') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ $activeRoute === 'attendance.settings' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+            <i class="fas fa-cog mr-3 text-lg {{ $activeRoute === 'attendance.settings' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
             <span>Attendance Settings</span>
         </a>
         @endif
@@ -535,7 +545,7 @@
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-heartbeat mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Philhealth Report & RF-1</span></a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-percent mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Tax Report</span></a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-shield-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Pag Ibig Report</span></a>
-                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-ledger mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Account Entries</span></a>
+                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-book-open mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Account Entries</span></a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-file-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Text File Reports</span></a>
                 <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-print mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Print Undeducted Items</span></a>
             </div>
@@ -586,8 +596,9 @@
             </h3>
         </div>
 
-        <a href="{{ route('hr.settings') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ $activeRoute === 'hr.settings' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
-            <i class="fas fa-building-user mr-3 text-lg {{ $activeRoute === 'hr.settings' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
+        @php $companyProfileRoutes = ['companies.index', 'companies.create', 'companies.edit', 'companies.show']; @endphp
+        <a href="{{ route('companies.index') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ in_array($activeRoute, $companyProfileRoutes) ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+            <i class="fas fa-building-user mr-3 text-lg {{ in_array($activeRoute, $companyProfileRoutes) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
             <span>Company Profile</span>
         </a>
 
@@ -736,27 +747,9 @@ function format12HourTime(date) {
     return `${hoursStr}:${minutes}:${seconds} ${ampm}`;
 }
 
-// Show confirmation modal (uses global functions if available)
-function showConfirmationModal(title, message, confirmAction, options = {}) {
-    // Check if the global modal function exists
-    if (typeof window.showConfirmationModal === 'function') {
-        // Use the dashboard's modal function
-        window.showConfirmationModal(title, message, confirmAction, options);
-        return;
-    }
-
-    // Fallback: Use browser's native confirm dialog
-    if (confirm(`${title}\n\n${message}`)) {
-        confirmAction();
-    }
-}
-
-// Hide confirmation modal
-function hideConfirmationModal() {
-    if (typeof window.hideConfirmationModal === 'function') {
-        window.hideConfirmationModal();
-    }
-}
+// showConfirmationModal / hideConfirmationModal are provided globally by
+// the shared dashboard layout (available on every dashboard - admin, hr,
+// manager, employee) - no need to redefine them here.
 
 // ============================================================
 // SIDEBAR TIME IN/OUT CONFIRMATION FUNCTIONS

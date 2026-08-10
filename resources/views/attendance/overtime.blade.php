@@ -381,11 +381,9 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Reviewed By
                         </th>
-                        @if($isReviewer)
                         <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Actions
                         </th>
-                        @endif
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -458,6 +456,11 @@
                                         {{ \Illuminate\Support\Str::limit($request->rejection_reason, 40) }}
                                     </div>
                                 @endif
+                                @include('attendance.partials.request-expiry-workflow', [
+                                    'requestRecord' => $request,
+                                    'resubmitRoute' => route('attendance.overtime.resubmit', $request->id),
+                                    'showAction' => false,
+                                ])
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">{{ $reviewerName !== '' ? $reviewerName : '—' }}</div>
@@ -465,7 +468,6 @@
                                     <div class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($request->approved_at)->format('M d, Y h:i A') }}</div>
                                 @endif
                             </td>
-                            @if($isReviewer)
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                                 @if($displayStatus === 'pending')
                                 <div class="flex space-x-2 justify-center">
@@ -482,15 +484,19 @@
                                         <i class="fas fa-ban"></i>
                                     </button>
                                 </div>
+                                @elseif($request->canBeResubmitted() && auth()->user()?->employee?->id === $request->employee_id)
+                                    @include('attendance.partials.request-expiry-workflow', [
+                                        'requestRecord' => $request,
+                                        'resubmitRoute' => route('attendance.overtime.resubmit', $request->id),
+                                    ])
                                 @else
                                     <span class="text-gray-400 font-bold text-lg">&mdash;</span>
                                 @endif
                             </td>
-                            @endif
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ $isReviewer ? 11 : 10 }}" class="px-6 py-4 text-center">
+                            <td colspan="11" class="px-6 py-4 text-center">
                                 <div class="flex flex-col items-center justify-center py-8">
                                     <i class="fas fa-clock text-gray-400 text-4xl mb-4"></i>
                                     <p class="text-gray-500 text-lg font-medium mb-2">No overtime requests found</p>
@@ -573,6 +579,11 @@
                                 {{ ucfirst($displayStatus) }}
                             </span>
                         </div>
+                        @include('attendance.partials.request-expiry-workflow', [
+                            'requestRecord' => $request,
+                            'resubmitRoute' => route('attendance.overtime.resubmit', $request->id),
+                            'showAction' => false,
+                        ])
                         <div class="grid grid-cols-2 gap-4 text-sm mb-3">
                             <div>
                                 <div class="text-gray-500">Date</div>
@@ -634,6 +645,13 @@
                             <button onclick="cancelOvertime('{{ $request->id }}')" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors" title="Cancel approved overtime">
                                 <i class="fas fa-ban"></i>
                             </button>
+                        </div>
+                        @elseif($request->canBeResubmitted() && auth()->user()?->employee?->id === $request->employee_id)
+                        <div class="flex justify-end">
+                            @include('attendance.partials.request-expiry-workflow', [
+                                'requestRecord' => $request,
+                                'resubmitRoute' => route('attendance.overtime.resubmit', $request->id),
+                            ])
                         </div>
                         @endif
                     </div>

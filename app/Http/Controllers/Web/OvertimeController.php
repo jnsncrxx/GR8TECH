@@ -30,10 +30,11 @@ class OvertimeController extends Controller
 
         // Keep displayed and filtered statuses authoritative between scheduled
         // expiry sweeps, matching the Official Business reviewer portal.
-        \App\Models\OvertimeRequest::pastDeadline()->update([
-            'status' => \App\Models\OvertimeRequest::EXPIRED,
-            'updated_at' => now(),
-        ]);
+        \App\Models\OvertimeRequest::pastDeadline()->with('employee.account')->get()->each(function ($overtime) {
+            if ($overtime->expireCurrentWindow()) {
+                $this->notifyRequester($overtime);
+            }
+        });
 
         $currentCompany = CompanyHelper::getCurrentCompany();
 
@@ -219,7 +220,7 @@ class OvertimeController extends Controller
                 'rate_multiplier' => (float) \App\Models\AttendanceSetting::getValue('overtime_rate_multiplier', 1.5),
                 'reason' => $request->reason,
                 'status' => \App\Models\OvertimeRequest::PENDING,
-                'expires_at' => app(\App\Services\CutoffPeriodService::class)->graceDeadlineFor($request->date),
+                'expires_at' => now()->addHours(\App\Models\OvertimeRequest::EXPIRY_WINDOW_HOURS),
             ]);
             
             return response()->json([
@@ -258,6 +259,8 @@ class OvertimeController extends Controller
             }
             
             if ($overtime->isPastDeadline()) {
+                $overtime->expireCurrentWindow();
+                $this->notifyRequester($overtime);
                 return response()->json(['error' => 'Cannot update an expired request.'], 403);
             }
             
@@ -318,7 +321,28 @@ class OvertimeController extends Controller
             $overtime->status,
             $dateLabel,
             $overtime->rejection_reason,
+            finalExpiration: $overtime->status === OvertimeRequest::EXPIRED && $overtime->isFinallyExpired(),
         ));
+    }
+
+    public function resubmit(Request $request, string $id)
+    {
+        $overtime = $this->currentCompanyOvertimeOrFail($id);
+        $user = Auth::user();
+
+        if (!$user->employee_id || $overtime->employee_id !== $user->employee_id) {
+            return back()->with('error', 'Only the employee who filed this overtime request can re-request it.');
+        }
+
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($overtime->employee_id, $overtime->date->toDateString())) {
+            return back()->with('error', 'This overtime request belongs to a locked payroll period and cannot be re-requested.');
+        }
+
+        if (!$overtime->resubmitForFinalWindow()) {
+            return back()->with('error', 'This overtime request is not eligible for another re-request.');
+        }
+
+        return back()->with('success', 'Overtime request resubmitted. This is the final 24-hour review period.');
     }
 
     /**
@@ -618,7 +642,7 @@ class OvertimeController extends Controller
                     'rate_multiplier' => (float) \App\Models\AttendanceSetting::getValue('overtime_rate_multiplier', 1.5),
                     'reason' => $reason,
                     'status' => \App\Models\OvertimeRequest::PENDING,
-                    'expires_at' => app(\App\Services\CutoffPeriodService::class)->graceDeadlineFor($dateStr),
+                    'expires_at' => now()->addHours(\App\Models\OvertimeRequest::EXPIRY_WINDOW_HOURS),
                 ]);
 
                 $reminder->update(['status' => \App\Models\OvertimeReminder::SUBMITTED]);

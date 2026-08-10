@@ -159,6 +159,63 @@
                 </div>
 
                 <div class="border-t border-gray-200 pt-6">
+                    <h3 class="text-lg font-medium text-gray-900 mb-1">Payroll Settings</h3>
+                    <p class="text-sm text-gray-500 mb-4">Controls how attendance cutoff periods and payroll dates are calculated for this company.</p>
+
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Payroll Frequency</label>
+                        <div class="flex flex-wrap gap-4">
+                            @foreach (['monthly' => 'Monthly', 'semi_monthly' => 'Semi-Monthly', 'weekly' => 'Weekly'] as $value => $label)
+                                <label class="inline-flex items-center">
+                                    <input type="radio" name="payroll_frequency" value="{{ $value }}"
+                                           {{ old('payroll_frequency', $company->payroll_frequency) === $value ? 'checked' : '' }}
+                                           class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300">
+                                    <span class="ml-2 text-sm text-gray-900">{{ $label }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                        @error('payroll_frequency')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <label for="cutoff_day_1" class="block text-sm font-medium text-gray-700 mb-2">Cutoff Day 1</label>
+                            <input type="number" name="cutoff_day_1" id="cutoff_day_1" min="1" max="31"
+                                   value="{{ old('cutoff_day_1', $company->cutoff_day_1) }}"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('cutoff_day_1') border-red-500 @enderror">
+                            @error('cutoff_day_1')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div>
+                            <label for="cutoff_day_2" class="block text-sm font-medium text-gray-700 mb-2">Cutoff Day 2</label>
+                            <input type="number" name="cutoff_day_2" id="cutoff_day_2" min="1" max="31"
+                                   value="{{ old('cutoff_day_2', $company->cutoff_day_2) }}"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('cutoff_day_2') border-red-500 @enderror">
+                            @error('cutoff_day_2')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div>
+                            <label for="payroll_release_offset" class="block text-sm font-medium text-gray-700 mb-2">Payroll Date Offset</label>
+                            <div class="relative">
+                                <input type="number" name="payroll_release_offset" id="payroll_release_offset" min="0" max="31"
+                                       value="{{ old('payroll_release_offset', $company->payroll_release_offset) }}"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('payroll_release_offset') border-red-500 @enderror">
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500">Days after cutoff</p>
+                            @error('payroll_release_offset')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-t border-gray-200 pt-6">
                     <div class="flex items-center">
                         <input type="checkbox" name="is_active" id="is_active" value="1" {{ old('is_active', $company->is_active) ? 'checked' : '' }}
                                class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
