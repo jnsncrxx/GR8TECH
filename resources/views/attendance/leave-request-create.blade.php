@@ -687,7 +687,8 @@ document.addEventListener('DOMContentLoaded', function() {
     function fetchOccupiedDates(empId) {
         if (!empId) return;
         
-        fetch(`/attendance/leave-management/balance?employee_id=${empId}&year=${currentYear}`)
+        const balanceUrl = @json(route('attendance.leave-management.balance'));
+        fetch(`${balanceUrl}?employee_id=${encodeURIComponent(empId)}&year=${encodeURIComponent(currentYear)}`)
             .then(response => response.json())
             .then(data => {
                 if (data.available_days) {
@@ -1087,7 +1088,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 balanceGrid.innerHTML = '<div class="col-span-3 text-center text-sm text-blue-700">Loading leave balance...</div>';
                 leaveBalanceContainer.classList.remove('hidden');
                 
-                fetch(`/attendance/leave-management/balance?employee_id=${empId}&year=${currentYear}`)
+                const balanceUrl = @json(route('attendance.leave-management.balance'));
+                fetch(`${balanceUrl}?employee_id=${encodeURIComponent(empId)}&year=${encodeURIComponent(currentYear)}`)
                     .then(response => response.json())
                     .then(data => {
                         if (data.leave_balance && data.available_days) {

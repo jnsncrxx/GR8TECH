@@ -53,6 +53,13 @@
         background-color: #fee2e2;
         border-color: #ef4444;
     }
+    .flatpickr-calendar { border-radius: .75rem; box-shadow: 0 20px 40px rgba(15,23,42,.18); overflow: hidden; }
+    .flatpickr-months, .flatpickr-weekdays { background: #fff; }
+    .flatpickr-day { border-radius: .375rem !important; }
+    .dark .flatpickr-calendar, .dark .flatpickr-months, .dark .flatpickr-weekdays,
+    .dark .flatpickr-days, .dark .dayContainer { background: #262626; color: #fff; }
+    .dark .flatpickr-day, .dark .flatpickr-weekday, .dark .flatpickr-current-month,
+    .dark .flatpickr-monthDropdown-months, .dark .numInputWrapper input { color: #fff; }
 </style>
 <div class="space-y-6">
     <!-- Header -->
@@ -469,7 +476,12 @@
                                 @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
-                                @if($displayStatus === 'pending')
+                                @if($displayStatus === 'pending' && $request->employee_id === $currentEmployeeId)
+                                <div class="flex space-x-2 justify-center">
+                                    <button type="button" onclick="openOvertimeEditModal({{ Illuminate\Support\Js::from(['id' => $request->id, 'date' => $request->date->format('Y-m-d'), 'start_time' => \Carbon\Carbon::parse($request->start_time)->format('H:i'), 'end_time' => \Carbon\Carbon::parse($request->end_time)->format('H:i'), 'reason' => $request->reason]) }})" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-violet-200 bg-violet-50 text-violet-600 hover:bg-violet-100" title="Edit pending overtime"><i class="fas fa-pen"></i></button>
+                                    <button type="button" onclick="cancelOvertime('{{ $request->id }}')" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100" title="Cancel pending overtime"><i class="fas fa-ban"></i></button>
+                                </div>
+                                @elseif($displayStatus === 'pending' && $isReviewer)
                                 <div class="flex space-x-2 justify-center">
                                     <button onclick="approveOvertime('{{ $request->id }}')" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors" title="Approve">
                                         <i class="fas fa-check"></i>
@@ -631,7 +643,12 @@
                                 <div class="text-xs text-gray-500">{{ \Carbon\Carbon::parse($request->approved_at)->format('M d, Y h:i A') }}</div>
                             @endif
                         </div>
-                        @if($isReviewer && $displayStatus === 'pending')
+                        @if($displayStatus === 'pending' && $request->employee_id === $currentEmployeeId)
+                        <div class="flex justify-end space-x-2">
+                            <button type="button" onclick="openOvertimeEditModal({{ Illuminate\Support\Js::from(['id' => $request->id, 'date' => $request->date->format('Y-m-d'), 'start_time' => \Carbon\Carbon::parse($request->start_time)->format('H:i'), 'end_time' => \Carbon\Carbon::parse($request->end_time)->format('H:i'), 'reason' => $request->reason]) }})" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-violet-200 bg-violet-50 text-violet-600" title="Edit pending overtime"><i class="fas fa-pen"></i></button>
+                            <button type="button" onclick="cancelOvertime('{{ $request->id }}')" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600" title="Cancel pending overtime"><i class="fas fa-ban"></i></button>
+                        </div>
+                        @elseif($isReviewer && $displayStatus === 'pending')
                         <div class="flex justify-end space-x-2">
                             <button onclick="approveOvertime('{{ $request->id }}')" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors" title="Approve">
                                 <i class="fas fa-check"></i>
@@ -674,7 +691,7 @@
     <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" style="max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
         <div class="mt-3">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-medium text-gray-900">Apply for Overtime</h3>
+                <h3 id="overtimeModalTitle" class="text-lg font-medium text-gray-900">Apply for Overtime</h3>
                 <button onclick="closeOvertimeModal()" class="text-gray-400 hover:text-gray-600">
                     <i class="fas fa-times"></i>
                 </button>
@@ -682,6 +699,7 @@
             
             <form id="overtimeForm" class="space-y-4">
                 @csrf
+                <input type="hidden" id="overtimeEditRequestId" value="">
                 <div>
                     <label for="overtimeDate" class="block text-sm font-medium text-gray-700 mb-2">Date</label>
                     <input type="date" id="overtimeDate" name="date" required 
@@ -723,7 +741,7 @@
                             class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
                         Cancel
                     </button>
-                    <button type="submit" 
+                    <button id="overtimeSubmitButton" type="submit"
                             class="px-4 py-2 bg-blue-600 border border-transparent rounded-lg text-white hover:bg-blue-700 transition-colors">
                         <i class="fas fa-paper-plane mr-2"></i>
                         Submit Request
@@ -797,6 +815,8 @@
     </div>
 </div>
 
+@endif
+
 <!-- Overtime Cancel Modal -->
 <div id="overtimeCancelModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999;" onclick="closeCancelModal()">
     <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" style="max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
@@ -809,7 +829,7 @@
             </div>
             <form id="overtimeCancelForm" class="space-y-4">
                 <div>
-                    <p class="text-sm text-gray-600 mb-4">Cancel this approved overtime request? This reverses it.</p>
+                    <p class="text-sm text-gray-600 mb-4">Are you sure you want to cancel this overtime request?</p>
                     <label for="cancelReason" class="block text-sm font-medium text-gray-700 mb-2">Cancellation reason <span class="text-gray-400 font-normal">(optional)</span></label>
                     <textarea id="cancelReason" rows="3" maxlength="500"
                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
@@ -830,7 +850,6 @@
         </div>
     </div>
 </div>
-@endif
 
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>
@@ -897,6 +916,9 @@ function openOvertimeModal() {
         const form = document.getElementById('overtimeForm');
         if (form) {
             form.reset();
+            document.getElementById('overtimeEditRequestId').value = '';
+            document.getElementById('overtimeModalTitle').textContent = 'Apply for Overtime';
+            document.getElementById('overtimeSubmitButton').lastChild.textContent = ' Submit Request';
             console.log('Form reset successfully');
         } else {
             console.error('Form not found inside modal');
@@ -941,8 +963,12 @@ async function submitOvertimeRequest(event) {
     }
     
     try {
-        const response = await fetch('{{ route("attendance.overtime.store") }}', {
-            method: 'POST',
+        const editId = document.getElementById('overtimeEditRequestId').value;
+        const url = editId
+            ? '{{ route("attendance.overtime.update-pending", ["id" => ":id"]) }}'.replace(':id', editId)
+            : '{{ route("attendance.overtime.store") }}';
+        const response = await fetch(url, {
+            method: editId ? 'PUT' : 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': '{{ csrf_token() }}'
@@ -965,6 +991,17 @@ async function submitOvertimeRequest(event) {
         console.error('Error submitting overtime request:', error);
         showError('Failed to submit overtime request');
     }
+}
+
+function openOvertimeEditModal(request) {
+    openOvertimeModal();
+    document.getElementById('overtimeEditRequestId').value = request.id;
+    document.getElementById('overtimeModalTitle').textContent = 'Edit Pending Overtime';
+    document.getElementById('overtimeSubmitButton').lastChild.textContent = ' Update Request';
+    document.getElementById('overtimeDate')._flatpickr?.setDate(request.date, true);
+    document.getElementById('startTime').value = request.start_time;
+    document.getElementById('endTime').value = request.end_time;
+    document.getElementById('overtimeReason').value = request.reason;
 }
 
 // Add form submit event listener and button click listener

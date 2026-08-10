@@ -408,4 +408,59 @@ class AutoOvertimeReminderTest extends TestCase
         $response->assertSee('pending-ot-reminders-container');
         $response->assertSee('hours-progress-container');
     }
+
+    public function test_owner_can_edit_pending_overtime(): void
+    {
+        Carbon::setTestNow('2026-08-11 09:00:00');
+        AttendanceRecord::create([
+            'employee_id' => $this->employee->id,
+            'date' => '2026-08-11',
+            'time_in' => '2026-08-11 08:00:00',
+            'time_out' => '2026-08-11 18:00:00',
+            'status' => AttendanceRecord::PRESENT,
+        ]);
+        $overtime = OvertimeRequest::create([
+            'employee_id' => $this->employee->id,
+            'date' => '2026-08-11',
+            'start_time' => '2026-08-11 17:00:00',
+            'end_time' => '2026-08-11 18:00:00',
+            'hours' => 1,
+            'rate_multiplier' => 1.5,
+            'reason' => 'Original OT',
+            'status' => OvertimeRequest::PENDING,
+        ]);
+
+        $this->actingAs($this->account)->withSession(['current_company_id' => $this->company->id])
+            ->putJson('/overtime/'.$overtime->id, [
+                'date' => '2026-08-11',
+                'start_time' => '17:00',
+                'end_time' => '19:00',
+                'reason' => 'Corrected OT',
+            ])->assertOk();
+
+        $this->assertSame('Corrected OT', $overtime->fresh()->reason);
+        $this->assertSame('2.00', $overtime->fresh()->hours);
+    }
+
+    public function test_owner_can_cancel_pending_overtime(): void
+    {
+        $overtime = OvertimeRequest::create([
+            'employee_id' => $this->employee->id,
+            'date' => '2026-08-11',
+            'start_time' => '2026-08-11 17:00:00',
+            'end_time' => '2026-08-11 18:00:00',
+            'hours' => 1,
+            'rate_multiplier' => 1.5,
+            'reason' => 'Pending OT to cancel',
+            'status' => OvertimeRequest::PENDING,
+        ]);
+
+        $this->actingAs($this->account)->withSession(['current_company_id' => $this->company->id])
+            ->deleteJson('/overtime/'.$overtime->id.'/cancel', [
+                'cancellation_reason' => 'Filed with the wrong hours',
+            ])->assertOk();
+
+        $this->assertSame(OvertimeRequest::CANCELED, $overtime->fresh()->status);
+        $this->assertSame('Filed with the wrong hours', $overtime->fresh()->rejection_reason);
+    }
 }

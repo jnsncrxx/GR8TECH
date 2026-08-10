@@ -548,7 +548,11 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                                 <div class="flex justify-center items-center space-x-2">
-                                    @if($ob->isPending() && $isReviewer && $ob->employee_id !== $currentEmployeeId)
+                                    @if($ob->isPending() && $ob->employee_id === $currentEmployeeId)
+                                        <button type="button" onclick="openObEditModal({{ Illuminate\Support\Js::from(['id' => $ob->id, 'date' => $ob->date->format('Y-m-d'), 'start_time' => \Carbon\Carbon::parse($ob->ob_start_time)->format('H:i'), 'end_time' => \Carbon\Carbon::parse($ob->ob_end_time)->format('H:i'), 'reason' => $ob->reason]) }})"
+                                                class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-violet-200 bg-violet-50 text-violet-600 hover:bg-violet-100 transition-colors" title="Edit pending OB request"><i class="fas fa-pen"></i></button>
+                                        <button onclick="cancelOb('{{ $ob->id }}', false)" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors" title="Cancel"><i class="fas fa-ban"></i></button>
+                                    @elseif($ob->isPending() && $isReviewer && $ob->employee_id !== $currentEmployeeId)
                                         <button onclick="approveOb('{{ $ob->id }}')"
                                                 class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-900 transition-colors"
                                                 title="Approve">
@@ -558,14 +562,6 @@
                                                 class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900 transition-colors"
                                                 title="Reject">
                                             <i class="fas fa-times"></i>
-                                        </button>
-                                    @elseif($ob->isPending() && $isReviewer)
-                                        <span class="text-xs text-gray-400 italic">Your own request</span>
-                                    @elseif($ob->isPending())
-                                        <button onclick="cancelOb('{{ $ob->id }}', false)"
-                                                class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-900 transition-colors"
-                                                title="Cancel">
-                                            <i class="fas fa-ban"></i>
                                         </button>
                                     @elseif($ob->isApproved() && $isReviewer)
                                         <button onclick="cancelOb('{{ $ob->id }}', true)"
@@ -724,7 +720,11 @@
                         ])
                         @if($ob->isPending() || ($ob->isApproved() && $isReviewer) || ($ob->canBeResubmitted() && $ob->employee_id === $currentEmployeeId))
                         <div class="flex justify-end items-center space-x-2">
-                            @if($ob->isPending() && $isReviewer && $ob->employee_id !== $currentEmployeeId)
+                            @if($ob->isPending() && $ob->employee_id === $currentEmployeeId)
+                                <button type="button" onclick="openObEditModal({{ Illuminate\Support\Js::from(['id' => $ob->id, 'date' => $ob->date->format('Y-m-d'), 'start_time' => \Carbon\Carbon::parse($ob->ob_start_time)->format('H:i'), 'end_time' => \Carbon\Carbon::parse($ob->ob_end_time)->format('H:i'), 'reason' => $ob->reason]) }})"
+                                        class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-violet-200 bg-violet-50 text-violet-600" title="Edit pending OB request"><i class="fas fa-pen"></i></button>
+                                <button onclick="cancelOb('{{ $ob->id }}', false)" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600" title="Cancel"><i class="fas fa-ban"></i></button>
+                            @elseif($ob->isPending() && $isReviewer && $ob->employee_id !== $currentEmployeeId)
                                 <button onclick="approveOb('{{ $ob->id }}')"
                                         class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
                                         title="Approve">
@@ -734,14 +734,6 @@
                                         class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
                                         title="Reject">
                                     <i class="fas fa-times"></i>
-                                </button>
-                            @elseif($ob->isPending() && $isReviewer)
-                                <span class="text-xs text-gray-400 italic">Your own request</span>
-                            @elseif($ob->isPending())
-                                <button onclick="cancelOb('{{ $ob->id }}', false)"
-                                        class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors"
-                                        title="Cancel">
-                                    <i class="fas fa-ban"></i>
                                 </button>
                             @elseif($ob->isApproved() && $isReviewer)
                                 <button onclick="cancelOb('{{ $ob->id }}', true)"
@@ -778,7 +770,7 @@
     <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" style="max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
         <div class="mt-3">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-medium text-gray-900">Request Official Business</h3>
+                <h3 id="obModalTitle" class="text-lg font-medium text-gray-900">Request Official Business</h3>
                 <button onclick="closeObModal()" class="text-gray-400 hover:text-gray-600">
                     <i class="fas fa-times"></i>
                 </button>
@@ -786,6 +778,8 @@
 
             <form id="obForm" method="POST" action="{{ route('attendance.official-business.store') }}" class="space-y-4">
                 @csrf
+                <input type="hidden" id="obEditRequestId" value="">
+                <input type="hidden" id="obReplaceRequestId" name="replace_request_id" value="">
                 <div>
                     <label for="obDate" class="block text-sm font-medium text-gray-700 mb-2">Date</label>
                     <input type="date" id="obDate" name="date" required
@@ -855,13 +849,33 @@
                             class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
                         Cancel
                     </button>
-                    <button type="submit"
+                    <button id="obSubmitButton" type="submit"
                             class="px-4 py-2 bg-blue-600 border border-transparent rounded-lg text-white hover:bg-blue-700 transition-colors">
                         <i class="fas fa-paper-plane mr-2"></i>
                         Submit Request
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<div id="obOverlapModal" class="fixed inset-0 z-[10020] hidden items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onclick="if(event.target === this) closeObOverlapModal()">
+    <div class="w-full max-w-lg rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-neutral-800" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-slate-700">
+            <h3 class="flex items-center gap-3 text-lg font-semibold text-gray-900 dark:text-white"><i class="fas fa-exclamation-triangle text-amber-500"></i>Overlapping OB Request</h3>
+            <button type="button" onclick="closeObOverlapModal()" class="text-gray-400 hover:text-gray-700 dark:hover:text-white"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="space-y-4 p-6">
+            <p class="text-sm leading-6 text-gray-600 dark:text-gray-200">Your new time range overlaps an existing pending Official Business request. Replace it without re-entering the form?</p>
+            <div id="obOverlapList" class="space-y-2"></div>
+            <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200">
+                Only a pending request can be replaced. An approved request cannot be modified.
+            </div>
+        </div>
+        <div class="flex flex-wrap justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-slate-700">
+            <button type="button" onclick="closeObOverlapModal()" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 dark:border-slate-600 dark:bg-neutral-700 dark:text-white">Cancel</button>
+            <button type="button" onclick="replaceAndSubmitOb()" class="rounded-lg border border-green-600 bg-green-600 px-4 py-2 text-sm font-semibold !text-white hover:bg-green-700"><i class="fas fa-exchange-alt mr-2"></i>Replace &amp; Submit</button>
         </div>
     </div>
 </div>
@@ -999,11 +1013,6 @@ document.addEventListener('DOMContentLoaded', function () {
         altInput: true,
         altFormat: 'F j, Y',
         disableMobile: true,
-        disable: [
-            function (date) {
-                return getOccupiedOb(date) !== null;
-            }
-        ],
         onDayCreate: function (_dObj, _dStr, _instance, dayElem) {
             const occupied = getOccupiedOb(dayElem.dateObj);
 
@@ -1152,6 +1161,10 @@ function openObModal() {
     modal.style.justifyContent = 'center';
     const form = document.getElementById('obForm');
     if (form) form.reset();
+    document.getElementById('obEditRequestId').value = '';
+    document.getElementById('obReplaceRequestId').value = '';
+    document.getElementById('obModalTitle').textContent = 'Request Official Business';
+    document.getElementById('obSubmitButton').lastChild.textContent = ' Submit Request';
     if (window.obDatePicker) window.obDatePicker.clear();
     updateObDuration();
     checkObCutoffWarning();
@@ -1165,12 +1178,79 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('obEndTime')?.addEventListener('change', updateObDuration);
     document.getElementById('obDate')?.addEventListener('change', checkObCutoffWarning);
 
-    obForm.addEventListener('submit', function (e) {
+    obForm.addEventListener('submit', async function (e) {
+        e.preventDefault();
         if (!updateObDuration()) {
-            e.preventDefault();
+            return;
         }
+
+        const editId = document.getElementById('obEditRequestId').value;
+        const url = editId
+            ? '{{ route("attendance.official-business.update-pending", ["id" => ":id"]) }}'.replace(':id', editId)
+            : obForm.action;
+        const payload = Object.fromEntries(new FormData(obForm));
+
+        const response = await fetch(url, {
+            method: editId ? 'PUT' : 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            },
+            body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+
+        if (response.ok) {
+            window.location.reload();
+            return;
+        }
+        if (response.status === 409 && result.overlap) {
+            showObOverlapModal(result.replaceable_requests || []);
+            return;
+        }
+        const validationError = result.errors ? Object.values(result.errors).flat()[0] : null;
+        if (typeof showError === 'function') showError(result.error || validationError || result.message || 'Unable to save the request.');
     });
 });
+
+function openObEditModal(request) {
+    openObModal();
+    document.getElementById('obEditRequestId').value = request.id;
+    document.getElementById('obModalTitle').textContent = 'Edit Pending Official Business';
+    document.getElementById('obSubmitButton').lastChild.textContent = ' Update Request';
+    window.obDatePicker?.setDate(request.date, true);
+    document.getElementById('obStartTime').value = request.start_time;
+    document.getElementById('obEndTime').value = request.end_time;
+    document.getElementById('obReason').value = request.reason;
+    updateObDuration();
+}
+
+function showObOverlapModal(requests) {
+    const list = document.getElementById('obOverlapList');
+    list.innerHTML = requests.map((request, index) => `
+        <label class="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-gray-200 p-4 dark:border-slate-600">
+            <span class="text-sm text-gray-800 dark:text-gray-100"><strong>${request.date}</strong><br>${request.start_time}–${request.end_time}</span>
+            <span class="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-300"><input type="radio" name="ob_overlap_choice" value="${request.id}" ${index === 0 ? 'checked' : ''}> Replace this</span>
+        </label>`).join('');
+    const modal = document.getElementById('obOverlapModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeObOverlapModal() {
+    const modal = document.getElementById('obOverlapModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function replaceAndSubmitOb() {
+    const selected = document.querySelector('input[name="ob_overlap_choice"]:checked');
+    if (!selected) return;
+    document.getElementById('obReplaceRequestId').value = selected.value;
+    closeObOverlapModal();
+    document.getElementById('obForm').requestSubmit();
+}
 
 function closeObModal() {
     const modal = document.getElementById('obModal');

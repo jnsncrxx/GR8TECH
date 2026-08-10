@@ -549,6 +549,7 @@ Route::prefix('loans')->name('loans.')->middleware('auth')->group(function () {
     Route::get('/overtime', [App\Http\Controllers\Web\OvertimeController::class, 'index'])->name('attendance.overtime');
     Route::get('/overtime/export/{format}', [App\Http\Controllers\Web\OvertimeController::class, 'exportOvertime'])->name('attendance.overtime.export');
     Route::post('/overtime', [App\Http\Controllers\Web\OvertimeController::class, 'store'])->name('attendance.overtime.store');
+    Route::put('/overtime/{id}', [App\Http\Controllers\Web\OvertimeController::class, 'updatePending'])->name('attendance.overtime.update-pending');
     Route::post('/overtime/{id}/resubmit', [App\Http\Controllers\Web\OvertimeController::class, 'resubmit'])->name('attendance.overtime.resubmit');
     Route::post('/overtime/quick-submit', [App\Http\Controllers\Web\OvertimeController::class, 'quickSubmit'])->name('attendance.overtime.quick-submit');
     Route::post('/overtime/dismiss-reminder/{id}', [App\Http\Controllers\Web\OvertimeController::class, 'dismissReminder'])->name('attendance.overtime.dismiss-reminder');
@@ -576,6 +577,7 @@ Route::prefix('loans')->name('loans.')->middleware('auth')->group(function () {
     Route::get('/official-business', [App\Http\Controllers\Web\OfficialBusinessController::class, 'index'])->name('attendance.official-business');
     Route::get('/official-business/export/{format}', [App\Http\Controllers\Web\OfficialBusinessController::class, 'exportOfficialBusiness'])->name('attendance.official-business.export');
     Route::post('/official-business', [App\Http\Controllers\Web\OfficialBusinessController::class, 'store'])->name('attendance.official-business.store');
+    Route::put('/official-business/{id}', [App\Http\Controllers\Web\OfficialBusinessController::class, 'updatePending'])->name('attendance.official-business.update-pending');
     Route::post('/official-business/{id}/resubmit', [App\Http\Controllers\Web\OfficialBusinessController::class, 'resubmit'])->name('attendance.official-business.resubmit');
     Route::delete('/official-business/{id}/cancel', [App\Http\Controllers\Web\OfficialBusinessController::class, 'cancel'])->name('attendance.official-business.cancel');
     Route::get('/official-business/statistics', [App\Http\Controllers\Web\OfficialBusinessController::class, 'getStatistics'])->name('attendance.official-business.statistics');

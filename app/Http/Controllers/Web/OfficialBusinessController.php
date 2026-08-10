@@ -376,6 +376,7 @@ class OfficialBusinessController extends Controller
                 'date_format:H:i',
                 'after:ob_start_time',
             ],
+            'replace_request_id' => ['nullable', 'uuid'],
         ]);
 
         $employeeId = $this->currentEmployeeId();
@@ -462,8 +463,8 @@ class OfficialBusinessController extends Controller
                 ->whereNotNull('ob_end_time')
                 ->get();
 
-        $overlappingRequest =
-            $existingRequests->contains(
+        $overlappingRequests =
+            $existingRequests->filter(
                 function (
                     OfficialBusinessRequest $existing
                 ) use (
@@ -488,19 +489,57 @@ class OfficialBusinessController extends Controller
                 }
             );
 
-        if ($overlappingRequest) {
-            return back()
-                ->withInput()
-                ->with(
-                    'error',
-                    'This Official Business request overlaps with an existing pending or approved OB request.'
-                );
+        if ($overlappingRequests->isNotEmpty()) {
+            $approvedOverlap = $overlappingRequests->firstWhere('status', OfficialBusinessRequest::APPROVED);
+            if ($approvedOverlap) {
+                $message = 'This request overlaps an approved Official Business request and cannot replace it.';
+                return $request->expectsJson()
+                    ? response()->json(['error' => $message], 422)
+                    : back()->withInput()->with('error', $message);
+            }
+
+            $replaceId = $validated['replace_request_id'] ?? null;
+            $replaceable = $overlappingRequests->first(fn ($existing) =>
+                $existing->status === OfficialBusinessRequest::PENDING
+                && $existing->id === $replaceId
+            );
+
+            if (!$replaceable) {
+                $payload = $overlappingRequests
+                    ->where('status', OfficialBusinessRequest::PENDING)
+                    ->map(fn ($existing) => [
+                        'id' => $existing->id,
+                        'date' => $existing->date->format('M d, Y'),
+                        'start_time' => Carbon::parse($existing->ob_start_time)->format('h:i A'),
+                        'end_time' => Carbon::parse($existing->ob_end_time)->format('h:i A'),
+                        'status' => $existing->status,
+                    ])->values();
+
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'error' => 'This request overlaps an existing pending Official Business request.',
+                        'overlap' => true,
+                        'replaceable_requests' => $payload,
+                    ], 409);
+                }
+
+                return back()->withInput()->with('error', 'This request overlaps an existing pending Official Business request.');
+            }
         }
 
         $period = $this->cutoffPeriods
             ->periodFor($obDate);
 
-        OfficialBusinessRequest::create([
+        $created = DB::transaction(function () use ($employeeId, $obDate, $startTime, $endTime, $validated, $period, $overlappingRequests) {
+            $replaceId = $validated['replace_request_id'] ?? null;
+            if ($replaceId) {
+                $overlappingRequests->firstWhere('id', $replaceId)?->update([
+                    'status' => OfficialBusinessRequest::CANCELLED,
+                    'rejection_reason' => 'Replaced by a corrected pending Official Business request.',
+                ]);
+            }
+
+            return OfficialBusinessRequest::create([
             'employee_id' => $employeeId,
 
             'date' => $obDate,
@@ -524,7 +563,17 @@ class OfficialBusinessController extends Controller
             'expires_at' => now()->addHours(OfficialBusinessRequest::EXPIRY_WINDOW_HOURS),
 
             'created_by' => Auth::id(),
-        ]);
+            ]);
+        });
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => ($validated['replace_request_id'] ?? null)
+                    ? 'Pending Official Business request replaced and submitted successfully.'
+                    : 'Official Business request submitted. Waiting for approval.',
+                'request' => $created,
+            ]);
+        }
 
         return redirect()
             ->route(
@@ -534,6 +583,61 @@ class OfficialBusinessController extends Controller
                 'success',
                 'Official Business request submitted. Waiting for approval.'
             );
+    }
+
+    public function updatePending(Request $request, string $id)
+    {
+        $obRequest = $this->currentCompanyObOrFail($id);
+        if ($obRequest->employee_id !== $this->currentEmployeeId()) {
+            abort(403, 'You may only edit your own Official Business request.');
+        }
+        if (!$obRequest->isPending()) {
+            return response()->json(['error' => 'Only pending Official Business requests can be edited.'], 422);
+        }
+
+        $validated = $request->validate([
+            'date' => ['required', 'date'],
+            'ob_start_time' => ['required', 'date_format:H:i'],
+            'ob_end_time' => ['required', 'date_format:H:i', 'after:ob_start_time'],
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
+        $date = $this->normalizeDate($validated['date']);
+        $start = $this->normalizeTime($validated['ob_start_time']);
+        $end = $this->normalizeTime($validated['ob_end_time']);
+        $newInterval = $this->createInterval($date, $start, $end);
+
+        if (!$this->cutoffPeriods->isOpenForAction($date)
+            || app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($obRequest->employee_id, $date)) {
+            return response()->json(['error' => 'Official Business cannot be edited outside an open payroll cutoff period.'], 422);
+        }
+        $conflicts = app(\App\Services\PayrollRequestConflictService::class);
+        if ($conflicts->leaveOnDate($obRequest->employee_id, $date)
+            || $conflicts->overtimeOnDate($obRequest->employee_id, $date)) {
+            return response()->json(['error' => 'The updated request conflicts with an existing Leave or Overtime request.'], 422);
+        }
+
+        $hasOverlap = OfficialBusinessRequest::query()
+            ->where('employee_id', $obRequest->employee_id)
+            ->whereKeyNot($obRequest->id)
+            ->whereDate('date', $date)
+            ->whereIn('status', [OfficialBusinessRequest::PENDING, OfficialBusinessRequest::APPROVED])
+            ->get()
+            ->contains(function ($existing) use ($date, $newInterval) {
+                $interval = $this->createInterval($date, $existing->ob_start_time, $existing->ob_end_time);
+                return $newInterval['start']->lt($interval['end']) && $newInterval['end']->gt($interval['start']);
+            });
+        if ($hasOverlap) {
+            return response()->json(['error' => 'The updated time overlaps another pending or approved OB request.'], 422);
+        }
+
+        $obRequest->update([
+            'date' => $date,
+            'ob_start_time' => $start,
+            'ob_end_time' => $end,
+            'reason' => trim($validated['reason']),
+        ]);
+
+        return response()->json(['message' => 'Official Business request updated successfully.']);
     }
 
     /**

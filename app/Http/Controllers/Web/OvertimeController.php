@@ -229,6 +229,67 @@ class OvertimeController extends Controller
             return response()->json(['error' => 'Failed to submit overtime request: ' . $e->getMessage()], 500);
         }
     }
+
+    public function updatePending(Request $request, string $id)
+    {
+        $user = Auth::user();
+        $overtime = $this->currentCompanyOvertimeOrFail($id);
+
+        if (!$user->employee_id || $overtime->employee_id !== $user->employee_id) {
+            return response()->json(['error' => 'You may only edit your own overtime request.'], 403);
+        }
+        if ($overtime->status !== \App\Models\OvertimeRequest::PENDING) {
+            return response()->json(['error' => 'Only pending overtime requests can be edited.'], 422);
+        }
+
+        $validated = $request->validate([
+            'date' => ['required', 'date'],
+            'start_time' => ['required'],
+            'end_time' => ['required'],
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        if (\App\Models\OvertimeRequest::query()
+            ->where('employee_id', $user->employee_id)
+            ->whereKeyNot($overtime->id)
+            ->whereDate('date', $validated['date'])
+            ->whereIn('status', [\App\Models\OvertimeRequest::PENDING, \App\Models\OvertimeRequest::APPROVED])
+            ->exists()) {
+            return response()->json(['error' => 'Another pending or approved overtime request already exists for this date.'], 422);
+        }
+
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForDate($user->employee_id, $validated['date'])) {
+            return response()->json(['error' => 'Overtime cannot be edited for a locked payroll period.'], 422);
+        }
+
+        $conflicts = app(\App\Services\PayrollRequestConflictService::class);
+        if ($conflicts->leaveOnDate($user->employee_id, $validated['date'])
+            || $conflicts->officialBusinessOnDate($user->employee_id, $validated['date'])) {
+            return response()->json(['error' => 'The updated overtime conflicts with an existing Leave or Official Business request.'], 422);
+        }
+        if (!\App\Models\AttendanceRecord::query()
+            ->where('employee_id', $user->employee_id)
+            ->whereDate('date', $validated['date'])
+            ->exists()) {
+            return response()->json(['error' => 'Overtime can only be requested for a date with an attendance record.'], 422);
+        }
+
+        $start = Carbon::parse($validated['date'].' '.$validated['start_time']);
+        $end = Carbon::parse($validated['date'].' '.$validated['end_time']);
+        if ($end->lte($start)) {
+            $end->addDay();
+        }
+
+        $overtime->update([
+            'date' => $validated['date'],
+            'start_time' => $start,
+            'end_time' => $end,
+            'hours' => round($start->diffInMinutes($end) / 60, 2),
+            'reason' => trim($validated['reason']),
+        ]);
+
+        return response()->json(['message' => 'Overtime request updated successfully.']);
+    }
     
     public function updateStatus(Request $request, $id) 
     { 
@@ -318,7 +379,7 @@ class OvertimeController extends Controller
             $overtime->status,
             $dateLabel,
             $overtime->rejection_reason,
-            finalExpiration: $overtime->status === OvertimeRequest::EXPIRED && $overtime->isFinallyExpired(),
+            finalExpiration: $overtime->status === \App\Models\OvertimeRequest::EXPIRED && $overtime->isFinallyExpired(),
         ));
     }
 

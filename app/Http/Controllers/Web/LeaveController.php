@@ -238,13 +238,17 @@ class LeaveController extends Controller
         $endDate = $request->input('end_date');
         $excludeId = $request->input('exclude_id');
 
-        // For employees, use their own ID
-        if ($user->role === 'employee' && !$employeeId) {
+        // Personal request roles may only inspect their own leave calendar.
+        if (!in_array($user->role, ['admin', 'hr'], true)) {
             $employeeId = $user->employee?->id;
         }
 
         if (!$employeeId || !$startDate || !$endDate) {
             return response()->json(['error' => 'Missing required parameters'], 400);
+        }
+
+        if (!Employee::forCompany(CompanyHelper::getCurrentCompanyId())->whereKey($employeeId)->exists()) {
+            return response()->json(['error' => 'Employee not found for the active company.'], 404);
         }
 
         $overlappingLeaves = $this->getOverlappingLeaves($employeeId, $startDate, $endDate, $excludeId);
@@ -263,9 +267,9 @@ class LeaveController extends Controller
         }
 
         return response()->json([
-            'has_overlap' => $overlaps->count() > 0,
+            'has_overlap' => count($overlaps) > 0,
             'overlaps' => $overlaps,
-            'count' => $overlaps->count()
+            'count' => count($overlaps)
         ]);
     }
 
