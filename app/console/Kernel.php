@@ -15,6 +15,8 @@ class Kernel extends ConsoleKernel
     protected $commands = [
         // Register the payroll command
         \App\Console\Commands\RunPayrollGeneration::class,
+        // Auto-grant deferred SIL balances after 1-year regular anniversary
+        \App\Console\Commands\AutoGrantSilBalance::class,
     ];
 
     /**
@@ -27,6 +29,10 @@ class Kernel extends ConsoleKernel
 
         // Sweep overdue Official Business requests and mark them expired
         $schedule->command('ob:expire-overdue')->everyFifteenMinutes();
+
+        // Check daily whether any employee has completed their 1-year anniversary
+        // and activate deferred SIL leave balances for them.
+        $schedule->command('leave:auto-grant-sil')->dailyAt('00:05');
     }
 
     /**

@@ -85,11 +85,8 @@ class OvertimeController extends Controller
             \App\Models\OvertimeRequest::with(['employee.department', 'approver.employee'])
         );
 
-        if (($user->role ?? null) === 'manager') {
-            $query->orderByRaw("CASE WHEN status = 'pending' THEN 0 ELSE 1 END");
-        }
-
         $overtimeRequests = $query
+            ->orderByRaw("CASE WHEN status IN ('pending', 'expired') THEN 0 ELSE 1 END")
             ->orderBy('created_at', 'desc')
             ->paginate(10)
             ->withQueryString();

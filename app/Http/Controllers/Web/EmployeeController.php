@@ -996,7 +996,9 @@ class EmployeeController extends Controller
         $request->validate([
             'employee_id' => 'required|exists:employees,id',
             'documents' => 'required|array',
-            'documents.*' => 'required|file|max:10240',
+            'documents.*' => 'required|file|max:2048',
+        ], [
+            'documents.*.max' => 'The document must not exceed 2 MB.',
         ]);
 
         $employee = Employee::findOrFail($request->employee_id);

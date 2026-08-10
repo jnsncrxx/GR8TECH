@@ -66,7 +66,11 @@ class LeaveController extends Controller
         $isReviewer = in_array($user->role, ['admin', 'hr', 'manager'], true) && !$personalMode;
 
         $query = $this->applyFilters(LeaveRequest::with(['employee', 'approver']), $request, $user);
-        $leaveRequests = $query->orderBy('created_at', 'desc')->paginate(10)->withQueryString();
+        $leaveRequests = $query
+            ->orderByRaw("CASE WHEN status IN ('pending', 'expired') THEN 0 ELSE 1 END")
+            ->orderBy('created_at', 'desc')
+            ->paginate(10)
+            ->withQueryString();
 
         $summaryQuery = $this->applyFilters(LeaveRequest::query(), $request, $user);
         $summary = [
@@ -383,30 +387,43 @@ class LeaveController extends Controller
             }
         }
 
-        // Check leave balance
+        // Look up (or initialise) the leave balance.
+        // Unlike before, we no longer block the request when no balance exists:
+        // the employee's leave simply counts as unpaid increments.
         $leaveBalance = LeaveBalance::where('employee_id', $employee->id)
             ->where('year', Carbon::now()->year)
             ->first();
-
-        if (!$leaveBalance && $role === 'employee') {
-            return back()->with('error', 'Leave balance not configured. Please contact HR.');
-        }
 
         if ($leaveBalance && !$leaveBalance->hasEnoughBalance($data['leave_type'], $daysRequested)) {
             return back()->with('error', 'Insufficient leave balance for the selected leave type and duration.')
                 ->withInput();
         }
 
+        // Determine paid/unpaid status at submission time.
+        // A leave is paid when:
+        //   - A balance record exists AND is explicitly configured (is_balance_set = true)
+        //   - AND the leave type is one of the three paid types
+        //   - AND if it is SIL, the balance is not still deferred
+        $paidLeaveTypes = ['vacation', 'sick', 'sil'];
+        $isPaid = $leaveBalance
+            && ($leaveBalance->is_balance_set ?? false)
+            && in_array($data['leave_type'], $paidLeaveTypes, true)
+            && !(
+                $data['leave_type'] === 'sil'
+                && ($leaveBalance->sil_deferred ?? false)
+            );
+
         // Create the leave request
         LeaveRequest::create([
-            'employee_id' => $employee->id,
-            'leave_type' => $data['leave_type'],
-            'start_date' => $data['start_date'],
-            'end_date' => $data['end_date'],
+            'employee_id'  => $employee->id,
+            'leave_type'   => $data['leave_type'],
+            'start_date'   => $data['start_date'],
+            'end_date'     => $data['end_date'],
             'days_requested' => $daysRequested,
-            'reason' => $data['reason'],
-            'status' => 'pending',
-            'expires_at' => now()->addHours(LeaveRequest::EXPIRY_WINDOW_HOURS),
+            'reason'       => $data['reason'],
+            'status'       => 'pending',
+            'is_paid'      => $isPaid,
+            'expires_at'   => now()->addHours(LeaveRequest::EXPIRY_WINDOW_HOURS),
         ]);
 
         return redirect()->route('attendance.leave-management')
@@ -583,13 +600,19 @@ class LeaveController extends Controller
             'year'        => $year,
         ]);
 
+        // Initialise all fields on a brand-new record (is_balance_set stays false
+        // so leave remains treated as uncapped/unpaid).
         if (!$leaveBalance->exists) {
             foreach ($this->leaveTypes as $type) {
-                $leaveBalance->{$type . '_days_total'} = $leaveBalance->{$type . '_days_total'} ?? 0;
-                $leaveBalance->{$type . '_days_used'}  = $leaveBalance->{$type . '_days_used'}  ?? 0;
+                $leaveBalance->{$type . '_days_total'} = 0;
+                $leaveBalance->{$type . '_days_used'}  = 0;
             }
+            $leaveBalance->is_balance_set = false;
+            $leaveBalance->sil_deferred   = false;
         }
 
+        // Always increment usage so reporting is accurate regardless of
+        // whether a balance has been explicitly configured.
         $usedField = $leaveRequest->leave_type . '_days_used';
         $leaveBalance->{$usedField} = ($leaveBalance->{$usedField} ?? 0) + $leaveRequest->days_requested;
         $leaveBalance->save();
@@ -979,10 +1002,14 @@ class LeaveController extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-       $data = $request->validate(array_merge([
-            'employee_id' => ['required', 'string'],
-            'year' => ['required', 'integer'],
-        ], array_combine(array_map(fn($type) => "{$type}_days_total", $this->balanceLeaveTypes), array_fill(0, count($this->balanceLeaveTypes), ['required', 'integer', 'min:0']))));
+        $data = $request->validate(array_merge([
+            'employee_id'  => ['required', 'string'],
+            'year'         => ['required', 'integer'],
+            'sil_deferred' => ['sometimes', 'boolean'],
+        ], array_combine(
+            array_map(fn($type) => "{$type}_days_total", $this->balanceLeaveTypes),
+            array_fill(0, count($this->balanceLeaveTypes), ['required', 'integer', 'min:0'])
+        )));
 
         $employeeIds = [];
         if ($data['employee_id'] === 'all') {
@@ -998,20 +1025,29 @@ class LeaveController extends Controller
             abort_if(empty($employeeIds), 404);
         }
 
+        $silDeferred = filter_var($data['sil_deferred'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
         foreach ($employeeIds as $employeeId) {
             $balance = LeaveBalance::firstOrNew([
                 'employee_id' => $employeeId,
-                'year' => $data['year'],
+                'year'        => $data['year'],
             ]);
 
-            // Only Vacation/Sick/SIL get a settable total. Every other type
-            // is uncapped, so its total stays whatever it already was (or
-            // 0 on a new record) and is never required from this form.
-            foreach ($this->balanceLeaveTypes as $type) {
-                $balance->{"{$type}_days_total"} = $data["{$type}_days_total"] ?? 0;
-            }
+            // Mark this record as explicitly configured so leave becomes capped/paid.
+            $balance->is_balance_set = true;
+
+            // VL and SL are always applied immediately.
+            $balance->vacation_days_total = $data['vacation_days_total'] ?? 0;
+            $balance->sick_days_total     = $data['sick_days_total']     ?? 0;
+
+            // SIL: if deferred, store the total but keep it inactive until
+            // the auto-grant command flips sil_deferred = false.
+            $balance->sil_days_total = $data['sil_days_total'] ?? 0;
+            $balance->sil_deferred   = $silDeferred;
+
+            // Preserve existing used-day counts on updates; default 0 on new records.
             foreach ($this->leaveTypes as $type) {
-                $balance->{"{$type}_days_used"} = $balance->{"{$type}_days_used"} ?? 0;
+                $balance->{$type . '_days_used'} = $balance->{$type . '_days_used'} ?? 0;
             }
 
             $balance->save();
@@ -1032,9 +1068,20 @@ class LeaveController extends Controller
         if (!$balance) {
             return response()->json(['error' => 'Leave balance record not found'], 404);
         }
-        $data = $request->validate(array_combine(array_map(fn($type) => "{$type}_days_total", $this->balanceLeaveTypes), array_fill(0, count($this->balanceLeaveTypes), ['required', 'integer', 'min:0'])));
+        $data = $request->validate(array_merge(
+            array_combine(
+                array_map(fn($type) => "{$type}_days_total", $this->balanceLeaveTypes),
+                array_fill(0, count($this->balanceLeaveTypes), ['required', 'integer', 'min:0'])
+            ),
+            ['sil_deferred' => ['sometimes', 'boolean']]
+        ));
         foreach ($this->balanceLeaveTypes as $type) {
             $balance->{"{$type}_days_total"} = $data["{$type}_days_total"];
+        }
+        // Mark the record as explicitly configured.
+        $balance->is_balance_set = true;
+        if (array_key_exists('sil_deferred', $data)) {
+            $balance->sil_deferred = filter_var($data['sil_deferred'], FILTER_VALIDATE_BOOLEAN);
         }
         $balance->save();
         return response()->json(['success' => true, 'message' => 'Leave balance updated successfully.']);

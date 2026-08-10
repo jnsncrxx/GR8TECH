@@ -33,6 +33,7 @@ class Employee extends Model
         'hire_date',
         'employee_status',
         'contract_end_date',
+        'regularization_date',
         'company_id',
         'date_of_birth',
         'civil_status',
@@ -66,13 +67,14 @@ class Employee extends Model
     }
 
     protected $casts = [
-        'salary' => 'decimal:2',
-        'hire_date' => 'date',
-        'date_of_birth' => 'date',
-        'contract_end_date' => 'date',
-        'loan_start_date' => 'date',
-        'loan_end_date' => 'date',
-        'loan_total_amount' => 'decimal:2',
+        'salary'              => 'decimal:2',
+        'hire_date'           => 'date',
+        'regularization_date' => 'date',
+        'date_of_birth'       => 'date',
+        'contract_end_date'   => 'date',
+        'loan_start_date'     => 'date',
+        'loan_end_date'       => 'date',
+        'loan_total_amount'   => 'decimal:2',
         'loan_monthly_amortization' => 'decimal:2',
     ];
 
@@ -398,5 +400,34 @@ class Employee extends Model
     public function documents()
     {
         return $this->hasMany(Document::class);
+    }
+
+    /**
+     * Check if this employee has completed at least one year as a regular
+     * employee.
+     *
+     * Uses regularization_date if set, otherwise falls back to hire_date.
+     * Returns false when neither date is available.
+     */
+    public function hasCompletedOneYearAsRegular(): bool
+    {
+        $anchor = $this->regularization_date ?? $this->hire_date;
+
+        if (!$anchor) {
+            return false;
+        }
+
+        return \Carbon\Carbon::parse($anchor)->addYear()->isPast();
+    }
+
+    /**
+     * The date used as the anchor for the 1-year regular-employee rule.
+     * Returns regularization_date if set, otherwise hire_date.
+     */
+    public function regularAnchorDate(): ?\Carbon\Carbon
+    {
+        $date = $this->regularization_date ?? $this->hire_date;
+
+        return $date ? \Carbon\Carbon::parse($date) : null;
     }
 }

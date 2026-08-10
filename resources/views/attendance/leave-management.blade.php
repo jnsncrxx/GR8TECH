@@ -649,6 +649,22 @@
                 @endif
             </h3>
         </div>
+
+        @php
+            $balanceIsSet = $selectedEmployeeBalance && ($selectedEmployeeBalance->is_balance_set ?? false);
+        @endphp
+
+        @if(!$balanceIsSet)
+        <div class="mb-4 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
+            <i class="fas fa-info-circle mt-0.5 flex-shrink-0"></i>
+            <div>
+                <span class="font-semibold">No leave balance configured yet.</span>
+                All leave requests are currently <strong>unpaid</strong> and counted as used days only.
+                Once a manager or HR sets a leave balance, Vacation Leave, Sick Leave, and SIL will become paid and will show remaining balances.
+            </div>
+        </div>
+        @endif
+
         @if($selectedEmployeeBalance)
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             @php
@@ -666,7 +682,7 @@
                 ];
                 // VL, SL, and SIL are capped and always visible (even at 0)
                 $alwaysVisibleTypes = ['vacation', 'sick', 'sil'];
-                
+
                 $colorClasses = [
                     'blue'   => 'bg-blue-600',
                     'red'    => 'bg-red-600',
@@ -685,45 +701,94 @@
                     $total           = $selectedEmployeeBalance->$totalField ?? 0;
                     $used            = $selectedEmployeeBalance->$usedField  ?? 0;
                     $isCapped        = in_array($type, $alwaysVisibleTypes, true);
+
+                    // Determine per-card paid status
+                    $paidLeaveTypes  = ['vacation', 'sick', 'sil'];
+                    $isSilDeferred   = $type === 'sil' && ($selectedEmployeeBalance->sil_deferred ?? false);
+                    $isCardPaid      = $balanceIsSet
+                                       && in_array($type, $paidLeaveTypes, true)
+                                       && !$isSilDeferred;
+                    $remaining       = $selectedEmployeeBalance->getRemainingDays($type); // null when uncapped
                 @endphp
-                
-                
+
             <div class="border border-gray-200 rounded-lg p-4">
                 <div class="flex items-center justify-between mb-2">
                     <h4 class="font-medium text-gray-900 text-sm">{{ $config['label'] }}</h4>
-                    @if($isCapped)
+                    @if($isCapped && $isCardPaid)
                         <span class="text-sm text-gray-500">{{ $total }} days</span>
                     @endif
                 </div>
-                
-                @if(!$isCapped)
-                <div class="text-xs text-gray-500 mt-1">
-                    <span class="font-medium text-gray-900">{{ $used }}</span> days used
-                </div>
+
+                {{-- Paid / Unpaid / Pending SIL badge for VL/SL/SIL --}}
+                @if($isCapped)
+                    @if($isSilDeferred)
+                        <span class="inline-flex items-center gap-1 text-xs font-medium bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 mb-2">
+                            <i class="fas fa-clock text-amber-500"></i> Pending 1-year grant
+                        </span>
+                    @elseif($isCardPaid)
+                        <span class="inline-flex items-center gap-1 text-xs font-medium bg-green-100 text-green-700 rounded-full px-2 py-0.5 mb-2">
+                            <i class="fas fa-check-circle text-green-500"></i> Paid
+                        </span>
+                    @else
+                        <span class="inline-flex items-center gap-1 text-xs font-medium bg-gray-100 text-gray-600 rounded-full px-2 py-0.5 mb-2">
+                            <i class="fas fa-minus-circle text-gray-400"></i> Unpaid
+                        </span>
+                    @endif
+                @endif
+
+                @if(!$isCapped || $remaining === null)
+                    {{-- Uncapped / usage-only mode: show days used only --}}
+                    <div class="text-xs text-gray-500 mt-1">
+                        <span class="font-medium text-gray-900">{{ $used }}</span> days used
+                    </div>
                 @else
-                @php
-                    $remaining       = $total - $used;
-                    $percentage      = $total > 0 ? ($used / $total) * 100 : 0;
-                    $widthPercentage = min((float)$percentage, 100);
-                    $barColor        = $colorClasses[$config['color']] ?? 'bg-blue-600';
-                @endphp
-                <div class="w-full bg-gray-200 rounded-full h-2">
-                    <div class="{{ $barColor }} h-2 rounded-full transition-all" style="width: {{ $widthPercentage }}%"></div>
-                </div>
-                <div class="text-xs text-gray-500 mt-1">
-                    <span class="font-medium text-gray-900">{{ $used }}</span> days used,
-                    <span class="font-medium text-green-600">{{ max($remaining, 0) }}</span> remaining
-                </div>
+                    @php
+                        $percentage      = $total > 0 ? ($used / $total) * 100 : 0;
+                        $widthPercentage = min((float)$percentage, 100);
+                        $barColor        = $colorClasses[$config['color']] ?? 'bg-blue-600';
+                    @endphp
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="{{ $barColor }} h-2 rounded-full transition-all" style="width: {{ $widthPercentage }}%"></div>
+                    </div>
+                    <div class="text-xs text-gray-500 mt-1">
+                        <span class="font-medium text-gray-900">{{ $used }}</span> days used,
+                        <span class="font-medium text-green-600">{{ max($remaining, 0) }}</span> remaining
+                    </div>
                 @endif
             </div>
-            
+
             @endforeach
         </div>
         @else
-        <div class="text-center py-8 text-gray-500">
-            <i class="fas fa-info-circle text-4xl mb-4 text-gray-400"></i>
-            <p class="text-lg font-medium mb-2">No leave balance record found</p>
-            <p class="text-sm">This employee doesn't have a leave balance record for {{ now()->year }}.</p>
+        {{-- No balance record at all: show a usage-only placeholder --}}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            @php
+                $placeholderTypes = [
+                    'vacation'    => 'Vacation Leave',
+                    'sick'        => 'Sick Leave',
+                    'sil'         => 'SIL (Service Incentive Leave)',
+                    'personal'    => 'Personal Leave / Leave Without Pay',
+                    'emergency'   => 'Emergency Leave',
+                    'maternity'   => 'Maternity Leave',
+                    'paternity'   => 'Paternity Leave',
+                    'spl'         => 'Solo Parent Leave',
+                    'vawc'        => 'VAWC Leave',
+                    'bl'          => 'Bereavement Leave',
+                ];
+            @endphp
+            @foreach($placeholderTypes as $pType => $pLabel)
+            <div class="border border-dashed border-gray-300 rounded-lg p-4 bg-gray-50">
+                <div class="flex items-center justify-between mb-2">
+                    <h4 class="font-medium text-gray-700 text-sm">{{ $pLabel }}</h4>
+                </div>
+                <span class="inline-flex items-center gap-1 text-xs font-medium bg-gray-100 text-gray-500 rounded-full px-2 py-0.5 mb-2">
+                    <i class="fas fa-minus-circle"></i> Unpaid
+                </span>
+                <div class="text-xs text-gray-500 mt-1">
+                    <span class="font-medium text-gray-900">0</span> days used
+                </div>
+            </div>
+            @endforeach
         </div>
         @endif
     </div>
@@ -1197,25 +1262,46 @@ document.addEventListener('DOMContentLoaded', function() {
                         @php
                             $leaveTypes = [
                                 'vacation' => ['label' => 'Vacation Leave', 'default' => 15],
-                                'sick' => ['label' => 'Sick Leave', 'default' => 10],
-                                'sil' => ['label' => 'SIL (Service Incentive Leave)', 'default' => 5],
+                                'sick'     => ['label' => 'Sick Leave',     'default' => 10],
+                                'sil'      => ['label' => 'SIL (Service Incentive Leave)', 'default' => 5],
                             ];
-                            // Personal and Emergency are excluded here: they're incremental
-                            // (see LeaveRequest::UNCAPPED_LEAVE_TYPES) with no cap to set.
-                            // Maternity and Paternity are excluded here: not managed through
-                            // this bulk form, only settable another way.
                         @endphp
                         @foreach($leaveTypes as $type => $config)
-                        <div class="border border-gray-200 rounded-lg p-3">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">{{ $config['label'] }}</label>
-                            <input type="number"
-                                   name="{{ $type }}_days_total"
-                                   id="{{ $type }}_days_total"
-                                   min="0"
-                                   value="{{ $config['default'] }}"
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                   placeholder="Days">
-                        </div>
+                            @if($type === 'sil')
+                                <div class="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                                    <div class="border border-gray-200 rounded-lg p-3">
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ $config['label'] }}</label>
+                                        <input type="number"
+                                               name="{{ $type }}_days_total"
+                                               id="{{ $type }}_days_total"
+                                               min="0"
+                                               value="{{ $config['default'] }}"
+                                               class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                               placeholder="Days">
+                                    </div>
+                                    <div class="pl-1 sm:pl-0 sm:pt-4">
+                                        <label class="flex items-center gap-2 cursor-pointer select-none text-sm text-gray-700">
+                                            <input type="checkbox" id="sil_deferred_checkbox" name="sil_deferred" value="1"
+                                                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4">
+                                            <span>Defer to 1-year anniversary</span>
+                                        </label>
+                                        <p id="sil_deferred_hint" class="mt-1 text-xs text-amber-600 hidden">
+                                            <i class="fas fa-clock mr-1"></i>SIL will be held and activated after 1 year.
+                                        </p>
+                                    </div>
+                                </div>
+                            @else
+                                <div class="border border-gray-200 rounded-lg p-3">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ $config['label'] }}</label>
+                                    <input type="number"
+                                           name="{{ $type }}_days_total"
+                                           id="{{ $type }}_days_total"
+                                           min="0"
+                                           value="{{ $config['default'] }}"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                           placeholder="Days">
+                                </div>
+                            @endif
                         @endforeach
                     </div>
                 </div>
