@@ -55,6 +55,7 @@ class RequestStatusChanged extends Notification
         public string $status,           // 'approved' | 'rejected' | 'expired'
         public string $dateLabel,        // human-readable date/range for the request
         public ?string $rejectionReason = null,
+        public bool $finalExpiration = false,
     ) {}
 
     public function via(object $notifiable): array
@@ -72,7 +73,9 @@ class RequestStatusChanged extends Notification
             $message .= " Reason: {$this->rejectionReason}";
         }
         if ($this->status === 'expired') {
-            $message = "Your {$typeLabel} for {$this->dateLabel} expired before it was reviewed.";
+            $message = $this->finalExpiration
+                ? "Your resubmitted {$typeLabel} for {$this->dateLabel} has finally expired. It can no longer be re-requested."
+                : "Your {$typeLabel} for {$this->dateLabel} expired before it was reviewed. You may re-request it once for a final 24-hour review period.";
         }
 
         return [
@@ -87,6 +90,7 @@ class RequestStatusChanged extends Notification
             'icon' => self::STATUS_ICONS[$this->status] ?? 'fa-bell',
             'color' => self::STATUS_COLORS[$this->status] ?? 'blue',
             'url' => $this->urlFor($this->requestType),
+            'final_expiration' => $this->finalExpiration,
         ];
     }
 
