@@ -755,7 +755,9 @@ class HrController extends Controller
 
         $request->validate([
             'documents' => 'required|array',
-            'documents.*' => 'required|file|max:10240', // 10MB max
+            'documents.*' => 'required|file|max:2048', // 2MB max
+        ], [
+            'documents.*.max' => 'The document must not exceed 2 MB.',
         ]);
 
         if ($request->hasFile('documents')) {

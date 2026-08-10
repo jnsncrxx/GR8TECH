@@ -332,6 +332,8 @@
         <h2 class="text-xl font-bold mb-2 text-gray-900">Upload Document</h2>
         <p class="text-gray-500 text-sm mb-6">Select one or multiple files to upload.</p>
         
+        <div id="uploadErrorContainerHr" class="hidden bg-red-50 text-red-700 p-3 rounded-md border border-red-200 text-sm mb-4"></div>
+
         <form method="POST" action="{{ route('hr.my-information.documents.save') }}" enctype="multipart/form-data">
             @csrf
             <div class="mb-4">
@@ -353,7 +355,7 @@
                     file:text-sm file:font-semibold
                     file:bg-blue-50 file:text-blue-700
                     hover:file:bg-blue-100 file:cursor-pointer
-                ">
+                " onchange="validateFileSize(this)">
             </div>
             <div class="mt-8 flex justify-end gap-3 border-t border-gray-200 pt-4">
                 <button type="button" class="px-5 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors" onclick="document.getElementById('uploadModal').classList.remove('active')">Cancel</button>
@@ -372,6 +374,28 @@
             }
         });
     });
+
+    function validateFileSize(input) {
+        const maxSize = 2 * 1024 * 1024; // 2MB
+        const errorContainer = document.getElementById('uploadErrorContainerHr');
+        if (errorContainer) {
+            errorContainer.classList.add('hidden');
+            errorContainer.innerText = '';
+        }
+
+        if (input.files) {
+            for (let i = 0; i < input.files.length; i++) {
+                if (input.files[i].size > maxSize) {
+                    if (errorContainer) {
+                        errorContainer.innerText = 'The document must not exceed 2 MB.';
+                        errorContainer.classList.remove('hidden');
+                    }
+                    input.value = ''; // Clear the selected files
+                    return;
+                }
+            }
+        }
+    }
 </script>
 
 @endsection

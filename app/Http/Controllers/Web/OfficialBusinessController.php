@@ -188,15 +188,11 @@ class OfficialBusinessController extends Controller
         // their "needs action" queue isn't buried under already-reviewed ones.
         // HR/Admin (backup) keep the plain chronological view since they're
         // scanning everything, not just their own action items.
-        if ($reviewerRole === 'manager') {
-            $obRequests = $query
-                ->orderByRaw("CASE WHEN status = 'pending' THEN 0 ELSE 1 END")
-                ->orderBy('created_at', 'desc')
-                ->paginate(10)
-                ->withQueryString();
-        } else {
-            $obRequests = $query->orderBy('created_at', 'desc')->paginate(10)->withQueryString();
-        }
+        $obRequests = $query
+            ->orderByRaw("CASE WHEN status IN ('pending', 'expired') THEN 0 ELSE 1 END")
+            ->orderBy('created_at', 'desc')
+            ->paginate(10)
+            ->withQueryString();
 
         // Lazy-expire anything past its grace deadline that the sweep hasn't
         // caught yet, so what the reviewer/employee sees is always accurate.

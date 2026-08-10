@@ -77,10 +77,24 @@
         @endif
 
         <!-- Leave Balance Info -->
-        <div id="leaveBalanceContainer" class="bg-blue-50 border border-blue-200 rounded-lg p-4 {{ ($employee && $leaveBalance) ? '' : 'hidden' }}">
+        @php
+            $balanceIsSet = $employee && $leaveBalance && ($leaveBalance->is_balance_set ?? false);
+        @endphp
+
+        <div id="leaveBalanceContainer" class="bg-blue-50 border border-blue-200 rounded-lg p-4 {{ $employee ? '' : 'hidden' }}">
+            @if(!$balanceIsSet)
+            <div class="flex items-start gap-3 text-sm text-blue-800">
+                <i class="fas fa-info-circle mt-0.5 flex-shrink-0"></i>
+                <div>
+                    <span class="font-semibold">No leave balance configured yet.</span>
+                    All leave requests are currently <strong>unpaid</strong> and counted as used days only.
+                </div>
+            </div>
+            @endif
+
+            @if($employee && $leaveBalance && $balanceIsSet)
             <h3 class="text-sm font-medium text-blue-900 mb-3" id="balanceTitle">{{ in_array($user->role, ['admin', 'hr']) ? 'Employee Leave Balance' : 'Your Leave Balance' }}</h3>
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-3" id="balanceGrid">
-                @if($employee && $leaveBalance)
                 <div>
                     <div class="text-xs text-blue-700">Vacation</div>
                     <div class="text-sm font-semibold text-blue-900" id="balance-vacation">{{ $availableDays['vacation'] ?? 0 }} days</div>
@@ -89,12 +103,12 @@
                     <div class="text-xs text-blue-700">Sick</div>
                     <div class="text-sm font-semibold text-blue-900" id="balance-sick">{{ $availableDays['sick'] ?? 0 }} days</div>
                 </div>
-               <div>
+                <div>
                     <div class="text-xs text-blue-700">SIL</div>
                     <div class="text-sm font-semibold text-blue-900" id="balance-sil">{{ $availableDays['sil'] ?? 0 }} days</div>
                 </div>
-                @endif
             </div>
+            @endif
         </div>
 
         <!-- Form -->
@@ -140,11 +154,18 @@
                             <select name="leave_type" id="leave_type" required
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('leave_type') border-red-500 @enderror">
                                 <option value="">Select Leave Type</option>
-                                <option value="vacation" {{ old('leave_type') == 'vacation' ? 'selected' : '' }} {{ (isset($availableDays['vacation']) && $availableDays['vacation'] <= 0) ? 'disabled' : '' }}>Vacation Leave</option>
-                                <option value="sick" {{ old('leave_type') == 'sick' ? 'selected' : '' }} {{ (isset($availableDays['sick']) && $availableDays['sick'] <= 0) ? 'disabled' : '' }}>Sick Leave</option>
-                                <option value="sil" {{ old('leave_type') == 'sil' ? 'selected' : '' }} {{ (isset($availableDays['sil']) && $availableDays['sil'] <= 0) ? 'disabled' : '' }}>SIL (Service Incentive Leave)</option>
+                                @php
+                                    $vacationLabel = $balanceIsSet ? 'Vacation Leave (Paid)' : 'Vacation Leave (Unpaid)';
+                                    $sickLabel     = $balanceIsSet ? 'Sick Leave (Paid)' : 'Sick Leave (Unpaid)';
+                                    $silLabel      = $balanceIsSet && !($leaveBalance->sil_deferred ?? false) ? 'SIL (Paid)' : 'SIL (Unpaid)';
+                                    
+                                    // In usage-only mode (no balance set), nothing is disabled due to <= 0 days available.
+                                @endphp
+                                <option value="vacation" {{ old('leave_type') == 'vacation' ? 'selected' : '' }} {{ ($balanceIsSet && isset($availableDays['vacation']) && $availableDays['vacation'] <= 0) ? 'disabled' : '' }}>{{ $vacationLabel }}</option>
+                                <option value="sick" {{ old('leave_type') == 'sick' ? 'selected' : '' }} {{ ($balanceIsSet && isset($availableDays['sick']) && $availableDays['sick'] <= 0) ? 'disabled' : '' }}>{{ $sickLabel }}</option>
+                                <option value="sil" {{ old('leave_type') == 'sil' ? 'selected' : '' }} {{ ($balanceIsSet && !($leaveBalance->sil_deferred ?? false) && isset($availableDays['sil']) && $availableDays['sil'] <= 0) ? 'disabled' : '' }}>{{ $silLabel }}</option>
                                 <option value="personal" {{ old('leave_type') == 'personal' ? 'selected' : '' }}>Personal Leave / Leave Without Pay</option>
-                                <option value="emergency" {{ old('leave_type') == 'emergency' ? 'selected' : '' }}>Emergency Leave</option>
+                                <option value="emergency" {{ old('leave_type') == 'emergency' ? 'selected' : '' }}>Emergency Leave (Unpaid)</option>
                                 <option value="maternity" {{ old('leave_type') == 'maternity' ? 'selected' : '' }}>Maternity Leave</option>
                                 <option value="paternity" {{ old('leave_type') == 'paternity' ? 'selected' : '' }}>Paternity Leave</option>
                                 <option value="spl" {{ old('leave_type') == 'spl' ? 'selected' : '' }}>Solo Parent Leave</option>
