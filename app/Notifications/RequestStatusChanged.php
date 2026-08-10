@@ -97,9 +97,9 @@ class RequestStatusChanged extends Notification
     private function urlFor(string $requestType): string
     {
         return match ($requestType) {
-            self::TYPE_LEAVE => route('attendance.leave-management'),
-            self::TYPE_OVERTIME => route('attendance.overtime'),
-            self::TYPE_OFFICIAL_BUSINESS => route('attendance.official-business'),
+            self::TYPE_LEAVE => route('attendance.leave-management', ['scope' => 'mine'], false),
+            self::TYPE_OVERTIME => route('attendance.overtime', ['scope' => 'mine'], false),
+            self::TYPE_OFFICIAL_BUSINESS => route('attendance.official-business', ['scope' => 'mine'], false),
             default => '/',
         };
     }

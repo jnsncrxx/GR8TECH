@@ -14,15 +14,21 @@ return new class extends Migration
         'official_business_requests',
     ];
 
+    private const INDEX_NAMES = [
+        'overtime_requests' => 'ot_req_expiry_window_idx',
+        'leave_requests' => 'leave_req_expiry_window_idx',
+        'official_business_requests' => 'ob_req_expiry_window_idx',
+    ];
+
     public function up(): void
     {
         foreach (self::TABLES as $tableName) {
-            Schema::table($tableName, function (Blueprint $table) {
+            Schema::table($tableName, function (Blueprint $table) use ($tableName) {
                 $table->unsignedTinyInteger('expiry_attempt')->default(1)->after('expires_at');
                 $table->timestamp('first_expired_at')->nullable()->after('expiry_attempt');
                 $table->timestamp('resubmitted_at')->nullable()->after('first_expired_at');
                 $table->timestamp('final_expired_at')->nullable()->after('resubmitted_at');
-                $table->index(['status', 'expiry_attempt', 'expires_at']);
+                $table->index(['status', 'expiry_attempt', 'expires_at'], self::INDEX_NAMES[$tableName]);
             });
 
             // Historical expired requests predate the two-stage workflow. Treat
@@ -59,8 +65,8 @@ return new class extends Migration
     public function down(): void
     {
         foreach (self::TABLES as $tableName) {
-            Schema::table($tableName, function (Blueprint $table) {
-                $table->dropIndex(['status', 'expiry_attempt', 'expires_at']);
+            Schema::table($tableName, function (Blueprint $table) use ($tableName) {
+                $table->dropIndex(self::INDEX_NAMES[$tableName]);
                 $table->dropColumn([
                     'expiry_attempt',
                     'first_expired_at',

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\OfficialBusinessRequest;
+use App\Notifications\RequestStatusChanged;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -68,5 +69,25 @@ class TwoStageRequestExpiryTest extends TestCase
         $this->assertNotNull($request->final_expired_at);
         $this->assertFalse($request->canBeResubmitted());
         $this->assertFalse($request->resubmitForFinalWindow());
+    }
+
+    public function test_request_notifications_use_relative_personal_request_urls(): void
+    {
+        $cases = [
+            RequestStatusChanged::TYPE_LEAVE => '/leave-management?scope=mine',
+            RequestStatusChanged::TYPE_OVERTIME => '/overtime?scope=mine',
+            RequestStatusChanged::TYPE_OFFICIAL_BUSINESS => '/official-business?scope=mine',
+        ];
+
+        foreach ($cases as $requestType => $expectedUrl) {
+            $notification = new RequestStatusChanged(
+                requestType: $requestType,
+                requestId: 'request-id',
+                status: 'expired',
+                dateLabel: 'Aug 10, 2026',
+            );
+
+            $this->assertSame($expectedUrl, $notification->toArray((object) [])['url']);
+        }
     }
 }
