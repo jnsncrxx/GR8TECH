@@ -1,7 +1,9 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -19,7 +21,15 @@ return new class extends Migration
             DB::statement(
                 "ALTER TABLE overtime_requests MODIFY COLUMN status ENUM('pending','approved','rejected','expired','canceled') NOT NULL DEFAULT 'pending'"
             );
+
+            return;
         }
+
+        Schema::table('overtime_requests', function (Blueprint $table) {
+            $table->enum('status', ['pending', 'approved', 'rejected', 'expired', 'canceled'])
+                ->default('pending')
+                ->change();
+        });
     }
 
     /**
@@ -36,6 +46,14 @@ return new class extends Migration
             DB::statement(
                 "ALTER TABLE overtime_requests MODIFY COLUMN status ENUM('pending','approved','rejected','expired') NOT NULL DEFAULT 'pending'"
             );
+
+            return;
         }
+
+        Schema::table('overtime_requests', function (Blueprint $table) {
+            $table->enum('status', ['pending', 'approved', 'rejected', 'expired'])
+                ->default('pending')
+                ->change();
+        });
     }
 };
