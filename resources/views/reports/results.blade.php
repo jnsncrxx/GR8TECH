@@ -40,7 +40,7 @@
                 <a href="{{ route('reports.export', array_merge($exportParams, ['format' => 'csv'])) }}" download class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-full font-semibold text-xs text-white uppercase tracking-wider hover:bg-green-700 focus:outline-none transition shadow-sm">
                     <i class="fas fa-file-csv mr-1.5"></i> CSV
                 </a>
-                <a href="{{ route('reports.export', array_merge($exportParams, ['format' => 'excel'])) }}" download class="inline-flex items-center px-4 py-2 bg-green-800 border border-transparent rounded-full font-semibold text-xs text-white uppercase tracking-wider hover:bg-green-900 focus:outline-none transition shadow-sm">
+                <a href="{{ route('reports.export', array_merge($exportParams, ['format' => 'excel'])) }}" download class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-full font-semibold text-xs text-white uppercase tracking-wider hover:bg-green-700 focus:outline-none transition shadow-sm">
                     <i class="fas fa-file-excel mr-1.5"></i> Excel
                 </a>
                 <a href="{{ route('reports.export', array_merge($exportParams, ['format' => 'pdf'])) }}" download class="inline-flex items-center px-4 py-2 bg-red-600 border border-transparent rounded-full font-semibold text-xs text-white uppercase tracking-wider hover:bg-red-700 focus:outline-none transition shadow-sm">

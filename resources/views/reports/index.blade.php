@@ -19,6 +19,23 @@
         <div class="p-6">
             <form action="{{ route('reports.generate') }}" method="GET" id="reportForm" x-data="multiSelectDropdown()">
                 
+                <!-- Error Toast Notification -->
+                <div x-show="showError" 
+                     style="display: none;"
+                     x-transition:enter="transition ease-out duration-300"
+                     x-transition:enter-start="opacity-0 transform translate-y-4 sm:translate-y-0 sm:scale-95"
+                     x-transition:enter-end="opacity-100 transform translate-y-0 sm:scale-100"
+                     x-transition:leave="transition ease-in duration-200"
+                     x-transition:leave-start="opacity-100 transform translate-y-0 sm:scale-100"
+                     x-transition:leave-end="opacity-0 transform translate-y-4 sm:translate-y-0 sm:scale-95"
+                     class="fixed bottom-6 right-6 z-50 bg-red-600 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3">
+                    <i class="fas fa-exclamation-circle text-lg"></i>
+                    <span class="font-medium text-sm" x-text="errorMessage"></span>
+                    <button type="button" @click="showError = false" class="text-white hover:text-red-200 ml-4 focus:outline-none">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
                 <!-- Multi-Select Dropdown Component -->
                 <div class="mb-6 relative">
                     <label class="block text-sm font-medium text-gray-700 mb-2">
@@ -160,6 +177,8 @@
 function multiSelectDropdown() {
     return {
         open: false,
+        showError: false,
+        errorMessage: '',
         selected: ['attendance'],
         options: [
             { 
@@ -251,9 +270,25 @@ function multiSelectDropdown() {
             return map[val] || 'bg-gray-50 text-gray-700 border-gray-200';
         },
         validateForm(e) {
+            // Validate Module Selection
             if (this.selected.length === 0) {
                 e.preventDefault();
-                alert('Please select at least one report type before generating.');
+                this.errorMessage = 'Please select at least one report type before generating.';
+                this.showError = true;
+                setTimeout(() => { this.showError = false; }, 3500);
+                return;
+            }
+
+            // Validate Date Range
+            const startDate = document.querySelector('input[name="start_date"]').value;
+            const endDate = document.querySelector('input[name="end_date"]').value;
+
+            if (!startDate || !endDate) {
+                e.preventDefault();
+                this.errorMessage = 'Please provide a complete date range (start and end dates) before generating.';
+                this.showError = true;
+                setTimeout(() => { this.showError = false; }, 3500);
+                return;
             }
         }
     };
