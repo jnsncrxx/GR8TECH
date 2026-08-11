@@ -9,7 +9,7 @@
     .flatpickr-input[readonly] {
         background-color: #fff;
     }
-    
+
     /* Highlight pending dates in flatpickr */
     .flatpickr-day.is-pending {
         background-color: #fef3c7 !important; /* amber-100 */
@@ -17,7 +17,7 @@
         color: #92400e !important; /* amber-900 */
         border-radius: 0.25rem !important;
     }
-    
+
     /* Highlight approved dates in flatpickr */
     .flatpickr-day.is-approved {
         background-color: #fee2e2 !important; /* red-100 */
@@ -25,7 +25,7 @@
         color: #991b1b !important; /* red-900 */
         border-radius: 0.25rem !important;
     }
-    
+
     .calendar-legend {
         display: flex;
         align-items: center;
@@ -373,12 +373,14 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Total Hours
                         </th>
+                        @if($isReviewer)
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Rate
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Amount
                         </th>
+                        @endif
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Reason
                         </th>
@@ -399,9 +401,9 @@
                               $initials = strtoupper(substr($request->employee->first_name, 0, 1) . substr($request->employee->last_name, 0, 1));
                               $hourlyRate = $request->employee->hourly_rate ?? 0;
                               $amount = $request->hours * $request->rate_multiplier * $hourlyRate;
-                              
-                              $displayStatus = method_exists($request, 'isPastDeadline') && $request->isPastDeadline() 
-                                    ? \App\Models\OvertimeRequest::EXPIRED 
+
+                              $displayStatus = method_exists($request, 'isPastDeadline') && $request->isPastDeadline()
+                                    ? \App\Models\OvertimeRequest::EXPIRED
                                     : $request->status;
 
                               $statusColors = [
@@ -444,12 +446,14 @@
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm font-medium text-gray-900">{{ \App\Helpers\TimezoneHelper::formatHours($request->hours) }}</div>
                             </td>
+                            @if($isReviewer)
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">{{ $request->rate_multiplier }}x</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm font-medium text-gray-900">₱{{ number_format($amount, 2) }}</div>
                             </td>
+                            @endif
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900 whitespace-normal break-words min-w-[150px] max-w-xs">{{ $request->reason }}</div>
                             </td>
@@ -508,7 +512,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="11" class="px-6 py-4 text-center">
+                            <td colspan="{{ $isReviewer ? 11 : 9 }}" class="px-6 py-4 text-center">
                                 <div class="flex flex-col items-center justify-center py-8">
                                     <i class="fas fa-clock text-gray-400 text-4xl mb-4"></i>
                                     <p class="text-gray-500 text-lg font-medium mb-2">No overtime requests found</p>
@@ -520,7 +524,7 @@
                 </tbody>
             </table>
         </div>
-        
+
         <!-- Pagination -->
         @if($overtimeRequests->hasPages())
         <div class="px-4 sm:px-6 py-4 border-t border-gray-200">
@@ -534,7 +538,7 @@
                     @else
                         <a href="{{ $overtimeRequests->previousPageUrl() }}" class="px-3 py-2 text-sm text-blue-600 bg-white border border-gray-300 rounded hover:bg-gray-50">Previous</a>
                     @endif
-                    
+
                     @for($i = 1; $i <= $overtimeRequests->lastPage(); $i++)
                         @if($i == $overtimeRequests->currentPage())
                             <span class="px-3 py-2 text-sm text-white bg-blue-600 rounded">{{ $i }}</span>
@@ -542,7 +546,7 @@
                             <a href="{{ $overtimeRequests->url($i) }}" class="px-3 py-2 text-sm text-blue-600 bg-white border border-gray-300 rounded hover:bg-gray-50">{{ $i }}</a>
                         @endif
                     @endfor
-                    
+
                     @if($overtimeRequests->hasMorePages())
                         <a href="{{ $overtimeRequests->nextPageUrl() }}" class="px-3 py-2 text-sm text-blue-600 bg-white border border-gray-300 rounded hover:bg-gray-50">Next</a>
                     @else
@@ -561,9 +565,9 @@
                         $initials = strtoupper(substr($request->employee->first_name, 0, 1) . substr($request->employee->last_name, 0, 1));
                         $hourlyRate = $request->employee->hourly_rate ?? 0;
                         $amount = $request->hours * $request->rate_multiplier * $hourlyRate;
-                        
-                        $displayStatus = method_exists($request, 'isPastDeadline') && $request->isPastDeadline() 
-                              ? \App\Models\OvertimeRequest::EXPIRED 
+
+                        $displayStatus = method_exists($request, 'isPastDeadline') && $request->isPastDeadline()
+                              ? \App\Models\OvertimeRequest::EXPIRED
                               : $request->status;
 
                         $statusColors = [
@@ -617,6 +621,7 @@
                                 <div class="text-gray-500">Total Hours</div>
                                 <div class="font-medium">{{ \App\Helpers\TimezoneHelper::formatHours($request->hours) }}</div>
                             </div>
+                            @if($isReviewer)
                             <div>
                                 <div class="text-gray-500">Rate</div>
                                 <div class="font-medium">{{ $request->rate_multiplier }}x</div>
@@ -625,6 +630,7 @@
                                 <div class="text-gray-500">Amount</div>
                                 <div class="font-medium">₱{{ number_format($amount, 2) }}</div>
                             </div>
+                            @endif
                         </div>
                         <div class="text-sm mb-3">
                             <div class="text-gray-500">Reason</div>
@@ -696,13 +702,13 @@
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            
+
             <form id="overtimeForm" class="space-y-4">
                 @csrf
                 <input type="hidden" id="overtimeEditRequestId" value="">
                 <div>
                     <label for="overtimeDate" class="block text-sm font-medium text-gray-700 mb-2">Date</label>
-                    <input type="date" id="overtimeDate" name="date" required 
+                    <input type="date" id="overtimeDate" name="date" required
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
                     <div class="calendar-legend">
                         <div class="legend-item">
@@ -715,29 +721,29 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label for="startTime" class="block text-sm font-medium text-gray-700 mb-2">Start Time</label>
-                        <input type="time" id="startTime" name="start_time" required 
+                        <input type="time" id="startTime" name="start_time" required
                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
                     </div>
                     <div>
                         <label for="endTime" class="block text-sm font-medium text-gray-700 mb-2">End Time</label>
-                        <input type="time" id="endTime" name="end_time" required 
+                        <input type="time" id="endTime" name="end_time" required
                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
                     </div>
                 </div>
-                
+
                 <div>
                     <label for="overtimeReason" class="block text-sm font-medium text-gray-700 mb-2">Reason</label>
-                    <textarea id="overtimeReason" name="reason" rows="3" required 
+                    <textarea id="overtimeReason" name="reason" rows="3" required
                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                               placeholder="Please provide a reason for your overtime request..."></textarea>
                 </div>
-                
+
                 <div class="flex justify-end space-x-3 pt-4">
-                    <button type="button" onclick="closeOvertimeModal()" 
+                    <button type="button" onclick="closeOvertimeModal()"
                             class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
                         Cancel
                     </button>
@@ -864,7 +870,7 @@ document.addEventListener('DOMContentLoaded', function() {
         onDayCreate: function(dObj, dStr, fp, dayElem) {
             // Get date in YYYY-MM-DD format taking timezone into account
             const date = new Date(dayElem.dateObj.getTime() - (dayElem.dateObj.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-            
+
             if (overtimeDates[date]) {
                 if (overtimeDates[date] === 'pending') {
                     dayElem.classList.add('is-pending');
@@ -876,7 +882,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
-    
+
     flatpickr("#dateFrom", {
         dateFormat: "Y-m-d",
         altInput: true,
@@ -904,14 +910,14 @@ function openOvertimeModal() {
             console.error('Modal element not found');
             return;
         }
-        
+
         // Force show the modal
         modal.style.display = 'flex';
         modal.style.alignItems = 'center';
         modal.style.justifyContent = 'center';
-        
+
         console.log('Modal styles applied, display:', modal.style.display);
-        
+
         // Reset form
         const form = document.getElementById('overtimeForm');
         if (form) {
@@ -923,7 +929,7 @@ function openOvertimeModal() {
         } else {
             console.error('Form not found inside modal');
         }
-        
+
         // Date input is handled by flatpickr
         const dateInput = document.getElementById('overtimeDate');
         if (dateInput) {
@@ -931,7 +937,7 @@ function openOvertimeModal() {
         } else {
             console.error('Date input not found');
         }
-        
+
         console.log('Modal opening process completed successfully');
     } catch (error) {
         console.error('Error opening modal:', error);
@@ -951,17 +957,17 @@ function closeOvertimeModal() {
 
 async function submitOvertimeRequest(event) {
     event.preventDefault();
-    
+
     const form = event.target;
     const formData = new FormData(form);
     const data = Object.fromEntries(formData);
-    
+
     // Validate times
     if (data.start_time === data.end_time) {
         showError('Start time and end time cannot be the same');
         return;
     }
-    
+
     try {
         const editId = document.getElementById('overtimeEditRequestId').value;
         const url = editId
@@ -975,9 +981,9 @@ async function submitOvertimeRequest(event) {
             },
             body: JSON.stringify(data)
         });
-        
+
         const result = await response.json();
-        
+
         if (response.ok) {
             showSuccess(result.message || 'Overtime request submitted successfully');
             closeOvertimeModal();
@@ -1016,7 +1022,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             console.error('Form not found');
         }
-        
+
         // Button click listener
         const button = document.getElementById('applyOvertimeBtn');
         if (button) {
@@ -1047,9 +1053,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     },
                     body: JSON.stringify({ status: 'approved' })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (response.ok) {
                     showSuccess(data.message || 'Overtime request approved successfully');
                     closeApproveModal();
@@ -1081,9 +1087,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     },
                     body: JSON.stringify({ status: 'rejected', rejection_reason: reason })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (response.ok) {
                     showSuccess(data.message || 'Overtime request rejected successfully');
                     closeRejectModal();
@@ -1189,7 +1195,7 @@ function showSuccess(message) {
     toast.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
     toast.textContent = message;
     document.body.appendChild(toast);
-    
+
     setTimeout(() => {
         toast.remove();
     }, 3000);
@@ -1200,7 +1206,7 @@ function showError(message) {
     toast.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
     toast.textContent = message;
     document.body.appendChild(toast);
-    
+
     setTimeout(() => {
         toast.remove();
     }, 5000);
