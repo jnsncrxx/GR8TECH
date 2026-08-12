@@ -122,6 +122,8 @@ class Period extends Model
 
         'reviewed_at',
         'reviewed_by',
+        'review_notified_at',
+        'review_expires_at',
         'finalized_at',
         'finalized_by',
 
@@ -157,6 +159,8 @@ class Period extends Model
         'overtime_validated_at' => 'datetime',
         'ready_at' => 'datetime',
         'reviewed_at' => 'datetime',
+        'review_notified_at' => 'datetime',
+        'review_expires_at' => 'datetime',
         'finalized_at' => 'datetime',
 
         'locked_at' => 'datetime',
@@ -378,6 +382,67 @@ class Period extends Model
     {
         return $this->end_date->lt(now()->startOfDay()) && !$this->isLocked();
     }
+
+    /**
+     * Whether this period is currently within its open 48-hour manager
+     * review window - notified, not yet acted on, not yet expired.
+     */
+    public function isUnderReview(): bool
+    {
+        return $this->status === self::STATUS_FOR_REVIEW
+            && $this->review_notified_at !== null
+            && is_null($this->reviewed_at);
+    }
+
+    public function reviewHasExpired(): bool
+    {
+        return $this->review_expires_at !== null
+            && now()->greaterThan($this->review_expires_at)
+            && is_null($this->reviewed_at);
+    }
+
+    public function reviewState(): string
+    {
+        if (is_null($this->review_notified_at)) {
+            return 'not_started';
+        }
+        if ($this->reviewed_at !== null) {
+            return 'reviewed';
+        }
+        if ($this->reviewHasExpired()) {
+            return 'expired';
+        }
+        return 'pending';
+    }
+
+    /**
+     * Managers who should be notified once this period is ready for review.
+     * A period scoped to one department notifies just that department's
+     * manager. A company-wide period (department_id null) notifies every
+     * distinct department manager among the period's actual employees,
+     * since "the appropriate Manager" plausibly means several people when
+     * the period spans multiple teams.
+     */
+    public function managersToNotify()
+    {
+        if ($this->department_id) {
+            $manager = $this->department?->manager;
+            return $manager?->account ? collect([$manager->account]) : collect();
+        }
+
+        $departmentIds = $this->employees()->pluck('department_id')->unique()->filter();
+
+        return \App\Models\Department::whereIn('id', $departmentIds)
+            ->whereNotNull('manager_id')
+            ->with('manager.account')
+            ->get()
+            ->pluck('manager.account')
+            ->filter()
+            ->unique('id')
+            ->values();
+    }
+
+    
 
     public function deadlineHasPassed(string $field): bool
     {

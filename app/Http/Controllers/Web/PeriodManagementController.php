@@ -1385,6 +1385,8 @@ class PeriodManagementController extends Controller
                 'locked_by' => null,
             ]);
 
+            $this->notifyManagersPayrollReadyForReview($periodModel->fresh());
+
             return redirect()
                 ->route('payroll.periods.review', $periodModel->id)
                 ->with(
@@ -1472,6 +1474,8 @@ class PeriodManagementController extends Controller
             'reviewed_at' => null,
             'reviewed_by' => null,
         ]);
+
+        $this->notifyManagersPayrollReadyForReview($periodModel->fresh());
 
         return redirect()
             ->route('payroll.periods.review', $periodModel->id)
@@ -1704,6 +1708,43 @@ class PeriodManagementController extends Controller
         return Payroll::with(['employee', 'employee.department', 'employee.position'])
             ->where('period_id', $periodModel->id)
             ->get();
+    }
+
+    /**
+     * Notify the appropriate manager(s) that this period's payroll is ready
+     * for their 48-hour review, and open that review window. Called only
+     * from the two places a period actually transitions into
+     * STATUS_FOR_REVIEW (generatePayroll and submitForReview) - never on a
+     * page load or unrelated update - so a manager is notified once per
+     * genuine calculation/recalculation, not repeatedly for the same one.
+     */
+    private function notifyManagersPayrollReadyForReview(Period $periodModel): void
+    {
+        $reviewExpiresAt = now()->addHours(48);
+
+        $periodModel->update([
+            'review_notified_at' => now(),
+            'review_expires_at' => $reviewExpiresAt,
+        ]);
+
+        $managers = $periodModel->managersToNotify();
+
+        if ($managers->isEmpty()) {
+            Log::warning('No manager account found to notify for payroll review', [
+                'period_id' => $periodModel->id,
+                'department_id' => $periodModel->department_id,
+            ]);
+            return;
+        }
+
+        \Illuminate\Support\Facades\Notification::send(
+            $managers,
+            new \App\Notifications\PayrollReadyForReview(
+                $periodModel->id,
+                $periodModel->name,
+                $reviewExpiresAt->toIso8601String()
+            )
+        );
     }
 
     private function buildPayrollArraySummary(array $payrolls): array
