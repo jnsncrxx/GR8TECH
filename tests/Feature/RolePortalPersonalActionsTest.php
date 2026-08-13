@@ -8,6 +8,7 @@ use App\Models\Company;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\LoanType;
+use App\Models\Loan;
 use App\Models\Position;
 use App\Models\TimeEntry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -106,6 +107,32 @@ class RolePortalPersonalActionsTest extends TestCase
             ->assertOk()
             ->assertSee('Loan Management')
             ->assertSee('Manage Loan Types');
+    }
+
+    public function test_authorized_reviewer_cannot_approve_or_reject_own_loan(): void
+    {
+        $manager = $this->account('manager');
+        $this->clockInEmployee();
+        $loanType = LoanType::firstOrFail();
+        $loan = Loan::create([
+            'company_id' => $this->company->id,
+            'employee_id' => $this->employee->id,
+            'loan_type_id' => $loanType->id,
+            'principal_amount' => 2000,
+            'interest_rate' => 2,
+            'interest_type' => 'flat',
+            'term_months' => 2,
+            'amortization_amount' => 510,
+            'remaining_balance' => 2040,
+            'status' => 'pending',
+            'requested_by' => $manager->id,
+        ]);
+
+        $this->actingAs($manager)->withSession(['current_company_id' => $this->company->id]);
+
+        $this->post(route('loans.approve', $loan))->assertForbidden();
+        $this->post(route('loans.reject', $loan), ['rejection_reason' => 'Self review'])->assertForbidden();
+        $this->assertSame('pending', $loan->fresh()->status);
     }
 
     public function test_employee_linked_manager_sees_logout_choices_and_direct_clock_in_action(): void

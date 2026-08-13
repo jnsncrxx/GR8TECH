@@ -24,6 +24,16 @@ class LoanController extends Controller
         abort_unless($employee->company_id === CompanyHelper::getCurrentCompanyId(), 404);
     }
 
+    private function ensureNotOwnLoan(Loan $loan): void
+    {
+        $user = Auth::user();
+        abort_if(
+            $user->employee && $loan->employee_id === $user->employee->id,
+            403,
+            'You cannot review your own loan request. Another authorized reviewer must process it.'
+        );
+    }
+
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -203,6 +213,7 @@ class LoanController extends Controller
     public function approve(Request $request, Loan $loan)
     {
         $this->ensureLoanCompany($loan);
+        $this->ensureNotOwnLoan($loan);
         if ($loan->status !== 'pending') {
             return back()->with('error', 'Only pending loan requests can be approved.');
         }
@@ -215,6 +226,7 @@ class LoanController extends Controller
     public function reject(Request $request, Loan $loan)
     {
         $this->ensureLoanCompany($loan);
+        $this->ensureNotOwnLoan($loan);
         if ($loan->status !== 'pending') {
             return back()->with('error', 'Only pending loan requests can be rejected.');
         }

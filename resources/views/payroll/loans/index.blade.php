@@ -1,6 +1,6 @@
 @extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'loans.index'])
 
-@section('title', 'Loan Management')
+@section('title', $isEmployeeView ? 'My Loans' : 'Loan Management')
 
 @section('content')
 <div class="min-h-screen bg-gray-50">
@@ -128,17 +128,21 @@
                                 {{ ucfirst($loan->status) }}
                             </span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm space-x-3">
-                            <a href="{{ route('loans.show', $isEmployeeView ? ['loan' => $loan, 'scope' => 'mine'] : ['loan' => $loan]) }}" class="text-blue-600 hover:text-blue-800">
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                            <div class="flex items-center justify-end gap-2">
+                            <a href="{{ route('loans.show', $isEmployeeView ? ['loan' => $loan, 'scope' => 'mine'] : ['loan' => $loan]) }}" class="ui-icon-action ui-action-view" title="View loan" aria-label="View loan">
                                 <i class="fas fa-eye"></i>
                             </a>
-                            @if(!$isEmployeeView && $loan->status === 'pending')
-                            <form action="{{ route('loans.approve', $loan) }}" method="POST" class="inline"
-                                  onsubmit="return confirm('Approve this loan? Deductions of ₱{{ number_format((float) $loan->amortization_amount, 2) }} per cutoff will begin.');">
+                            @if(!$isEmployeeView && $loan->status === 'pending' && (!$user->employee || $loan->employee_id !== $user->employee->id))
+                            <form action="{{ route('loans.approve', $loan) }}" method="POST" class="inline loan-approval-form"
+                                  data-employee="{{ $loan->employee->full_name }}" data-deduction="₱{{ number_format((float) $loan->amortization_amount, 2) }}">
                                 @csrf
-                                <button type="submit" class="text-green-600 hover:text-green-800" title="Approve"><i class="fas fa-check"></i></button>
+                                <button type="submit" class="ui-icon-action ui-action-approve" title="Approve loan" aria-label="Approve loan"><i class="fas fa-check"></i></button>
                             </form>
+                            @elseif(!$isEmployeeView && $loan->status === 'pending')
+                            <span class="ui-icon-action cursor-not-allowed border-gray-200 bg-gray-50 text-gray-300 dark:border-neutral-600 dark:bg-neutral-700 dark:text-neutral-500" title="Another reviewer must process your request"><i class="fas fa-user-shield"></i></span>
                             @endif
+                            </div>
                         </td>
                     </tr>
                     @endforeach
@@ -151,16 +155,31 @@
 </div>
 
 @unless($isEmployeeView)
+<div id="loanApproveModal" class="fixed inset-0 z-[10000] hidden items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onclick="if(event.target === this) closeLoanApproveModal()">
+    <div class="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-800">
+        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-neutral-700"><div class="flex items-center gap-3"><span class="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50 text-green-600 dark:bg-green-950/50 dark:text-green-300"><i class="fas fa-check"></i></span><div><h3 class="text-lg font-semibold text-gray-900 dark:text-white">Approve Loan Request</h3><p class="text-xs text-gray-500 dark:text-neutral-300">Confirm the payroll deduction.</p></div></div><button type="button" onclick="closeLoanApproveModal()" class="ui-icon-action ui-action-cancel" aria-label="Close"><i class="fas fa-times"></i></button></div>
+        <div class="space-y-4 p-6"><p class="text-sm text-gray-600 dark:text-neutral-200">Approve <strong id="approveLoanEmployee" class="text-gray-900 dark:text-white"></strong>'s loan request?</p><div class="rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950/40"><p class="text-xs text-green-700 dark:text-green-300">Deduction per cutoff</p><p id="approveLoanDeduction" class="mt-1 text-lg font-semibold text-green-800 dark:text-green-200"></p></div><p class="text-xs text-gray-500 dark:text-neutral-300">The request must be processed by someone other than the requesting employee.</p></div>
+        <div class="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-neutral-700 dark:bg-neutral-900/40"><button type="button" onclick="closeLoanApproveModal()" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 dark:border-neutral-600 dark:bg-neutral-700 dark:text-white">Cancel</button><button type="button" onclick="submitLoanApproval()" class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"><i class="fas fa-check"></i>Approve Loan</button></div>
+    </div>
+</div>
+@endunless
+
+@unless($isEmployeeView)
 @if(in_array($user->role, ['admin', 'hr'], true))
 <!-- Manage Loan Types Modal -->
-<div id="loanTypesModal" class="fixed inset-0 z-[9999] hidden items-center justify-center bg-gray-900/50 p-4 overflow-y-auto">
-    <div class="relative w-full max-w-4xl my-8 max-h-[calc(100vh-4rem)] overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-gray-900">Loan Types</h3>
-            <button onclick="closeLoanTypesModal()" class="text-gray-400 hover:text-gray-600">
+<div id="loanTypesModal" class="fixed inset-0 z-[9999] hidden items-center justify-center bg-slate-950/60 p-4 overflow-y-auto backdrop-blur-sm" onclick="if(event.target === this) closeLoanTypesModal()">
+    <div class="relative w-full max-w-4xl my-8 max-h-[calc(100vh-4rem)] overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-800">
+        <div class="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4 dark:border-neutral-700 dark:bg-neutral-800">
+            <div class="flex items-center gap-3">
+                <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-300"><i class="fas fa-sliders"></i></span>
+                <div><h3 class="text-lg font-semibold text-gray-900 dark:text-white">Loan Types</h3><p class="text-xs text-gray-500 dark:text-neutral-300">Configure the loan options available to employees.</p></div>
+            </div>
+            <button type="button" onclick="closeLoanTypesModal()" class="ui-icon-action ui-action-cancel" title="Close" aria-label="Close loan types modal">
                 <i class="fas fa-times text-xl"></i>
             </button>
         </div>
+
+        <div class="p-6">
 
         @if(session('loan_type_success'))
         <div class="mb-4 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg text-sm">
@@ -202,14 +221,16 @@
                             <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Inactive</span>
                             @endif
                         </td>
-                        <td class="px-4 py-2 text-right space-x-3">
-                            <a href="{{ route('loan-types.edit', $type) }}" class="text-blue-600 hover:text-blue-800"><i class="fas fa-edit"></i></a>
+                        <td class="px-4 py-2 text-right">
+                            <div class="flex items-center justify-end gap-2">
+                            <a href="{{ route('loan-types.edit', $type) }}" class="ui-icon-action ui-action-edit" title="Edit loan type" aria-label="Edit loan type"><i class="fas fa-pen"></i></a>
                             <form action="{{ route('loan-types.destroy', $type) }}" method="POST" class="inline"
                                   onsubmit="return confirm('Delete loan type {{ $type->name }}?');">
                                 @csrf
                                 @method('DELETE')
-                                <button type="submit" class="text-red-600 hover:text-red-800"><i class="fas fa-trash"></i></button>
+                                <button type="submit" class="ui-icon-action ui-action-delete" title="Delete loan type" aria-label="Delete loan type"><i class="fas fa-trash"></i></button>
                             </form>
+                            </div>
                         </td>
                     </tr>
                     @endforeach
@@ -252,17 +273,41 @@
                     </div>
                 </div>
                 <div class="flex justify-end pt-2">
-                    <button type="submit" class="inline-flex items-center px-4 py-2 bg-blue-600 rounded-lg text-sm font-medium text-white hover:bg-blue-700">
+                    <button type="submit" class="inline-flex items-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:ring-offset-neutral-800">
                         <i class="fas fa-plus mr-2"></i>Add Loan Type
                     </button>
                 </div>
             </form>
+        </div>
         </div>
     </div>
 </div>
 @endif
 
 <script>
+    let pendingLoanApprovalForm = null;
+    document.querySelectorAll('.loan-approval-form').forEach((form) => {
+        form.addEventListener('submit', (event) => {
+            if (form.dataset.confirmed === 'true') return;
+            event.preventDefault();
+            pendingLoanApprovalForm = form;
+            document.getElementById('approveLoanEmployee').textContent = form.dataset.employee;
+            document.getElementById('approveLoanDeduction').textContent = form.dataset.deduction;
+            const modal = document.getElementById('loanApproveModal');
+            modal.classList.remove('hidden'); modal.classList.add('flex');
+        });
+    });
+    function closeLoanApproveModal() {
+        pendingLoanApprovalForm = null;
+        const modal = document.getElementById('loanApproveModal');
+        modal.classList.add('hidden'); modal.classList.remove('flex');
+    }
+    function submitLoanApproval() {
+        if (!pendingLoanApprovalForm) return;
+        pendingLoanApprovalForm.dataset.confirmed = 'true';
+        pendingLoanApprovalForm.submit();
+    }
+
     function openLoanTypesModal() {
         const modal = document.getElementById('loanTypesModal');
         modal.classList.remove('hidden');

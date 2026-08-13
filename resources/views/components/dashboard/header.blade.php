@@ -27,6 +27,8 @@
         'Payroll Period Management' => 'Manage payroll cutoff periods and workflow status.',
         'Payroll Templates' => 'Configure reusable payroll calculation templates.',
         'Salary & Payslips' => 'Your approved and paid payroll history',
+        'My Loans' => 'View and manage your own loan requests and repayment status.',
+        'Loan Management' => 'Review employee loan requests, approvals, and repayments.',
         'Payroll Summary Report', 'Monthly Payroll Report' => 'Review summarized payroll results and trends.',
         'Attendance Records Report', 'Attendance Reports', 'Daily Attendance Report' => 'Review and export employee attendance data.',
         'Daily Attendance', 'My Attendance', 'Timekeeping' => 'Monitor employee attendance and time records.',

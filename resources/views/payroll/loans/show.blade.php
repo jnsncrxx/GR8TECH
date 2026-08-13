@@ -84,11 +84,11 @@
             </div>
             @endif
 
-            @if($loan->status === 'pending' && in_array($user->role, ['admin', 'hr']))
+            @if($loan->status === 'pending' && in_array($user->role, ['admin', 'hr', 'manager']) && (!$user->employee || $loan->employee_id !== $user->employee->id))
             <div class="mt-6 pt-4 border-t border-gray-100 flex justify-end gap-3">
                 <button type="button" onclick="document.getElementById('rejectModal').classList.remove('hidden'); document.getElementById('rejectModal').classList.add('flex')"
-                        class="px-4 py-2 rounded-lg text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50">
-                    Reject
+                        class="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-600 shadow-sm transition hover:bg-red-50 dark:border-red-700 dark:bg-neutral-800 dark:text-red-300 dark:hover:bg-red-950/40">
+                    <i class="fas fa-times"></i>Reject
                 </button>
                 <form action="{{ route('loans.approve', $loan) }}" method="POST"
                       onsubmit="return confirm('Approve this loan?');">
@@ -100,7 +100,7 @@
             </div>
             @elseif($loan->status === 'pending')
             <div class="mt-6 pt-4 border-t border-gray-100 text-sm text-gray-500">
-                <i class="fas fa-clock mr-1"></i>Waiting for HR/Admin approval.
+                <i class="fas fa-clock mr-1"></i>{{ $user->employee && $loan->employee_id === $user->employee->id ? 'Your request must be reviewed by another Manager/HR/Admin.' : 'Waiting for Manager/HR/Admin approval.' }}
             </div>
             @endif
         </div>
@@ -134,18 +134,30 @@
 </div>
 
 <!-- Reject Modal -->
-<div id="rejectModal" class="fixed inset-0 z-[9999] hidden items-center justify-center bg-gray-900/50 p-4 overflow-y-auto">
-    <div class="relative w-full max-w-md my-8 max-h-[calc(100vh-4rem)] overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">Reject Loan Request</h3>
+<div id="rejectModal" class="fixed inset-0 z-[9999] hidden items-center justify-center bg-slate-950/60 p-4 overflow-y-auto backdrop-blur-sm" onclick="if(event.target === this) closeLoanRejectModal()">
+    <div class="relative w-full max-w-md my-8 max-h-[calc(100vh-4rem)] overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-800">
+        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-neutral-700">
+            <div class="flex items-center gap-3"><span class="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300"><i class="fas fa-ban"></i></span><div><h3 class="text-lg font-semibold text-gray-900 dark:text-white">Reject Loan Request</h3><p class="text-xs text-gray-500 dark:text-neutral-300">Provide a clear reason for the employee.</p></div></div>
+            <button type="button" onclick="closeLoanRejectModal()" class="ui-icon-action ui-action-cancel" title="Close" aria-label="Close rejection modal"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="p-6">
         <form action="{{ route('loans.reject', $loan) }}" method="POST">
             @csrf
-            <label class="block text-sm font-medium text-gray-700 mb-1">Reason</label>
-            <textarea name="rejection_reason" rows="3" required class="w-full rounded-lg border-gray-300 mb-4" placeholder="Explain why this request is being rejected..."></textarea>
+            <label class="block text-sm font-medium text-gray-700 dark:text-white mb-1">Reason</label>
+            <textarea name="rejection_reason" rows="3" required class="mb-4 w-full rounded-lg border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus:border-red-500 focus:ring-red-500 dark:border-neutral-600 dark:bg-neutral-700 dark:text-white" placeholder="Explain why this request is being rejected..."></textarea>
             <div class="flex justify-end gap-3">
-                <button type="button" onclick="document.getElementById('rejectModal').classList.add('hidden'); document.getElementById('rejectModal').classList.remove('flex')" class="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100">Cancel</button>
-                <button type="submit" class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700">Reject</button>
+                <button type="button" onclick="closeLoanRejectModal()" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-neutral-600 dark:bg-neutral-700 dark:text-white dark:hover:bg-neutral-600">Cancel</button>
+                <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700"><i class="fas fa-ban"></i>Reject Loan</button>
             </div>
         </form>
+        </div>
     </div>
 </div>
+<script>
+function closeLoanRejectModal() {
+    const modal = document.getElementById('rejectModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+</script>
 @endsection
