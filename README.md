@@ -32,7 +32,7 @@ A comprehensive Laravel-based HRIS and payroll management system with employee m
 - **Icons**: Font Awesome 6
 - **Reports and Exports**: DomPDF, Laravel Excel, and PhpSpreadsheet
 
-## 📋 Prerequisites
+## Prerequisites
 
 - PHP 8.2 or higher
 - Composer
