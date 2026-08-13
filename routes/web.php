@@ -295,25 +295,28 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
 Route::prefix('loans')->name('loans.')->middleware('auth')->group(function () {
     Route::get('/', [App\Http\Controllers\Web\LoanController::class, 'index'])->name('index');
 
-    // Only employees submit loan requests - HR/Admin's job is creating
-    // loan types and approving/rejecting, never requesting on their own
-    // behalf through this form. This must be registered before the
+    // Any account linked to an employee may submit its own loan request.
+    // HR/Admin management actions remain separately protected below.
+    // This must be registered before the
     // /{loan} show route below, or "/create" gets matched as a loan ID
     // and 404s instead of reaching this route.
-    Route::middleware('role:employee')->group(function () {
+    Route::middleware('role:employee,manager,hr,admin')->group(function () {
         Route::get('/create', [App\Http\Controllers\Web\LoanController::class, 'create'])->name('create');
         Route::post('/', [App\Http\Controllers\Web\LoanController::class, 'store'])->name('store');
     });
 
-    // Approval, rejection, deletion, and viewing another employee's history
-    // remain HR/Admin only. Also registered before /{loan} for the same
+    // Managers may review employee loan requests, while destructive loan
+    // administration remains HR/Admin only.
     // reason - '/employee/{employee}/history' would otherwise be captured
     // by '/{loan}' first.
-    Route::middleware('role:admin,hr')->group(function () {
+    Route::middleware('role:admin,hr,manager')->group(function () {
         Route::post('/{loan}/approve', [App\Http\Controllers\Web\LoanController::class, 'approve'])->name('approve');
         Route::post('/{loan}/reject', [App\Http\Controllers\Web\LoanController::class, 'reject'])->name('reject');
-        Route::delete('/{loan}', [App\Http\Controllers\Web\LoanController::class, 'destroy'])->name('destroy');
         Route::get('/employee/{employee}/history', [App\Http\Controllers\Web\LoanController::class, 'employeeHistory'])->name('employee-history');
+    });
+
+    Route::middleware('role:admin,hr')->group(function () {
+        Route::delete('/{loan}', [App\Http\Controllers\Web\LoanController::class, 'destroy'])->name('destroy');
     });
 
     // /{loan} show must come last - a catch-all single-segment route, so

@@ -153,7 +153,7 @@
                 </a>
 
                 {{-- ===== MY LOANS ===== --}}
-                <a href="{{ route('loans.index') }}" class="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 hover:text-blue-600 {{ $activeRoute === 'loans.index' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : '' }}">
+                <a href="{{ route('loans.index', ['scope' => 'mine']) }}" class="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 hover:text-blue-600 {{ $activeRoute === 'loans.index' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : '' }}">
                     <i class="fas fa-hand-holding-dollar mr-3 text-sm {{ $activeRoute === 'loans.index' ? 'text-blue-600' : 'text-gray-400' }}"></i><span>My Loans</span>
                 </a>
 
@@ -502,6 +502,15 @@
                         <span>Loan Management</span>
                     </a>
                 @else
+                    <a href="{{ route('loans.index') }}"
+                       class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group
+                       {{ in_array($activeRoute, ['loans.index', 'loans.show'], true)
+                            ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600'
+                            : '' }}">
+                        <i class="fas fa-hand-holding-dollar mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                        <span>Loan Approvals</span>
+                    </a>
+
                     <a href="{{ route('payroll.team') }}"
                        class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group
                        {{ $activeRoute === 'payroll.team'
@@ -757,12 +766,6 @@ function format12HourTime(date) {
 
 // Confirm Time In from sidebar
 function sidebarConfirmTimeIn() {
-    // Check if timeIn function exists globally
-    if (typeof window.timeIn !== 'function') {
-        alert('Please go to the Time In/Out page first to initialize the time tracking system.');
-        return;
-    }
-    
     // Get current time for the confirmation message
     const currentTime = window.getPhilippineTime ? window.getPhilippineTime() : getPhilippineTime();
     const formattedTime = window.format12HourTime ? window.format12HourTime(currentTime) : format12HourTime(currentTime);
@@ -771,8 +774,7 @@ function sidebarConfirmTimeIn() {
         'Confirm Time In',
         `Are you sure you want to clock in at ${formattedTime}?`,
         function() {
-            // Call the global timeIn function
-            window.timeIn();
+            sidebarTimeIn();
         },
         {
             color: 'green',
@@ -783,12 +785,6 @@ function sidebarConfirmTimeIn() {
 
 // Confirm Time Out from sidebar
 function sidebarConfirmTimeOut() {
-    // Check if timeOut function exists globally
-    if (typeof window.timeOut !== 'function') {
-        alert('Please go to the Time In/Out page first to initialize the time tracking system.');
-        return;
-    }
-    
     // Get current time for the confirmation message
     const currentTime = window.getPhilippineTime ? window.getPhilippineTime() : getPhilippineTime();
     const formattedTime = window.format12HourTime ? window.format12HourTime(currentTime) : format12HourTime(currentTime);
@@ -798,7 +794,7 @@ function sidebarConfirmTimeOut() {
         `Are you sure you want to clock out at ${formattedTime}?`,
         function() {
             // Call the global timeOut function
-            window.timeOut();
+            sidebarTimeOut();
         },
         {
             color: 'red',

@@ -7,7 +7,7 @@
     <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
         <div class="mb-6">
-            <a href="{{ route('loans.index') }}" class="text-sm text-blue-600 hover:text-blue-700">
+            <a href="{{ route('loans.index', ['scope' => 'mine']) }}" class="text-sm text-blue-600 hover:text-blue-700">
                 <i class="fas fa-arrow-left mr-1"></i>Back to loans
             </a>
             <h1 class="text-2xl font-semibold text-gray-900 mt-2">New Loan Request</h1>
@@ -24,7 +24,7 @@
         @if($loanTypes->isEmpty())
         <div class="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-lg text-sm">
             <i class="fas fa-exclamation-circle mr-2"></i>No active loan types exist yet.
-            <a href="{{ route('loan-types.create') }}" class="underline font-medium">Create one first</a>.
+            Please contact HR or Admin to configure an available loan type.
         </div>
         @else
         <form action="{{ route('loans.store') }}" method="POST" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-5">
@@ -72,7 +72,7 @@
             </div>
 
             <div class="flex justify-end gap-3 pt-2 border-t border-gray-100">
-                <a href="{{ route('loans.index') }}" class="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100">Cancel</a>
+                <a href="{{ route('loans.index', ['scope' => 'mine']) }}" class="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100">Cancel</a>
                 <button type="submit" class="inline-flex items-center px-5 py-2 bg-blue-600 rounded-lg font-medium text-white hover:bg-blue-700 text-sm">
                     <i class="fas fa-paper-plane mr-2"></i>Submit Request
                 </button>
