@@ -149,8 +149,9 @@ class ReportController extends Controller
 
         $user = auth()->user();
         $type = count($types) === 1 ? $types[0] : 'consolidated';
+        $data = count($types) === 1 ? ($reportsData[$types[0]] ?? collect()) : collect();
 
-        return view('reports.results', compact('types', 'type', 'reportsData', 'startDate', 'endDate', 'departmentId', 'employeeId', 'user'));
+        return view('reports.results', compact('types', 'type', 'data', 'reportsData', 'startDate', 'endDate', 'departmentId', 'employeeId', 'user'));
     }
     
     public function export(Request $request)
