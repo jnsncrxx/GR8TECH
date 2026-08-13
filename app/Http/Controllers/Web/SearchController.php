@@ -200,6 +200,9 @@ class SearchController extends Controller
     private function searchEmployees(string $q, $user, string $companyId): array
     {
         $employeeIds = $this->visibleEmployeeIds($user, $companyId);
+        $fullNameExpression = Employee::query()->getConnection()->getDriverName() === 'sqlite'
+            ? "first_name || ' ' || last_name"
+            : "CONCAT(first_name, ' ', last_name)";
 
         $query = Employee::query()
             ->with(['department', 'position', 'account'])
@@ -209,11 +212,11 @@ class SearchController extends Controller
             $query->whereIn('id', $employeeIds);
         }
 
-        $query->where(function ($w) use ($q) {
+        $query->where(function ($w) use ($q, $fullNameExpression) {
             $w->where('first_name', 'like', "%{$q}%")
                 ->orWhere('last_name', 'like', "%{$q}%")
                 ->orWhere('employee_id', 'like', "%{$q}%")
-                ->orWhereRaw("CONCAT(first_name, ' ', last_name) like ?", ["%{$q}%"])
+                ->orWhereRaw("{$fullNameExpression} like ?", ["%{$q}%"])
                 ->orWhereHas('account', fn ($a) => $a->where('email', 'like', "%{$q}%"))
                 ->orWhereHas('department', fn ($d) => $d->where('name', 'like', "%{$q}%"))
                 ->orWhereHas('position', fn ($p) => $p->where('name', 'like', "%{$q}%"))

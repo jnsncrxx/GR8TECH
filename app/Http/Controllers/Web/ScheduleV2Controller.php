@@ -594,6 +594,7 @@ class ScheduleV2Controller extends Controller
                 Rule::requiredIf($isWorkSchedule && $isFixed),
                 'nullable',
                 'date_format:H:i',
+                'after:time_in',
             ],
         ];
     }
@@ -633,12 +634,6 @@ class ScheduleV2Controller extends Controller
     {
         $start = \Carbon\Carbon::createFromFormat('H:i', $timeIn);
         $end = \Carbon\Carbon::createFromFormat('H:i', $timeOut);
-
-        // Overnight shift (e.g. 3:00 PM to 12:00 AM) - time_out is earlier on
-        // the 24-hour clock, but chronologically it's the next calendar day.
-        if ($end->lessThanOrEqualTo($start)) {
-            $end->addDay();
-        }
 
         $minutes = $start->diffInMinutes($end);
 

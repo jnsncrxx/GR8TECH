@@ -1352,6 +1352,8 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             'other_earnings' => $payrollAdjustments['other_earnings'],
             'paid_leave_days' => $leaveData['paid_leave_days'] ?? 0,
             'paid_leave_pay' => $leaveData['paid_leave_pay'] ?? 0,
+            'sick_leave_days' => $leaveData['sick_leave_days'] ?? 0,
+            'sick_leave_pay' => $leaveData['sick_leave_pay'] ?? 0,
             'unpaid_leave_days' => $leaveData['unpaid_leave_days'] ?? 0,
             'unpaid_leave_deduction' => $appliedUnpaidLeaveDeduction,
             'total_deductions' => $totalDeductions,
@@ -1712,10 +1714,9 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
         $incentiveLeavePay = 0;
         $paidLeavePay = (float) ($leaveData['paid_leave_pay'] ?? 0);
 
-        // Paid leave is already covered by the employee's fixed basic salary.
-        // Keep it as an informational component only; adding it to allowances
-        // or gross pay would result in duplicate compensation.
-        $totalAllowance = $incentiveLeavePay;
+        // Preserve paid leave as an explicit payroll earning so approved paid
+        // days remain visible in the preview and gross-pay calculation.
+        $totalAllowance = $incentiveLeavePay + $paidLeavePay;
 
         return [
             'incentive_leave_days' => $incentiveLeaveDays,
@@ -1926,6 +1927,7 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
         $dailyRate          = $employee->daily_rate ?? 0;
         $paidLeaveDays      = 0;
         $unpaidLeaveDays    = 0;
+        $paidLeaveDaysByType = [];
 
         $recordsByDate = collect($employeeRecords ?? [])->keyBy('date');
 
@@ -1961,6 +1963,8 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
 
             if (in_array($leaveRequest->leave_type, $paidLeaveTypes, true)) {
                 $paidLeaveDays += $days;
+                $paidLeaveDaysByType[$leaveRequest->leave_type] =
+                    ($paidLeaveDaysByType[$leaveRequest->leave_type] ?? 0) + $days;
             } elseif (in_array($leaveRequest->leave_type, $unpaidLeaveTypes, true)) {
                 $unpaidLeaveDays += $days;
             }
@@ -1969,6 +1973,8 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
         return [
             'paid_leave_days'       => $paidLeaveDays,
             'paid_leave_pay'        => round($paidLeaveDays * $dailyRate, 2),
+            'sick_leave_days'       => $paidLeaveDaysByType['sick'] ?? 0,
+            'sick_leave_pay'        => round(($paidLeaveDaysByType['sick'] ?? 0) * $dailyRate, 2),
             'unpaid_leave_days'     => $unpaidLeaveDays,
             'unpaid_leave_deduction'=> round($unpaidLeaveDays * $dailyRate, 2),
         ];
@@ -2602,6 +2608,8 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             'other_earnings' => $components['other_earnings'] ?? 0,
             'paid_leave_days' => $components['paid_leave_days'],
             'paid_leave_pay' => $components['paid_leave_pay'],
+            'sick_leave_days' => $components['sick_leave_days'] ?? 0,
+            'sick_leave_pay' => $components['sick_leave_pay'] ?? 0,
             'unpaid_leave_days' => $components['unpaid_leave_days'] ?? 0,
             'unpaid_leave_deduction' => $components['unpaid_leave_deduction'] ?? 0,
             'late_minutes' => $components['late_minutes'] ?? 0,
