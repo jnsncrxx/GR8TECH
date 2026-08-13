@@ -273,6 +273,41 @@
             </div>
         @endif
 
+        @if($periodModel->status === \App\Models\Period::STATUS_FOR_REVIEW && $periodModel->review_notified_at)
+        @php
+            $reviewState = $periodModel->reviewState();
+        @endphp
+        <div class="mt-6 rounded-lg border p-4 flex items-start gap-3
+            {{ $reviewState === 'expired' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200' }}">
+            <i class="fas {{ $reviewState === 'expired' ? 'fa-triangle-exclamation text-red-500' : 'fa-clock text-amber-500' }} mt-0.5"></i>
+            <div class="text-sm">
+                @if($reviewState === 'expired')
+                <p class="font-medium text-red-800">Review window has expired</p>
+                <p class="text-red-700 mt-0.5">
+                    The 48-hour review period ended {{ $periodModel->review_expires_at->diffForHumans() }}
+                    ({{ $periodModel->review_expires_at->format('M j, Y g:i A') }}) without action.
+                </p>
+                @else
+                <p class="font-medium text-amber-800">Awaiting manager review</p>
+                <p class="text-amber-700 mt-0.5">
+                    Review window closes {{ $periodModel->review_expires_at->diffForHumans() }}
+                    ({{ $periodModel->review_expires_at->format('M j, Y g:i A') }}).
+                </p>
+                @endif
+            </div>
+        </div>
+        @elseif($periodModel->status === \App\Models\Period::STATUS_FOR_REVIEW)
+        <div class="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600 flex items-start gap-3">
+            <i class="fas fa-circle-info mt-0.5 text-gray-400"></i>
+            <p>This period is For Review, but no review notification has been recorded yet.</p>
+        </div>
+        @elseif($periodModel->reviewed_at)
+        <div class="mt-6 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800 flex items-start gap-3">
+            <i class="fas fa-circle-check mt-0.5 text-green-500"></i>
+            <p>Reviewed {{ $periodModel->reviewed_at->diffForHumans() }} ({{ $periodModel->reviewed_at->format('M j, Y g:i A') }}).</p>
+        </div>
+        @endif
+
         <div class="mt-6 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                 <div>
