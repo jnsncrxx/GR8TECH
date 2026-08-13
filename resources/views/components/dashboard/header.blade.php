@@ -1,12 +1,12 @@
 @props(['title', 'user'])
 
 @php
-    // Check if employee is currently timed in (for employee role users)
+    // Check the employee-linked attendance state for every role.
     $isCurrentlyTimedIn = false;
     $todayAttendance = null;
-    if ($user->role === 'employee' && $user->employee) {
+    if ($user->employee) {
         $todayAttendance = $user->employee->getTodayAttendance();
-        $isCurrentlyTimedIn = $todayAttendance && $todayAttendance->time_in && !$todayAttendance->time_out;
+        $isCurrentlyTimedIn = $todayAttendance && $todayAttendance->hasActiveTimeEntry();
     }
 
     $isDashboard = str_ends_with($title, 'Dashboard');
@@ -866,7 +866,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 <!-- Message -->
                 <p class="text-gray-600 text-center mb-8 leading-relaxed text-sm sm:text-base">
-                    You are currently clocked in. Please clock out before logging out to ensure accurate time tracking.
+                        You are currently clocked in. Choose whether to clock out first, remain clocked in, or cancel logout.
                 </p>
                 
                 <!-- Buttons -->
@@ -880,7 +880,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </button>
                     <button onclick="logoutAnyway()" class="w-full flex items-center justify-center px-5 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]">
                         <i class="fas fa-sign-out-alt mr-2"></i>
-                        Logout Anyway
+                        Logout & Keep Clocked In
                     </button>
                 </div>
             </div>

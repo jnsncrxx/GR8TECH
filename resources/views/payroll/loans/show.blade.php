@@ -7,7 +7,7 @@
     <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
         <div class="mb-6">
-            <a href="{{ route('loans.index') }}" class="text-sm text-blue-600 hover:text-blue-700">
+            <a href="{{ route('loans.index', in_array($user->role, ['admin', 'hr'], true) && request()->query('scope') !== 'mine' ? [] : ['scope' => 'mine']) }}" class="text-sm text-blue-600 hover:text-blue-700">
                 <i class="fas fa-arrow-left mr-1"></i>Back to loans
             </a>
         </div>

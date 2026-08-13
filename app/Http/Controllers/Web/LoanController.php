@@ -27,7 +27,8 @@ class LoanController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        $isEmployeeView = $user->role === 'employee';
+        $isLoanManager = in_array($user->role, ['admin', 'hr'], true);
+        $isEmployeeView = $request->query('scope') === 'mine' || !$isLoanManager;
         $currentCompany = CompanyHelper::getCurrentCompany();
 
         $query = Loan::with(['employee.department', 'loanType', 'approvedBy'])
@@ -96,8 +97,6 @@ class LoanController extends Controller
     {
         $user = Auth::user();
 
-        // Route middleware already restricts this to role:employee, but
-        // guard defensively in case that ever changes.
         if (!$user->employee) {
             abort(403, 'No employee record linked to your account.');
         }
@@ -159,7 +158,7 @@ class LoanController extends Controller
         $loan->computeAmortization();
         $loan->save();
 
-        return redirect()->route('loans.index')
+        return redirect()->route('loans.index', ['scope' => 'mine'])
             ->with('success', 'Loan request submitted for approval.');
     }
 
@@ -168,9 +167,10 @@ class LoanController extends Controller
         $this->ensureLoanCompany($loan);
         $user = Auth::user();
 
-        // An employee may only view their own loan request - never
-        // another employee's, even by guessing/crafting a loan ID.
-        if ($user->role === 'employee' && (!$user->employee || $loan->employee_id !== $user->employee->id)) {
+        // Only HR/Admin may inspect another employee's loan. Every other
+        // employee-linked role is restricted to its own record.
+        if (!in_array($user->role, ['admin', 'hr'], true)
+            && (!$user->employee || $loan->employee_id !== $user->employee->id)) {
             abort(403, 'You can only view your own loan requests.');
         }
 

@@ -38,6 +38,9 @@
         <!-- Filters -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
             <form method="GET" action="{{ route('loans.index') }}" class="grid grid-cols-1 {{ $isEmployeeView ? 'sm:grid-cols-2' : 'sm:grid-cols-4' }} gap-4">
+                @if($isEmployeeView)
+                <input type="hidden" name="scope" value="mine">
+                @endif
                 @unless($isEmployeeView)
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">Employee</label>
@@ -126,7 +129,7 @@
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm space-x-3">
-                            <a href="{{ route('loans.show', $loan) }}" class="text-blue-600 hover:text-blue-800">
+                            <a href="{{ route('loans.show', $isEmployeeView ? ['loan' => $loan, 'scope' => 'mine'] : ['loan' => $loan]) }}" class="text-blue-600 hover:text-blue-800">
                                 <i class="fas fa-eye"></i>
                             </a>
                             @if(!$isEmployeeView && $loan->status === 'pending')
