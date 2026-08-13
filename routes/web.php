@@ -305,15 +305,18 @@ Route::prefix('loans')->name('loans.')->middleware('auth')->group(function () {
         Route::post('/', [App\Http\Controllers\Web\LoanController::class, 'store'])->name('store');
     });
 
-    // Approval, rejection, deletion, and viewing another employee's history
-    // remain HR/Admin only. Also registered before /{loan} for the same
+    // Managers may review employee loan requests, while destructive loan
+    // administration remains HR/Admin only.
     // reason - '/employee/{employee}/history' would otherwise be captured
     // by '/{loan}' first.
-    Route::middleware('role:admin,hr')->group(function () {
+    Route::middleware('role:admin,hr,manager')->group(function () {
         Route::post('/{loan}/approve', [App\Http\Controllers\Web\LoanController::class, 'approve'])->name('approve');
         Route::post('/{loan}/reject', [App\Http\Controllers\Web\LoanController::class, 'reject'])->name('reject');
-        Route::delete('/{loan}', [App\Http\Controllers\Web\LoanController::class, 'destroy'])->name('destroy');
         Route::get('/employee/{employee}/history', [App\Http\Controllers\Web\LoanController::class, 'employeeHistory'])->name('employee-history');
+    });
+
+    Route::middleware('role:admin,hr')->group(function () {
+        Route::delete('/{loan}', [App\Http\Controllers\Web\LoanController::class, 'destroy'])->name('destroy');
     });
 
     // /{loan} show must come last - a catch-all single-segment route, so

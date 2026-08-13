@@ -66,13 +66,13 @@ class RolePortalPersonalActionsTest extends TestCase
         ]);
     }
 
-    public function test_manager_gets_personal_loan_application_and_not_management_tools(): void
+    public function test_manager_gets_personal_loan_application_and_can_review_without_managing_types(): void
     {
         $manager = $this->account('manager');
         $this->clockInEmployee();
 
         $this->actingAs($manager)->withSession(['current_company_id' => $this->company->id])
-            ->get(route('loans.index'))
+            ->get(route('loans.index', ['scope' => 'mine']))
             ->assertOk()
             ->assertSee('My Loans')
             ->assertSee('New Loan Request')
@@ -83,6 +83,11 @@ class RolePortalPersonalActionsTest extends TestCase
             ->assertSee('New Loan Request');
 
         $this->get(route('loan-types.create'))->assertForbidden();
+
+        $this->get(route('loans.index'))
+            ->assertOk()
+            ->assertSee('Loan Management')
+            ->assertDontSee('Manage Loan Types');
     }
 
     public function test_hr_can_switch_between_my_loans_and_loan_management(): void

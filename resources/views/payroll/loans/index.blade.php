@@ -17,7 +17,7 @@
             <a href="{{ route('loans.create') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 transition-colors shadow-sm">
                 <i class="fas fa-plus mr-2"></i>New Loan Request
             </a>
-            @else
+            @elseif(in_array($user->role, ['admin', 'hr'], true))
             <button type="button" onclick="openLoanTypesModal()" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
                 <i class="fas fa-sliders mr-2"></i>Manage Loan Types
             </button>
@@ -151,6 +151,7 @@
 </div>
 
 @unless($isEmployeeView)
+@if(in_array($user->role, ['admin', 'hr'], true))
 <!-- Manage Loan Types Modal -->
 <div id="loanTypesModal" class="fixed inset-0 z-[9999] hidden items-center justify-center bg-gray-900/50 p-4 overflow-y-auto">
     <div class="relative w-full max-w-4xl my-8 max-h-[calc(100vh-4rem)] overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
@@ -259,6 +260,7 @@
         </div>
     </div>
 </div>
+@endif
 
 <script>
     function openLoanTypesModal() {

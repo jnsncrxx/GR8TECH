@@ -502,6 +502,15 @@
                         <span>Loan Management</span>
                     </a>
                 @else
+                    <a href="{{ route('loans.index') }}"
+                       class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group
+                       {{ in_array($activeRoute, ['loans.index', 'loans.show'], true)
+                            ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600'
+                            : '' }}">
+                        <i class="fas fa-hand-holding-dollar mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i>
+                        <span>Loan Approvals</span>
+                    </a>
+
                     <a href="{{ route('payroll.team') }}"
                        class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group
                        {{ $activeRoute === 'payroll.team'
