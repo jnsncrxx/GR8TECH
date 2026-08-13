@@ -2,7 +2,7 @@
 
 A comprehensive Laravel-based HRIS and payroll management system with employee management, attendance tracking, schedules, requests, payroll processing, and department organization.
 
-## 🚀 Features
+## Features
 
 - **Employee Management**: Complete CRUD operations for employee records
 - **Department and Position Management**: Organize employees by company, department, and position
@@ -23,7 +23,7 @@ A comprehensive Laravel-based HRIS and payroll management system with employee m
 - **Role-based Access**: Employee, Manager, HR, and Admin access with personal My Portal functions
 - **Multi-company Isolation**: Records and filter options follow the active company
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Backend**: Laravel 12 and PHP 8.2+
 - **Frontend**: Blade Templates, Alpine.js, and Tailwind CSS v3
@@ -40,7 +40,7 @@ A comprehensive Laravel-based HRIS and payroll management system with employee m
 - MySQL/PostgreSQL
 - Git
 
-## 🔧 Installation
+## Installation
 
 ### 1. Clone the Repository
 
@@ -124,7 +124,7 @@ npm run dev
 
 Run a queue worker when testing queued notifications, reminders, or jobs.
 
-## 🎨 Frontend Development
+## Frontend Development
 
 ### Available NPM Scripts
 
@@ -149,7 +149,7 @@ The project uses Tailwind CSS v3 with the following plugins:
 - Consistent action icons, buttons, status colors, and modal styling
 - Light and dark mode support across forms, tables, rows, backgrounds, and text
 
-## 🗄️ Database Structure
+## Database Structure
 
 ### Key Tables
 
@@ -168,7 +168,7 @@ The project uses Tailwind CSS v3 with the following plugins:
 - `payments` - Payroll payment records
 - `employee_loans` - Employee loan requests and balances
 
-## 🔐 Authentication & Roles
+## Authentication & Roles
 
 The system supports role-based access control:
 
@@ -179,7 +179,7 @@ The system supports role-based access control:
 
 Employee-linked Admin, HR, and Manager accounts use **My Portal** for their own employee records and requests. Users cannot approve or reject their own requests where review separation is required.
 
-## ⏱️ Request and Payroll Rules
+## Request and Payroll Rules
 
 - Pending Leave, OT, and OB requests may be edited or cancelled by their owner when the related payroll period is not protected.
 - Requests expire after an initial 24-hour window and may be re-requested once for a final 24-hour window.
@@ -189,7 +189,7 @@ Employee-linked Admin, HR, and Manager accounts use **My Portal** for their own 
 - Finalized and locked payroll periods protect overlapping attendance and requests from incompatible changes.
 - Payroll deadlines provide status, reminders, extensions, and audit information; finalization and locking remain authorized actions.
 
-## ✅ Testing
+## Testing
 
 Before opening or merging a pull request, run:
 
@@ -200,14 +200,14 @@ npm run build
 
 Ensure all automated tests pass and the frontend builds successfully.
 
-## 📱 Responsive Design
+## Responsive Design
 
 - **Desktop**: Full-featured interface with tables and management tools
 - **Mobile**: Card-based and responsive layouts for touch interaction
 - **Tablet**: Optimized layouts for medium screens
 - **Dark Mode**: Consistent dark backgrounds, fields, tables, status cards, borders, and readable text
 
-## 🚀 Deployment
+## Deployment
 
 ### Production Build
 
@@ -228,7 +228,7 @@ APP_URL=https://your-domain.com
 
 Before deployment, run migrations and tests on a disposable or backed-up database, confirm queue scheduling, and protect `.env`, database backups, payroll exports, OAuth credentials, and employee documents.
 
-## 🤝 Contributing
+## Contributing
 
 1. Update your local `develop` branch.
 2. Create a focused feature branch (`git switch -c feature/amazing-feature`).
@@ -237,7 +237,7 @@ Before deployment, run migrations and tests on a disposable or backed-up databas
 5. Open a pull request targeting `develop`.
 6. Include a short summary, changed behavior, and validation results.
 
-## 📚 Additional References
+## Additional References
 
 - [`README_timekeeping_import.md`](README_timekeeping_import.md) - DTR/timekeeping import guidance
 - [`GMAIL_SMTP_SETUP.md`](GMAIL_SMTP_SETUP.md) - SMTP configuration
@@ -255,6 +255,6 @@ Laravel has extensive official documentation and a broad learning ecosystem:
 
 Do not disclose security vulnerabilities publicly. Report them privately to the repository maintainers with reproduction steps and affected components.
 
-## 📄 License
+## License
 
 This project uses the MIT license declared in `composer.json`.
