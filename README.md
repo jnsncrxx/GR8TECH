@@ -191,23 +191,14 @@ Employee-linked Admin, HR, and Manager accounts use **My Portal** for their own 
 
 ## ✅ Testing
 
-Run the automated test suite before opening or merging a pull request:
+Before opening or merging a pull request, run:
 
 ```bash
 php artisan test
-```
-
-Current validation result on `feature/fix-validation-contracts`:
-
-- 106 tests passed
-- 334 assertions passed
-
-Additional validation commands:
-
-```bash
 npm run build
-php artisan view:cache
 ```
+
+Ensure all automated tests pass and the frontend builds successfully.
 
 ## 📱 Responsive Design
 
