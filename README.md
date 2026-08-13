@@ -1,170 +1,224 @@
-# GR8TECH Human Resources Information System
+# GR8TECH Payroll Management System
 
-GR8TECH is a Laravel-based HRIS and payroll platform for managing employee records, attendance, schedules, requests, payroll processing, reports, documents, loans, and role-based employee services.
+A comprehensive Laravel-based HRIS and payroll management system with employee management, attendance tracking, schedules, requests, payroll processing, and department organization.
 
-## Core Features
+## 🚀 Features
 
-- Multi-company data isolation with an active-company context
-- Employee, department, position, account, and document management
-- Schedule templates, bulk scheduling, and calendar-based schedule management
-- Time in/out, DTR import, attendance corrections, exception review, and audit markers
-- Leave, overtime (OT), and Official Business (OB) requests and approvals
-- Two-stage request expiration: an initial 24-hour review window and one final 24-hour re-request window
-- Semi-monthly payroll periods, pre-payroll validation, generation, review, finalization, locking, payments, and payslips
-- Payroll adjustments, statutory deductions, withholding tax, paid and unpaid leave, loans, and overtime computation
-- Consolidated reports, exports, notifications, and role-based Universal Search
-- Responsive light and dark interfaces
+- **Employee Management**: Complete CRUD operations for employee records
+- **Department and Position Management**: Organize employees by company, department, and position
+- **Attendance System**:
+  - Time In/Out functionality
+  - Daily attendance and timekeeping records
+  - DTR import and attendance corrections
+  - Schedule management and templates
+  - Overtime, Leave, and Official Business requests
+  - Attendance exception review before payroll generation
+- **Payroll Management**:
+  - Semi-monthly payroll periods
+  - Pre-payroll validation, generation, review, finalization, and locking
+  - Paid and unpaid leave, overtime, loans, deductions, payments, and payslips
+- **Universal Search and Reports**: Role- and company-scoped records, consolidated reports, and exports
+- **Real-time Clock**: Live time display using Philippine Standard Time
+- **Responsive Design**: Desktop, tablet, and mobile layouts with light and dark modes
+- **Role-based Access**: Employee, Manager, HR, and Admin access with personal My Portal functions
+- **Multi-company Isolation**: Records and filter options follow the active company
 
-## Roles and Access
+## 🛠️ Tech Stack
 
-| Role | Main access |
-|---|---|
-| Employee | Personal attendance, schedule, Leave, OT, OB, payslips, loans, documents, and profile |
-| Manager | Personal employee services plus authorized team review and management functions |
-| HR | Workforce administration, attendance and request review, payroll operations, reports, and loan-type management |
-| Admin | Authorized system-wide administration, developer tools, account management, and company-scoped operations |
+- **Backend**: Laravel 12 and PHP 8.2+
+- **Frontend**: Blade Templates, Alpine.js, and Tailwind CSS v3
+- **Database**: MySQL/PostgreSQL; SQLite where configured for tests
+- **Build Tool**: Vite 6
+- **Icons**: Font Awesome 6
+- **Reports and Exports**: DomPDF, Laravel Excel, and PhpSpreadsheet
 
-Employee-linked Manager, HR, and Admin accounts use **My Portal** for their own requests and records. Users cannot approve or reject their own requests where review separation is required.
+## 📋 Prerequisites
 
-## Key Workflows
-
-### Attendance to payroll
-
-1. Define the payroll period and employee schedules.
-2. Record attendance through time in/out, DTR import, or authorized correction.
-3. Review incomplete logs, invalid durations, possible wrong schedules, rest-day duty, and unverified Leave/OT/OB markers.
-4. Validate Attendance, Leave, Official Business, and Overtime.
-5. Generate and review payroll.
-6. Return the payroll for documented correction when necessary.
-7. Finalize, lock, process payment, and release payslips.
-
-Future scheduled dates are displayed as **Scheduled**, not **Absent**. Finalized or locked payroll periods protect their source attendance and request records from incompatible changes.
-
-### Leave, OT, and Official Business
-
-- Pending requests may be edited or cancelled by their owner, subject to payroll-period protection.
-- Overlapping pending requests can be replaced only after explicit confirmation where supported.
-- Approved requests cannot be replaced through the pending-request flow.
-- An unattended request expires after 24 hours and may be re-requested once.
-- The re-request receives a final 24-hour review window; no further re-request is allowed after final expiry.
-- Approval, rejection, cancellation, expiry, reviewer, timestamps, and reasons are retained where modeled.
-
-### Payroll deadlines and locks
-
-- Periods support request, preparation, validation, and lock deadlines.
-- Deadline states are displayed as Not Set, Open, Due Soon, or Overdue.
-- Deadline extensions require an actor, timestamp, and reason.
-- Deadlines guide and audit the workflow; finalization and locking remain deliberate authorized actions unless a controller explicitly blocks a transition.
-
-## Technology Stack
-
-- PHP 8.2+
-- Laravel 12
-- Blade, Alpine.js, and Tailwind CSS 3
-- Vite 6
-- MySQL or PostgreSQL for application data
-- SQLite for automated tests where configured
-- Font Awesome 6
-- DomPDF, Laravel Excel, and PhpSpreadsheet for reports and exports
-
-## Prerequisites
-
-- PHP 8.2 or later with the required Laravel extensions
+- PHP 8.2 or higher
 - Composer
-- Node.js 18 or later and npm
-- MySQL or PostgreSQL
+- Node.js 18+ and npm
+- MySQL/PostgreSQL
 - Git
 
-## Local Installation
+## 🔧 Installation
 
-1. Clone the repository and enter the project directory.
+### 1. Clone the Repository
 
-   ```bash
-   git clone https://github.com/jnsncrxx/GR8TECH.git
-   cd GR8TECH
-   ```
+```bash
+git clone https://github.com/jnsncrxx/GR8TECH.git
+cd GR8TECH
+```
 
-2. Install backend and frontend dependencies.
+### 2. Install PHP Dependencies
 
-   ```bash
-   composer install
-   npm install
-   ```
+```bash
+composer install
+```
 
-3. Create the environment file and application key.
+### 3. Install Node.js Dependencies
 
-   **PowerShell**
+```bash
+npm install
+```
 
-   ```powershell
-   Copy-Item .env.example .env
-   php artisan key:generate
-   ```
+### 4. Environment Setup
 
-   **Bash**
+For Bash:
 
-   ```bash
-   cp .env.example .env
-   php artisan key:generate
-   ```
+```bash
+cp .env.example .env
+php artisan key:generate
+```
 
-4. Configure the database and application URL in `.env`.
+For PowerShell:
 
-   ```env
-   APP_URL=http://127.0.0.1:8000
+```powershell
+Copy-Item .env.example .env
+php artisan key:generate
+```
 
-   DB_CONNECTION=mysql
-   DB_HOST=127.0.0.1
-   DB_PORT=3306
-   DB_DATABASE=payrolllaravel
-   DB_USERNAME=root
-   DB_PASSWORD=
-   ```
+### 5. Database Configuration
 
-5. Create the schema and build the frontend assets.
+Update your `.env` file with the correct application URL and database credentials:
 
-   ```bash
-   php artisan migrate
-   npm run build
-   ```
+```env
+APP_URL=http://127.0.0.1:8000
 
-6. Start the application.
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=payrolllaravel
+DB_USERNAME=root
+DB_PASSWORD=
+```
 
-   ```bash
-   composer run dev
-   ```
+### 6. Run Database Migrations
 
-   Alternatively, run Laravel and Vite separately:
+```bash
+php artisan migrate
+```
 
-   ```bash
-   php artisan serve
-   npm run dev
-   ```
+### 7. Build Assets
 
-Queue workers must be running for queued notifications and jobs.
+```bash
+npm run build
+```
 
-## Testing and Validation
+### 8. Start Development Server
 
-Run the complete automated suite before opening or merging a pull request:
+Use the combined development command:
+
+```bash
+composer run dev
+```
+
+Or run Laravel and Vite separately:
+
+```bash
+# Terminal 1: Laravel server
+php artisan serve
+
+# Terminal 2: Vite dev server
+npm run dev
+```
+
+Run a queue worker when testing queued notifications, reminders, or jobs.
+
+## 🎨 Frontend Development
+
+### Available NPM Scripts
+
+```bash
+npm run dev          # Start Vite dev server with hot reloading
+npm run build        # Build for production
+npm run watch        # Build and watch for changes
+npm run hot          # Start dev server with host access
+```
+
+### Tailwind CSS Configuration
+
+The project uses Tailwind CSS v3 with the following plugins:
+
+- `@tailwindcss/forms` - Form styling
+- `@tailwindcss/typography` - Typography utilities
+
+### UI Conventions
+
+- Responsive tables and cards
+- Compact, scrollable data views where appropriate
+- Consistent action icons, buttons, status colors, and modal styling
+- Light and dark mode support across forms, tables, rows, backgrounds, and text
+
+## 🗄️ Database Structure
+
+### Key Tables
+
+- `companies` - Company records and active-company scope
+- `employees` - Employee information
+- `departments` - Department data
+- `positions` - Position data
+- `attendance_records` - Daily attendance tracking
+- `employee_schedules` - Employee schedule assignments
+- `schedule_templates` - Reusable schedule definitions
+- `overtime_requests` - Overtime requests and review history
+- `leave_requests` - Leave requests and expiration state
+- `official_business_requests` - Official Business requests
+- `payroll_periods` - Payroll cutoff and workflow state
+- `payrolls` - Generated payroll records
+- `payments` - Payroll payment records
+- `employee_loans` - Employee loan requests and balances
+
+## 🔐 Authentication & Roles
+
+The system supports role-based access control:
+
+- **Admin**: Authorized system administration, workforce, payroll, reports, accounts, and developer tools
+- **HR**: Workforce management, attendance and request review, payroll operations, reports, and loan types
+- **Manager**: Personal employee services and authorized team/request review; can review employee loans but cannot manage loan types
+- **Employee**: Personal attendance, schedules, requests, payslips, loans, documents, and profile
+
+Employee-linked Admin, HR, and Manager accounts use **My Portal** for their own employee records and requests. Users cannot approve or reject their own requests where review separation is required.
+
+## ⏱️ Request and Payroll Rules
+
+- Pending Leave, OT, and OB requests may be edited or cancelled by their owner when the related payroll period is not protected.
+- Requests expire after an initial 24-hour window and may be re-requested once for a final 24-hour window.
+- Final expiry prevents another re-request.
+- Future scheduled dates display as **Scheduled**, not **Absent**.
+- Attendance, Leave, OB, and OT must pass pre-payroll validation before payroll generation.
+- Finalized and locked payroll periods protect overlapping attendance and requests from incompatible changes.
+- Payroll deadlines provide status, reminders, extensions, and audit information; finalization and locking remain authorized actions.
+
+## ✅ Testing
+
+Run the automated test suite before opening or merging a pull request:
 
 ```bash
 php artisan test
 ```
 
-The validation-contract branch currently passes:
+Current validation result on `feature/fix-validation-contracts`:
 
-- 106 tests
-- 334 assertions
+- 106 tests passed
+- 334 assertions passed
 
-The suite covers attendance normalization and exceptions, period deadlines and locks, company isolation, schedule validation, Leave/OT/OB behavior, payroll calculations, personal role portals, request expiration, reporting, and Universal Search access rules.
-
-Build and cache checks:
+Additional validation commands:
 
 ```bash
 npm run build
 php artisan view:cache
 ```
 
-## Production Checklist
+## 📱 Responsive Design
+
+- **Desktop**: Full-featured interface with tables and management tools
+- **Mobile**: Card-based and responsive layouts for touch interaction
+- **Tablet**: Optimized layouts for medium screens
+- **Dark Mode**: Consistent dark backgrounds, fields, tables, status cards, borders, and readable text
+
+## 🚀 Deployment
+
+### Production Build
 
 ```bash
 npm run build
@@ -173,37 +227,43 @@ php artisan route:cache
 php artisan view:cache
 ```
 
-Use production-safe environment values:
+### Environment Variables for Production
 
 ```env
 APP_ENV=production
 APP_DEBUG=false
-APP_URL=https://your-domain.example
+APP_URL=https://your-domain.com
 ```
 
-Before release:
+Before deployment, run migrations and tests on a disposable or backed-up database, confirm queue scheduling, and protect `.env`, database backups, payroll exports, OAuth credentials, and employee documents.
 
-- Run migrations and the full test suite against a disposable or backed-up database.
-- Confirm the active-company context and company-scoped filters.
-- Confirm queue scheduling for notifications, reminders, and request-expiry sweeps.
-- Protect `.env`, OAuth credentials, payroll exports, database backups, and employee documents.
-- Do not deploy demo cleanup scripts or reference SQL dumps without review and backup.
+## 🤝 Contributing
 
-## Contribution Workflow
+1. Update your local `develop` branch.
+2. Create a focused feature branch (`git switch -c feature/amazing-feature`).
+3. Commit your changes (`git commit -m "feat: add amazing feature"`).
+4. Push the branch (`git push --set-upstream origin feature/amazing-feature`).
+5. Open a pull request targeting `develop`.
+6. Include a short summary, changed behavior, and validation results.
 
-1. Update your branch from `develop`.
-2. Create a focused `feature/<branch-name>` branch.
-3. Implement and test one coherent change set.
-4. Use a clear conventional commit message, such as `fix: align validation and response contracts`.
-5. Push the branch and open a pull request targeting `develop`.
-6. Include a concise summary, changed behavior, and validation results in the pull-request description.
+## 📚 Additional References
 
-## Additional References
+- [`README_timekeeping_import.md`](README_timekeeping_import.md) - DTR/timekeeping import guidance
+- [`GMAIL_SMTP_SETUP.md`](GMAIL_SMTP_SETUP.md) - SMTP configuration
+- [`EMAIL_TEMPLATES.md`](EMAIL_TEMPLATES.md) - Notification email templates
 
-- [`README_timekeeping_import.md`](README_timekeeping_import.md) — DTR/timekeeping import guidance
-- [`GMAIL_SMTP_SETUP.md`](GMAIL_SMTP_SETUP.md) — mail configuration
-- [`EMAIL_TEMPLATES.md`](EMAIL_TEMPLATES.md) — notification email templates
+## Learning Laravel
 
-## License
+Laravel has extensive official documentation and a broad learning ecosystem:
+
+- [Laravel Documentation](https://laravel.com/docs)
+- [Laravel Bootcamp](https://bootcamp.laravel.com)
+- [Laracasts](https://laracasts.com)
+
+## Security Vulnerabilities
+
+Do not disclose security vulnerabilities publicly. Report them privately to the repository maintainers with reproduction steps and affected components.
+
+## 📄 License
 
 This project uses the MIT license declared in `composer.json`.
