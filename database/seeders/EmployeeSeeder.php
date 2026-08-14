@@ -2,163 +2,98 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
-use App\Models\Employee;
+use App\Models\Company;
 use App\Models\Department;
-use Carbon\Carbon;
+use App\Models\Employee;
+use App\Models\Position;
+use Illuminate\Database\Seeder;
 
 class EmployeeSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
+    /** @var array<string, string> */
+    public const IDS = [
+        'jerson' => '20000000-0000-4000-8000-000000000001',
+        'curt' => '20000000-0000-4000-8000-000000000002',
+        'charlie' => '20000000-0000-4000-8000-000000000003',
+        'reece' => '20000000-0000-4000-8000-000000000004',
+        'alexander' => '20000000-0000-4000-8000-000000000005',
+        'maria' => '20000000-0000-4000-8000-000000000006',
+        'reyven' => '20000000-0000-4000-8000-000000000007',
+        'bulbasaur' => '20000000-0000-4000-8000-000000000008',
+        'taylor' => '20000000-0000-4000-8000-000000000009',
+        'npi_employee' => '20000000-0000-4000-8000-000000000010',
+    ];
+
+    /** @var array<string, string> */
+    public const NUMBERS = [
+        'jerson' => 'EMP-0001',
+        'curt' => 'EMP-0002',
+        'charlie' => 'EMP-0003',
+        'reece' => 'EMP-0004',
+        'alexander' => 'EMP-0005',
+        'maria' => 'EMP-0006',
+        'reyven' => 'EMP-0007',
+        'bulbasaur' => 'EMP-0008',
+        'taylor' => 'EMP-0009',
+        'npi_employee' => 'NPI-0001',
+    ];
+
     public function run(): void
     {
-        // Get department IDs
-        $itDepartment = Department::where('name', 'Information Technology')->first();
-        $hrDepartment = Department::where('name', 'Human Resources')->first();
-
-        // Map position names to UUIDs
-        $positions = \App\Models\Position::all()->keyBy('name');
-
         $employees = [
-            [
-                'id' => '22ff1b14-2301-4a27-a022-6736b3c9f318',
-                'employee_id' => 'EMP-0001',
-                'first_name' => 'Jerson Marg',
-                'last_name' => 'Cerezo',
-                'phone' => '09',
-                'department_id' => $itDepartment->id,
-                'position_id' => $positions['Software Developer']->id ?? null,
-                'salary' => 18000.00,
-                'hire_date' => '2025-09-08',
-                'created_at' => Carbon::parse('2025-10-05 15:33:26'),
-                'updated_at' => Carbon::parse('2025-10-05 15:33:26'),
-            ],
-            [
-                'id' => 'b19c96de-91d9-4bcd-a0b6-2010bc7dae8c',
-                'employee_id' => 'EMP-0002',
-                'first_name' => 'Lowegie',
-                'last_name' => 'Raga',
-                'phone' => '09',
-                'department_id' => $itDepartment->id,
-                'position_id' => $positions['Software Developer']->id ?? null,
-                'salary' => 18000.00,
-                'hire_date' => '2025-09-08',
-                'created_at' => Carbon::parse('2025-10-05 15:36:36'),
-                'updated_at' => Carbon::parse('2025-10-05 15:36:36'),
-            ],
-            [
-                'id' => '75282d62-51f2-41a9-a5e3-6b4b6838a5f7',
-                'employee_id' => 'EMP-0003',
-                'first_name' => 'Alexander',
-                'last_name' => 'Estares',
-                'phone' => '09',
-                'department_id' => $itDepartment->id,
-                'position_id' => $positions['Software Developer']->id ?? null,
-                'salary' => 18000.00,
-                'hire_date' => '2025-09-08',
-                'created_at' => Carbon::parse('2025-10-05 15:37:41'),
-                'updated_at' => Carbon::parse('2025-10-05 15:37:41'),
-            ],
-            [
-                'id' => 'b5b39e80-36cc-4f35-abaf-20272f5a461c',
-                'employee_id' => 'EMP-0004',
-                'first_name' => 'Curt Vincent',
-                'last_name' => 'Guiling',
-                'phone' => '09',
-                'department_id' => $itDepartment->id,
-                'position_id' => $positions['QA']->id ?? null,
-                'salary' => 15000.00,
-                'hire_date' => '2025-09-08',
-                'created_at' => Carbon::parse('2025-10-05 15:39:11'),
-                'updated_at' => Carbon::parse('2025-10-05 15:39:11'),
-            ],
-            [
-                'id' => '0c6fcadb-5d42-453e-b85e-04df54d4b42b',
-                'employee_id' => 'EMP-0005',
-                'first_name' => 'Charlie',
-                'last_name' => 'Cawile',
-                'phone' => '09',
-                'department_id' => $itDepartment->id,
-                'position_id' => $positions['QA']->id ?? null,
-                'salary' => 15000.00,
-                'hire_date' => '2025-09-08',
-                'created_at' => Carbon::parse('2025-10-05 15:39:54'),
-                'updated_at' => Carbon::parse('2025-10-05 15:39:54'),
-            ],
-            [
-                'id' => 'c413f98e-d91b-4c61-b4d4-eb00e40a34b1',
-                'employee_id' => 'EMP-0006',
-                'first_name' => 'Reece',
-                'last_name' => 'Bibaro',
-                'phone' => '09',
-                'department_id' => $itDepartment->id,
-                'position_id' => $positions['QA']->id ?? null,
-                'salary' => 15000.00,
-                'hire_date' => '2025-09-08',
-                'created_at' => Carbon::parse('2025-10-05 15:40:28'),
-                'updated_at' => Carbon::parse('2025-10-05 15:40:28'),
-            ],
-            [
-                'id' => '243e7606-9542-4c71-867c-05bea5e658d3',
-                'employee_id' => 'EMP-0007',
-                'first_name' => 'Reyven',
-                'last_name' => 'Plaza',
-                'phone' => '09',
-                'department_id' => $itDepartment->id,
-                'position_id' => $positions['QA']->id ?? null,
-                'salary' => 15000.00,
-                'hire_date' => '2025-09-08',
-                'created_at' => Carbon::parse('2025-10-05 15:41:02'),
-                'updated_at' => Carbon::parse('2025-10-05 15:41:02'),
-            ],
-            [
-                'id' => 'b5aecc58-69dc-4d2c-b435-d8f13a9416ef',
-                'employee_id' => 'EMP-0008',
-                'first_name' => 'Maria',
-                'last_name' => 'Sampalok',
-                'phone' => '09',
-                'department_id' => $itDepartment->id,
-                'position_id' => $positions['QA']->id ?? null,
-                'salary' => 15000.00,
-                'hire_date' => '2025-09-08',
-                'created_at' => Carbon::parse('2025-10-05 17:08:30'),
-                'updated_at' => Carbon::parse('2025-10-05 17:08:30'),
-            ],
-            [
-                'id' => '41c930c9-40d9-4e8b-9575-87e1ae3c8ab7',
-                'employee_id' => 'EMP-0009',
-                'first_name' => 'Bulbasaur',
-                'last_name' => 'Poke',
-                'phone' => '09',
-                'department_id' => $itDepartment->id,
-                'position_id' => $positions['Software Developer']->id ?? null,
-                'salary' => 18000.00,
-                'hire_date' => '2025-09-08',
-                'created_at' => Carbon::parse('2025-10-05 17:09:28'),
-                'updated_at' => Carbon::parse('2025-10-05 17:09:28'),
-            ],
-            [
-                'id' => '4a189262-87df-48a6-8155-97fbe315e830',
-                'employee_id' => 'EMP-0010',
-                'first_name' => 'Balingka',
-                'last_name' => 'Kalat',
-                'phone' => '09',
-                'department_id' => $hrDepartment->id,
-                'position_id' => $positions['Hr Manager']->id ?? null,
-                'salary' => 20000.00,
-                'hire_date' => '2025-09-09',
-                'created_at' => Carbon::parse('2025-10-09 15:44:09'),
-                'updated_at' => Carbon::parse('2025-10-09 15:44:09'),
-            ],
+            ['jerson', 'EMP-0001', 'Jerson Marg', 'Cerezo', 'GR8TECH', 'DEPT-GR8-HR', 'GR8-HRM', 48000],
+            ['curt', 'EMP-0002', 'Curt Vincent', 'Guiling', 'GR8TECH', 'DEPT-GR8-OPS', 'GR8-OPSA', 30000],
+            ['charlie', 'EMP-0003', 'Charlie', 'Cawile', 'GR8TECH', 'DEPT-GR8-SM', 'GR8-SMM', 50000],
+            ['reece', 'EMP-0004', 'Reece', 'Bibaro', 'GR8TECH', 'DEPT-GR8-HR', 'GR8-HRA', 28000],
+            ['alexander', 'EMP-0005', 'Alexander', 'Estares', 'GR8TECH', 'DEPT-GR8-FIN', 'GR8-FINA', 32000],
+            ['maria', 'EMP-0006', 'Maria', 'Sampalok', 'GR8TECH', 'DEPT-GR8-FIN', 'GR8-FINA', 28000],
+            ['reyven', 'EMP-0007', 'Reyven', 'Plaza', 'GR8TECH', 'DEPT-GR8-IT', 'GR8-ITM', 55000],
+            ['bulbasaur', 'EMP-0008', 'Bulbasaur', 'Poke', 'GR8TECH', 'DEPT-GR8-IT', 'GR8-SDEV', 36000],
+            ['taylor', 'EMP-0009', 'Taylor', 'Swift', 'GR8TECH', 'DEPT-GR8-HR', 'GR8-HRA', 30000],
+            ['npi_employee', 'NPI-0001', 'Nora', 'Santos', 'NPI', 'DEPT-NPI-IT', 'NPI-SDEV', 35000],
         ];
 
-        foreach ($employees as $employee) {
-            Employee::create($employee);
+        foreach ($employees as [$key, $employeeNumber, $firstName, $lastName, $companyCode, $departmentCode, $positionCode, $salary]) {
+            $companyId = Company::query()->where('code', $companyCode)->value('id');
+            $department = Department::query()->where('department_id', $departmentCode)->firstOrFail();
+            $position = Position::query()->where('code', $positionCode)->firstOrFail();
+
+            $employee = Employee::query()->firstOrNew(['employee_id' => $employeeNumber]);
+            if (! $employee->exists) {
+                $employee->id = self::IDS[$key];
+            }
+
+            $employee->fill([
+                'company_id' => $companyId,
+                'department_id' => $department->id,
+                'position_id' => $position->id,
+                'first_name' => $firstName,
+                'last_name' => $lastName,
+                'phone' => '09170000000',
+                'mobile_number' => '09170000000',
+                'salary' => $salary,
+                'hire_date' => '2025-01-10',
+                'employee_status' => 'active',
+            ])->save();
         }
 
-        $this->command->info('Employees created successfully!');
+        $this->assignDepartmentManagers();
+        $this->command?->info('Company-scoped employees and department managers seeded.');
+    }
+
+    private function assignDepartmentManagers(): void
+    {
+        $assignments = [
+            'DEPT-GR8-HR' => self::NUMBERS['jerson'],
+            'DEPT-GR8-IT' => self::NUMBERS['reyven'],
+            'DEPT-GR8-SM' => self::NUMBERS['charlie'],
+        ];
+
+        foreach ($assignments as $departmentCode => $managerNumber) {
+            $managerId = Employee::query()->where('employee_id', $managerNumber)->value('id');
+            Department::query()
+                ->where('department_id', $departmentCode)
+                ->update(['manager_id' => $managerId]);
+        }
     }
 }

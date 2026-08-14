@@ -2,10 +2,9 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
 use App\Models\TaxBracket;
 use Carbon\Carbon;
+use Illuminate\Database\Seeder;
 
 class TaxBracketSeeder extends Seeder
 {
@@ -14,9 +13,6 @@ class TaxBracketSeeder extends Seeder
      */
     public function run(): void
     {
-        // Clear existing tax brackets
-        TaxBracket::truncate();
-        
         $brackets = [
             [
                 'name' => 'Exempt',
@@ -79,14 +75,14 @@ class TaxBracketSeeder extends Seeder
                 'sort_order' => 6,
             ],
         ];
-        
+
         foreach ($brackets as $bracketData) {
-            TaxBracket::create(array_merge($bracketData, [
+            TaxBracket::query()->updateOrCreate(['name' => $bracketData['name']], array_merge($bracketData, [
                 'is_active' => true,
-                'effective_from' => Carbon::now()->startOfYear(),
+                'effective_from' => Carbon::create(2023, 1, 1),
             ]));
         }
-        
+
         $this->command->info('Tax brackets seeded successfully!');
     }
 }
