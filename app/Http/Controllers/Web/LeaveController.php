@@ -2,34 +2,75 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Helpers\CompanyHelper;
 use App\Http\Controllers\Controller;
+use App\Exports\LeaveRequestExport;
+use App\Models\AttendanceRecord;
+use App\Models\Department;
 use App\Models\Employee;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
+use App\Notifications\RequestStatusChanged;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Maatwebsite\Excel\Facades\Excel;
 
 class LeaveController extends Controller
 {
+    private function currentCompanyLeave(string $id): ?LeaveRequest
+    {
+        return LeaveRequest::query()
+            ->whereHas('employee', fn ($query) => $query->forCompany(CompanyHelper::getCurrentCompanyId()))
+            ->find($id);
+    }
+
     protected array $leaveTypes = [
         'vacation',
         'sick',
+        'sil',
         'personal',
         'emergency',
         'maternity',
         'paternity',
+        'spl',
+        'vawc',
         'bereavement',
         'study',
     ];
 
+    // Only these carry a settable, enforced balance. Everything else in
+    // $leaveTypes is uncapped (see LeaveRequest::UNCAPPED_LEAVE_TYPES) and
+    // doesn't need a total set via the balance form.
+    protected array $balanceLeaveTypes = ['vacation', 'sick', 'sil'];
+
     public function index(Request $request)
     {
+        LeaveRequest::pastDeadline()->with('employee.account')->get()->each(function (LeaveRequest $leave) {
+            if ($leave->expireCurrentWindow()) {
+                $this->notifyRequester($leave);
+            }
+        });
+
         $user = Auth::user();
+        $personalRequested = $request->query('scope') === 'mine';
+        if ($personalRequested && !$user->employee_id) {
+            return redirect()->route('dashboard')->with('error', 'No employee record is linked to this account.');
+        }
+        $personalMode = $personalRequested;
+        $isReviewer = in_array($user->role, ['admin', 'hr', 'manager'], true) && !$personalMode;
 
         $query = $this->applyFilters(LeaveRequest::with(['employee', 'approver']), $request, $user);
-        $leaveRequests = $query->orderBy('created_at', 'desc')->paginate(10)->withQueryString();
+        $leaveRequests = $query
+            ->orderByRaw("CASE WHEN status IN ('pending', 'expired') THEN 0 ELSE 1 END")
+            ->orderBy('created_at', 'desc')
+            ->paginate(10)
+            ->withQueryString();
 
         $summaryQuery = $this->applyFilters(LeaveRequest::query(), $request, $user);
         $summary = [
@@ -39,71 +80,107 @@ class LeaveController extends Controller
             'rejected' => (clone $summaryQuery)->where('status', 'rejected')->count(),
         ];
 
-        $employees = Employee::with('department')->get();
+        $currentCompany = CompanyHelper::getCurrentCompany();
 
-        $hasEmployeesWithoutBalances = Employee::whereDoesntHave('leaveBalances', function ($query) {
+        $employeesQuery = Employee::with('department');
+        if ($user->role === 'manager') {
+            $employeesQuery->managedBy($user->employee_id);
+        }
+        if ($currentCompany) {
+            $employeesQuery->forCompany($currentCompany->id);
+        }
+        $employees = $employeesQuery->get();
+
+        $departmentsQuery = $user->role === 'manager'
+            ? Department::where('manager_id', $user->employee_id)->orderBy('name')
+            : Department::orderBy('name');
+        if ($currentCompany) {
+            $departmentsQuery->forCompany($currentCompany->id);
+        }
+        $departments = $departmentsQuery->get();
+
+        $hasEmployeesWithoutBalancesQuery = Employee::whereDoesntHave('leaveBalances', function ($query) {
             $query->where('year', Carbon::now()->year);
-        })->exists();
+        });
+        if ($currentCompany) {
+            $hasEmployeesWithoutBalancesQuery->forCompany($currentCompany->id);
+        }
+        $hasEmployeesWithoutBalances = $hasEmployeesWithoutBalancesQuery->exists();
 
         return view('attendance.leave-management', [
             'user' => $user,
             'summary' => $summary,
             'leaveRequests' => $leaveRequests,
             'employees' => $employees,
+            'departments' => $departments,
             'statusList' => ['pending', 'approved', 'rejected', 'cancelled'],
             'hasEmployeesWithoutBalances' => $hasEmployeesWithoutBalances,
+            'isReviewer' => $isReviewer,
+            'personalMode' => $personalMode,
         ]);
     }
 
-    public function exportLeave($format)
+    public function exportLeave(Request $request, string $format)
     {
-        $allowed = ['pdf', 'csv', 'xls'];
-        if (!in_array($format, $allowed, true)) {
+        $format = strtolower($format);
+
+        if (!in_array($format, ['pdf', 'csv', 'xlsx', 'xls'], true)) {
             return back()->with('error', 'Unsupported export format.');
         }
 
-        $leaveRequests = LeaveRequest::with(['employee'])->orderBy('created_at', 'desc')->get();
-        $fileName = 'leave-requests-' . Carbon::now()->format('YmdHis') . '.csv';
+        $user = Auth::user();
+        if ($request->query('scope') === 'mine' && !$user->employee_id) {
+            return redirect()->route('dashboard')->with('error', 'No employee record is linked to this account.');
+        }
 
-        $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
-        ];
+        $leaveRequests = $this->applyFilters(
+            LeaveRequest::with(['employee.department', 'approver.employee']),
+            $request,
+            $user
+        )->orderByDesc('created_at')->get();
 
-        $callback = function () use ($leaveRequests) {
-            $handle = fopen('php://output', 'w');
-            fputcsv($handle, ['Employee', 'Leave Type', 'Start Date', 'End Date', 'Days Requested', 'Status', 'Reason', 'Approved By', 'Approved At']);
+        $timestamp = now()->format('Ymd_His');
 
-            foreach ($leaveRequests as $request) {
-                fputcsv($handle, [
-                    $request->employee->full_name ?? 'N/A',
-                    ucfirst(str_replace('_', ' ', $request->leave_type)),
-                    $request->start_date,
-                    $request->end_date,
-                    $request->days_requested,
-                    ucfirst($request->status),
-                    $request->reason,
-                    $request->approvedBy?->email ?? '',
-                    $request->approved_at?->format('Y-m-d H:i:s') ?? '',
-                ]);
-            }
+        if ($format === 'pdf') {
+            return Pdf::loadView('attendance.exports.leave-requests-pdf', [
+                'requests' => $leaveRequests,
+                'generatedAt' => now(),
+            ])->setPaper('a4', 'landscape')
+                ->download("leave-requests_{$timestamp}.pdf");
+        }
 
-            fclose($handle);
-        };
+        $export = new LeaveRequestExport($leaveRequests);
 
-        return response()->stream($callback, 200, $headers);
+        if ($format === 'csv') {
+            return Excel::download(
+                $export,
+                "leave-requests_{$timestamp}.csv",
+                \Maatwebsite\Excel\Excel::CSV
+            );
+        }
+
+        return Excel::download(
+            $export,
+            "leave-requests_{$timestamp}.xlsx",
+            \Maatwebsite\Excel\Excel::XLSX
+        );
     }
 
-    public function create()
+    public function create(Request $request)
     {
         $user = Auth::user();
+        $personalMode = $request->query('scope') === 'mine' && (bool) $user->employee_id;
         $employee = $user->employee;
         $employees = [];
         $leaveBalance = null;
         $availableDays = [];
 
-        if (in_array($user->role, ['admin', 'hr'], true)) {
-            $employees = Employee::with('department')->get();
+        if (in_array($user->role, ['admin', 'hr'], true) && !$personalMode) {
+            $employees = Employee::with('department')
+                ->forCompany(CompanyHelper::getCurrentCompanyId())
+                ->orderBy('first_name')
+                ->orderBy('last_name')
+                ->get();
         }
 
         if ($employee) {
@@ -124,23 +201,107 @@ class LeaveController extends Controller
             'employees' => $employees,
             'leaveBalance' => $leaveBalance,
             'availableDays' => $availableDays,
+            'personalMode' => $personalMode,
         ]);
     }
 
+    /**
+     * Check for overlapping leave requests
+     */
+    private function getOverlappingLeaves($employeeId, $startDate, $endDate, $excludeLeaveId = null)
+    {
+        $query = LeaveRequest::where('employee_id', $employeeId)
+            ->whereIn('status', ['pending', 'approved'])
+            ->where(function ($query) use ($startDate, $endDate) {
+                $query->where(function ($q) use ($startDate, $endDate) {
+                    // New request starts within existing leave
+                    $q->where('start_date', '<=', $endDate)
+                      ->where('end_date', '>=', $startDate);
+                });
+            });
+
+        if ($excludeLeaveId) {
+            $query->where('id', '!=', $excludeLeaveId);
+        }
+
+        return $query->get();
+    }
+
+    /**
+     * Check if dates overlap with existing leaves
+     */
+    public function checkOverlap(Request $request)
+    {
+        $user = Auth::user();
+        $employeeId = $request->input('employee_id');
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $excludeId = $request->input('exclude_id');
+
+        // Personal request roles may only inspect their own leave calendar.
+        if (!in_array($user->role, ['admin', 'hr'], true)) {
+            $employeeId = $user->employee?->id;
+        }
+
+        if (!$employeeId || !$startDate || !$endDate) {
+            return response()->json(['error' => 'Missing required parameters'], 400);
+        }
+
+        if (!Employee::forCompany(CompanyHelper::getCurrentCompanyId())->whereKey($employeeId)->exists()) {
+            return response()->json(['error' => 'Employee not found for the active company.'], 404);
+        }
+
+        $overlappingLeaves = $this->getOverlappingLeaves($employeeId, $startDate, $endDate, $excludeId);
+
+        $overlaps = [];
+        foreach ($overlappingLeaves as $leave) {
+            $overlaps[] = [
+                'id' => $leave->id,
+                'leave_type' => $leave->leave_type,
+                'start_date' => $leave->start_date,
+                'end_date' => $leave->end_date,
+                'days_requested' => $leave->days_requested,
+                'status' => $leave->status,
+                'reason' => $leave->reason,
+            ];
+        }
+
+        return response()->json([
+            'has_overlap' => count($overlaps) > 0,
+            'overlaps' => $overlaps,
+            'count' => count($overlaps)
+        ]);
+    }
+
+    /**
+     * Store a new leave request with overlap validation
+     */
     public function store(Request $request)
     {
         $user = Auth::user();
         $role = $user->role;
+        $personalMode = $request->input('scope') === 'mine' && (bool) $user->employee_id;
 
         $rules = [
-            'leave_type' => ['required', 'in:' . implode(',', $this->leaveTypes)],
-            'start_date' => ['required', 'date'],
-            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
-            'reason' => ['required', 'string', 'max:500'],
-            'employee_id' => ['required', 'exists:employees,id'],
+            'leave_type'       => ['required', 'in:' . implode(',', $this->leaveTypes)],
+            'start_date'       => ['required', 'date'],
+            'end_date'         => ['required', 'date', 'after_or_equal:start_date'],
+            'reason'           => ['required', 'string', 'max:500'],
+            'employee_id'      => [
+                'required',
+                Rule::exists('employees', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
+            'replace_leave_id' => ['nullable', 'exists:leave_requests,id'],
         ];
 
-        if (!in_array($role, ['admin', 'hr'], true)) {
+        // Employees cannot file backdated leave requests.
+        if (!in_array($role, ['admin', 'hr'], true) || $personalMode) {
+            $rules['start_date'][] = 'after_or_equal:today';
+        }
+
+        if (!in_array($role, ['admin', 'hr'], true) || $personalMode) {
             $employee = $user->employee;
             if (!$employee) {
                 return back()->with('error', 'Employee record not found.');
@@ -152,33 +313,121 @@ class LeaveController extends Controller
 
         $startDate = Carbon::parse($data['start_date']);
         $endDate = Carbon::parse($data['end_date']);
-        $daysRequested = $startDate->diffInDays($endDate) + 1;
+        
+        // Count working days (excluding Sundays)
+        $daysRequested = 0;
+        $current = clone $startDate;
+        while ($current <= $endDate) {
+            if ($current->dayOfWeek !== Carbon::SUNDAY) {
+                $daysRequested++;
+            }
+            $current->addDay();
+        }
 
-        $employee = Employee::find($data['employee_id']);
+        // If no working days selected (only Sundays), return error
+        if ($daysRequested <= 0) {
+            return back()->with('error', 'Selected date range contains only Sundays. Please select valid working days.')
+                ->withInput();
+        }
+
+        $employee = Employee::forCompany(CompanyHelper::getCurrentCompanyId())
+            ->find($data['employee_id']);
         if (!$employee) {
             return back()->with('error', 'Employee not found.');
         }
 
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForRange(
+            $employee->id,
+            $data['start_date'],
+            $data['end_date']
+        )) {
+            return back()->withInput()->with(
+                'error',
+                'Cannot file leave because part of the selected date range belongs to a locked payroll period.'
+            );
+        }
+
+        $timeConflict = app(\App\Services\PayrollRequestConflictService::class)
+            ->timeRequestWithinLeaveRange($employee->id, $data['start_date'], $data['end_date']);
+        if ($timeConflict) {
+            return back()->with('error', "Leave cannot be filed because the selected dates contain pending or approved {$timeConflict}.")
+                ->withInput();
+        }
+
+        // Check for overlapping leaves (pending or approved)
+        $overlappingLeaves = $this->getOverlappingLeaves(
+            $employee->id, 
+            $data['start_date'], 
+            $data['end_date'],
+            $data['replace_leave_id'] ?? null
+        );
+
+        // If there are overlapping leaves and no replacement specified
+        if ($overlappingLeaves->count() > 0 && empty($data['replace_leave_id'])) {
+            $overlapDetails = [];
+            foreach ($overlappingLeaves as $leave) {
+                $overlapDetails[] = [
+                    'type' => $leave->leave_type,
+                    'start' => $leave->start_date,
+                    'end' => $leave->end_date,
+                    'status' => $leave->status,
+                    'id' => $leave->id,
+                ];
+            }
+            
+            return back()
+                ->with('overlap_error', 'You have existing leave requests that overlap with these dates.')
+                ->with('overlap_details', json_encode($overlapDetails))
+                ->withInput();
+        }
+
+        // If replacement is specified, delete the old leave request
+        if (!empty($data['replace_leave_id'])) {
+            $oldLeave = $this->currentCompanyLeave($data['replace_leave_id']);
+            if ($oldLeave && $oldLeave->employee_id == $employee->id && $oldLeave->status === 'pending') {
+                $oldLeave->delete();
+            } else {
+                return back()->with('error', 'Cannot replace this leave request. It may not exist or is not pending.');
+            }
+        }
+
+        // Look up (or initialise) the leave balance.
+        // Unlike before, we no longer block the request when no balance exists:
+        // the employee's leave simply counts as unpaid increments.
         $leaveBalance = LeaveBalance::where('employee_id', $employee->id)
             ->where('year', Carbon::now()->year)
             ->first();
 
-        if (!$leaveBalance && $role === 'employee') {
-            return back()->with('error', 'Leave balance not configured. Please contact HR.');
-        }
-
         if ($leaveBalance && !$leaveBalance->hasEnoughBalance($data['leave_type'], $daysRequested)) {
-            return back()->with('error', 'Insufficient leave balance for the selected leave type and duration.');
+            return back()->with('error', 'Insufficient leave balance for the selected leave type and duration.')
+                ->withInput();
         }
 
+        // Determine paid/unpaid status at submission time.
+        // A leave is paid when:
+        //   - A balance record exists AND is explicitly configured (is_balance_set = true)
+        //   - AND the leave type is one of the three paid types
+        //   - AND if it is SIL, the balance is not still deferred
+        $paidLeaveTypes = ['vacation', 'sick', 'sil'];
+        $isPaid = $leaveBalance
+            && ($leaveBalance->is_balance_set ?? false)
+            && in_array($data['leave_type'], $paidLeaveTypes, true)
+            && !(
+                $data['leave_type'] === 'sil'
+                && ($leaveBalance->sil_deferred ?? false)
+            );
+
+        // Create the leave request
         LeaveRequest::create([
-            'employee_id' => $employee->id,
-            'leave_type' => $data['leave_type'],
-            'start_date' => $data['start_date'],
-            'end_date' => $data['end_date'],
+            'employee_id'  => $employee->id,
+            'leave_type'   => $data['leave_type'],
+            'start_date'   => $data['start_date'],
+            'end_date'     => $data['end_date'],
             'days_requested' => $daysRequested,
-            'reason' => $data['reason'],
-            'status' => 'pending',
+            'reason'       => $data['reason'],
+            'status'       => 'pending',
+            'is_paid'      => $isPaid,
+            'expires_at'   => now()->addHours(LeaveRequest::EXPIRY_WINDOW_HOURS),
         ]);
 
         return redirect()->route('attendance.leave-management')
@@ -192,33 +441,286 @@ class LeaveController extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        $leaveRequest = LeaveRequest::find($id);
+        $leaveRequest = $this->currentCompanyLeave($id);
         if (!$leaveRequest) {
             return response()->json(['error' => 'Leave request not found'], 404);
         }
 
+        if ($user->employee?->id && $leaveRequest->employee_id === $user->employee->id) {
+            return response()->json(['error' => 'You cannot approve or reject your own leave request.'], 403);
+        }
+
+        if ($user->role === 'manager') {
+            $leaveRequest->loadMissing('employee.department');
+            if (!$leaveRequest->employee || !$leaveRequest->employee->isManagedBy($user->employee_id)) {
+                return response()->json(['error' => 'You can only review leave requests for employees in your department.'], 403);
+            }
+        }
+
+        // Flip past-deadline pending requests to expired before any other check.
+        if ($leaveRequest->isPastDeadline()) {
+            $leaveRequest->expireCurrentWindow();
+            $this->notifyRequester($leaveRequest);
+        }
+
+        // Block status changes on expired records.
+        if ($leaveRequest->status === LeaveRequest::EXPIRED) {
+            return response()->json(['error' => 'Cannot update an expired leave request.'], 403);
+        }
+
+        // Block if the request was already reviewed (not pending).
+        if ($leaveRequest->status !== LeaveRequest::PENDING) {
+            return response()->json(['error' => 'This request has already been reviewed.'], 422);
+        }
+
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForRange(
+            $leaveRequest->employee_id,
+            $leaveRequest->start_date->toDateString(),
+            $leaveRequest->end_date->toDateString()
+        )) {
+            return response()->json([
+                'error' => 'This leave request belongs to a locked payroll period and can no longer be reviewed or changed.',
+            ], 422);
+        }
+
+        // Check if there are overlapping approved leaves before approving
+        if ($request->status === 'approved') {
+            $leaveConflicts = app(\App\Services\PayrollRequestConflictService::class);
+
+            $timeConflict = $leaveConflicts->timeRequestWithinLeaveRange(
+                $leaveRequest->employee_id,
+                $leaveRequest->start_date->toDateString(),
+                $leaveRequest->end_date->toDateString()
+            );
+            if ($timeConflict) {
+                return response()->json([
+                    'error' => "Cannot approve leave because the selected dates contain pending or approved {$timeConflict}.",
+                ], 422);
+            }
+
+            $overlappingLeaves = $this->getOverlappingLeaves(
+                $leaveRequest->employee_id,
+                $leaveRequest->start_date,
+                $leaveRequest->end_date,
+                $leaveRequest->id
+            );
+
+            // Filter out pending leaves (they can be replaced)
+            $approvedOverlaps = $overlappingLeaves->filter(function($leave) {
+                return $leave->status === 'approved';
+            });
+
+            if ($approvedOverlaps->count() > 0) {
+                $conflictDetails = [];
+                foreach ($approvedOverlaps as $leave) {
+                    $conflictDetails[] = "{$leave->leave_type} ({$leave->start_date} to {$leave->end_date})";
+                }
+
+                return response()->json([
+                    'error'    => 'Cannot approve. This leave overlaps with existing approved leaves: ' . implode(', ', $conflictDetails),
+                    'overlaps' => $approvedOverlaps->toArray(),
+                ], 422);
+            }
+        }
+
         $data = $request->validate([
-            'status' => ['required', 'in:approved,rejected'],
+            'status'           => ['required', 'in:approved,rejected'],
             'rejection_reason' => ['nullable', 'required_if:status,rejected', 'string', 'max:500'],
         ]);
 
-        $leaveRequest->status = $data['status'];
-        $leaveRequest->approved_by = $user->id;
-        $leaveRequest->approved_at = Carbon::now();
+        DB::transaction(function () use ($data, $leaveRequest, $user) {
+            $previousStatus = $leaveRequest->status;
 
-        if ($data['status'] === 'rejected') {
-            $leaveRequest->rejection_reason = $data['rejection_reason'] ?? null;
-        }
+            $leaveRequest->status      = $data['status'];
+            $leaveRequest->approved_by = $user->id;
+            $leaveRequest->approved_at = Carbon::now();
 
-        $leaveRequest->save();
+            if ($data['status'] === 'rejected') {
+                $leaveRequest->rejection_reason = $data['rejection_reason'] ?? null;
+            }
+
+            $leaveRequest->save();
+
+            if ($previousStatus !== LeaveRequest::APPROVED && $data['status'] === LeaveRequest::APPROVED) {
+                $this->applyApprovedLeaveToBalance($leaveRequest);
+                $this->populateAttendanceForLeave($leaveRequest);
+            }
+        });
+
+        $this->notifyRequester($leaveRequest);
 
         return response()->json(['success' => true, 'message' => 'Leave request status updated successfully.']);
     }
 
-    public function cancel($id)
+    public function resubmit(Request $request, string $id)
+    {
+        $leave = $this->currentCompanyLeave($id);
+        $user = Auth::user();
+
+        if (!$leave || !$user->employee_id || $leave->employee_id !== $user->employee_id) {
+            return back()->with('error', 'Only the employee who filed this leave request can re-request it.');
+        }
+
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForRange(
+            $leave->employee_id,
+            $leave->start_date->toDateString(),
+            $leave->end_date->toDateString()
+        )) {
+            return back()->with('error', 'This leave request belongs to a locked payroll period and cannot be re-requested.');
+        }
+
+        if (!$leave->resubmitForFinalWindow()) {
+            return back()->with('error', 'This leave request is not eligible for another re-request.');
+        }
+
+        return back()->with('success', 'Leave request resubmitted. This is the final 24-hour review period.');
+    }
+
+    protected function notifyRequester(LeaveRequest $leaveRequest): void
+    {
+        $account = $leaveRequest->employee?->account;
+        if (!$account) {
+            return;
+        }
+
+        $dateLabel = Carbon::parse($leaveRequest->start_date)->format('M d, Y')
+            . ' - ' . Carbon::parse($leaveRequest->end_date)->format('M d, Y');
+
+        $account->notify(new RequestStatusChanged(
+            RequestStatusChanged::TYPE_LEAVE,
+            $leaveRequest->id,
+            $leaveRequest->status,
+            $dateLabel,
+            $leaveRequest->rejection_reason,
+            finalExpiration: $leaveRequest->status === LeaveRequest::EXPIRED && $leaveRequest->isFinallyExpired(),
+        ));
+    }
+
+    protected function applyApprovedLeaveToBalance(LeaveRequest $leaveRequest): void
+    {
+        $year = Carbon::parse($leaveRequest->start_date)->year;
+        $leaveBalance = LeaveBalance::firstOrNew([
+            'employee_id' => $leaveRequest->employee_id,
+            'year'        => $year,
+        ]);
+
+        // Initialise all fields on a brand-new record (is_balance_set stays false
+        // so leave remains treated as uncapped/unpaid).
+        if (!$leaveBalance->exists) {
+            foreach ($this->leaveTypes as $type) {
+                $leaveBalance->{$type . '_days_total'} = 0;
+                $leaveBalance->{$type . '_days_used'}  = 0;
+            }
+            $leaveBalance->is_balance_set = false;
+            $leaveBalance->sil_deferred   = false;
+        }
+
+        // Always increment usage so reporting is accurate regardless of
+        // whether a balance has been explicitly configured.
+        $usedField = $leaveRequest->leave_type . '_days_used';
+        $leaveBalance->{$usedField} = ($leaveBalance->{$usedField} ?? 0) + $leaveRequest->days_requested;
+        $leaveBalance->save();
+    }
+
+    /**
+     * Restore leave balance days when an approved leave is cancelled.
+     */
+    protected function restoreCancelledLeaveBalance(LeaveRequest $leaveRequest): void
+    {
+        $year = Carbon::parse($leaveRequest->start_date)->year;
+        $leaveBalance = LeaveBalance::where('employee_id', $leaveRequest->employee_id)
+            ->where('year', $year)
+            ->first();
+
+        if (!$leaveBalance) {
+            return;
+        }
+
+        $usedField = $leaveRequest->leave_type . '_days_used';
+        $leaveBalance->{$usedField} = max(0, ($leaveBalance->{$usedField} ?? 0) - $leaveRequest->days_requested);
+        $leaveBalance->save();
+
+        Log::info('Leave balance restored on cancellation', [
+            'leave_request_id' => $leaveRequest->id,
+            'employee_id'      => $leaveRequest->employee_id,
+            'leave_type'       => $leaveRequest->leave_type,
+            'days_restored'    => $leaveRequest->days_requested,
+        ]);
+    }
+
+    /**
+     * Auto-create AttendanceRecord rows with status = on_leave for every working
+     * day in the approved leave range. Mirrors OfficialBusinessController's pattern.
+     */
+    protected function populateAttendanceForLeave(LeaveRequest $leaveRequest): void
+    {
+        $start   = Carbon::parse($leaveRequest->start_date)->startOfDay();
+        $end     = Carbon::parse($leaveRequest->end_date)->startOfDay();
+        $current = $start->copy();
+
+        while ($current->lte($end)) {
+            // Skip Sundays (same logic as store()).
+            if ($current->dayOfWeek !== Carbon::SUNDAY) {
+                $existing = AttendanceRecord::where('employee_id', $leaveRequest->employee_id)
+                    ->whereDate('date', $current->toDateString())
+                    ->first();
+
+                if (!$existing) {
+                    AttendanceRecord::create([
+                        'employee_id'    => $leaveRequest->employee_id,
+                        'date'           => $current->toDateString(),
+                        'status'         => AttendanceRecord::ON_LEAVE,
+                        'notes'          => 'Approved ' . ucfirst($leaveRequest->leave_type) . ' Leave: ' . $leaveRequest->reason,
+                        'time_in'        => null,
+                        'time_out'       => null,
+                        'break_start'    => null,
+                        'break_end'      => null,
+                        'total_hours'    => 0,
+                        'regular_hours'  => 0,
+                        'overtime_hours' => 0,
+                    ]);
+                } else {
+                    // If the record is 'absent', upgrade it to 'on_leave'.
+                    if ($existing->status === AttendanceRecord::ABSENT) {
+                        $notes = $existing->notes ? $existing->notes . PHP_EOL : '';
+                        $existing->update([
+                            'status' => AttendanceRecord::ON_LEAVE,
+                            'notes'  => $notes . 'Approved ' . ucfirst($leaveRequest->leave_type) . ' Leave: ' . $leaveRequest->reason,
+                        ]);
+                    }
+                }
+            }
+
+            $current->addDay();
+        }
+    }
+
+    /**
+     * Remove or revert the on_leave attendance records created on approval
+     * when the leave is subsequently cancelled.
+     */
+    protected function clearAttendanceForLeave(LeaveRequest $leaveRequest): void
+    {
+        $start   = Carbon::parse($leaveRequest->start_date)->startOfDay();
+        $end     = Carbon::parse($leaveRequest->end_date)->startOfDay();
+        $current = $start->copy();
+
+        while ($current->lte($end)) {
+            if ($current->dayOfWeek !== Carbon::SUNDAY) {
+                AttendanceRecord::where('employee_id', $leaveRequest->employee_id)
+                    ->whereDate('date', $current->toDateString())
+                    ->where('status', AttendanceRecord::ON_LEAVE)
+                    ->whereNull('time_in') // Only delete auto-generated (no actual time-in)
+                    ->delete();
+            }
+            $current->addDay();
+        }
+    }
+
+    public function cancel(Request $request, $id)
     {
         $user = Auth::user();
-        $leaveRequest = LeaveRequest::find($id);
+        $leaveRequest = $this->currentCompanyLeave($id);
 
         if (!$leaveRequest) {
             return response()->json(['error' => 'Leave request not found'], 404);
@@ -228,10 +730,175 @@ class LeaveController extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        $leaveRequest->status = 'cancelled';
-        $leaveRequest->save();
+        $isReviewer = in_array($user->role, ['admin', 'hr', 'manager'], true);
+
+        if ($user->role === 'manager' && $leaveRequest->employee_id !== $user->employee?->id) {
+            $leaveRequest->loadMissing('employee.department');
+            if (!$leaveRequest->employee || !$leaveRequest->employee->isManagedBy($user->employee_id)) {
+                return response()->json(['error' => 'You can only cancel requests for employees in your department.'], 403);
+            }
+        }
+
+        // Employees may only cancel their own pending requests. Cancelling an
+        // already-approved leave (with balance/attendance reversal) is
+        // reserved for admin/hr/manager, matching the UI.
+        if (!$isReviewer && $leaveRequest->status !== LeaveRequest::PENDING) {
+            return response()->json(['error' => 'Only admin, HR, or manager can cancel an approved leave request.'], 403);
+        }
+
+        if ($leaveRequest->status === LeaveRequest::APPROVED) {
+            $conflicts = app(\App\Services\PayrollRequestConflictService::class);
+            if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForRange(
+                $leaveRequest->employee_id,
+                $leaveRequest->start_date->toDateString(),
+                $leaveRequest->end_date->toDateString()
+            )) {
+                return response()->json([
+                    'error' => 'Cannot cancel — payroll has already been generated for part of this leave period. The payroll period is locked and this request can no longer be changed.',
+                ], 422);
+            }
+        }
+
+        $data = $request->validate([
+            'cancellation_reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        DB::transaction(function () use ($leaveRequest, $data, $user, $isReviewer) {
+            $wasApproved = $leaveRequest->status === LeaveRequest::APPROVED;
+
+            $leaveRequest->status = LeaveRequest::CANCELLED;
+            if ($isReviewer) {
+                $leaveRequest->approved_by = $user->id;
+            }
+            if (!empty($data['cancellation_reason'])) {
+                $leaveRequest->rejection_reason = $data['cancellation_reason'];
+            }
+            $leaveRequest->save();
+
+            if ($wasApproved) {
+                // Restore the balance that was deducted when this leave was approved.
+                $this->restoreCancelledLeaveBalance($leaveRequest);
+
+                // Clear the on_leave attendance records that were auto-created on approval.
+                $this->clearAttendanceForLeave($leaveRequest);
+            }
+        });
 
         return response()->json(['success' => true, 'message' => 'Leave request cancelled successfully.']);
+    }
+
+    /**
+     * Edit an already-approved leave request. Reserved for admin/hr/manager
+     * (manager scoped to their own department), and only while no payroll
+     * has been generated covering either the original or the new date
+     * range. Reverses the balance/attendance effects of the original
+     * approval, applies the corrected values, then re-applies approval
+     * effects for the new dates — writing a before/after audit row either
+     * way. Mirrors AttendanceController::updateRecord()'s correction pattern.
+     */
+    public function updateApproved(Request $request, $id)
+    {
+        $user = Auth::user();
+        $leaveRequest = $this->currentCompanyLeave($id);
+
+        if (!$leaveRequest) {
+            return response()->json(['error' => 'Leave request not found'], 404);
+        }
+
+        if ($leaveRequest->status !== LeaveRequest::APPROVED) {
+            return response()->json(['error' => 'Only approved leave requests can be edited here.'], 422);
+        }
+
+        $isReviewer = in_array($user->role, ['admin', 'hr', 'manager'], true);
+        if (!$isReviewer) {
+            return response()->json(['error' => 'Only admin, HR, or manager can edit an approved leave request.'], 403);
+        }
+
+        if ($user->role === 'manager' && $leaveRequest->employee_id !== $user->employee?->id) {
+            $leaveRequest->loadMissing('employee.department');
+            if (!$leaveRequest->employee || !$leaveRequest->employee->isManagedBy($user->employee_id)) {
+                return response()->json(['error' => 'You can only edit requests for employees in your department.'], 403);
+            }
+        }
+
+        $conflicts = app(\App\Services\PayrollRequestConflictService::class);
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForRange(
+            $leaveRequest->employee_id,
+            $leaveRequest->start_date->toDateString(),
+            $leaveRequest->end_date->toDateString()
+        )) {
+            return response()->json([
+                'error' => 'Cannot edit — payroll has already been generated for part of this leave period. The payroll period is locked and this request can no longer be changed.',
+            ], 422);
+        }
+
+        $data = $request->validate([
+            'leave_type' => ['required', 'string', 'in:' . implode(',', $this->leaveTypes)],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'days_requested' => ['required', 'numeric', 'min:0.5'],
+            'reason' => ['nullable', 'string', 'max:1000'],
+            'correction_reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        // The new range might land inside a different, already-generated period
+        // even if the original range didn't.
+        if (app(\App\Services\PayrollPeriodLockService::class)->isLockedForRange($leaveRequest->employee_id, $data['start_date'], $data['end_date'])) {
+            return response()->json([
+                'error' => 'Cannot edit — payroll has already been generated for the new dates. That payroll period is locked and can no longer be modified.',
+            ], 422);
+        }
+
+        $overlaps = $this->getOverlappingLeaves(
+            $leaveRequest->employee_id,
+            $data['start_date'],
+            $data['end_date'],
+            $leaveRequest->id
+        )->filter(fn ($leave) => $leave->status === 'approved');
+
+        if ($overlaps->count() > 0) {
+            return response()->json([
+                'error' => 'The corrected dates overlap with another approved leave request for this employee.',
+            ], 422);
+        }
+
+        $auditFields = ['leave_type', 'start_date', 'end_date', 'days_requested', 'reason'];
+        $originalValues = $leaveRequest->only($auditFields);
+
+        DB::transaction(function () use ($leaveRequest, $data, $originalValues, $auditFields, $user) {
+            // Reverse the effects of the original approval before touching dates.
+            $this->restoreCancelledLeaveBalance($leaveRequest);
+            $this->clearAttendanceForLeave($leaveRequest);
+
+            $leaveRequest->fill([
+                'leave_type' => $data['leave_type'],
+                'start_date' => $data['start_date'],
+                'end_date' => $data['end_date'],
+                'days_requested' => $data['days_requested'],
+                'reason' => $data['reason'] ?? $leaveRequest->reason,
+            ]);
+            $leaveRequest->save();
+
+            // Re-apply approval effects using the corrected values.
+            $this->applyApprovedLeaveToBalance($leaveRequest);
+            $this->populateAttendanceForLeave($leaveRequest);
+
+            DB::table('request_corrections')->insert([
+                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'request_type' => 'leave',
+                'request_id' => $leaveRequest->id,
+                'corrected_by' => $user->id,
+                'reason' => $data['correction_reason'],
+                'original_values' => json_encode($originalValues),
+                'corrected_values' => json_encode($leaveRequest->fresh()->only($auditFields)),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        $this->notifyRequester($leaveRequest);
+
+        return response()->json(['success' => true, 'message' => 'Approved leave request corrected successfully.']);
     }
 
     public function getLeaveBalance(Request $request)
@@ -267,7 +934,69 @@ class LeaveController extends Controller
             }
         }
 
-        return response()->json(['leave_balance' => $leaveBalance, 'available_days' => $availableDays]);
+        // Get pending and approved leave dates for the employee
+        $occupiedDates = [];
+        $pendingLeaves = LeaveRequest::where('employee_id', $employeeId)
+            ->whereIn('status', ['pending', 'approved'])
+            ->get();
+        
+        foreach ($pendingLeaves as $leave) {
+            $start = Carbon::parse($leave->start_date);
+            $end = Carbon::parse($leave->end_date);
+            while ($start <= $end) {
+                $occupiedDates[] = [
+                    'date' => $start->format('Y-m-d'),
+                    'leave_id' => $leave->id,
+                    'status' => $leave->status,
+                    'type' => $leave->leave_type,
+                ];
+                $start->addDay();
+            }
+        }
+
+        return response()->json([
+            'leave_balance' => $leaveBalance, 
+            'available_days' => $availableDays,
+            'occupied_dates' => $occupiedDates,
+        ]);
+    }
+
+    /**
+     * Get approved leave dates for an employee (API endpoint for calendar)
+     */
+    public function getApprovedLeaveDates(Request $request)
+    {
+        $employeeId = $request->query('employee_id');
+        $year = $request->query('year', Carbon::now()->year);
+
+        if (!$employeeId) {
+            return response()->json(['error' => 'Employee ID is required'], 400);
+        }
+
+        $approvedLeaves = LeaveRequest::where('employee_id', $employeeId)
+            ->whereIn('status', ['pending', 'approved'])
+            ->where(function($query) use ($year) {
+                $query->whereYear('start_date', $year)
+                      ->orWhereYear('end_date', $year);
+            })
+            ->get();
+
+        $dates = [];
+        foreach ($approvedLeaves as $leave) {
+            $start = Carbon::parse($leave->start_date);
+            $end = Carbon::parse($leave->end_date);
+            while ($start <= $end) {
+                $dates[] = [
+                    'date' => $start->format('Y-m-d'),
+                    'leave_id' => $leave->id,
+                    'status' => $leave->status,
+                    'type' => $leave->leave_type,
+                ];
+                $start->addDay();
+            }
+        }
+
+        return response()->json(['dates' => $dates]);
     }
 
     public function storeBalance(Request $request)
@@ -278,26 +1007,51 @@ class LeaveController extends Controller
         }
 
         $data = $request->validate(array_merge([
-            'employee_id' => ['required', 'string'],
-            'year' => ['required', 'integer'],
-        ], array_combine(array_map(fn($type) => "{$type}_days_total", $this->leaveTypes), array_fill(0, count($this->leaveTypes), ['required', 'integer', 'min:0']))));
+            'employee_id'  => ['required', 'string'],
+            'year'         => ['required', 'integer'],
+            'sil_deferred' => ['sometimes', 'boolean'],
+        ], array_combine(
+            array_map(fn($type) => "{$type}_days_total", $this->balanceLeaveTypes),
+            array_fill(0, count($this->balanceLeaveTypes), ['required', 'integer', 'min:0'])
+        )));
 
         $employeeIds = [];
         if ($data['employee_id'] === 'all') {
-            $employeeIds = Employee::pluck('id')->toArray();
+            $employeeIds = Employee::forCompany(CompanyHelper::getCurrentCompanyId())
+                ->pluck('id')
+                ->toArray();
         } else {
-            $employeeIds = [$data['employee_id']];
+            $employeeIds = Employee::forCompany(CompanyHelper::getCurrentCompanyId())
+                ->whereKey($data['employee_id'])
+                ->pluck('id')
+                ->toArray();
+
+            abort_if(empty($employeeIds), 404);
         }
+
+        $silDeferred = filter_var($data['sil_deferred'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         foreach ($employeeIds as $employeeId) {
             $balance = LeaveBalance::firstOrNew([
                 'employee_id' => $employeeId,
-                'year' => $data['year'],
+                'year'        => $data['year'],
             ]);
 
+            // Mark this record as explicitly configured so leave becomes capped/paid.
+            $balance->is_balance_set = true;
+
+            // VL and SL are always applied immediately.
+            $balance->vacation_days_total = $data['vacation_days_total'] ?? 0;
+            $balance->sick_days_total     = $data['sick_days_total']     ?? 0;
+
+            // SIL: if deferred, store the total but keep it inactive until
+            // the auto-grant command flips sil_deferred = false.
+            $balance->sil_days_total = $data['sil_days_total'] ?? 0;
+            $balance->sil_deferred   = $silDeferred;
+
+            // Preserve existing used-day counts on updates; default 0 on new records.
             foreach ($this->leaveTypes as $type) {
-                $balance->{"{$type}_days_total"} = $data["{$type}_days_total"] ?? 0;
-                $balance->{"{$type}_days_used"} = $balance->{"{$type}_days_used"} ?? 0;
+                $balance->{$type . '_days_used'} = $balance->{$type . '_days_used'} ?? 0;
             }
 
             $balance->save();
@@ -306,26 +1060,34 @@ class LeaveController extends Controller
         return response()->json(['success' => true, 'message' => 'Leave balance saved successfully.']);
     }
 
-    public function updateBalance(Request $request, $id)
+  public function updateBalance(Request $request, $id)
     {
         $user = Auth::user();
         if (!in_array($user->role, ['admin', 'hr'], true)) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
-
-        $balance = LeaveBalance::find($id);
+        $balance = LeaveBalance::query()
+            ->whereHas('employee', fn ($query) => $query->forCompany(CompanyHelper::getCurrentCompanyId()))
+            ->find($id);
         if (!$balance) {
             return response()->json(['error' => 'Leave balance record not found'], 404);
         }
-
-        $data = $request->validate(array_combine(array_map(fn($type) => "{$type}_days_total", $this->leaveTypes), array_fill(0, count($this->leaveTypes), ['required', 'integer', 'min:0'])));
-
-        foreach ($this->leaveTypes as $type) {
+        $data = $request->validate(array_merge(
+            array_combine(
+                array_map(fn($type) => "{$type}_days_total", $this->balanceLeaveTypes),
+                array_fill(0, count($this->balanceLeaveTypes), ['required', 'integer', 'min:0'])
+            ),
+            ['sil_deferred' => ['sometimes', 'boolean']]
+        ));
+        foreach ($this->balanceLeaveTypes as $type) {
             $balance->{"{$type}_days_total"} = $data["{$type}_days_total"];
         }
-
+        // Mark the record as explicitly configured.
+        $balance->is_balance_set = true;
+        if (array_key_exists('sil_deferred', $data)) {
+            $balance->sil_deferred = filter_var($data['sil_deferred'], FILTER_VALIDATE_BOOLEAN);
+        }
         $balance->save();
-
         return response()->json(['success' => true, 'message' => 'Leave balance updated successfully.']);
     }
 
@@ -349,10 +1111,27 @@ class LeaveController extends Controller
 
     private function applyFilters($query, Request $request, $user)
     {
-        if ($user->role === 'employee' && $user->employee) {
+        $currentCompany = CompanyHelper::getCurrentCompany();
+        if ($currentCompany) {
+            $query->whereHas('employee', fn ($employee) => $employee->forCompany($currentCompany->id));
+        }
+
+        $personalMode = $request->query('scope') === 'mine' && $user->employee;
+
+        if (($user->role === 'employee' || $personalMode) && $user->employee) {
             $query->where('employee_id', $user->employee->id);
         } elseif ($request->filled('employee_id')) {
             $query->where('employee_id', $request->employee_id);
+        }
+
+        if ($user->role === 'manager' && !$personalMode) {
+            $query->whereHas('employee.department', fn ($dept) => $dept->where('manager_id', $user->employee_id));
+        }
+
+        if ($request->filled('department_id')) {
+            $query->whereHas('employee', function ($q) use ($request) {
+                $q->where('department_id', $request->department_id);
+            });
         }
 
         if ($request->filled('leave_type')) {

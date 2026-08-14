@@ -150,6 +150,9 @@
             @endif
         </div>
 
+        <!-- Pending Overtime Reminders Banner Container -->
+        <div id="pending-ot-reminders-container" class="space-y-3 mb-6 hidden"></div>
+
         <!-- Current Time Display -->
         <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-8 text-center text-white shadow-lg">
             <div class="text-6xl font-bold mb-2" id="current-times">--:--:--</div>
@@ -173,6 +176,16 @@
                 <div id="working-time-section">
                     <div class="text-lg opacity-90">Working for:</div>
                     <div class="text-2xl font-bold" id="working-time">0h 0m</div>
+                </div>
+                <div id="hours-progress-container" class="mt-4 hidden">
+                    <div class="flex h-1.5 w-full overflow-hidden rounded-full bg-white/20">
+                        <div id="hours-late-bar" class="h-1.5 transition-all" style="width: 0%; background-color: #ef4444;"></div>
+                        <div id="hours-progress-bar" class="h-1.5 bg-white transition-all" style="width: 0%"></div>
+                    </div>
+                    <div class="mt-1 flex justify-between text-xs opacity-80">
+                        <span id="hours-progress-text">0.0h of 8.0h</span>
+                        <span id="hours-progress-pct">0%</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -325,9 +338,30 @@
         </div>
 
         <!-- Recent Activity -->
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
-            <div class="space-y-3" id="recent-activity">
+        <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" x-data="{ open: false }">
+            <button type="button"
+                    class="flex w-full items-center justify-between px-6 py-5 text-left transition-colors hover:bg-gray-50"
+                    @click="open = !open"
+                    :aria-expanded="open.toString()"
+                    aria-controls="recent-activity">
+                <span>
+                    <span class="block text-lg font-semibold text-gray-900">Recent Activity</span>
+                    <span class="mt-1 block text-sm text-gray-500">
+                        {{ $recentActivity?->count() ?? 0 }} recent attendance {{ ($recentActivity?->count() ?? 0) === 1 ? 'record' : 'records' }}
+                    </span>
+                </span>
+                <i class="fas fa-chevron-down text-sm text-gray-400 transition-transform duration-200"
+                   :class="{ 'rotate-180': open }"></i>
+            </button>
+            <div x-show="open"
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 -translate-y-1"
+                 x-transition:enter-end="opacity-100 translate-y-0"
+                 x-transition:leave="transition ease-in duration-150"
+                 x-transition:leave-start="opacity-100 translate-y-0"
+                 x-transition:leave-end="opacity-0 -translate-y-1"
+                 class="max-h-96 space-y-3 overflow-y-auto border-t border-gray-200 px-6 pb-6 pt-4"
+                 id="recent-activity">
                 @if($recentActivity && $recentActivity->count() > 0)
                     @foreach($recentActivity as $record)
                         @if($record->time_in)
@@ -406,6 +440,7 @@
 <div id="attendance-data" 
      data-today-attendance='{!! json_encode($todayAttendance) !!}' 
      data-recent-activity='{!! json_encode($recentActivity) !!}'
+     data-pending-reminders='{!! json_encode($pendingOtReminders ?? []) !!}'
      style="display: none;"></div>
 
 <script>
@@ -626,7 +661,7 @@ function updateRealTimeStatus() {
     const liveIndicator = document.getElementById('live-indicator');
     if (liveIndicator) {
         // Change color based on current status
-        if (currentStatus && currentStatus.time_in && !currentStatus.time_out) {
+        if (currentStatus && currentStatus.is_currently_clocked_in) {
             liveIndicator.className = 'w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse';
         } else if (currentStatus && currentStatus.time_out) {
             liveIndicator.className = 'w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse';
@@ -636,10 +671,65 @@ function updateRealTimeStatus() {
     }
 }
 
+function updateHoursProgress() {
+    const container = document.getElementById('hours-progress-container');
+    if (!container || !currentStatus) return;
+
+    const requiredHours = Math.max(0.01, Number(currentStatus.required_hours || 8));
+    const entries = Array.isArray(currentStatus.time_entries) ? currentStatus.time_entries : [];
+    let workedHours = entries
+        .filter(entry => entry.time_out)
+        .reduce((sum, entry) => sum + Number(entry.hours_worked || 0), 0);
+
+    const activeEntry = currentStatus.active_time_entry;
+    if (activeEntry?.time_in && !activeEntry.time_out) {
+        workedHours += Math.max(0, getPhilippineTime() - new Date(activeEntry.time_in)) / 3600000;
+    } else if (!entries.length) {
+        workedHours = Number(currentStatus.total_hours || 0);
+    }
+
+    let progressPct = Math.min(100, Math.max(0, (workedHours / requiredHours) * 100));
+    let latePct = 0;
+
+    if (
+        !currentStatus.is_flexible_schedule
+        && currentStatus.schedule_time_in
+        && currentStatus.schedule_time_out
+    ) {
+        const reference = activeEntry?.time_in
+            ? new Date(activeEntry.time_in)
+            : new Date(currentStatus.time_in || Date.now());
+        const [startHour, startMinute] = currentStatus.schedule_time_in.split(':').map(Number);
+        const [endHour, endMinute] = currentStatus.schedule_time_out.split(':').map(Number);
+        const shiftStart = new Date(reference);
+        shiftStart.setHours(startHour, startMinute, 0, 0);
+        const shiftEnd = new Date(reference);
+        shiftEnd.setHours(endHour, endMinute, 0, 0);
+        if (shiftEnd <= shiftStart) shiftEnd.setDate(shiftEnd.getDate() + 1);
+
+        const shiftMinutes = Math.max(1, (shiftEnd - shiftStart) / 60000);
+        const elapsedMinutes = Math.max(0, (getPhilippineTime() - shiftStart) / 60000);
+        progressPct = Math.min(100, Math.max(0, (elapsedMinutes / shiftMinutes) * 100));
+        const serverLatePct = Number(currentStatus.late_progress_percentage);
+        const calculatedLatePct = (Number(currentStatus.late_minutes || 0) / shiftMinutes) * 100;
+        latePct = Math.min(
+            progressPct,
+            Number.isFinite(serverLatePct) ? serverLatePct : calculatedLatePct
+        );
+    }
+
+    document.getElementById('hours-late-bar').style.width = `${latePct}%`;
+    document.getElementById('hours-progress-bar').style.width = `${Math.max(0, progressPct - latePct)}%`;
+    document.getElementById('hours-progress-text').textContent = `${workedHours.toFixed(1)}h of ${requiredHours.toFixed(1)}h`;
+    document.getElementById('hours-progress-pct').textContent = `${Math.round(progressPct)}%`;
+    container.classList.remove('hidden');
+}
+
 // Update working time display
 function updateWorkingTime() {
     const workingTimeElement = document.getElementById('working-time');
     const breakTimeElement = document.getElementById('break-time');
+    updateHoursProgress();
     
     // Check both attendanceRecord and currentStatus for time_in and break_start
     let timeIn = null;
@@ -654,13 +744,23 @@ function updateWorkingTime() {
         console.log('Using active time entry for working time:', currentStatus.active_time_entry);
     }
     // First check currentStatus (from API) - for backward compatibility
-    else if (currentStatus && currentStatus.time_in && !currentStatus.time_out) {
+    else if (
+        currentStatus
+        && currentStatus.is_currently_clocked_in === undefined
+        && currentStatus.time_in
+        && !currentStatus.time_out
+    ) {
         // Parse time_in from currentStatus (it might be a formatted string)
         timeIn = new Date(currentStatus.time_in);
         hasTimeOut = !!currentStatus.time_out;
     }
     // Fallback to attendanceRecord (from initial page load)
-    else if (attendanceRecord && attendanceRecord.time_in && !attendanceRecord.time_out) {
+    else if (
+        (!currentStatus || currentStatus.is_currently_clocked_in === undefined)
+        && attendanceRecord
+        && attendanceRecord.time_in
+        && !attendanceRecord.time_out
+    ) {
         timeIn = new Date(attendanceRecord.time_in);
         hasTimeOut = !!attendanceRecord.time_out;
     }
@@ -754,7 +854,7 @@ function updateTotalHoursDisplay() {
         const hours = Math.floor(currentStatus.total_hours);
         const minutes = Math.round((currentStatus.total_hours - hours) * 60);
         summaryElement.textContent = `${hours}h ${minutes}m`;
-    } else if (currentStatus.time_in && !currentStatus.time_out) {
+    } else if (currentStatus.is_currently_clocked_in) {
         // Calculate current working time (excluding break time)
         let timeIn = null;
         let breakStart = null;
@@ -824,6 +924,10 @@ async function loadAttendanceStatus() {
                 const previousStatus = currentStatus;
                 
             currentStatus = data;
+
+                if (data.pending_ot_reminders) {
+                    renderPendingOtReminders(data.pending_ot_reminders);
+                }
                 
                 // Update attendanceRecord with fresh data for working time calculation
                 if (data && (data.time_in || data.attendance_record)) {
@@ -849,14 +953,19 @@ async function loadAttendanceStatus() {
                         break_end: record.break_end || data.break_end || null,
                         status: record.status || data.status || 'present',
                         breaks: data.breaks || [],
-                        time_entries: data.time_entries || [],
+                        time_entries: data.time_entries || record.time_entries || [],
+                        active_time_entry: data.active_time_entry || null,
                         is_currently_clocked_in: data.is_currently_clocked_in || false
                     };
                 }
                 
+                if (data.pending_overtime_reminders) {
+                    renderPendingOtReminders(data.pending_overtime_reminders);
+                }
+
                 // Only update UI if we have valid status data
                 if (currentStatus && (currentStatus.status || currentStatus.time_in || currentStatus.attendance_record)) {
-            updateUI();
+                    updateUI();
                     updateWorkingTime(); // Update working time and break time when status is refreshed
                 }
             }
@@ -895,6 +1004,8 @@ function initializeUI() {
             time_entries: timeEntries,
             active_time_entry: activeEntry || null,
             entry_count: timeEntries.length,
+            is_currently_clocked_in: hasActiveEntry,
+            active_break: null,
             breaks: attendanceRecord.breaks || [],
             // Set can_time_in and can_time_out based on active entry
             can_time_in: !hasActiveEntry,
@@ -918,10 +1029,19 @@ function initializeUI() {
             time_entries: [],
             active_time_entry: null,
             entry_count: 0,
+            is_currently_clocked_in: false,
+            active_break: null,
             can_time_in: true,
             can_time_out: false
         };
     }
+    const rawPendingReminders = dataElement ? dataElement.getAttribute('data-pending-reminders') || '[]' : '[]';
+    try {
+        const pendingReminders = JSON.parse(rawPendingReminders);
+        if (pendingReminders && pendingReminders.length > 0) {
+            renderPendingOtReminders(pendingReminders);
+        }
+    } catch(e) {}
     updateUI();
     updateWorkingTime(); // Initialize working/break time display
 }
@@ -987,9 +1107,14 @@ function updateUI() {
     // Use can_time_in/can_time_out from API if available (supports multiple entries)
     const canTimeIn = currentStatus.can_time_in !== undefined ? currentStatus.can_time_in : !currentStatus.time_in;
     const canTimeOut = currentStatus.can_time_out !== undefined ? currentStatus.can_time_out : (currentStatus.time_in && !currentStatus.time_out);
-    const isCurrentlyClockedIn = currentStatus.is_currently_clocked_in ||
-        (currentStatus.attendance_record && currentStatus.attendance_record.is_currently_clocked_in) ||
-        (!!currentStatus.time_in && !currentStatus.time_out);
+    const hasAuthoritativeSessionState =
+        typeof currentStatus.is_currently_clocked_in === 'boolean';
+    const isCurrentlyClockedIn = hasAuthoritativeSessionState
+        ? currentStatus.is_currently_clocked_in
+        : (
+            (currentStatus.attendance_record && currentStatus.attendance_record.is_currently_clocked_in)
+            || (!!currentStatus.time_in && !currentStatus.time_out)
+        );
     const hasActiveEntry = isCurrentlyClockedIn || canTimeOut;
     const entryCount = currentStatus.entry_count || 0;
     
@@ -1037,9 +1162,10 @@ function updateUI() {
             statusMessage.textContent = `Break started - Entry #${entryCount}`;
         } else {
             statusTitle.textContent = entryCount > 1 ? `Working (Entry #${entryCount})` : 'Currently Working';
+            const activeTimeIn = currentStatus.active_time_entry?.time_in || currentStatus.time_in;
             statusMessage.textContent = entryCount > 1 
                 ? `Time entry #${entryCount} in progress`
-                : `Clocked in at ${formatTimeForSummary(currentStatus.time_in)}`;
+                : `Clocked in at ${formatTimeForSummary(activeTimeIn)}`;
         }
         
         // Show break section when working
@@ -1355,8 +1481,12 @@ async function timeIn() {
         console.error('Error clocking in:', error);
         showError('Failed to clock in');
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
+        if (currentStatus) {
+            updateUI();
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
     }
 }
 
@@ -1383,6 +1513,10 @@ async function timeOut() {
             showSuccess(data.message);
             // Update status immediately without page reload
             await loadAttendanceStatus();
+
+            if (data.overtime_detected && data.reminder && typeof showOvertimePromptModal === 'function') {
+                showOvertimePromptModal(data.reminder, true);
+            }
         } else {
             showError(data.error || 'Failed to clock out');
         }
@@ -1390,8 +1524,12 @@ async function timeOut() {
         console.error('Error clocking out:', error);
         showError('Failed to clock out');
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
+        if (currentStatus) {
+            updateUI();
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
     }
 }
 
@@ -1432,8 +1570,12 @@ async function breakStart() {
         console.error('Error starting break:', error);
         showError('Failed to start break');
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
+        if (currentStatus) {
+            updateUI();
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
     }
 }
 
@@ -1474,8 +1616,12 @@ async function breakEnd() {
         console.error('Error ending break:', error);
         showError('Failed to end break');
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
+        if (currentStatus) {
+            updateUI();
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
     }
 }
 
@@ -1483,7 +1629,8 @@ async function breakEnd() {
 function showSuccess(message) {
     // Create a simple toast notification
     const toast = document.createElement('div');
-    toast.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+    toast.className = 'fixed top-5 left-1/2 -translate-x-1/2 bg-green-600 text-white px-6 py-3 rounded-xl shadow-2xl font-semibold text-center max-w-lg w-[calc(100%-2rem)]';
+    toast.style.zIndex = '10050';
     toast.textContent = message;
     document.body.appendChild(toast);
     
@@ -1496,7 +1643,8 @@ function showSuccess(message) {
 function showError(message) {
     // Create a simple toast notification
     const toast = document.createElement('div');
-    toast.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+    toast.className = 'fixed top-5 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-xl shadow-2xl font-semibold text-center max-w-lg w-[calc(100%-2rem)]';
+    toast.style.zIndex = '10050';
     toast.textContent = message;
     document.body.appendChild(toast);
     
@@ -1510,6 +1658,177 @@ function updateRecentActivity() {
     // This would ideally fetch fresh data from the server
     // For now, we'll just refresh the page to show updated data
     // In a more advanced implementation, we could make an AJAX call to get fresh recent activity
+}
+
+// Legacy page-local modal helpers retained temporarily for compatibility.
+// The dashboard layout now provides the active shared OT prompt.
+let legacyCurrentOtReminder = null;
+
+function legacyShowOvertimePromptModal(reminder) {
+    legacyCurrentOtReminder = reminder;
+    const modal = document.getElementById('overtime-prompt-modal');
+    const hoursEl = document.getElementById('ot-prompt-hours');
+    const rangeEl = document.getElementById('ot-prompt-time-range');
+
+    if (hoursEl) hoursEl.textContent = `${parseFloat(reminder.extra_hours).toFixed(2)} hour(s)`;
+    if (rangeEl) rangeEl.textContent = `${reminder.date_formatted} (${reminder.start_time_formatted || ''} – ${reminder.end_time_formatted || ''})`;
+
+    if (modal) modal.classList.remove('hidden');
+}
+
+function legacyCloseOvertimePromptModal() {
+    const modal = document.getElementById('overtime-prompt-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function legacySubmitQuickOvertimeFromModal() {
+    if (!legacyCurrentOtReminder) return;
+
+    const btn = document.getElementById('ot-prompt-request-now');
+    const originalContent = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Submitting...';
+
+    try {
+        const response = await fetch('{{ route("attendance.overtime.quick-submit") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                reminder_id: legacyCurrentOtReminder.id,
+                date: legacyCurrentOtReminder.date,
+                extra_hours: legacyCurrentOtReminder.extra_hours,
+                start_time: legacyCurrentOtReminder.start_time,
+                end_time: legacyCurrentOtReminder.end_time
+            })
+        });
+
+        const data = await response.json();
+        if (response.ok && data.success) {
+            showSuccess(data.message || 'Overtime request submitted successfully!');
+            legacyCloseOvertimePromptModal();
+            await loadAttendanceStatus();
+        } else {
+            showError(data.error || 'Failed to submit overtime request');
+        }
+    } catch (e) {
+        console.error('Error submitting quick overtime:', e);
+        showError('Failed to submit overtime request');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalContent;
+    }
+}
+
+window.addEventListener('overtime-reminder-deferred', function (event) {
+    if (event.detail) {
+        renderPendingOtReminders([event.detail]);
+    }
+});
+
+async function submitPendingOtReminder(reminderId, date, extraHours, startTime, endTime) {
+    try {
+        const response = await fetch('{{ route("attendance.overtime.quick-submit") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                reminder_id: reminderId,
+                date: date,
+                extra_hours: extraHours,
+                start_time: startTime,
+                end_time: endTime
+            })
+        });
+
+        const data = await response.json();
+        if (response.ok && data.success) {
+            showSuccess(data.message || 'Overtime request submitted!');
+            await loadAttendanceStatus();
+        } else {
+            showError(data.error || 'Failed to submit overtime request');
+        }
+    } catch (e) {
+        console.error('Error submitting pending overtime reminder:', e);
+        showError('Failed to submit overtime request');
+    }
+}
+
+async function dismissPendingOtReminder(reminderId) {
+    try {
+        const response = await fetch(`{{ url('/attendance/overtime/dismiss-reminder') }}/${reminderId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            }
+        });
+        const data = await response.json();
+        if (response.ok) {
+            showSuccess('Reminder dismissed');
+            await loadAttendanceStatus();
+        }
+    } catch (e) {
+        console.error('Error dismissing reminder:', e);
+    }
+}
+
+function renderPendingOtReminders(reminders) {
+    const container = document.getElementById('pending-ot-reminders-container');
+    if (!container) return;
+
+    if (!reminders || reminders.length === 0) {
+        container.innerHTML = '';
+        container.classList.add('hidden');
+        return;
+    }
+
+    let html = '';
+    reminders.forEach(r => {
+        const highlightedReminderId = new URLSearchParams(window.location.search).get('overtime_reminder');
+        const isHighlighted = highlightedReminderId === String(r.id);
+        html += `
+            <div id="ot-reminder-banner-${r.id}" class="p-4 rounded-2xl shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${isHighlighted ? 'ring-2 ring-orange-500 ring-offset-2' : ''}" style="background-color: #fff7ed; border: 1px solid ${isHighlighted ? '#f97316' : '#ffedd5'}; padding: 16px; border-radius: 16px;">
+                <div class="flex items-start space-x-3" style="display: flex; align-items: flex-start; gap: 12px;">
+                    <div class="p-2.5 rounded-xl flex-shrink-0 mt-0.5" style="background-color: #ea580c; color: #ffffff; padding: 10px; border-radius: 12px;">
+                        <i class="fas fa-bell text-lg" style="color: #ffffff;"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2" style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-weight: 700; color: #9a3412; font-size: 15px;">Pending Overtime Request Reminder</span>
+                            <span style="padding: 2px 8px; font-size: 11px; font-weight: 700; background-color: #ffedd5; color: #c2410c; border-radius: 9999px;">${r.date_formatted}</span>
+                        </div>
+                        <p style="font-size: 14px; color: #475569; margin: 4px 0 0 0;">
+                            You rendered <strong style="font-weight: 800; color: #ea580c;">${parseFloat(r.extra_hours).toFixed(2)} extra hour(s)</strong> on ${r.date_formatted}. You haven't submitted an OT request yet.
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2 w-full sm:w-auto justify-end" style="display: flex; align-items: center; gap: 8px;">
+                    <button type="button" onclick="dismissPendingOtReminder('${r.id}')" style="padding: 8px 14px; font-size: 12px; font-weight: 600; color: #64748b; background: transparent; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer;">
+                        Dismiss
+                    </button>
+                    <button type="button" onclick="submitPendingOtReminder('${r.id}', '${r.date}', ${r.extra_hours}, '${r.start_time}', '${r.end_time}')" style="padding: 8px 16px; font-size: 12px; font-weight: 700; background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%); color: #ffffff !important; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 2px 4px rgba(234, 88, 12, 0.3);">
+                        <i class="fas fa-paper-plane mr-1.5" style="margin-right: 6px; color: #ffffff;"></i>Request OT Now
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+    container.classList.remove('hidden');
+
+    const highlightedReminderId = new URLSearchParams(window.location.search).get('overtime_reminder');
+    if (highlightedReminderId) {
+        requestAnimationFrame(() => {
+            document.getElementById(`ot-reminder-banner-${highlightedReminderId}`)
+                ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+    }
 }
 
 // Initialize page

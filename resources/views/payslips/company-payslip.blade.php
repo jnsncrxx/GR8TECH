@@ -71,7 +71,7 @@
             </div>
             <div class="info-row">
                 <div class="info-label">Position:</div>
-                <div class="info-value">{{ $employee->position ?? 'N/A' }}</div>
+                <div class="info-value">{{ $employee->position?->name ?? 'N/A' }}</div>
             </div>
             <div class="info-row">
                 <div class="info-label">Department:</div>
@@ -138,6 +138,15 @@
                         <td>-</td>
                         <td>-</td>
                         <td>₱{{ number_format($payroll->bonuses, 2) }}</td>
+                    </tr>
+                    @endif
+                    
+                    @if(($payroll->other_earnings ?? 0) > 0)
+                    <tr>
+                        <td>Other Earnings / Adjustments</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>₱{{ number_format($payroll->other_earnings, 2) }}</td>
                     </tr>
                     @endif
                     

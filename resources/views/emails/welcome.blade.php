@@ -229,7 +229,7 @@
                 
                 <div class="credential-item">
                     <span class="cred-label">Position</span>
-                    <span class="cred-value">{{ $employee->position }}</span>
+                    <span class="cred-value">{{ $employee->position?->name ?? 'N/A' }}</span>
                 </div>
                 
                 <div class="credential-item">

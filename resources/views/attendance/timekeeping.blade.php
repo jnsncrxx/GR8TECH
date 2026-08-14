@@ -79,11 +79,11 @@
 
     <!-- Filters -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-        <form method="GET" action="{{ route('attendance.timekeeping') }}" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <form method="GET" action="{{ route('attendance.timekeeping') }}" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             @if(in_array($user->role, ['admin', 'hr', 'manager']))
             <div>
                 <label for="employee_id" class="block text-sm font-medium text-gray-700 mb-2">Employee</label>
-                <select name="employee_id" id="employee_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
+                <select name="employee_id" id="employee_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900">
                     <option value="" style="color: #111827 !important;">All Employees</option>
                     @foreach($employees as $employee)
                         <option value="{{ $employee->id }}" {{ request('employee_id') == $employee->id ? 'selected' : '' }} style="color: #111827 !important;">
@@ -94,7 +94,7 @@
             </div>
             <div>
                 <label for="department_id" class="block text-sm font-medium text-gray-700 mb-2">Department</label>
-                <select name="department_id" id="department_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
+                <select name="department_id" id="department_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900">
                     <option value="" style="color: #111827 !important;">All Departments</option>
                     @foreach($departments as $department)
                         <option value="{{ $department->id }}" {{ request('department_id') == $department->id ? 'selected' : '' }} style="color: #111827 !important;">
@@ -105,11 +105,32 @@
             </div>
             @endif
             <div>
+                <label for="exception" class="block text-sm font-medium text-gray-700 mb-2">Exception</label>
+                <select name="exception" id="exception" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900">
+                    <option value="">All records</option>
+                    <option value="blocking" @selected(request('exception') === 'blocking')>All blocking exceptions</option>
+                    <option value="manager_review" @selected(request('exception') === 'manager_review')>All manager-review records</option>
+                    <option value="incomplete" @selected(request('exception') === 'incomplete')>Incomplete log</option>
+                    <option value="invalid_duration" @selected(request('exception') === 'invalid_duration')>Invalid duration</option>
+                    <option value="absence_with_attendance" @selected(request('exception') === 'absence_with_attendance')>Absent with punches</option>
+                    <option value="unverified_leave" @selected(request('exception') === 'unverified_leave')>Unverified leave</option>
+                    <option value="unverified_official_business" @selected(request('exception') === 'unverified_official_business')>Unverified official business</option>
+                    <option value="leave_conflict" @selected(request('exception') === 'leave_conflict')>Leave conflict</option>
+                    <option value="ot_without_attendance" @selected(request('exception') === 'ot_without_attendance')>OT without attendance</option>
+                    <option value="ot_before_required_hours" @selected(request('exception') === 'ot_before_required_hours')>OT before required hours</option>
+                    <option value="ot_overlaps_leave" @selected(request('exception') === 'ot_overlaps_leave')>OT overlaps leave</option>
+                    <option value="missing_schedule" @selected(request('exception') === 'missing_schedule')>Missing schedule</option>
+                    <option value="possible_wrong_schedule" @selected(request('exception') === 'possible_wrong_schedule')>Possible wrong schedule</option>
+                    <option value="rest_day_attendance" @selected(request('exception') === 'rest_day_attendance')>Rest-day duty review</option>
+                    <option value="clear" @selected(request('exception') === 'clear')>No exception</option>
+                </select>
+            </div>
+            <div>
                 <label for="date_from" class="block text-sm font-medium text-gray-700 mb-2">
                     <i class="fas fa-calendar-alt mr-1 text-gray-500"></i>From Date
                 </label>
                 <div class="relative">
-                    <input type="text" name="date_from" id="date_from" value="{{ request('date_from') }}" placeholder="Select date" class="w-full px-3 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 cursor-pointer" style="background-color: white !important; color: #111827 !important;">
+                    <input type="text" name="date_from" id="date_from" value="{{ request('date_from') }}" placeholder="Select date" class="w-full px-3 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 cursor-pointer">
                     <i class="fas fa-calendar absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 cursor-pointer hover:text-gray-600 transition-colors" style="pointer-events: auto;"></i>
                 </div>
             </div>
@@ -118,7 +139,7 @@
                     <i class="fas fa-calendar-alt mr-1 text-gray-500"></i>To Date
                 </label>
                 <div class="relative">
-                    <input type="text" name="date_to" id="date_to" value="{{ request('date_to') }}" placeholder="Select date" class="w-full px-3 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 cursor-pointer" style="background-color: white !important; color: #111827 !important;">
+                    <input type="text" name="date_to" id="date_to" value="{{ request('date_to') }}" placeholder="Select date" class="w-full px-3 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900 cursor-pointer">
                     <i class="fas fa-calendar absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 cursor-pointer hover:text-gray-600 transition-colors" style="pointer-events: auto;"></i>
                 </div>
             </div>
@@ -134,63 +155,52 @@
         </form>
     </div>
 
-    <!-- Summary Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+    @php
+        $blockingExceptions = ($exceptionCounts['incomplete'] ?? 0)
+            + ($exceptionCounts['invalid_duration'] ?? 0)
+            + ($exceptionCounts['missing_schedule'] ?? 0)
+            + ($exceptionCounts['unverified_leave'] ?? 0)
+            + ($exceptionCounts['unverified_official_business'] ?? 0);
+        $reviewExceptions = ($exceptionCounts['possible_wrong_schedule'] ?? 0)
+            + ($exceptionCounts['rest_day_attendance'] ?? 0);
+    @endphp
+    <div class="timekeeping-status-grid mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <a href="{{ request()->fullUrlWithQuery(['exception' => 'blocking', 'page' => null]) }}" class="timekeeping-status-card timekeeping-status-card--blocking rounded-lg border border-red-200 bg-gradient-to-r from-red-50 to-red-100 p-4 transition-transform hover:-translate-y-0.5">
             <div class="flex items-center">
-                <div class="flex-shrink-0">
-                    <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-clock text-blue-600"></i>
-                    </div>
+                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-red-500 dark:bg-red-600">
+                    <i class="fas fa-triangle-exclamation text-sm text-white"></i>
                 </div>
-                <div class="ml-3">
-                    <p class="text-sm font-medium text-gray-500">Total Hours</p>
-                    <p class="text-lg font-semibold text-gray-900">{{ \App\Helpers\TimezoneHelper::formatHours($summary['total_hours']) }}</p>
+                <div class="ml-3 min-w-0">
+                    <p class="text-sm font-medium text-red-600 dark:text-red-400">Blocking exceptions</p>
+                    <p class="text-lg font-semibold text-red-900 dark:text-red-100">{{ $blockingExceptions }}</p>
                 </div>
             </div>
-        </div>
-
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+            <p class="mt-2 text-xs text-red-700 dark:text-red-300">Incomplete, invalid, or missing schedule</p>
+        </a>
+        <a href="{{ request()->fullUrlWithQuery(['exception' => 'manager_review', 'page' => null]) }}" class="timekeeping-status-card timekeeping-status-card--review rounded-lg border border-yellow-200 bg-gradient-to-r from-yellow-50 to-yellow-100 p-4 transition-transform hover:-translate-y-0.5">
             <div class="flex items-center">
-                <div class="flex-shrink-0">
-                    <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-check-circle text-green-600"></i>
-                    </div>
+                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-yellow-500 dark:bg-yellow-600">
+                    <i class="fas fa-user-clock text-sm text-white"></i>
                 </div>
-                <div class="ml-3">
-                    <p class="text-sm font-medium text-gray-500">Regular Hours</p>
-                    <p class="text-lg font-semibold text-gray-900">{{ \App\Helpers\TimezoneHelper::formatHours($summary['regular_hours']) }}</p>
+                <div class="ml-3 min-w-0">
+                    <p class="text-sm font-medium text-yellow-600 dark:text-yellow-400">Manager review</p>
+                    <p class="text-lg font-semibold text-yellow-900 dark:text-yellow-100">{{ $reviewExceptions }}</p>
                 </div>
             </div>
-        </div>
-
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+            <p class="mt-2 text-xs text-yellow-700 dark:text-yellow-300">Possible wrong shift or rest-day duty</p>
+        </a>
+        <a href="{{ request()->fullUrlWithQuery(['exception' => 'clear', 'page' => null]) }}" class="timekeeping-status-card timekeeping-status-card--clear rounded-lg border border-green-200 bg-gradient-to-r from-green-50 to-green-100 p-4 transition-transform hover:-translate-y-0.5">
             <div class="flex items-center">
-                <div class="flex-shrink-0">
-                    <div class="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-plus-circle text-yellow-600"></i>
-                    </div>
+                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-green-500 dark:bg-green-600">
+                    <i class="fas fa-circle-check text-sm text-white"></i>
                 </div>
-                <div class="ml-3">
-                    <p class="text-sm font-medium text-gray-500">Overtime Hours</p>
-                    <p class="text-lg font-semibold text-gray-900">{{ \App\Helpers\TimezoneHelper::formatHours($summary['overtime_hours']) }}</p>
+                <div class="ml-3 min-w-0">
+                    <p class="text-sm font-medium text-green-600 dark:text-green-400">Clear records</p>
+                    <p class="text-lg font-semibold text-green-900 dark:text-green-100">{{ $exceptionCounts['clear'] ?? 0 }}</p>
                 </div>
             </div>
-        </div>
-
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
-            <div class="flex items-center">
-                <div class="flex-shrink-0">
-                    <div class="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-percentage text-purple-600"></i>
-                    </div>
-                </div>
-                <div class="ml-3">
-                    <p class="text-sm font-medium text-gray-500">Average Hours</p>
-                    <p class="text-lg font-semibold text-gray-900">{{ \App\Helpers\TimezoneHelper::formatHours($summary['average_hours']) }}</p>
-                </div>
-            </div>
-        </div>
+            <p class="mt-2 text-xs text-green-700 dark:text-green-300">Schedule and log checks passed</p>
+        </a>
     </div>
 
     <!-- Timekeeping Records -->
@@ -218,22 +228,19 @@
                             Date
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Time In
+                            Assigned Schedule
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Time Out
+                            Actual Log
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Break Time
+                            Required / Credited
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Total Hours
+                            Exception / Action
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Overtime
-                        </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Status
+                            Corrected
                         </th>
                     </tr>
                 </thead>
@@ -261,137 +268,107 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">
-                                    @if($record->time_in)
-                                        {{ \Carbon\Carbon::parse($record->time_in)->format('g:i A') }}
+                                    @if($record->getRelation('assignedSchedule') && $record->getRelation('assignedSchedule')->time_in && $record->getRelation('assignedSchedule')->time_out)
+                                        {{ \Carbon\Carbon::parse($record->getRelation('assignedSchedule')->time_in)->format('g:i A') }}&ndash;{{ \Carbon\Carbon::parse($record->getRelation('assignedSchedule')->time_out)->format('g:i A') }}
                                     @else
                                         <span class="text-gray-400">-</span>
                                     @endif
                                 </div>
+                                <div class="text-xs text-gray-500">{{ optional($record->getRelation('assignedSchedule'))->status_label ?? 'No schedule' }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">
-                                    @if($record->time_out)
-                                        {{ \Carbon\Carbon::parse($record->time_out)->format('g:i A') }}
+                                    @if($record->has_approved_leave)
+                                        <span class="font-medium text-blue-700">Approved Leave</span>
+                                    @elseif($record->has_approved_official_business)
+                                        <span class="font-medium text-indigo-700">Approved Official Business</span>
+                                    @elseif($record->status === \App\Models\AttendanceRecord::ABSENT && !$record->time_in && !$record->time_out)
+                                        <span class="font-medium text-red-700">Absent</span>
                                     @elseif($record->time_in)
-                                        @php
-                                            $recordDate = \Carbon\Carbon::parse($record->date);
-                                            $isToday = $recordDate->isToday();
-                                        @endphp
-                                        @if($isToday)
-                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                                <div class="w-1.5 h-1.5 rounded-full mr-1.5 bg-blue-400 animate-pulse"></div>
-                                                Working
-                                            </span>
-                                        @else
-                                            <span class="text-gray-400">Not Clocked Out</span>
-                                        @endif
+                                        {{ \Carbon\Carbon::parse($record->time_in)->format('g:i A') }}&ndash;{{ $record->time_out ? \Carbon\Carbon::parse($record->time_out)->format('g:i A') : 'Incomplete' }}
+                                    @elseif($record->status === \App\Models\AttendanceRecord::ON_LEAVE)
+                                        <span class="font-medium text-red-700">Unverified Leave</span>
+                                    @elseif($record->status === \App\Models\AttendanceRecord::OFFICIAL_BUSINESS)
+                                        <span class="font-medium text-red-700">Unverified Official Business</span>
                                     @else
                                         <span class="text-gray-400">-</span>
                                     @endif
                                 </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">
-                                    @if($record->time_out)
-                                        @php
-                                            // Calculate total break duration from all breaks
-                                            $totalBreakMinutes = 0;
-                                            
-                                            // Use breaks relationship if available (for multiple breaks)
-                                            if ($record->relationLoaded('breaks') && $record->breaks->count() > 0) {
-                                                foreach ($record->breaks as $break) {
-                                                    if ($break->break_end) {
-                                                        // Use stored duration if available, otherwise calculate
-                                                        $totalBreakMinutes += $break->break_duration_minutes ?? $break->break_start->diffInMinutes($break->break_end);
-                                                    }
-                                                }
-                                            } 
-                                            // Fallback to old break_start/break_end fields for backward compatibility
-                                            elseif ($record->break_start && $record->break_end) {
-                                                $breakStart = \Carbon\Carbon::parse($record->break_start);
-                                                $breakEnd = \Carbon\Carbon::parse($record->break_end);
-                                                $totalBreakMinutes = $breakStart->diffInMinutes($breakEnd);
-                                            }
-                                            
-                                            $breakDuration = $totalBreakMinutes / 60;
-                                        @endphp
-                                        @if($breakDuration > 0)
-                                            {{ \App\Helpers\TimezoneHelper::formatHours($breakDuration) }}
-                                        @else
-                                            <span class="text-gray-400">-</span>
-                                        @endif
-                                    @else
-                                        <span class="text-gray-400">-</span>
-                                    @endif
-                                </div>
+                                <div class="text-sm text-gray-900">{{ \App\Helpers\TimezoneHelper::formatHours((float) (optional($record->getRelation('assignedSchedule'))->required_hours ?? 0)) }} required</div>
+                                <div class="text-xs text-gray-500">{{ \App\Helpers\TimezoneHelper::formatHours((float) $record->display_worked_hours) }} credited</div>
                             </td>
+                            {{-- Exception / Action --}}
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">
-                                    @if($record->time_out && $record->time_in)
-                                        @php
-                                            // Load breaks relationship if not already loaded
-                                            if (!$record->relationLoaded('breaks')) {
-                                                $record->load('breaks');
-                                            }
-                                            // Always calculate total hours to ensure accuracy
-                                            $calculatedHours = $record->calculateTotalHours();
-                                            // Always use calculated hours for display (more accurate)
-                                            $displayHours = $calculatedHours > 0 ? $calculatedHours : 0;
-                                        @endphp
-                                        @if($displayHours > 0)
-                                            {{ \App\Helpers\TimezoneHelper::formatHours($displayHours) }}
-                                        @else
-                                            <span class="text-gray-400">0h</span>
-                                        @endif
-                                    @else
-                                        <span class="text-gray-400">-</span>
-                                    @endif
-                                </div>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">
-                                    @if($record->time_out && $record->overtime_hours > 0)
-                                        {{ \App\Helpers\TimezoneHelper::formatHours($record->overtime_hours) }}
-                                    @else
-                                        <span class="text-gray-400">-</span>
-                                    @endif
-                                </div>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                @php
-                                    $recordDate = \Carbon\Carbon::parse($record->date);
-                                    $isToday = $recordDate->isToday();
-                                    
-                                    // If employee is still working TODAY (time in but no time out), show "Working" status
-                                    // For past dates with time in but no time out, show "Incomplete" status
-                                    if ($record->time_in && !$record->time_out) {
-                                        if ($isToday) {
-                                            $statusColor = 'bg-blue-100 text-blue-800';
-                                            $statusText = 'Working';
-                                        } else {
-                                            $statusColor = 'bg-yellow-100 text-yellow-800';
-                                            $statusText = 'Incomplete';
-                                        }
-                                    } else {
-                                        $statusColors = [
-                                            'present' => 'bg-green-100 text-green-800',
-                                            'absent' => 'bg-red-100 text-red-800',
-                                            'late' => 'bg-yellow-100 text-yellow-800',
-                                            'half_day' => 'bg-blue-100 text-blue-800'
-                                        ];
-                                        $statusColor = $statusColors[$record->status] ?? 'bg-gray-100 text-gray-800';
-                                        $statusText = ucfirst(str_replace('_', ' ', $record->status));
-                                    }
-                                @endphp
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $statusColor }}">
-                                    <div class="w-1.5 h-1.5 rounded-full mr-1.5 {{ str_replace('text-', 'bg-', $statusColor) }} @if($record->time_in && !$record->time_out && $isToday) animate-pulse @endif"></div>
-                                    {{ $statusText }}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ match($record->exception_severity) {
+                                    'blocking' => 'bg-red-100 text-red-800',
+                                    'review' => 'bg-amber-100 text-amber-800',
+                                    'clear' => 'bg-green-100 text-green-800',
+                                    default => 'bg-gray-100 text-gray-800',
+                                } }}">
+                                    {{ $record->exception_label }}
                                 </span>
+
+                                @if(in_array($user->role, ['admin', 'hr']))
+                                    <div class="mt-2 flex items-center gap-2">
+                                        <a href="{{ route('attendance.edit-record', $record->id) }}"
+                                           class="ui-icon-action ui-action-edit"
+                                           title="Edit attendance record"
+                                           aria-label="Edit attendance record">
+                                            <i class="fas fa-pen" aria-hidden="true"></i>
+                                        </a>
+
+                                        <form action="{{ route('attendance.delete-record', $record->id) }}"
+                                              method="POST"
+                                              class="inline-flex"
+                                              onsubmit="return confirm('Are you sure you want to delete this attendance record?');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit"
+                                                    class="ui-icon-action ui-action-delete"
+                                                    title="Delete attendance record"
+                                                    aria-label="Delete attendance record">
+                                                <i class="fas fa-trash" aria-hidden="true"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                @endif
+                            </td>
+
+                            {{-- Corrected --}}
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                @if($record->corrected_at)
+                                    <details class="max-w-xs whitespace-normal text-xs">
+                                        <summary class="inline-flex cursor-pointer items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2.5 py-1 font-medium text-green-800 hover:bg-green-100 dark:border-green-800 dark:bg-green-950/50 dark:text-green-200">
+                                            <i class="fas fa-pen-to-square" aria-hidden="true"></i>
+                                            Corrected{{ $record->corrections->count() > 1 ? ' ('.$record->corrections->count().')' : '' }}
+                                        </summary>
+
+                                        <div class="mt-2 rounded-lg border border-green-100 bg-green-50/70 p-3 text-gray-700 shadow-sm dark:border-green-900 dark:bg-gray-800 dark:text-gray-100">
+                                            <p class="font-semibold text-gray-900 dark:text-white">
+                                                {{ $record->correctedBy?->full_name ?? 'Unknown account' }}
+                                            </p>
+                                            <p class="mt-0.5 text-gray-500 dark:text-gray-300">
+                                                {{ $record->corrected_at->format('M d, Y g:i A') }}
+                                            </p>
+                                            <p class="mt-2 leading-relaxed">
+                                                {{ $record->correction_reason ?: 'No reason recorded.' }}
+                                            </p>
+                                            @if($record->corrections->count() > 1)
+                                                <p class="mt-2 text-gray-500 dark:text-gray-400">
+                                                    {{ $record->corrections->count() }} audited changes recorded. Open Edit to view the full history.
+                                                </p>
+                                            @endif
+                                        </div>
+                                    </details>
+                                @endif
+                            </td>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-6 py-4 text-center">
+                            <td colspan="7" class="px-6 py-4 text-center">
                                 <div class="flex flex-col items-center justify-center py-8">
                                     <i class="fas fa-clock text-gray-400 text-4xl mb-4"></i>
                                     <p class="text-gray-500 text-lg font-medium mb-2">No attendance records found</p>
@@ -607,6 +584,16 @@
                             </div>
                             @endif
                         </div>
+                        @if($record->corrected_at)
+                            <div class="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm dark:border-blue-800 dark:bg-gray-800">
+                                <div class="flex items-center gap-2 font-medium text-blue-800 dark:text-blue-200">
+                                    <i class="fas fa-pen-to-square" aria-hidden="true"></i>
+                                    Corrected by {{ $record->correctedBy?->full_name ?? 'Unknown account' }}
+                                </div>
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-300">{{ $record->corrected_at->format('M d, Y g:i A') }}</p>
+                                <p class="mt-2 text-gray-700 dark:text-gray-100">{{ $record->correction_reason ?: 'No reason recorded.' }}</p>
+                            </div>
+                        @endif
                     </div>
                 @empty
                     <div class="text-center py-8">

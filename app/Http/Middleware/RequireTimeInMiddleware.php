@@ -23,11 +23,6 @@ class RequireTimeInMiddleware
             return $next($request);
         }
 
-        // Allow admin and hr roles to access all modules regardless of time-in status
-        if (in_array($user->role, ['admin', 'hr'])) {
-            return $next($request);
-        }
-
         // Try to get employee relationship, or find by employee_id if relationship fails
         $employee = $user->employee;
         
@@ -48,10 +43,27 @@ class RequireTimeInMiddleware
             'logout',
             'attendance.time-in',
             'attendance.time-out',
+            'attendance.status',
+            'attendance.time-in-out',
+            'attendance.overtime.quick-submit',
+            'attendance.overtime.update-pending',
+            'attendance.overtime.cancel',
+            'attendance.overtime.dismiss-reminder',
             'companies.switch',
             'companies.index',
             'hr.help-support',
             'hr.help-support-ticket-store',
+            'attendance.official-business',
+            'attendance.official-business.store',
+            'attendance.official-business.update-pending',
+            'attendance.official-business.cancel',
+            'attendance.official-business.statistics',
+            'attendance.official-business.update-status',
+            'notifications.mine',
+            'notifications.read',
+            'notifications.read-all',
+            'search',
+            'search.modules',
         ])) {
             return $next($request);
         }
@@ -63,6 +75,7 @@ class RequireTimeInMiddleware
             return redirect()->route('dashboard')
                 ->with('error', 'You must be currently timed in to access other modules.');
         }
+    
 
         return $next($request);
     }

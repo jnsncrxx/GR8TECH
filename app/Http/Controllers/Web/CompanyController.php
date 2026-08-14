@@ -42,6 +42,10 @@ class CompanyController extends Controller
             'tax_id' => ['nullable', 'string', 'max:100'],
             'registration_number' => ['nullable', 'string', 'max:100'],
             'is_active' => ['nullable', 'boolean'],
+            'payroll_frequency' => ['nullable', 'in:weekly,semi_monthly,monthly'],
+            'cutoff_day_1' => ['nullable', 'integer', 'min:1', 'max:31'],
+            'cutoff_day_2' => ['nullable', 'integer', 'min:1', 'max:31'],
+            'payroll_release_offset' => ['nullable', 'integer', 'min:0', 'max:31'],
         ]);
 
         $validated['is_active'] = $request->boolean('is_active');
@@ -84,6 +88,10 @@ class CompanyController extends Controller
             'tax_id' => ['nullable', 'string', 'max:100'],
             'registration_number' => ['nullable', 'string', 'max:100'],
             'is_active' => ['nullable', 'boolean'],
+            'payroll_frequency' => ['required', 'in:weekly,semi_monthly,monthly'],
+            'cutoff_day_1' => ['required', 'integer', 'min:1', 'max:31'],
+            'cutoff_day_2' => ['required', 'integer', 'min:1', 'max:31', 'different:cutoff_day_1'],
+            'payroll_release_offset' => ['required', 'integer', 'min:0', 'max:31'],
         ]);
 
         $validated['is_active'] = $request->boolean('is_active');
@@ -102,6 +110,21 @@ class CompanyController extends Controller
 
     public function switchCompany(Request $request)
     {
-        return response()->json(['message' => 'Switch company not yet implemented'], 501);
+        $validated = $request->validate([
+            'company_id' => ['required', 'uuid', 'exists:companies,id'],
+        ]);
+
+        $company = Company::query()
+            ->whereKey($validated['company_id'])
+            ->where('is_active', true)
+            ->first();
+
+        if (!$company) {
+            return back()->with('error', 'The selected company is inactive or unavailable.');
+        }
+
+        CompanyHelper::setCurrentCompany($company);
+
+        return back()->with('success', 'Switched to '.$company->name.'.');
     }
 }

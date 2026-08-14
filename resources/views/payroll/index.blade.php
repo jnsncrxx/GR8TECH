@@ -1,25 +1,27 @@
 @extends('layouts.dashboard-base', ['user' => auth()->user(), 'activeRoute' => 'payroll.index'])
 
-@section('title', 'Payroll Management')
+@section('title', 'Payroll Payments')
 
 @section('content')
 <div class="space-y-6">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Payroll Management</h1>
-            <p class="mt-1 text-sm text-gray-600">Manage employee salaries, deductions, and payments</p>
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">
+                Payroll Payments
+            </h1>
+
+            <p class="mt-1 text-sm text-gray-600">
+                Process payment and payslip records from finalized payroll runs
+            </p>
         </div>
-        <div class="mt-4 sm:mt-0 flex space-x-3">
-        <form action="{{ route('payrolls.generate') }}" method="POST" class="inline" id="generatePayrollForm">
-            @csrf
-            <input type="hidden" name="start_date" id="generateStartDate" value="">
-            <input type="hidden" name="end_date" id="generateEndDate" value="">
-            <button type="button" onclick="generatePayroll()" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-                <i class="fas fa-plus mr-2"></i>
-                Generate Payroll
-            </button>
-        </form>
+
+        <div class="mt-4 sm:mt-0 flex flex-wrap gap-3">
+            <a href="{{ route('payroll.runs') }}"
+               class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700">
+                <i class="fas fa-layer-group mr-2"></i>
+                View Payroll Runs
+            </a>
         </div>
     </div>
 
@@ -55,10 +57,22 @@
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between">
             <div class="mb-4 lg:mb-0">
-                <h3 class="text-lg font-medium text-gray-900">Payroll Period</h3>
-                <p class="text-sm text-gray-600">Select the payroll period to view and manage</p>
+                <h3 class="text-lg font-medium text-gray-900">Locked Payroll Run</h3>
+                <p class="text-sm text-gray-600">Choose the approved cutoff batch to pay</p>
             </div>
-            <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
+            <form method="GET" action="{{ route('payroll.index') }}" class="w-full lg:w-auto lg:min-w-96">
+                <label for="payroll-run-select" class="block text-sm font-medium text-gray-700 mb-1">Select locked cutoff</label>
+                <select id="payroll-run-select" name="payroll_run_id" onchange="this.form.submit()" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900">
+                    @forelse($lockedRuns as $run)
+                        <option value="{{ $run->id }}" @selected($selectedRun?->id === $run->id)>
+                            {{ $run->name }} — {{ $run->start_date->format('M j') }} to {{ $run->end_date->format('M j, Y') }} ({{ $run->payrolls_count }} employees)
+                        </option>
+                    @empty
+                        <option value="">No locked payroll runs available</option>
+                    @endforelse
+                </select>
+            </form>
+            <div class="hidden">
                 <!-- Single Calendar Date Range Picker -->
                 <div class="flex-1">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Select Date Range</label>
@@ -67,6 +81,7 @@
                                 id="dateRangeButton" 
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors text-left flex items-center justify-between">
                             <span id="dateRangeText">{{ date('M d, Y') }} - {{ date('M d, Y') }}</span>
+                            <span id="legacyPeriodDisplay" class="hidden"></span>
                             <i class="fas fa-calendar-alt text-gray-400"></i>
                         </button>
                         
@@ -141,6 +156,7 @@
         
         <!-- Additional Filters Form -->
         <form method="GET" action="{{ route('payroll.index') }}" class="mt-6 pt-6 border-t border-gray-200">
+            <input type="hidden" name="payroll_run_id" value="{{ $selectedRun?->id }}">
             <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
                 <!-- Department Filter -->
                 <div class="flex-1">
@@ -163,6 +179,7 @@
                         <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
                         <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Approved</option>
                         <option value="paid" {{ request('status') == 'paid' ? 'selected' : '' }}>Paid</option>
+                        <option value="canceled" {{ request('status') == 'canceled' ? 'selected' : '' }}>Canceled</option>
                     </select>
                 </div>
                 
@@ -191,8 +208,8 @@
             </div>
             
             <!-- Date Range Inputs (hidden - populated by calendar) -->
-            <input type="hidden" name="start_date" id="filterStartDate" value="{{ request('start_date', now()->startOfMonth()->format('Y-m-d')) }}">
-            <input type="hidden" name="end_date" id="filterEndDate" value="{{ request('end_date', now()->endOfMonth()->format('Y-m-d')) }}">
+            <input type="hidden" name="start_date" id="filterStartDate" value="{{ $selectedRun?->start_date?->format('Y-m-d') }}">
+            <input type="hidden" name="end_date" id="filterEndDate" value="{{ $selectedRun?->end_date?->format('Y-m-d') }}">
         </form>
         
         <!-- Selected Period Display -->
@@ -200,7 +217,14 @@
             <div class="flex items-center">
                 <i class="fas fa-calendar-check text-blue-600 mr-2"></i>
                 <span class="text-sm font-medium text-blue-800">
-                    Selected Period: <span id="periodDisplay">{{ date('M d, Y') }} - {{ date('M d, Y') }}</span>
+                    Selected Run:
+                    <span id="periodDisplay">
+                        @if($selectedRun)
+                            {{ $selectedRun->name }} · {{ $selectedRun->start_date->format('M d, Y') }} - {{ $selectedRun->end_date->format('M d, Y') }}
+                        @else
+                            None — finalize and lock a payroll run first
+                        @endif
+                    </span>
                 </span>
             </div>
             @if(request()->anyFilled(['department_id', 'status', 'employee_id']))
@@ -346,7 +370,7 @@
             ];
         })->toArray();
     @endphp
-    {{ json_encode($employeesData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) }}
+    {!! json_encode($employeesData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) !!}
 </script>
 
 <script>
@@ -401,29 +425,32 @@
     <!-- Payroll Status Overview -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
         <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-medium text-gray-900">Payroll Status</h3>
-            <div class="flex space-x-2">
-                <button class="px-3 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">
-                    Pending Review
-                </button>
-                <button class="px-3 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-                    Ready for Payment
-                </button>
+            <div>
+                <h3 class="text-lg font-medium text-gray-900">Payment Status</h3>
+                <p class="mt-1 text-sm text-gray-600">Summary for the selected locked payroll run</p>
             </div>
         </div>
         
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div class="text-center p-4 bg-gray-50 rounded-lg">
-                <div class="text-2xl font-bold text-gray-900">{{ $summary['pending_count'] }}</div>
-                <div class="text-sm text-gray-600">Pending Review</div>
-            </div>
-            <div class="text-center p-4 bg-gray-50 rounded-lg">
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <a href="{{ request()->fullUrlWithoutQuery('status') }}" class="text-center p-4 border-2 rounded-lg transition-colors {{ !request('status') || request('status') === 'all' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-gray-50 hover:border-blue-300' }}">
+                <div class="text-2xl font-bold text-gray-900">{{ $summary['total_employees'] }}</div>
+                <div class="text-sm font-medium text-gray-700">Employees in Run</div>
+                <div class="mt-1 text-xs text-gray-500">Click to show all</div>
+            </a>
+            <a href="{{ request()->fullUrlWithQuery(['status' => 'approved']) }}" class="text-center p-4 border-2 rounded-lg transition-colors {{ request('status') === 'approved' ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-gray-50 hover:border-green-300' }}">
                 <div class="text-2xl font-bold text-gray-900">{{ $summary['approved_count'] }}</div>
-                <div class="text-sm text-gray-600">Approved</div>
-            </div>
-            <div class="text-center p-4 bg-gray-50 rounded-lg">
+                <div class="text-sm font-medium text-gray-700">Ready for Payment</div>
+                <div class="mt-1 text-xs text-green-700">₱{{ number_format($summary['approved_net_pay'], 2) }}</div>
+            </a>
+            <a href="{{ request()->fullUrlWithQuery(['status' => 'paid']) }}" class="text-center p-4 border-2 rounded-lg transition-colors {{ request('status') === 'paid' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 bg-gray-50 hover:border-purple-300' }}">
                 <div class="text-2xl font-bold text-gray-900">{{ $summary['paid_count'] }}</div>
-                <div class="text-sm text-gray-600">Paid</div>
+                <div class="text-sm font-medium text-gray-700">Paid</div>
+                <div class="mt-1 text-xs text-purple-700">₱{{ number_format($summary['paid_net_pay'], 2) }}</div>
+            </a>
+            <div class="text-center p-4 border-2 border-gray-200 bg-gray-50 rounded-lg">
+                <div class="text-xl font-bold text-gray-900">₱{{ number_format($summary['net_pay'], 2) }}</div>
+                <div class="text-sm font-medium text-gray-700">Net Payroll</div>
+                <div class="mt-1 text-xs text-gray-500">Total amount payable</div>
             </div>
         </div>
     </div>
@@ -433,8 +460,8 @@
     <div class="px-4 sm:px-6 py-4 border-b border-gray-200">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <div>
-                <h3 class="text-lg font-medium text-gray-900">Employee Payroll</h3>
-                <p class="mt-1 text-sm text-gray-600">Individual payroll records for the selected period</p>
+                <h3 class="text-lg font-medium text-gray-900">Payment Register</h3>
+                <p class="mt-1 text-sm text-gray-600">Approved or paid employee records from locked payroll runs</p>
             </div>
             <div class="mt-4 sm:mt-0 flex space-x-3">
                 <div class="relative">
@@ -445,18 +472,9 @@
                     </button>
                     <div id="filterDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                         <div class="p-2">
-                            <label class="flex items-center px-2 py-1 hover:bg-gray-100 rounded cursor-pointer">
-                                <input type="checkbox" class="rounded text-blue-600">
-                                <span class="ml-2 text-sm">Pending</span>
-                            </label>
-                            <label class="flex items-center px-2 py-1 hover:bg-gray-100 rounded cursor-pointer">
-                                <input type="checkbox" class="rounded text-blue-600">
-                                <span class="ml-2 text-sm">Approved</span>
-                            </label>
-                            <label class="flex items-center px-2 py-1 hover:bg-gray-100 rounded cursor-pointer">
-                                <input type="checkbox" class="rounded text-blue-600">
-                                <span class="ml-2 text-sm">Paid</span>
-                            </label>
+                            <button onclick="applyStatusFilter('all')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ !request('status') || request('status') == 'all' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">All Statuses</button>
+                            <button onclick="applyStatusFilter('approved')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('status') == 'approved' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Approved</button>
+                            <button onclick="applyStatusFilter('paid')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('status') == 'paid' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Paid</button>
                         </div>
                     </div>
                 </div>
@@ -468,10 +486,10 @@
                     </button>
                     <div id="sortDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                         <div class="p-2">
-                            <button class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm">Name (A-Z)</button>
-                            <button class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm">Name (Z-A)</button>
-                            <button class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm">Net Pay (High-Low)</button>
-                            <button class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm">Net Pay (Low-High)</button>
+                            <button onclick="applySortFilter('name_asc')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('sort') == 'name_asc' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Name (A-Z)</button>
+                            <button onclick="applySortFilter('name_desc')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('sort') == 'name_desc' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Name (Z-A)</button>
+                            <button onclick="applySortFilter('net_pay_high_low')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('sort') == 'net_pay_high_low' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Net Pay (High-Low)</button>
+                            <button onclick="applySortFilter('net_pay_low_high')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-sm {{ request('sort') == 'net_pay_low_high' ? 'bg-blue-50 text-blue-600 font-medium' : '' }}">Net Pay (Low-High)</button>
                         </div>
                     </div>
                 </div>
@@ -488,31 +506,31 @@
                         <input type="checkbox" id="selectAllCheckbox" onchange="toggleAllCheckboxes()">
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
-                        EMPLOYEE
+                        EMPLOYEE / ID
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
                         DEPARTMENT
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
-                        BASIC SALARY
+                        BASIC PAY
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
-                        OVERTIME
+                        OT PAY
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
-                        ALLOWANCES
+                        OTHER EARNINGS
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
-                        DEDUCTIONS
+                        TOTAL DEDUCTIONS
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
                         NET PAY
                     </th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
-                        STATUS
+                    <th class="px-6 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
+                        PAYMENT STATUS
                     </th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
-                        ACTIONS
+                    <th class="px-6 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50">
+                        DETAILS / ACTION
                     </th>
                 </tr>
             </thead>
@@ -529,12 +547,15 @@
                             ];
                             $statusColor = $statusColors[$payroll->status] ?? 'bg-gray-100 text-gray-800';
                         @endphp
-                        <tr class="hover:bg-gray-50">
+                        <tr class="hover:bg-gray-50" data-search-row="{{ $payroll->id }}">
                             <!-- Add this checkbox cell -->
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <input type="checkbox" class="payroll-checkbox" value="{{ $payroll->id }}">
+                                <input type="checkbox"
+                                       class="payroll-checkbox rounded border-gray-300 text-green-600 focus:ring-green-500"
+                                       value="{{ $payroll->id }}"
+                                       data-net-pay="{{ (float) $payroll->net_pay }}"
+                                       @disabled($payroll->status !== 'approved')>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
                         <td class="px-6 py-4">
                             <div class="flex items-center">
                                 <div class="h-8 w-8 flex-shrink-0">
@@ -561,46 +582,66 @@
                             <span class="text-sm font-medium text-gray-900">₱{{ number_format($payroll->allowances, 2) }}</span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="text-sm font-medium text-gray-900">₱{{ number_format($payroll->deductions, 2) }}</span>
+                            <span class="text-sm font-medium text-red-700">₱{{ number_format($payroll->deductions + $payroll->tax_amount, 2) }}</span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             <span class="text-sm font-bold text-gray-900">₱{{ number_format($payroll->net_pay, 2) }}</span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $statusColor }}">
-                                <div class="w-1.5 h-1.5 rounded-full mr-1.5 {{ str_replace('text-', 'bg-', $statusColor) }}"></div>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <span class="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium {{ $statusColor }} min-w-[80px]">
                                 {{ ucfirst($payroll->status) }}
                             </span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div class="flex items-center space-x-2">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
+                            <div class="flex items-center justify-center space-x-2">
                                 <!-- Eye icon: View Details -->
-                                <button onclick="openPayrollModal('{{ $payroll->id }}')" 
+                                @php
+                                    $modalData = [
+                                        'employee_name' => $payroll->employee->full_name ?? 'N/A',
+                                        'employee_code' => $payroll->employee->employee_id ?? 'N/A',
+                                        'department' => $payroll->employee->department->name ?? 'N/A',
+                                        'position' => $payroll->employee->position?->name ?? 'N/A',
+                                        'period' => \Carbon\Carbon::parse($payroll->pay_period_start)->format('M j, Y') . ' - ' . \Carbon\Carbon::parse($payroll->pay_period_end)->format('M j, Y'),
+                                        'basic_salary' => $payroll->basic_salary,
+                                        'overtime_hours' => $payroll->overtime_hours ?? 0,
+                                        'overtime_pay' => $payroll->overtime_pay ?? 0,
+                                        'regular_holiday_pay' => ($payroll->holiday_basic_pay ?? 0) + ($payroll->holiday_premium ?? 0),
+                                        'special_holiday_pay' => $payroll->special_holiday_premium ?? 0,
+                                        'night_differential_pay' => $payroll->night_differential_pay ?? 0,
+                                        'rest_day_premium_pay' => $payroll->rest_day_premium_pay ?? 0,
+                                        'allowances' => $payroll->allowances ?? 0,
+                                        'bonuses' => $payroll->bonuses ?? 0,
+                                        'total_earnings' => $payroll->gross_pay ?? ($payroll->basic_salary + $payroll->overtime_pay + $payroll->allowances),
+                                        'sss' => $payroll->sss,
+                                        'phic' => $payroll->phic,
+                                        'pagibig' => $payroll->hdmf,
+                                        'tax' => $payroll->tax_amount,
+                                        'unpaid_leave_deduction' => $payroll->unpaid_leave_deduction ?? 0,
+                                        'late_deduction' => $payroll->late_deduction ?? 0,
+                                        'undertime_deduction' => $payroll->undertime_deduction ?? 0,
+                                        'absence_deduction' => $payroll->absence_deduction ?? 0,
+                                        'loan_deduction' => $payroll->loan_deduction ?? 0,
+                                        'other_deductions' => $payroll->other_deductions ?? 0,
+                                        'total_deductions' => ($payroll->deductions ?? 0) + ($payroll->tax_amount ?? 0),
+                                        'net_pay' => $payroll->net_pay
+                                    ];
+                                @endphp
+                                <button onclick="openPayrollModal('{{ $payroll->id }}', '{{ base64_encode(json_encode($modalData)) }}')" 
                                         class="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50" 
                                         title="View Details">
                                     <i class="fas fa-eye"></i>
                                 </button>
                                 
-                                <!-- Check icon: Approve (only shown when status is 'pending') -->
-                                @if($payroll->status === 'pending')
-                                    <button onclick="approvePayroll('{{ $payroll->id }}')" 
-                                            class="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50" 
-                                            title="Approve">
-                                        <i class="fas fa-check"></i>
-                                    </button>
-                                    
-                                    <!-- X icon: Reject (only shown when status is 'pending') -->
-                                    <button onclick="rejectPayroll('{{ $payroll->id }}')" 
-                                            class="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50" 
-                                            title="Reject">
-                                        <i class="fas fa-times"></i>
-                                    </button>
-                                @elseif($payroll->status === 'approved')
-                                    <!-- Additional button for approved status -->
-                                    <button class="text-purple-600 hover:text-purple-900 p-1 rounded hover:bg-purple-50" 
-                                            title="Pay">
-                                        <i class="fas fa-credit-card"></i>
-                                    </button>
+                                @if($payroll->status === 'approved' && !($isReadOnly ?? false))
+                                    <form id="pay-one-form-{{ $payroll->id }}" method="POST" action="{{ route('payrolls.pay-one', $payroll->id) }}" class="inline">
+                                        @csrf
+                                        <button type="button"
+                                                onclick="openSinglePaymentModal('pay-one-form-{{ $payroll->id }}', @js($payroll->employee->full_name), @js(number_format((float) $payroll->net_pay, 2)))"
+                                                class="inline-flex items-center gap-1 rounded-lg border border-green-700 bg-green-100 px-2.5 py-1.5 text-xs font-bold text-green-900 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                                title="Pay this employee">
+                                            <i class="fas fa-credit-card"></i><span>Pay</span>
+                                        </button>
+                                    </form>
                                 @elseif($payroll->status === 'paid')
                                     <!-- Additional button for paid status -->
                                     <button class="text-gray-600 hover:text-gray-900 p-1 rounded hover:bg-gray-100" 
@@ -619,7 +660,7 @@
                                     <i class="fas fa-file-invoice text-2xl text-gray-400"></i>
                                 </div>
                                 <h3 class="text-lg font-medium text-gray-900 mb-2">No payroll records found</h3>
-                                <p class="text-gray-500">Generate payroll for the selected period to view records.</p>
+                                <p class="text-gray-500">Finalize a payroll run before processing employee payments.</p>
                             </div>
                         </td>
                     </tr>
@@ -653,6 +694,8 @@
         </div>
     </div>
 </div>
+
+@include('components.single-payment-modal')
 
 <!-- Mobile Cards - Keep this section as is -->
 <div class="lg:hidden">
@@ -699,11 +742,42 @@
                     </div>
                     <div>
                         <div class="text-gray-500">Deductions</div>
-                        <div class="font-medium">₱{{ number_format($payroll->deductions, 2) }}</div>
+                        <div class="font-medium">₱{{ number_format($payroll->deductions + $payroll->tax_amount, 2) }}</div>
                     </div>
                 </div>
                 <div class="flex justify-end space-x-2">
-                    <button onclick="openPayrollModal('{{ $payroll->id }}')" class="text-blue-600 hover:text-blue-900 transition-colors">
+                    @php
+                        $modalData = [
+                            'employee_name' => $payroll->employee->full_name ?? 'N/A',
+                            'employee_code' => $payroll->employee->employee_id ?? 'N/A',
+                            'department' => $payroll->employee->department->name ?? 'N/A',
+                            'position' => $payroll->employee->position?->name ?? 'N/A',
+                            'period' => \Carbon\Carbon::parse($payroll->pay_period_start)->format('M j, Y') . ' - ' . \Carbon\Carbon::parse($payroll->pay_period_end)->format('M j, Y'),
+                            'basic_salary' => $payroll->basic_salary,
+                            'overtime_hours' => $payroll->overtime_hours ?? 0,
+                            'overtime_pay' => $payroll->overtime_pay,
+                            'regular_holiday_pay' => ($payroll->holiday_basic_pay ?? 0) + ($payroll->holiday_premium ?? 0),
+                            'special_holiday_pay' => $payroll->special_holiday_premium ?? 0,
+                            'night_differential_pay' => $payroll->night_differential_pay ?? 0,
+                            'rest_day_premium_pay' => $payroll->rest_day_premium_pay ?? 0,
+                            'allowances' => $payroll->allowances,
+                            'bonuses' => $payroll->bonuses ?? 0,
+                            'total_earnings' => $payroll->gross_pay ?? ($payroll->basic_salary + $payroll->overtime_pay + $payroll->allowances),
+                            'sss' => $payroll->sss,
+                            'phic' => $payroll->phic,
+                            'pagibig' => $payroll->hdmf,
+                            'tax' => $payroll->tax_amount,
+                            'unpaid_leave_deduction' => $payroll->unpaid_leave_deduction,
+                            'late_deduction' => $payroll->late_deduction ?? 0,
+                            'undertime_deduction' => $payroll->undertime_deduction ?? 0,
+                            'absence_deduction' => $payroll->absence_deduction ?? 0,
+                            'loan_deduction' => $payroll->loan_deduction ?? 0,
+                            'other_deductions' => $payroll->other_deductions ?? 0,
+                            'total_deductions' => $payroll->deductions + $payroll->tax_amount,
+                            'net_pay' => $payroll->net_pay
+                        ];
+                    @endphp
+                    <button onclick="openPayrollModal('{{ $payroll->id }}', '{{ base64_encode(json_encode($modalData)) }}')" class="text-blue-600 hover:text-blue-900 transition-colors">
                         <i class="fas fa-eye mr-1"></i>View
                     </button>
                     @if($payroll->status === 'pending')
@@ -787,11 +861,42 @@
                             </div>
                             <div>
                                 <div class="text-gray-500">Deductions</div>
-                                <div class="font-medium">₱{{ number_format($payroll->deductions, 2) }}</div>
+                                <div class="font-medium">₱{{ number_format($payroll->deductions + $payroll->tax_amount, 2) }}</div>
                             </div>
                         </div>
                         <div class="flex justify-end space-x-2">
-                            <button onclick="openPayrollModal('{{ $payroll->id }}')" class="text-blue-600 hover:text-blue-900 transition-colors">
+                            @php
+                                $modalData = [
+                                    'employee_name' => $payroll->employee->full_name ?? 'N/A',
+                                    'employee_code' => $payroll->employee->employee_id ?? 'N/A',
+                                    'department' => $payroll->employee->department->name ?? 'N/A',
+                                    'position' => $payroll->employee->position?->name ?? 'N/A',
+                                    'period' => \Carbon\Carbon::parse($payroll->pay_period_start)->format('M j, Y') . ' - ' . \Carbon\Carbon::parse($payroll->pay_period_end)->format('M j, Y'),
+                                    'basic_salary' => $payroll->basic_salary,
+                                    'overtime_hours' => $payroll->overtime_hours ?? 0,
+                                    'overtime_pay' => $payroll->overtime_pay,
+                                    'regular_holiday_pay' => ($payroll->holiday_basic_pay ?? 0) + ($payroll->holiday_premium ?? 0),
+                                    'special_holiday_pay' => $payroll->special_holiday_premium ?? 0,
+                                    'night_differential_pay' => $payroll->night_differential_pay ?? 0,
+                                    'rest_day_premium_pay' => $payroll->rest_day_premium_pay ?? 0,
+                                    'allowances' => $payroll->allowances,
+                                    'bonuses' => $payroll->bonuses ?? 0,
+                                    'total_earnings' => $payroll->gross_pay ?? ($payroll->basic_salary + $payroll->overtime_pay + $payroll->allowances),
+                                    'sss' => $payroll->sss,
+                                    'phic' => $payroll->phic,
+                                    'pagibig' => $payroll->hdmf,
+                                    'tax' => $payroll->tax_amount,
+                                    'unpaid_leave_deduction' => $payroll->unpaid_leave_deduction,
+                                    'late_deduction' => $payroll->late_deduction ?? 0,
+                                    'undertime_deduction' => $payroll->undertime_deduction ?? 0,
+                                    'absence_deduction' => $payroll->absence_deduction ?? 0,
+                                    'loan_deduction' => $payroll->loan_deduction ?? 0,
+                                    'other_deductions' => $payroll->other_deductions ?? 0,
+                                    'total_deductions' => $payroll->deductions + $payroll->tax_amount,
+                                    'net_pay' => $payroll->net_pay
+                                ];
+                            @endphp
+                            <button onclick="openPayrollModal('{{ $payroll->id }}', '{{ base64_encode(json_encode($modalData)) }}')" class="text-blue-600 hover:text-blue-900 transition-colors">
                                 <i class="fas fa-eye mr-1"></i>View
                             </button>
                             @if($payroll->status === 'pending')
@@ -830,44 +935,29 @@
         </div>
     </div>
 
-<!-- Payroll Actions -->
+<!-- Payroll Actions - money-moving bulk actions are admin/hr only, and
+     never shown at all in the manager's read-only team view. -->
+@if(!($isReadOnly ?? false) && in_array(auth()->user()->role ?? '', ['admin', 'hr']))
 <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
     <h3 class="text-lg font-medium text-gray-900 mb-4">Bulk Actions</h3>
     
     <div class="flex flex-col sm:flex-row flex-wrap gap-3">
 
-        <!-- Approve All Pending -->
-        <div class="inline">
-            <!-- Add these hidden inputs for the Approve All Pending button -->
-            <input type="hidden" name="bulk_start_date" id="bulkStartDate" value="{{ old('start_date', request('start_date', date('Y-m-d'))) }}">
-            <input type="hidden" name="bulk_end_date" id="bulkEndDate" value="{{ old('end_date', request('end_date', date('Y-m-d'))) }}">
-            
-            <button type="button" 
-                    onclick="approveAllPendingWithConfirmation()"
-                    id="approveAllPendingBtn"
-                    class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors">
-                <i class="fas fa-check-double mr-2"></i>
-                Approve All Pending
-            </button>
+        <input type="hidden" id="paymentStartDate" value="{{ request('start_date') }}">
+        <input type="hidden" id="paymentEndDate" value="{{ request('end_date') }}">
+        <button type="button"
+                onclick="openSelectedPaymentModal()"
+                id="processSelectedPaymentsBtn"
+                disabled
+                class="inline-flex items-center justify-center px-4 py-2 border border-green-800 rounded-lg font-bold text-black bg-green-400 hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:cursor-not-allowed disabled:opacity-50">
+            <i class="fas fa-credit-card mr-2"></i>
+            Process Selected (<span id="selectedPayrollCount">0</span>)
+        </button>
+        <div class="flex items-center rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-sm text-gray-700">
+            Selected net: <strong id="selectedPayrollNet" class="ml-2 text-gray-900">₱0.00</strong>
         </div>
 
-        <!-- Process Payments -->
-        <form action="{{ route('payrolls.process-payments') }}" method="POST" class="inline" id="processPaymentsForm">
-            @csrf
-            <input type="hidden" name="start_date" id="paymentStartDate" value="{{ old('start_date', request('start_date', date('Y-m-d'))) }}">
-            <input type="hidden" name="end_date" id="paymentEndDate" value="{{ old('end_date', request('end_date', date('Y-m-d'))) }}">
-            <input type="hidden" name="payroll_ids" id="payrollIds" value="">
-            
-            <button type="button" 
-                    onclick="processPayments()"
-                    id="processPaymentsBtn"
-                    class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-                <i class="fas fa-credit-card mr-2"></i>
-                Process Payments
-            </button>
-        </form>
-
-        <!-- Generate Payslips - Only for admin/hr/manager -->
+        <!-- Generate Payslips - admin/hr only -->
         @if(!in_array(auth()->user()->role ?? '', ['employee']))
         <div class="flex items-center space-x-2">
             <!-- Generate Payslips Button -->
@@ -969,22 +1059,117 @@
         iconColor="text-blue-600"
     />
 
-    <!-- Mark as Paid (Individual) -->
-    <div class="mt-4">
-        <button onclick="markSelectedAsPaid()" 
-                class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-lg font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors">
-            <i class="fas fa-money-check-alt mr-2"></i>
-            Mark Selected as Paid
-        </button>
-    </div>
+</div>
+@endif
 
-    <!-- Checkbox for selecting payrolls -->
-    <div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-        <label class="flex items-center">
-            <input type="checkbox" id="selectAllPayrolls" class="rounded text-blue-600 mr-2">
-            <span class="text-sm font-medium text-blue-800">Select all payroll records for bulk processing</span>
-        </label>
-        <p class="text-xs text-blue-600 mt-1 ml-6">Selected records will be processed when using bulk actions</p>
+@include('components.selected-payment-modal')
+
+<!-- Generate Payroll Confirm Modal -->
+<div id="generatePayrollConfirmModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 overflow-y-auto" style="display: none;">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 transform transition-all">
+        <div class="p-6">
+            <div class="flex items-center justify-center w-12 h-12 mx-auto bg-blue-100 rounded-full mb-4">
+                <i class="fas fa-file-invoice-dollar text-blue-600 text-xl"></i>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 text-center mb-2">Generate Payroll</h3>
+            <p class="text-sm text-gray-500 text-center mb-4">Are you sure you want to generate payroll for the selected period? This action will calculate salaries, deductions, and net pay for all eligible employees based on their attendance.</p>
+            
+            <div class="mb-6">
+                <label for="modalPayrollTemplate" class="block text-sm font-medium text-gray-700 mb-1">Override Payroll Template (Optional)</label>
+                <select id="modalPayrollTemplate" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                    <option value="">System Default / Employee's Assigned Template</option>
+                    @if(isset($payrollTemplates))
+                        @foreach($payrollTemplates as $template)
+                            <option value="{{ $template->id }}">{{ $template->name }}</option>
+                        @endforeach
+                    @endif
+                </select>
+                <p class="mt-1 text-xs text-gray-500">If selected, this will force all generated payrolls to use this specific template.</p>
+            </div>
+            
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="closeGeneratePayrollModal()" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                    Cancel
+                </button>
+                <button type="button" onclick="confirmGeneratePayroll()" class="px-4 py-2 bg-blue-600 border border-transparent rounded-lg text-white hover:bg-blue-700 transition-colors">
+                    <i class="fas fa-check mr-2"></i>
+                    Generate
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Approve Payroll Modal -->
+<div id="approvePayrollModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 overflow-y-auto" style="display: none;">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 transform transition-all">
+        <div class="p-6">
+            <div class="flex items-center justify-center w-12 h-12 mx-auto bg-green-100 rounded-full mb-4">
+                <i class="fas fa-check text-green-600 text-xl"></i>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 text-center mb-2">Approve Payroll</h3>
+            <p class="text-sm text-gray-500 text-center mb-6">Are you sure you want to approve this payroll?</p>
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="closeApproveModal()" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                    Cancel
+                </button>
+                <button type="button" id="confirmApproveBtn" class="px-4 py-2 bg-green-600 border border-transparent rounded-lg text-white hover:bg-green-700 transition-colors">
+                    <i class="fas fa-check mr-2"></i>
+                    Approve
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Payroll Modal -->
+<div id="rejectPayrollModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 overflow-y-auto" style="display: none;">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 transform transition-all">
+        <div class="p-6">
+            <div class="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full mb-4">
+                <i class="fas fa-times text-red-600 text-xl"></i>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 text-center mb-2">Reject Payroll</h3>
+            <p class="text-sm text-gray-500 text-center mb-4">Are you sure you want to reject this payroll? Please provide a reason.</p>
+            
+            <div class="mb-4 text-left">
+                <label for="rejectReason" class="block text-sm font-medium text-gray-700 mb-1">Reason for Rejection <span class="text-red-500">*</span></label>
+                <textarea id="rejectReason" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500" placeholder="Enter reason here..." required></textarea>
+                <p id="rejectReasonError" class="text-red-500 text-xs mt-1 hidden">Reason is required</p>
+            </div>
+            
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="closeRejectModal()" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                    Cancel
+                </button>
+                <button type="button" id="confirmRejectBtn" class="px-4 py-2 bg-red-600 border border-transparent rounded-lg text-white hover:bg-red-700 transition-colors">
+                    <i class="fas fa-times mr-2"></i>
+                    Reject
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Approve All Pending Modal -->
+<div id="approveAllPendingModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 overflow-y-auto" style="display: none;">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 transform transition-all">
+        <div class="p-6">
+            <div class="flex items-center justify-center w-12 h-12 mx-auto bg-green-100 rounded-full mb-4">
+                <i class="fas fa-check-double text-green-600 text-xl"></i>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 text-center mb-2">Approve All Pending</h3>
+            <p id="approveAllPendingMessage" class="text-sm text-gray-500 text-center mb-6">Are you sure you want to approve all pending payrolls?</p>
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="closeApproveAllPendingModal()" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                    Cancel
+                </button>
+                <button type="button" id="confirmApproveAllPendingBtn" onclick="confirmApproveAllPending()" class="px-4 py-2 bg-green-600 border border-transparent rounded-lg text-white hover:bg-green-700 transition-colors">
+                    <i class="fas fa-check-double mr-2"></i>
+                    Approve All
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -999,10 +1184,20 @@ window.generatePayroll = function() {
         return;
     }
     
-    if (confirm('Are you sure you want to generate payroll for the selected period?')) {
-        document.getElementById('generatePayrollForm').submit();
-    }
+    document.getElementById('generatePayrollConfirmModal').style.display = 'flex';
 };
+
+window.closeGeneratePayrollModal = function() {
+    document.getElementById('generatePayrollConfirmModal').style.display = 'none';
+};
+
+window.confirmGeneratePayroll = function() {
+    document.getElementById('generatePayrollConfirmModal').style.display = 'none';
+    const selectedTemplate = document.getElementById('modalPayrollTemplate').value;
+    document.getElementById('generateTemplateId').value = selectedTemplate;
+    document.getElementById('generatePayrollForm').submit();
+};
+
 
 window.processPayments = function() {
     const startDate = document.getElementById('paymentStartDate').value;
@@ -1125,19 +1320,23 @@ async function exportPayrollWithCalculations() {
                     <div class="grid grid-cols-2 gap-4 text-sm">
                         <div>
                             <span class="text-gray-500">Name:</span>
-                            <span class="ml-2 font-medium">John Smith</span>
+                            <span id="modal-emp-name" class="ml-2 font-medium"></span>
                         </div>
                         <div>
                             <span class="text-gray-500">Employee ID:</span>
-                            <span class="ml-2 font-medium">EMP-001</span>
+                            <span id="modal-emp-id" class="ml-2 font-medium"></span>
                         </div>
                         <div>
                             <span class="text-gray-500">Department:</span>
-                            <span class="ml-2 font-medium">IT Department</span>
+                            <span id="modal-emp-dept" class="ml-2 font-medium"></span>
                         </div>
                         <div>
                             <span class="text-gray-500">Position:</span>
-                            <span class="ml-2 font-medium">Software Developer</span>
+                            <span id="modal-emp-pos" class="ml-2 font-medium"></span>
+                        </div>
+                        <div class="col-span-2">
+                            <span class="text-gray-500">Pay Period:</span>
+                            <span id="modal-emp-period" class="ml-2 font-medium text-blue-700"></span>
                         </div>
                     </div>
                 </div>
@@ -1148,19 +1347,39 @@ async function exportPayrollWithCalculations() {
                     <div class="space-y-2 text-sm">
                         <div class="flex justify-between">
                             <span>Basic Salary</span>
-                            <span class="font-medium">₱25,000.00</span>
+                            <span id="modal-earn-basic" class="font-medium"></span>
                         </div>
                         <div class="flex justify-between">
-                            <span>Overtime Pay</span>
-                            <span class="font-medium">₱3,500.00</span>
+                            <span>Overtime Pay <small id="modal-earn-ot-hours" class="text-gray-500"></small></span>
+                            <span id="modal-earn-ot" class="font-medium"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Regular Holiday Pay</span>
+                            <span id="modal-earn-reg-holiday" class="font-medium"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Special Holiday Pay</span>
+                            <span id="modal-earn-special-holiday" class="font-medium"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Night Differential</span>
+                            <span id="modal-earn-night" class="font-medium"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Rest Day Premium</span>
+                            <span id="modal-earn-rest-day" class="font-medium"></span>
                         </div>
                         <div class="flex justify-between">
                             <span>Allowances</span>
-                            <span class="font-medium">₱2,000.00</span>
+                            <span id="modal-earn-allow" class="font-medium"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Bonuses</span>
+                            <span id="modal-earn-bonus" class="font-medium"></span>
                         </div>
                         <div class="flex justify-between border-t pt-2 font-medium">
                             <span>Total Earnings</span>
-                            <span>₱30,500.00</span>
+                            <span id="modal-earn-total"></span>
                         </div>
                     </div>
                 </div>
@@ -1170,24 +1389,48 @@ async function exportPayrollWithCalculations() {
                     <h4 class="font-medium text-gray-900 mb-2">Deductions</h4>
                     <div class="space-y-2 text-sm">
                         <div class="flex justify-between">
+                            <span>Unpaid Leave</span>
+                            <span id="modal-ded-unpaid" class="font-medium text-red-600"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Late Deduction</span>
+                            <span id="modal-ded-late" class="font-medium text-red-600"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Undertime Deduction</span>
+                            <span id="modal-ded-undertime" class="font-medium text-red-600"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Absence / Other Attendance Deduction</span>
+                            <span id="modal-ded-attendance" class="font-medium text-red-600"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Loan Amortization</span>
+                            <span id="modal-ded-loan" class="font-medium text-red-600"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Other Deductions</span>
+                            <span id="modal-ded-other" class="font-medium text-red-600"></span>
+                        </div>
+                        <div class="flex justify-between">
                             <span>SSS Contribution</span>
-                            <span class="font-medium">₱1,200.00</span>
+                            <span id="modal-ded-sss" class="font-medium"></span>
                         </div>
                         <div class="flex justify-between">
                             <span>PhilHealth</span>
-                            <span class="font-medium">₱800.00</span>
+                            <span id="modal-ded-phic" class="font-medium"></span>
                         </div>
                         <div class="flex justify-between">
                             <span>Pag-IBIG</span>
-                            <span class="font-medium">₱200.00</span>
+                            <span id="modal-ded-hdmf" class="font-medium"></span>
                         </div>
                         <div class="flex justify-between">
                             <span>Withholding Tax</span>
-                            <span class="font-medium">₱2,000.00</span>
+                            <span id="modal-ded-tax" class="font-medium"></span>
                         </div>
                         <div class="flex justify-between border-t pt-2 font-medium">
                             <span>Total Deductions</span>
-                            <span>₱4,200.00</span>
+                            <span id="modal-ded-total"></span>
                         </div>
                     </div>
                 </div>
@@ -1196,7 +1439,7 @@ async function exportPayrollWithCalculations() {
                 <div class="bg-blue-50 p-4 rounded-lg">
                     <div class="flex justify-between items-center">
                         <span class="text-lg font-medium text-gray-900">Net Pay</span>
-                        <span class="text-2xl font-bold text-blue-600">₱26,300.00</span>
+                        <span id="modal-net-pay" class="text-2xl font-bold text-blue-600"></span>
                     </div>
                 </div>
             </div>
@@ -1209,8 +1452,12 @@ async function exportPayrollWithCalculations() {
                 class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center">
                     <i class="fas fa-download mr-2"></i>Download Payslip
                 </a>
+            </div>
+        </div>
+    </div>
+</div>
 
-                <!-- Payment Modal -->
+<!-- Payment Modal -->
 <div id="paymentModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
     <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 xl:w-1/3 shadow-lg rounded-md bg-white">
         <div class="mt-3">
@@ -1289,21 +1536,60 @@ async function exportPayrollWithCalculations() {
         </div>
     </div>
 </div>
-            </div>
+
+<!-- Approve Payroll Modal -->
+<div id="approvePayrollModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-1/3 shadow-lg rounded-md bg-white">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">Confirm Approval</h3>
+        <p class="text-sm text-gray-600 mb-6">Are you sure you want to approve this payroll? This action cannot be undone.</p>
+        <div class="flex justify-end space-x-3">
+            <button onclick="closeApproveModal()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
+            <button id="confirmApproveBtn" class="px-4 py-2 bg-green-600 text-white rounded-lg">Approve</button>
         </div>
     </div>
 </div>
+
+<!-- Reject Payroll Modal -->
+<div id="rejectPayrollModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-1/3 shadow-lg rounded-md bg-white">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">Reject Payroll</h3>
+        <p class="text-sm text-gray-600 mb-4">Please provide a reason for rejecting this payroll:</p>
+        <textarea id="rejectReason" class="w-full border rounded p-2 mb-2" rows="3"></textarea>
+        <p id="rejectReasonError" class="text-red-500 text-xs hidden mb-4">Reason is required.</p>
+        <div class="flex justify-end space-x-3">
+            <button onclick="closeRejectModal()" class="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
+            <button id="confirmRejectBtn" class="px-4 py-2 bg-red-600 text-white rounded-lg">Reject</button>
+        </div>
+    </div>
+</div>
+
 <script>
+let currentPayrollId = null;
+let currentActionButton = null;
 
 /**
  * Approve a single payroll
  */
-function approvePayroll(payrollId) {
-    if (!confirm('Are you sure you want to approve this payroll?')) {
-        return;
-    }
+window.approvePayroll = function(payrollId) {
+    currentPayrollId = payrollId;
+    currentActionButton = event.target.closest('button');
+    document.getElementById('approvePayrollModal').style.display = 'flex';
+    document.getElementById('confirmApproveBtn').onclick = () => confirmApprovePayroll();
+};
+
+window.closeApproveModal = function() {
+    document.getElementById('approvePayrollModal').style.display = 'none';
+    currentPayrollId = null;
+    currentActionButton = null;
+};
+
+window.confirmApprovePayroll = function() {
+    document.getElementById('approvePayrollModal').style.display = 'none';
+    const payrollId = currentPayrollId;
+    const button = currentActionButton;
     
-    const button = event.target.closest('button');
+    if (!payrollId || !button) return;
+    
     const originalHTML = button.innerHTML;
     button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
     button.disabled = true;
@@ -1349,17 +1635,39 @@ function approvePayroll(payrollId) {
         button.innerHTML = originalHTML;
         button.disabled = false;
     });
-}
+};
 
 /**
  * Reject a single payroll - UPDATED
  */
-function rejectPayroll(payrollId) {
-    if (!confirm('Are you sure you want to reject this payroll?')) {
+window.rejectPayroll = function(payrollId) {
+    currentPayrollId = payrollId;
+    currentActionButton = event.target.closest('button');
+    document.getElementById('rejectReason').value = '';
+    document.getElementById('rejectReasonError').classList.add('hidden');
+    document.getElementById('rejectPayrollModal').style.display = 'flex';
+    document.getElementById('confirmRejectBtn').onclick = () => confirmRejectPayroll();
+};
+
+window.closeRejectModal = function() {
+    document.getElementById('rejectPayrollModal').style.display = 'none';
+    currentPayrollId = null;
+    currentActionButton = null;
+};
+
+window.confirmRejectPayroll = function() {
+    const reason = document.getElementById('rejectReason').value.trim();
+    if (!reason) {
+        document.getElementById('rejectReasonError').classList.remove('hidden');
         return;
     }
     
-    const button = event.target.closest('button');
+    document.getElementById('rejectPayrollModal').style.display = 'none';
+    const payrollId = currentPayrollId;
+    const button = currentActionButton;
+    
+    if (!payrollId || !button) return;
+    
     const originalHTML = button.innerHTML;
     button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
     button.disabled = true;
@@ -1376,7 +1684,7 @@ function rejectPayroll(payrollId) {
             'X-Requested-With': 'XMLHttpRequest'
         },
         body: JSON.stringify({
-            reason: 'Rejected by user'
+            reason: reason
         })
     })
     .then(response => response.json())
@@ -1391,7 +1699,7 @@ function rejectPayroll(payrollId) {
             // Show success message
             showNotification(data.message || 'Payroll rejected successfully!', 'success');
             
-            // Reload the page
+            // Reload the page after 1.5 seconds to update summary counts
             setTimeout(() => {
                 window.location.reload();
             }, 1500);
@@ -1407,7 +1715,7 @@ function rejectPayroll(payrollId) {
         button.innerHTML = originalHTML;
         button.disabled = false;
     });
-}
+};
 
 /**
  * Update payroll status in the table
@@ -1417,8 +1725,7 @@ function updatePayrollStatus(payrollId, newStatus, statusClass) {
     const statusCell = document.querySelector(`tr[data-payroll-id="${payrollId}"] .status-cell`);
     if (statusCell) {
         statusCell.innerHTML = `
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClass}">
-                <div class="w-1.5 h-1.5 rounded-full mr-1.5 ${statusClass.replace('text-', 'bg-')}"></div>
+            <span class="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-medium ${statusClass} min-w-[80px]">
                 ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}
             </span>
         `;
@@ -1534,10 +1841,26 @@ function toggleAllCheckboxes() {
     
     if (selectAll && checkboxes) {
         checkboxes.forEach(checkbox => {
-            checkbox.checked = selectAll.checked;
+            if (!checkbox.disabled) checkbox.checked = selectAll.checked;
         });
+        updateSelectedPayrollSummary();
     }
 }
+
+function updateSelectedPayrollSummary() {
+    const selected = Array.from(document.querySelectorAll('.payroll-checkbox:checked:not(:disabled)'));
+    const total = selected.reduce((sum, checkbox) => sum + Number(checkbox.dataset.netPay || 0), 0);
+    const countElement = document.getElementById('selectedPayrollCount');
+    const netElement = document.getElementById('selectedPayrollNet');
+    const button = document.getElementById('processSelectedPaymentsBtn');
+    if (countElement) countElement.textContent = selected.length;
+    if (netElement) netElement.textContent = '₱' + total.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    if (button) button.disabled = selected.length === 0;
+}
+
+document.querySelectorAll('.payroll-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', updateSelectedPayrollSummary);
+});
 
 function saveSelectedDateRange(startDate, endDate) {
     try {
@@ -1857,8 +2180,57 @@ function updateAllDateFields() {
 }
 
 // Modal Functions
-function openPayrollModal(payrollId) {
+function openPayrollModal(payrollId, dataStr) {
     document.getElementById('payrollModal').classList.remove('hidden');
+    
+    if (dataStr) {
+        try {
+            const data = JSON.parse(atob(dataStr));
+            
+            const formatMoney = (amount) => {
+                const val = parseFloat(amount || 0);
+                return '₱' + val.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            };
+
+            document.getElementById('modal-emp-name').textContent = data.employee_name;
+            document.getElementById('modal-emp-id').textContent = data.employee_code;
+            document.getElementById('modal-emp-dept').textContent = data.department;
+            document.getElementById('modal-emp-pos').textContent = data.position;
+            document.getElementById('modal-emp-period').textContent = data.period;
+            
+            document.getElementById('modal-earn-basic').textContent = formatMoney(data.basic_salary);
+            document.getElementById('modal-earn-ot').textContent = formatMoney(data.overtime_pay);
+            document.getElementById('modal-earn-ot-hours').textContent = `(${parseFloat(data.overtime_hours || 0).toFixed(1)} hrs)`;
+            document.getElementById('modal-earn-reg-holiday').textContent = formatMoney(data.regular_holiday_pay);
+            document.getElementById('modal-earn-special-holiday').textContent = formatMoney(data.special_holiday_pay);
+            document.getElementById('modal-earn-night').textContent = formatMoney(data.night_differential_pay);
+            document.getElementById('modal-earn-rest-day').textContent = formatMoney(data.rest_day_premium_pay);
+            document.getElementById('modal-earn-allow').textContent = formatMoney(data.allowances);
+            document.getElementById('modal-earn-bonus').textContent = formatMoney(data.bonuses);
+            document.getElementById('modal-earn-total').textContent = formatMoney(data.total_earnings);
+            
+            // Each deduction is now passed through explicitly from its own payroll
+            // column, so display each one directly under its matching label rather
+            // than reconstructing any of them — a reconstructed "catch-all" here
+            // previously double-counted late/undertime/other/loan deductions
+            // whenever absence_deduction was legitimately 0 (falsy in JS).
+            document.getElementById('modal-ded-unpaid').textContent = formatMoney(data.unpaid_leave_deduction);
+            document.getElementById('modal-ded-late').textContent = formatMoney(data.late_deduction);
+            document.getElementById('modal-ded-undertime').textContent = formatMoney(data.undertime_deduction);
+            document.getElementById('modal-ded-attendance').textContent = formatMoney(data.absence_deduction);
+            document.getElementById('modal-ded-loan').textContent = formatMoney(data.loan_deduction);
+            document.getElementById('modal-ded-other').textContent = formatMoney(data.other_deductions);
+            document.getElementById('modal-ded-sss').textContent = formatMoney(data.sss);
+            document.getElementById('modal-ded-phic').textContent = formatMoney(data.phic);
+            document.getElementById('modal-ded-hdmf').textContent = formatMoney(data.pagibig);
+            document.getElementById('modal-ded-tax').textContent = formatMoney(data.tax);
+            document.getElementById('modal-ded-total').textContent = formatMoney(data.total_deductions);
+            
+            document.getElementById('modal-net-pay').textContent = formatMoney(data.net_pay);
+        } catch(e) {
+            console.error('Error parsing payroll data:', e);
+        }
+    }
     
     // Set the download payslip link dynamically
     const downloadLink = document.getElementById('downloadPayslipLink');
@@ -2259,8 +2631,14 @@ function formatDateForDisplay(date) {
 }
 
 function updatePeriodDisplay() {
-    const periodDisplay = document.getElementById('periodDisplay');
-    
+    // This targets the legacy (hidden, unused) calendar widget's own display span —
+    // NOT the "Selected Run" banner (#periodDisplay), which is server-rendered from
+    // $selectedRun and must reflect the locked cutoff dropdown, not this widget.
+    const periodDisplay = document.getElementById('legacyPeriodDisplay');
+    if (!periodDisplay) {
+        return;
+    }
+
     if (selectedFromDate && selectedToDate) {
         periodDisplay.textContent = `${formatDateForDisplay(selectedFromDate)} - ${formatDateForDisplay(selectedToDate)}`;
     } else if (selectedFromDate) {
@@ -2499,28 +2877,7 @@ function generateEmployeeCardHTML(employee) {
     `;
 }
 
-function sortBy(field) {
-    let url = new URL(window.location.href);
-    
-    // Remove page parameter
-    url.searchParams.delete('page');
-    
-    // Set sort parameter
-    url.searchParams.set('sort', field);
-    
-    // If clicking same field, toggle order
-    const currentSort = url.searchParams.get('sort');
-    const currentOrder = url.searchParams.get('order');
-    
-    if (currentSort === field && currentOrder === 'desc') {
-        url.searchParams.set('order', 'asc');
-    } else {
-        url.searchParams.set('order', 'desc');
-    }
-    
-    window.location.href = url.toString();
-    document.getElementById('sortDropdown').classList.add('hidden');
-}
+
 
 function changeEmployeePage(direction) {
     // If employees not loaded, try to initialize first
@@ -2646,53 +3003,22 @@ function toggleSortDropdown() {
     filterDropdown.classList.add('hidden');
 }
 
-function applyFilters() {
-    const status = document.getElementById('filterStatus').value;
-    const department = document.getElementById('filterDepartment').value;
-    
+function applyStatusFilter(status) {
     let url = new URL(window.location.href);
-    
-    if (status) {
-        url.searchParams.set('status', status);
-    } else {
+    if (status === 'all') {
         url.searchParams.delete('status');
-    }
-    
-    if (department) {
-        url.searchParams.set('department', department);
     } else {
-        url.searchParams.delete('department');
+        url.searchParams.set('status', status);
     }
-    
-    url.searchParams.delete('page');
-    
-    window.location.href = url.toString();
-}
-
-function clearFilters() {
-    let url = new URL(window.location.href);
-    url.searchParams.delete('status');
-    url.searchParams.delete('department');
     url.searchParams.delete('page');
     window.location.href = url.toString();
 }
 
-function sortBy(field) {
+function applySortFilter(field) {
     let url = new URL(window.location.href);
-    const currentSort = url.searchParams.get('sort');
-    const currentOrder = url.searchParams.get('order');
-    
-    if (currentSort === field) {
-        url.searchParams.set('order', currentOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-        url.searchParams.set('sort', field);
-        url.searchParams.set('order', 'asc');
-    }
-    
+    url.searchParams.set('sort', field);
     url.searchParams.delete('page');
-    
     window.location.href = url.toString();
-    document.getElementById('sortDropdown').classList.add('hidden');
 }
 
 // Add this function to update all date fields
@@ -3112,13 +3438,12 @@ function updateSelectionDisplay() {
 
 function processSelectedPayments() {
     if (selectedEmployees.size === 0) {
-        alert('Please select at least one employee to process payment.');
+        showNotification('Please select at least one employee to process payment.', 'error');
         return;
     }
-    
-    if (!confirm(`Process payments for ${selectedEmployees.size} employee(s) with total amount of ${document.getElementById('totalAmount').textContent}?`)) {
-        return;
-    }
+
+    // The payment modal already displays the selected employee count and
+    // total amount, so its Process Payments button is the confirmation step.
     
     const fromDate = formatDateForInput(selectedFromDate);
     const toDate = formatDateForInput(selectedToDate);
@@ -3246,13 +3571,13 @@ async function approveAllPendingAJAX(startDate, endDate) {
 }
 
 // Approve All Pending with confirmation and auto-refresh
-// Make approveAllPendingWithConfirmation globally accessible
+let bulkApproveStartDate = null;
+let bulkApproveEndDate = null;
+
 window.approveAllPendingWithConfirmation = async function() {
     const button = document.getElementById('approveAllPendingBtn');
-    const originalText = button.innerHTML;
     
     try {
-        // Get date values - FIXED: using the right IDs
         const startDate = document.getElementById('bulkStartDate').value;
         const endDate = document.getElementById('bulkEndDate').value;
         
@@ -3261,37 +3586,65 @@ window.approveAllPendingWithConfirmation = async function() {
             return;
         }
         
+        // Show loading spinner on button while checking
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Checking...';
+        button.disabled = true;
+        
         // Check pending payrolls count
         const pendingCount = await checkPendingPayrolls(startDate, endDate);
+        
+        button.innerHTML = originalText;
+        button.disabled = false;
         
         if (pendingCount === 0) {
             alert('No pending payrolls found for this period.');
             return;
         }
         
-        // Show confirmation dialog
-        const message = `Are you sure you want to approve all pending payrolls?\n\n${pendingCount} pending payroll${pendingCount > 1 ? 's' : ''} found\nPeriod: ${formatDateForDisplay(new Date(startDate))} — ${formatDateForDisplay(new Date(endDate))}\n\nThis action will approve all pending payrolls for the selected period.`;
+        // Show confirmation dialog modal
+        const message = `${pendingCount} pending payroll${pendingCount > 1 ? 's' : ''} found<br>Period: ${formatDateForDisplay(new Date(startDate))} — ${formatDateForDisplay(new Date(endDate))}<br><br>This action will approve all pending payrolls for the selected period.`;
         
-        if (confirm(message)) {
-            // Show loading state
-            button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Approving...';
-            button.disabled = true;
-            
-            // Use the AJAX function (UPDATED)
-            const approvedCount = await approveAllPendingAJAX(startDate, endDate);
-            
-            if (approvedCount > 0) {
-                // Success - reload the page to show updated status
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1000);
-            } else {
-                alert('No payrolls were approved. Please try again.');
-                button.innerHTML = originalText;
-                button.disabled = false;
-            }
+        document.getElementById('approveAllPendingMessage').innerHTML = message;
+        bulkApproveStartDate = startDate;
+        bulkApproveEndDate = endDate;
+        document.getElementById('approveAllPendingModal').style.display = 'flex';
+        
+    } catch (error) {
+        console.error('Error:', error);
+        button.innerHTML = originalText;
+        button.disabled = false;
+        alert('Error: ' + error.message);
+    }
+}
+
+window.closeApproveAllPendingModal = function() {
+    document.getElementById('approveAllPendingModal').style.display = 'none';
+}
+
+window.confirmApproveAllPending = async function() {
+    document.getElementById('approveAllPendingModal').style.display = 'none';
+    const button = document.getElementById('approveAllPendingBtn');
+    const originalText = button.innerHTML;
+    
+    // Show loading state
+    button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Approving...';
+    button.disabled = true;
+    
+    try {
+        // Use the AJAX function (UPDATED)
+        const approvedCount = await approveAllPendingAJAX(bulkApproveStartDate, bulkApproveEndDate);
+        
+        if (approvedCount > 0) {
+            // Success - reload the page to show updated status
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            alert('No payrolls were approved. Please try again.');
+            button.innerHTML = originalText;
+            button.disabled = false;
         }
-        
     } catch (error) {
         console.error('Error:', error);
         button.innerHTML = originalText;

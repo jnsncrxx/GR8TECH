@@ -22,17 +22,32 @@ class EmployeeSchedule extends Model
         'time_in',
         'time_out',
         'status',
+        'schedule_type',
+        'required_hours',
+        'schedule_template_id',
         'notes',
         'created_by',
     ];
 
     protected $casts = [
         'date' => 'date',
+        'required_hours' => 'decimal:2',
     ];
 
     protected static function boot()
     {
         parent::boot();
+
+        static::saving(function ($model) {
+            // A non-working schedule must never carry payable required hours.
+            // Keeping shift times on a day off also causes misleading cutoff
+            // totals, so normalize the complete row at the model boundary.
+            if (in_array($model->status, ['Day Off', 'Rest Day'], true)) {
+                $model->required_hours = 0;
+                $model->time_in = null;
+                $model->time_out = null;
+            }
+        });
 
         static::creating(function ($model) {
             if (empty($model->id)) {
@@ -69,6 +84,11 @@ class EmployeeSchedule extends Model
         return $this->belongsTo(Department::class);
     }
 
+    public function scheduleTemplate(): BelongsTo
+    {
+        return $this->belongsTo(ScheduleTemplate::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(Account::class, 'created_by');
@@ -91,14 +111,43 @@ class EmployeeSchedule extends Model
      */
     public function getStatusColorAttribute(): string
     {
-        return match($this->status) {
+        return match ($this->status) {
             'Working' => 'green',
-            'Day Off' => 'gray',
-            'Leave' => 'yellow',
-            'Holiday' => 'red',
+            'Day Off' => 'yellow',
+            'Leave', 'Official Business' => 'violet',
+            'Holiday', 'Regular Holiday', 'Special Holiday', 'Absent' => 'red',
             'Overtime' => 'blue',
             default => 'gray'
         };
+    }
+
+    // display label only, db value stays 'Working'
+    public function getStatusLabelAttribute(): string
+    {
+        return self::statusLabel($this->status);
+    }
+
+    public static function statusLabel(?string $status): string
+    {
+        return match ($status) {
+            'Working' => 'Scheduled Workday',
+            default => $status ?? '',
+        };
+    }
+
+    public function getAssignmentSourceAttribute(): string
+    {
+        $notes = strtolower((string) $this->notes);
+
+        if (str_contains($notes, 'default company schedule')) {
+            return 'System Default';
+        }
+
+        if (str_contains($notes, 'template')) {
+            return 'Template';
+        }
+
+        return $this->created_by ? 'Manual' : 'Imported';
     }
 
     /**
@@ -117,6 +166,17 @@ class EmployeeSchedule extends Model
         return $this->date->isSameDay($date);
     }
 
+    // check schedule type
+    public function isFlexible(): bool
+    {
+        return $this->schedule_type === 'flexible';
+    }
+
+    public function isFixed(): bool
+    {
+        return $this->schedule_type !== 'flexible';
+    }
+
     /**
      * Get working hours in decimal format
      */
@@ -126,10 +186,22 @@ class EmployeeSchedule extends Model
             return 0;
         }
 
-        $start = Carbon::parse($this->date->format('Y-m-d') . ' ' . $this->time_in);
-        $end = Carbon::parse($this->date->format('Y-m-d') . ' ' . $this->time_out);
+        // Normalize date and time separately, then construct once, so a
+        // time value that already carries a date (e.g. a full datetime
+        // string or Carbon) can never produce "Y-m-d Y-m-d H:i:s".
+        $date = $this->date->format('Y-m-d');
 
-        return round($end->diffInMinutes($start) / 60, 2);
+        $start = Carbon::createFromFormat(
+            'Y-m-d H:i:s',
+            $date . ' ' . Carbon::parse($this->time_in)->format('H:i:s')
+        );
+
+        $end = Carbon::createFromFormat(
+            'Y-m-d H:i:s',
+            $date . ' ' . Carbon::parse($this->time_out)->format('H:i:s')
+        );
+
+        return round($start->diffInMinutes($end, true) / 60, 2);
     }
 
     /**
@@ -154,6 +226,6 @@ class EmployeeSchedule extends Model
     public function scopeForMonth($query, $year, $month)
     {
         return $query->whereYear('date', $year)
-                    ->whereMonth('date', $month);
+            ->whereMonth('date', $month);
     }
 }

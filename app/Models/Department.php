@@ -22,16 +22,19 @@ class Department extends Model
         'location',
         'budget',
         'company_id',
+        'archived_at',
+        'manager_id',
     ];
 
     protected $casts = [
         'budget' => 'decimal:2',
+        'archived_at' => 'datetime',
     ];
 
     protected static function boot()
     {
         parent::boot();
-        
+
         static::creating(function ($model) {
             if (empty($model->id)) {
                 $model->id = Uuid::uuid4()->toString();
@@ -62,6 +65,11 @@ class Department extends Model
         return $this->belongsTo(Company::class);
     }
 
+    public function manager(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'manager_id');
+    }
+
     /**
      * Scope to filter by company
      */
@@ -70,5 +78,45 @@ class Department extends Model
         return $query->where('company_id', $companyId);
     }
 
-    
+    /**
+     * Scope to only include departments that are not archived
+     */
+    public function scopeActive($query)
+    {
+        return $query->whereNull('archived_at');
+    }
+
+    /**
+     * Scope to only include archived departments
+     */
+    public function scopeArchived($query)
+    {
+        return $query->whereNotNull('archived_at');
+    }
+
+    /**
+     * Determine if the department is archived
+     */
+    public function isArchived(): bool
+    {
+        return !is_null($this->archived_at);
+    }
+
+    /**
+     * Determine if the department has active employees assigned to it
+     */
+    public function hasActiveEmployees(): bool
+    {
+        return $this->employees()->exists();
+    }
+
+    /**
+     * Determine if the department currently has a manager assigned
+     */
+    public function hasManager(): bool
+    {
+        return !is_null($this->manager_id);
+    }
+
+
 }

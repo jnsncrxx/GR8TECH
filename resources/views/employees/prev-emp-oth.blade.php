@@ -4,9 +4,14 @@
 
 @section('content')
 <div class="max-w-5xl mx-auto space-y-6">
-    <div>
-        <h1 class="text-2xl font-bold text-gray-900">Previous Employer & Other</h1>
-        <p class="mt-1 text-sm text-gray-500">Employee previous employment information</p>
+    <div class="flex items-center gap-3 mb-2">
+        <div style="width:38px;height:38px;border-radius:10px;background:#f5f3ff;color:#7c3aed;display:flex;align-items:center;justify-content:center;font-size:1rem;">
+            <i class="fas fa-history"></i>
+        </div>
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Previous Employer &amp; Other</h1>
+            <p class="text-sm text-gray-500">Employee previous employment information</p>
+        </div>
     </div>
 
     @if(isset($hasPreviousEmploymentsTable) && !$hasPreviousEmploymentsTable)
@@ -15,11 +20,19 @@
         </div>
     @endif
 
-    <form method="GET" action="{{ route('employees.prev-emp-oth') }}" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <form method="GET" action="{{ route('employees.prev-emp-oth') }}" class="emp-card sec-personal">
+        <div class="emp-card-header">
+            <div class="section-icon"><i class="fas fa-user"></i></div>
+            <div>
+                <h3>Employee Selection</h3>
+                <p>Select an employee to manage their previous employment history</p>
+            </div>
+        </div>
+        <div class="emp-card-body">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="md:col-span-2">
-                <label for="employee_picker" class="block text-sm font-medium text-gray-700 mb-2">Employee Name</label>
-                <select id="employee_picker" name="employee_id" onchange="this.form.submit()" class="w-full h-10 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <label for="employee_picker" class="form-label">Employee Name</label>
+                <select id="employee_picker" name="employee_id" onchange="this.form.submit()" class="form-control">
                     <option value="">Select employee</option>
                     @foreach($employees as $emp)
                         <option value="{{ data_get($emp, 'id') }}" data-empno="{{ data_get($emp, 'employee_id') }}" {{ ($selectedEmployeeId ?? '') === data_get($emp, 'id') ? 'selected' : '' }}>
@@ -29,20 +42,26 @@
                 </select>
             </div>
             <div>
-                <label for="empno" class="block text-sm font-medium text-gray-700 mb-2">Empno</label>
-                <input type="text" id="empno" class="w-full h-10 px-3 border border-gray-300 rounded-lg bg-gray-50" value="{{ old('empno', data_get($selectedEmployee, 'employee_id')) }}" readonly>
+                <label for="empno" class="form-label">Empno</label>
+                <input type="text" id="empno" class="form-control bg-gray-50" value="{{ old('empno', data_get($selectedEmployee, 'employee_id')) }}" readonly>
             </div>
+        </div>
         </div>
     </form>
 
-    <form method="POST" action="{{ route('employees.prev-emp-oth.save') }}" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
+    <form method="POST" action="{{ route('employees.prev-emp-oth.save') }}" class="emp-card sec-loans">
+        <div class="emp-card-header">
+            <div class="section-icon"><i class="fas fa-building"></i></div>
+            <div>
+                <h3>Previous Employment</h3>
+                <p>Prior employment history and positions held</p>
+            </div>
+        </div>
+        <div class="emp-card-body space-y-6">
         @csrf
         <input type="hidden" name="employee_id" value="{{ old('employee_id', $selectedEmployeeId) }}">
 
-        <div class="border border-gray-200 rounded-lg p-5">
-            <h2 class="text-lg font-semibold text-gray-900 mb-4">Previous Employment</h2>
-
-            <div class="space-y-6">
+        <div class="space-y-6">
                 @for($i = 1; $i <= 5; $i++)
                     @php
                         $row = data_get($prefilledRows, $i);
@@ -108,6 +127,7 @@
             <button type="submit" class="inline-flex items-center px-6 h-10 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors" {{ empty($selectedEmployeeId) ? 'disabled' : '' }}>
                 Save
             </button>
+        </div>
         </div>
     </form>
 </div>

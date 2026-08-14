@@ -1,16 +1,16 @@
-@extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'attendance.timekeeping'])
+@extends('layouts.dashboard-base', ['user' => $user, 'activeRoute' => 'schedule-v2.index'])
 
 @section('title', 'Edit Schedule')
 
 @section('content')
-<div class="min-h-screen bg-gray-50">
+<div class="schedule-management-page min-h-screen bg-gray-50">
     <!-- Header -->
     <div class="bg-white shadow-sm border-b border-gray-200">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="py-6">
                 <div class="flex items-center justify-between">
                     <div>
-                        <h1 class="text-2xl font-bold text-gray-900">Edit Employee Schedule</h1>
+                        <h1 class="text-2xl font-bold text-gray-900">Edit Schedule</h1>
                         <p class="mt-1 text-sm text-gray-600">Update work schedule for {{ $schedule->employee->full_name }}</p>
                     </div>
                     <div class="flex space-x-3">
@@ -31,7 +31,7 @@
     <!-- Form -->
     <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-            <form id="scheduleForm" class="p-6 space-y-6">
+            <form id="scheduleForm" action="{{ route('schedule-v2.update', $schedule) }}" method="POST" class="p-6 space-y-6">
                 @csrf
                 @method('PUT')
                 
@@ -56,10 +56,27 @@
                         </div>
                         <div>
                             <h3 class="text-lg font-medium text-gray-900">{{ $schedule->employee->full_name }}</h3>
-                            <p class="text-sm text-gray-600">{{ $schedule->employee->position }} - {{ $schedule->employee->department->name }}</p>
+                            <p class="text-sm text-gray-600">{{ $schedule->employee->position?->name ?? 'N/A' }} - {{ $schedule->employee->department?->name ?? 'N/A' }}</p>
                             <p class="text-sm text-gray-500">{{ $schedule->date->format('l, F j, Y') }}</p>
                         </div>
                     </div>
+                </div>
+
+                <!-- Schedule Template -->
+                <div>
+                    <label for="schedule_template_id" class="block text-sm font-medium text-gray-700 mb-2">Schedule Template</label>
+                    <select name="schedule_template_id" id="schedule_template_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('schedule_template_id') border-red-500 @enderror">
+                        <option value="">Custom schedule (no template)</option>
+                        @foreach($templates as $template)
+                            <option value="{{ $template->id }}" {{ (string) old('schedule_template_id', $schedule->schedule_template_id) === (string) $template->id ? 'selected' : '' }}>
+                                {{ $template->code }} — {{ $template->name }} ({{ $template->window_label }})
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">Selecting a template fills its schedule type and hours. Choose custom schedule to enter hours manually.</p>
+                    @error('schedule_template_id')
+                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
                 </div>
 
                 <!-- Status -->
@@ -67,9 +84,10 @@
                     <label for="status" class="block text-sm font-medium text-gray-700 mb-2">Status</label>
                     <select name="status" id="status" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('status') border-red-500 @enderror">
                         <option value="">Select status</option>
-                        <option value="Working" {{ old('status', $schedule->status) == 'Working' ? 'selected' : '' }}>Working</option>
+                        <option value="Working" {{ old('status', $schedule->status) == 'Working' ? 'selected' : '' }}>Scheduled Workday</option>
                         <option value="Day Off" {{ old('status', $schedule->status) == 'Day Off' ? 'selected' : '' }}>Day Off</option>
                         <option value="Leave" {{ old('status', $schedule->status) == 'Leave' ? 'selected' : '' }}>Leave</option>
+                        <option value="Official Business" {{ old('status', $schedule->status) == 'Official Business' ? 'selected' : '' }}>Official Business</option>
                         <option value="Absent" {{ old('status', $schedule->status) == 'Absent' ? 'selected' : '' }}>Absent</option>
                         <option value="Regular Holiday" {{ old('status', $schedule->status) == 'Regular Holiday' ? 'selected' : '' }}>Regular Holiday</option>
                         <option value="Special Holiday" {{ old('status', $schedule->status) == 'Special Holiday' ? 'selected' : '' }}>Special Holiday</option>
@@ -80,7 +98,14 @@
                     @enderror
                 </div>
 
-                <!-- Time In/Out (only show for working status) -->
+                <div>
+                    <label for="schedule_type" class="block text-sm font-medium text-gray-700 mb-2">Schedule Type</label>
+                    <select name="schedule_type" id="schedule_type" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('schedule_type') border-red-500 @enderror">
+                        <option value="fixed" {{ old('schedule_type', $schedule->schedule_type ?? 'fixed') === 'fixed' ? 'selected' : '' }}>Fixed hours</option>
+                        <option value="flexible" {{ old('schedule_type', $schedule->schedule_type) === 'flexible' ? 'selected' : '' }}>Flexible hours</option>
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">Fixed hours are editable. Flexible schedules are evaluated using required hours.</p>
+                </div>
                 <div id="timeFields" class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                         <label for="time_in" class="block text-sm font-medium text-gray-700 mb-2">Time In</label>
@@ -97,6 +122,12 @@
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
                     </div>
+                </div>
+
+                <div id="requiredHoursField" style="display: none;">
+                    <label for="required_hours" class="block text-sm font-medium text-gray-700 mb-2">Required Hours</label>
+                    <input type="number" name="required_hours" id="required_hours" min="1" max="24" step="0.25" value="{{ old('required_hours', $schedule->required_hours ?: 8) }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('required_hours') border-red-500 @enderror">
+                    @error('required_hours')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
                 </div>
 
                 <!-- Notes -->
@@ -156,6 +187,34 @@
 </div>
 
 <script>
+    // Schedule template data, keyed by id, for auto-filling schedule fields on selection
+</script>
+@php
+    $scheduleTemplatesJson = $templates->mapWithKeys(function ($t) {
+        return [
+            $t->id => [
+                'schedule_type' => $t->schedule_type,
+                'time_in' => $t->time_in ? \Carbon\Carbon::parse($t->time_in)->format('H:i') : '',
+                'time_out' => $t->time_out ? \Carbon\Carbon::parse($t->time_out)->format('H:i') : '',
+                'required_hours' => (float) $t->required_hours,
+            ],
+        ];
+    })->toJson();
+@endphp
+<script>
+    const scheduleTemplates = {!! $scheduleTemplatesJson !!};
+
+    document.getElementById('schedule_template_id').addEventListener('change', function() {
+        const template = scheduleTemplates[this.value];
+        if (!template) {
+            return;
+        }
+        document.getElementById('schedule_type').value = template.schedule_type;
+        document.getElementById('time_in').value = template.time_in;
+        document.getElementById('time_out').value = template.time_out;
+        syncScheduleFields();
+    });
+
 // Handle form actions dynamically and initialize
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('scheduleForm');
@@ -163,28 +222,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const deleteBtn = document.getElementById('deleteBtn');
     const statusSelect = document.getElementById('status');
     
-    // Initialize time fields visibility
-    if (statusSelect.value === 'Working' || statusSelect.value === 'Overtime' || statusSelect.value === 'Regular Holiday' || statusSelect.value === 'Special Holiday' || statusSelect.value === 'Day Off' || statusSelect.value === 'Leave') {
-        document.getElementById('timeFields').style.display = 'grid';
-    } else {
-        document.getElementById('timeFields').style.display = 'none';
-    }
-    
-    // Update button - set form to update action
-    updateBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        form.action = '{{ route("schedule-v2.update", $schedule) }}';
-        form.method = 'POST';
-        
-        // Add method override for PUT
-        const methodInput = document.createElement('input');
-        methodInput.type = 'hidden';
-        methodInput.name = '_method';
-        methodInput.value = 'PUT';
-        form.appendChild(methodInput);
-        
-        form.submit();
-    });
+    syncScheduleFields();
     
     // Delete button - set form to delete action
     deleteBtn.addEventListener('click', function(e) {
@@ -193,39 +231,49 @@ document.addEventListener('DOMContentLoaded', function() {
         if (confirm('Are you sure you want to delete this schedule?')) {
             form.action = '{{ route("schedule-v2.destroy", $schedule) }}';
             form.method = 'POST';
-            
-            // Add method override for DELETE
-            const methodInput = document.createElement('input');
-            methodInput.type = 'hidden';
-            methodInput.name = '_method';
-            methodInput.value = 'DELETE';
-            form.appendChild(methodInput);
+            form.querySelector('input[name="_method"]').value = 'DELETE';
             
             form.submit();
         }
     });
 });
 
-// Show/hide time fields based on status
-document.getElementById('status').addEventListener('change', function() {
+function syncScheduleFields() {
+    const statusField = document.getElementById('status');
+    const scheduleTypeField = document.getElementById('schedule_type');
     const timeFields = document.getElementById('timeFields');
     const timeInField = document.getElementById('time_in');
     const timeOutField = document.getElementById('time_out');
-    
-    if (this.value === 'Working' || this.value === 'Overtime' || this.value === 'Regular Holiday' || this.value === 'Special Holiday' || this.value === 'Day Off' || this.value === 'Leave') {
+    const requiredHoursField = document.getElementById('requiredHoursField');
+    const requiredHoursInput = document.getElementById('required_hours');
+    const isWorkSchedule = statusField.value === 'Working' || statusField.value === 'Overtime';
+    const isFlexible = scheduleTypeField.value === 'flexible';
+
+    if (isWorkSchedule && !isFlexible) {
         timeFields.style.display = 'grid';
-        // Don't make fields required - let backend validation handle it
+        requiredHoursField.style.display = 'none';
+        timeInField.required = true;
+        timeOutField.required = true;
+        requiredHoursInput.required = false;
+        if (!timeInField.value) timeInField.value = '08:00';
+        if (!timeOutField.value) timeOutField.value = '17:00';
+    } else if (isWorkSchedule && isFlexible) {
+        timeFields.style.display = 'none';
+        requiredHoursField.style.display = 'block';
         timeInField.required = false;
         timeOutField.required = false;
+        requiredHoursInput.required = true;
     } else {
         timeFields.style.display = 'none';
+        requiredHoursField.style.display = 'none';
         timeInField.required = false;
         timeOutField.required = false;
-        // Clear the time values for non-working statuses to prevent conflicts
-        timeInField.value = '';
-        timeOutField.value = '';
+        requiredHoursInput.required = false;
     }
-});
+}
+
+document.getElementById('status').addEventListener('change', syncScheduleFields);
+document.getElementById('schedule_type').addEventListener('change', syncScheduleFields);
 
 </script>
 @endsection

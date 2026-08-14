@@ -23,7 +23,7 @@ class AuthController extends Controller
             ->where('is_active', true)
             ->first();
 
-        if (!$account || !Hash::check($request->password, $account->password)) {
+        if (!$account || !$account->verifyPassword($request->password)) {
             throw ValidationException::withMessages([
                 'email' => ['The provided credentials are incorrect.'],
             ]);

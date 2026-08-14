@@ -42,7 +42,7 @@ body {
 .dark .bg-gray-300 { background-color: #4B5563 !important; }
 .dark .bg-gray-400 { background-color: #475569 !important; }
 .dark .bg-gray-500 { background-color: #4B5563 !important; }
-.dark .bg-blue-50 { background-color: rgba(255, 255, 255, 0.08) !important; }
+.dark .bg-blue-50, .dark .bg-blue-100, .dark .bg-green-100, .dark .bg-red-100, .dark .bg-yellow-100, .dark .bg-purple-100, .dark .bg-indigo-100 { background-color: rgba(255, 255, 255, 0.08) !important; }
 .dark .bg-brand-surface { background-color: #0F172A !important; }
 .dark .bg-brand-white { background-color: #111827 !important; }
 .dark .bg-brand-black { background-color: #0F172A !important; }
@@ -54,10 +54,19 @@ body {
 .dark .text-gray-900 { color: #F8FAFC !important; }
 .dark .text-gray-800 { color: #E5E7EB !important; }
 .dark .text-gray-700 { color: #D1D5DB !important; }
-.dark .text-gray-600 { color: #9CA3AF !important; }
-.dark .text-gray-500 { color: #94A3B8 !important; }
+.dark .text-gray-600 { color: #CBD5E1 !important; }
+.dark .text-gray-500 { color: #CBD5E1 !important; }
 .dark .text-gray-400 { color: #9CA3AF !important; }
+.dark .text-blue-800, .dark .text-blue-700 { color: #93C5FD !important; }
+.dark .text-green-800, .dark .text-green-700 { color: #86EFAC !important; }
+.dark .text-red-800, .dark .text-red-700 { color: #FCA5A5 !important; }
+.dark .text-yellow-800, .dark .text-yellow-700 { color: #FDE047 !important; }
+.dark .text-purple-800, .dark .text-purple-700 { color: #D8B4FE !important; }
+.dark .text-indigo-800, .dark .text-indigo-700 { color: #A5B4FC !important; }
 .dark .text-blue-600 { color: #A7F3D0 !important; }
+.dark .text-green-600 { color: #86EFAC !important; }
+.dark .text-red-600 { color: #FCA5A5 !important; }
+.dark .text-yellow-600 { color: #FDE047 !important; }
 .dark .border-gray-200 { border-color: #334155 !important; }
 .dark .border-gray-300 { border-color: #475569 !important; }
 .dark .border-gray-100 { border-color: #1F2937 !important; }
@@ -106,9 +115,9 @@ body {
     .bg-blue-300 { background-color: rgba(45, 147, 68, 0.40) !important; }
     .bg-blue-500 { background-color: var(--brand-green) !important; }
     .bg-blue-600 { background-color: var(--brand-green) !important; }
-    .bg-blue-700 { background-color: var(--brand-black) !important; }
-    .bg-blue-800 { background-color: var(--brand-black) !important; }
-    .bg-blue-900 { background-color: var(--brand-black) !important; }
+    .bg-blue-700 { background-color: #166534 !important; }
+    .bg-blue-800 { background-color: #14532D !important; }
+    .bg-blue-900 { background-color: #052E16 !important; }
 
     .text-blue-50 { color: rgba(255, 255, 255, 0.9) !important; }
     .text-blue-100 { color: rgba(255, 255, 255, 0.82) !important; }
@@ -117,9 +126,9 @@ body {
     .text-blue-400 { color: rgba(255, 255, 255, 0.55) !important; }
     .text-blue-500 { color: var(--brand-green) !important; }
     .text-blue-600 { color: var(--brand-green) !important; }
-    .text-blue-700 { color: var(--brand-black) !important; }
-    .text-blue-800 { color: var(--brand-black) !important; }
-    .text-blue-900 { color: var(--brand-black) !important; }
+    .text-blue-700 { color: #166534 !important; }
+    .text-blue-800 { color: #14532D !important; }
+    .text-blue-900 { color: #052E16 !important; }
 
     .border-blue-50 { border-color: rgba(45, 147, 68, 0.10) !important; }
     .border-blue-100 { border-color: rgba(45, 147, 68, 0.18) !important; }
@@ -127,16 +136,16 @@ body {
     .border-blue-300 { border-color: rgba(45, 147, 68, 0.40) !important; }
     .border-blue-500 { border-color: var(--brand-green) !important; }
     .border-blue-600 { border-color: var(--brand-green) !important; }
-    .border-blue-700 { border-color: var(--brand-black) !important; }
+    .border-blue-700 { border-color: #166534 !important; }
 
     .hover\:bg-blue-50:hover { background-color: rgba(45, 147, 68, 0.10) !important; }
-    .hover\:bg-blue-600:hover { background-color: var(--brand-black) !important; }
-    .hover\:bg-blue-700:hover { background-color: var(--brand-black) !important; }
-    .hover\:bg-blue-800:hover { background-color: var(--brand-black) !important; }
+    .hover\:bg-blue-600:hover { background-color: #166534 !important; }
+    .hover\:bg-blue-700:hover { background-color: #14532D !important; }
+    .hover\:bg-blue-800:hover { background-color: #052E16 !important; }
     .hover\:text-blue-600:hover { color: var(--brand-green) !important; }
-    .hover\:text-blue-700:hover { color: var(--brand-black) !important; }
-    .hover\:text-blue-800:hover { color: var(--brand-black) !important; }
-    .hover\:text-blue-900:hover { color: var(--brand-black) !important; }
+    .hover\:text-blue-700:hover { color: #166534 !important; }
+    .hover\:text-blue-800:hover { color: #14532D !important; }
+    .hover\:text-blue-900:hover { color: #052E16 !important; }
     .hover\:border-blue-300:hover { border-color: rgba(45, 147, 68, 0.40) !important; }
 
     .focus\:ring-blue-300:focus,
@@ -213,6 +222,29 @@ html.dark .brand-sidebar-nav .border-brand-green {
     color: #F8FAFC !important;
 }
 
+.brand-sidebar-nav .ml-8 a > i + span {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: normal;
+    word-break: normal;
+    font-size: 0.8rem;
+    line-height: 1.25rem;
+    letter-spacing: -0.01em;
+    text-align: left;
+}
+
+.brand-sidebar-nav .ml-8 a > i {
+    flex-shrink: 0;
+    margin-top: 0.2rem;
+}
+
+.brand-sidebar-nav .ml-8 a > span:not(:first-of-type) {
+    flex-shrink: 0;
+    white-space: nowrap;
+    word-break: keep-all;
+}
+
 .brand-sidebar-nav a i,
 .brand-sidebar-nav button i,
 .brand-sidebar-nav .text-gray-400,
@@ -235,15 +267,16 @@ html.dark .brand-sidebar-nav .border-brand-green {
 .brand-sidebar-nav .bg-brand-green-soft,
 .brand-sidebar-nav .bg-orange-100,
 .brand-sidebar-nav .bg-purple-100 {
-    background-color: rgba(237, 28, 36, 0.28) !important;
+    background-color: rgba(255, 255, 255, 0.2) !important;
 }
 
 .brand-sidebar-nav .border-r-4,
 .brand-sidebar-nav .border-blue-600,
 .brand-sidebar-nav .border-brand-green {
-    border-color: #ED1C24 !important;
+    border-color: #FFFFFF !important;
 }
 
+.brand-sidebar-nav .bg-blue-50,
 .brand-sidebar-nav .bg-blue-100,
 .brand-sidebar-nav .bg-green-100,
 .brand-sidebar-nav .bg-orange-100,
@@ -360,5 +393,1187 @@ html.dark .brand-top-header .text-indigo-600 {
     .table-responsive {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   GR8 HRIS 2026 interface system
+   Shared visual language for Admin, HR, Manager, and Employee portals.
+   -------------------------------------------------------------------------- */
+:root {
+    --ui-green-950: #062d1b;
+    --ui-green-900: #0a4328;
+    --ui-green-800: #12613a;
+    --ui-green-700: #1d7a48;
+    --ui-green-600: #2d9344;
+    --ui-green-500: #3eaa5b;
+    --ui-red-600: #d91f2b;
+    --ui-red-500: #ed3540;
+    --ui-ink: #12201a;
+    --ui-muted: #68756f;
+    --ui-canvas: #f2f6f3;
+    --ui-line: #dfe8e2;
+    --ui-shadow: 0 18px 44px rgba(6, 45, 27, 0.08);
+    --ui-shadow-soft: 0 8px 24px rgba(6, 45, 27, 0.06);
+}
+
+body.hris-app,
+body.auth-app {
+    font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+}
+
+.hris-shell {
+    position: relative;
+    background:
+        radial-gradient(circle at 82% 7%, rgba(45, 147, 68, 0.10), transparent 28rem),
+        radial-gradient(circle at 96% 74%, rgba(237, 28, 36, 0.055), transparent 25rem),
+        linear-gradient(145deg, #f8faf8 0%, var(--ui-canvas) 48%, #f8f5f4 100%);
+}
+
+.hris-workspace {
+    min-height: 100vh;
+}
+
+.hris-content {
+    position: relative;
+    isolation: isolate;
+}
+
+.hris-content::before {
+    content: "";
+    position: fixed;
+    z-index: -1;
+    width: 22rem;
+    height: 22rem;
+    right: 4%;
+    top: 7rem;
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(45, 147, 68, 0.08), rgba(237, 28, 36, 0.025));
+    filter: blur(1px);
+    pointer-events: none;
+}
+
+.brand-sidebar {
+    background:
+        radial-gradient(circle at 25% 4%, rgba(255, 255, 255, 0.18), transparent 14rem),
+        linear-gradient(165deg, var(--ui-green-500) 0%, var(--ui-green-800) 45%, var(--ui-green-950) 100%) !important;
+    box-shadow: 20px 0 48px rgba(6, 45, 27, 0.18) !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.14) !important;
+}
+
+.brand-sidebar::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 3px;
+    height: 100%;
+    background: linear-gradient(180deg, transparent 4%, rgba(237, 53, 64, 0.95) 38%, rgba(255, 255, 255, 0.65) 52%, transparent 86%);
+    opacity: 0.85;
+    pointer-events: none;
+}
+
+.brand-sidebar-nav a,
+.brand-sidebar-nav button {
+    border-radius: 0.8rem !important;
+    margin-inline: 0.45rem;
+    transition: transform 180ms ease, background-color 180ms ease, box-shadow 180ms ease !important;
+}
+
+.brand-sidebar-nav a:hover,
+.brand-sidebar-nav button:hover {
+    transform: translateX(3px);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.brand-sidebar-nav .bg-blue-50,
+.brand-sidebar-nav .bg-brand-green-soft,
+.brand-sidebar-nav [aria-current="page"] {
+    background: linear-gradient(110deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.10)) !important;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16), 0 8px 18px rgba(6, 45, 27, 0.16);
+}
+
+.brand-top-header {
+    min-height: 5rem;
+    background: rgba(255, 255, 255, 0.86) !important;
+    backdrop-filter: blur(18px) saturate(140%);
+    border-bottom: 1px solid rgba(18, 97, 58, 0.12) !important;
+    box-shadow: 0 10px 28px rgba(6, 45, 27, 0.065) !important;
+}
+
+.brand-top-header h1 {
+    color: var(--ui-ink) !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.035em;
+}
+
+.brand-top-header button {
+    border-radius: 0.8rem;
+}
+
+/* Global surface system for existing Blade pages */
+.hris-content .bg-white {
+    border-color: rgba(18, 97, 58, 0.11) !important;
+}
+
+.hris-content .rounded-lg.bg-white,
+.hris-content .rounded-xl.bg-white,
+.hris-content .rounded-2xl.bg-white,
+.hris-content .bg-white.rounded-lg,
+.hris-content .bg-white.rounded-xl,
+.hris-content .bg-white.rounded-2xl {
+    border-radius: 1rem !important;
+    box-shadow: var(--ui-shadow-soft);
+}
+
+.hris-content .shadow-sm,
+.hris-content .shadow {
+    box-shadow: var(--ui-shadow-soft) !important;
+}
+
+.hris-content h1,
+.hris-content h2,
+.hris-content h3 {
+    color: var(--ui-ink);
+    letter-spacing: -0.025em;
+}
+
+.hris-content h1 {
+    font-weight: 800 !important;
+}
+
+.hris-content table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.hris-content thead,
+.hris-content thead.bg-gray-50,
+.hris-content tr.bg-gray-50 {
+    background: linear-gradient(180deg, #f8fbf9 0%, #f0f6f2 100%) !important;
+}
+
+.hris-content th {
+    color: #52615a !important;
+    font-size: 0.72rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.055em;
+    text-transform: uppercase;
+}
+
+.hris-content tbody tr {
+    transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.hris-content tbody tr:hover {
+    background-color: rgba(45, 147, 68, 0.035);
+}
+
+.hris-content input:not([type="checkbox"]):not([type="radio"]),
+.hris-content select,
+.hris-content textarea {
+    border-radius: 0.75rem !important;
+    border-color: #d7e2da !important;
+    background-color: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 1px 2px rgba(6, 45, 27, 0.025);
+    transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.hris-content input:not([type="checkbox"]):not([type="radio"]):focus,
+.hris-content select:focus,
+.hris-content textarea:focus {
+    border-color: var(--ui-green-500) !important;
+    box-shadow: 0 0 0 4px rgba(45, 147, 68, 0.12) !important;
+}
+
+.hris-content :is(button, a):is(
+    [class~="bg-green-500"],
+    [class~="bg-green-600"],
+    [class~="bg-green-700"],
+    [class~="bg-blue-600"],
+    [class~="bg-blue-700"]
+) {
+    border: 0 !important;
+    border-radius: 0.75rem !important;
+    background: linear-gradient(135deg, var(--ui-green-500), var(--ui-green-800)) !important;
+    box-shadow: 0 8px 18px rgba(18, 97, 58, 0.18);
+}
+
+.hris-content :is(button, a):is(
+    [class~="bg-green-500"],
+    [class~="bg-green-600"],
+    [class~="bg-green-700"],
+    [class~="bg-blue-600"],
+    [class~="bg-blue-700"]
+):hover {
+    background: linear-gradient(135deg, var(--ui-green-600), var(--ui-green-950)) !important;
+    transform: translateY(-1px);
+}
+
+.hris-content :is(button, a):is(
+    [class~="bg-red-500"],
+    [class~="bg-red-600"],
+    [class~="bg-red-700"]
+) {
+    border-radius: 0.75rem !important;
+    background: linear-gradient(135deg, var(--ui-red-500), #b81624) !important;
+    box-shadow: 0 8px 18px rgba(217, 31, 43, 0.16);
+}
+
+.hris-content .ui-solid-danger-action {
+    border-color: #b91c1c !important;
+    background: linear-gradient(135deg, var(--ui-red-500), #b81624) !important;
+    color: #fff !important;
+    box-shadow: 0 8px 18px rgba(217, 31, 43, 0.2);
+}
+
+.hris-content .ui-solid-danger-action:hover {
+    border-color: #991b1b !important;
+    background: linear-gradient(135deg, #dc2626, #991b1b) !important;
+    color: #fff !important;
+    transform: translateY(-1px);
+}
+
+.hris-content .ui-solid-danger-action i {
+    color: #fff !important;
+}
+
+.hris-content .rounded-full {
+    letter-spacing: 0.01em;
+}
+
+.hris-content [class*="bg-green-50"],
+.hris-content [class*="bg-blue-50"] {
+    background: linear-gradient(135deg, rgba(45, 147, 68, 0.09), rgba(255, 255, 255, 0.88)) !important;
+}
+
+.hris-content [class*="bg-red-50"]:not([class*="bg-red-500"]):not([class*="bg-red-600"]):not([class*="bg-red-700"]):not([class*="bg-red-800"]):not([class*="bg-red-900"]) {
+    background: linear-gradient(135deg, rgba(237, 53, 64, 0.085), rgba(255, 255, 255, 0.9)) !important;
+}
+
+/* Authentication */
+.auth-shell {
+    background:
+        radial-gradient(circle at 85% 12%, rgba(45, 147, 68, 0.16), transparent 28rem),
+        radial-gradient(circle at 94% 82%, rgba(237, 28, 36, 0.10), transparent 26rem),
+        linear-gradient(145deg, #eef7f1 0%, #f8faf9 48%, #fff5f4 100%);
+}
+
+.auth-brand-panel {
+    background:
+        radial-gradient(circle at 18% 15%, rgba(255, 255, 255, 0.18), transparent 18rem),
+        radial-gradient(circle at 84% 82%, rgba(237, 53, 64, 0.28), transparent 20rem),
+        linear-gradient(155deg, var(--ui-green-500) 0%, var(--ui-green-800) 52%, var(--ui-green-950) 100%);
+}
+
+.auth-form-panel {
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.76), rgba(255, 255, 255, 0.95)),
+        radial-gradient(circle at 85% 12%, rgba(45, 147, 68, 0.22), transparent 22rem),
+        radial-gradient(circle at 12% 88%, rgba(237, 28, 36, 0.13), transparent 18rem);
+}
+
+.auth-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 1rem;
+    color: white;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.08));
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25), 0 14px 30px rgba(6, 45, 27, 0.22);
+}
+
+.auth-card {
+    box-shadow: 0 30px 70px rgba(6, 45, 27, 0.15) !important;
+}
+
+.auth-submit {
+    background: linear-gradient(135deg, var(--ui-green-500), var(--ui-green-900));
+    box-shadow: 0 12px 24px rgba(18, 97, 58, 0.24);
+}
+
+.auth-submit:hover {
+    background: linear-gradient(135deg, var(--ui-green-700), var(--ui-green-950));
+    transform: translateY(-1px);
+    box-shadow: 0 16px 30px rgba(18, 97, 58, 0.28);
+}
+
+html.dark .hris-shell {
+    background:
+        radial-gradient(circle at 86% 8%, rgba(45, 147, 68, 0.12), transparent 28rem),
+        linear-gradient(145deg, #0b1510, #101a15 55%, #171316);
+}
+
+html.dark .brand-top-header {
+    background: rgba(10, 20, 15, 0.88) !important;
+}
+
+html.dark .hris-content .bg-white {
+    border-color: rgba(148, 163, 184, 0.15) !important;
+}
+
+@media (max-width: 1023px) {
+    .hris-content::before {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hris-app *,
+    .auth-app * {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+    }
+}
+/* --------------------------------------------------------------------------
+   Tables, typography, and icon language
+   -------------------------------------------------------------------------- */
+.hris-content {
+    font-size: 0.925rem;
+    color: var(--ui-ink);
+}
+
+@media (min-width: 640px) {
+    .hris-content [data-page-intro-actions="true"] {
+        justify-content: flex-end !important;
+    }
+}
+
+.hris-content [data-duplicate-page-intro="true"],
+.hris-content [data-duplicate-page-title="true"] {
+    display: none !important;
+}
+
+.hris-content table {
+    width: 100%;
+    font-variant-numeric: tabular-nums;
+    color: #26352e;
+}
+
+.hris-content table thead {
+    box-shadow: inset 0 -1px 0 rgba(18, 97, 58, 0.12);
+}
+
+.hris-content table th {
+    padding-top: 0.9rem !important;
+    padding-bottom: 0.9rem !important;
+    line-height: 1.35;
+    white-space: nowrap;
+}
+
+.hris-content table td {
+    padding-top: 0.9rem !important;
+    padding-bottom: 0.9rem !important;
+    line-height: 1.5;
+    vertical-align: middle;
+    border-color: rgba(18, 97, 58, 0.09) !important;
+}
+
+.hris-content table tbody tr:nth-child(even) {
+    background-color: rgba(242, 246, 243, 0.44);
+}
+
+.hris-content table tbody tr:hover {
+    background: linear-gradient(90deg, rgba(45, 147, 68, 0.07), rgba(45, 147, 68, 0.025)) !important;
+}
+
+.hris-content table td:first-child,
+.hris-content table th:first-child {
+    padding-left: 1.15rem !important;
+}
+
+.hris-content table td:last-child,
+.hris-content table th:last-child {
+    padding-right: 1.15rem !important;
+}
+
+.hris-content table td .font-medium,
+.hris-content table td .font-semibold,
+.hris-content table td.font-medium,
+.hris-content table td.font-semibold {
+    color: #17251e;
+    font-weight: 700 !important;
+}
+
+.hris-content table td .text-xs {
+    line-height: 1.45;
+}
+
+/* Labeled actions must stay wide enough for their icon and text. */
+.hris-content .ui-labeled-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    width: auto !important;
+    min-width: max-content;
+    min-height: 2.25rem;
+    color: #fff !important;
+    white-space: nowrap;
+}
+
+.hris-content .ui-labeled-action i,
+.hris-content .ui-labeled-action span {
+    color: #fff !important;
+}
+
+/* Standard icon-only table actions. Add .ui-icon-action explicitly so links
+   with an icon plus a text node (for example Download) are never collapsed. */
+.hris-content table td .ui-icon-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.15rem;
+    height: 2.15rem;
+    padding: 0 !important;
+    border: 1px solid #dce7df;
+    border-radius: 0.65rem !important;
+    background: #fff;
+    box-shadow: 0 3px 10px rgba(6, 45, 27, 0.055);
+    transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.hris-content table td .ui-icon-action:hover {
+    transform: translateY(-1px);
+    border-color: rgba(45, 147, 68, 0.35);
+    background: #f3faf5;
+    box-shadow: 0 7px 16px rgba(6, 45, 27, 0.10);
+}
+
+.hris-content table td .ui-icon-action i {
+    margin: 0 !important;
+    font-size: 0.82rem;
+    color: currentColor !important;
+}
+
+.hris-content .ui-action-view {
+    border-color: #bfdbfe !important;
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
+    color: #2563eb !important;
+}
+
+.hris-content .ui-action-edit {
+    border-color: #c4b5fd !important;
+    background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%) !important;
+    color: #6d28d9 !important;
+}
+
+.hris-content .ui-action-payroll {
+    border-color: #86efac !important;
+    background: linear-gradient(135deg, #ecfdf5 0%, #dcfce7 100%) !important;
+    color: #16a34a !important;
+}
+
+.hris-content .ui-action-delete {
+    border-color: #fecaca !important;
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%) !important;
+    color: #dc2626 !important;
+}
+
+/* Approval actions keep their border, pale surface, and matching icon color.
+   Explicit rules prevent broad system color remaps from turning them into
+   solid blocks or recoloring the icon independently. */
+.hris-content button[title="Approve"] {
+    border: 1px solid #86efac !important;
+    border-radius: 0.65rem !important;
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%) !important;
+    color: #15803d !important;
+}
+
+.hris-content button[title="Reject"] {
+    border: 1px solid #fca5a5 !important;
+    border-radius: 0.65rem !important;
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%) !important;
+    color: #dc2626 !important;
+}
+
+.hris-content button[title^="Cancel"] {
+    border: 1px solid #fdba74 !important;
+    border-radius: 0.65rem !important;
+    background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%) !important;
+    color: #ea580c !important;
+}
+
+.hris-content button[title="Approve"] i,
+.hris-content button[title="Reject"] i,
+.hris-content button[title^="Cancel"] i {
+    color: currentColor !important;
+}
+
+html.dark .hris-content .ui-action-view {
+    border-color: #1d4ed8 !important;
+    background: #172554 !important;
+    color: #93c5fd !important;
+}
+
+html.dark .hris-content button[title="Approve"] {
+    border-color: #166534 !important;
+    background: #14271c !important;
+    color: #86efac !important;
+}
+
+html.dark .hris-content .ui-action-edit {
+    border-color: #6d28d9 !important;
+    background: #241b35 !important;
+    color: #c4b5fd !important;
+}
+
+html.dark .hris-content .ui-action-payroll {
+    border-color: #15803d !important;
+    background: #13271b !important;
+    color: #86efac !important;
+}
+
+html.dark .hris-content .ui-action-delete,
+html.dark .hris-content button[title="Reject"] {
+    border-color: #991b1b !important;
+    background: #30191b !important;
+    color: #fca5a5 !important;
+}
+
+html.dark .hris-content button[title^="Cancel"] {
+    border-color: #9a3412 !important;
+    background: #302017 !important;
+    color: #fdba74 !important;
+}
+
+/* Shared icon colors in headings, cards, filters, and empty states. */
+.hris-content h1 > i,
+.hris-content h2 > i,
+.hris-content h3 > i {
+    color: var(--ui-green-600);
+}
+
+.hris-content [class*="rounded"] > i[class*="fa-"]:not(.fa-chevron-down):not(.fa-chevron-up) {
+    flex-shrink: 0;
+}
+
+.hris-content .fa-file-pdf {
+    color: var(--ui-red-600) !important;
+}
+
+.hris-content .fa-file-csv,
+.hris-content .fa-file-excel,
+.hris-content .fa-download,
+.hris-content .fa-eye,
+.hris-content .fa-check,
+.hris-content .fa-check-circle {
+    color: var(--ui-green-700);
+}
+
+.hris-content button[class*="bg-green-"] i,
+.hris-content a[class*="bg-green-"] i,
+.hris-content button[class*="bg-red-"] i,
+.hris-content a[class*="bg-red-"] i,
+.hris-content button[class*="bg-blue-6"] i,
+.hris-content a[class*="bg-blue-6"] i {
+    color: currentColor !important;
+}
+
+/* System-wide status language. */
+.hris-content .ui-status-badge,
+.hris-content span.rounded-full[class*="bg-"][class*="text-"] {
+    min-height: 1.75rem;
+    border: 1px solid currentColor;
+    border-color: color-mix(in srgb, currentColor 18%, transparent);
+    box-shadow: 0 2px 7px rgba(6, 45, 27, 0.055);
+    font-weight: 700 !important;
+    line-height: 1.2;
+}
+
+.hris-content .ui-status-badge i {
+    width: 0.85rem;
+    text-align: center;
+    font-size: 0.72rem;
+    color: currentColor !important;
+}
+
+/* Semantic status gradients. The existing text/background utility classes
+   continue to determine meaning; this layer only standardizes presentation. */
+.hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-green-"] {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%) !important;
+    border-color: #86efac !important;
+}
+
+.hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-red-"] {
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%) !important;
+    border-color: #fca5a5 !important;
+}
+
+.hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-yellow-"],
+.hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-amber-"] {
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%) !important;
+    border-color: #fcd34d !important;
+}
+
+.hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-blue-"] {
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
+    border-color: #93c5fd !important;
+}
+
+.hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-indigo-"] {
+    background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%) !important;
+    border-color: #a5b4fc !important;
+}
+
+.hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-purple-"] {
+    background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%) !important;
+    border-color: #d8b4fe !important;
+}
+
+.hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-orange-"] {
+    background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%) !important;
+    border-color: #fdba74 !important;
+}
+
+.hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-gray-"],
+.hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-slate-"] {
+    background: linear-gradient(135deg, #f9fafb 0%, #f1f5f9 100%) !important;
+    border-color: #cbd5e1 !important;
+}
+
+/* Consistent icon cards used throughout dashboards, summaries, and empty states. */
+.hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-"]:has(> i[class*="fa-"]) {
+    border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+    box-shadow: 0 7px 18px rgba(6, 45, 27, 0.08);
+    transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-"] > i[class*="fa-"] {
+    color: currentColor;
+}
+
+.hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-green-"]:has(> i[class*="fa-"]) {
+    background: linear-gradient(135deg, #f0fdf4 0%, #bbf7d0 100%) !important;
+    border-color: #86efac !important;
+}
+
+.hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-red-"]:has(> i[class*="fa-"]) {
+    background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%) !important;
+    border-color: #fca5a5 !important;
+}
+
+.hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-yellow-"]:has(> i[class*="fa-"]),
+.hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-amber-"]:has(> i[class*="fa-"]) {
+    background: linear-gradient(135deg, #fffbeb 0%, #fde68a 100%) !important;
+    border-color: #fcd34d !important;
+}
+
+.hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-blue-"]:has(> i[class*="fa-"]) {
+    background: linear-gradient(135deg, #eff6ff 0%, #bfdbfe 100%) !important;
+    border-color: #93c5fd !important;
+}
+
+.hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-purple-"]:has(> i[class*="fa-"]),
+.hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-indigo-"]:has(> i[class*="fa-"]) {
+    background: linear-gradient(135deg, #faf5ff 0%, #ddd6fe 100%) !important;
+    border-color: #c4b5fd !important;
+}
+
+/* Laravel and custom pagination. */
+.hris-content nav[role="navigation"] a,
+.hris-content nav[role="navigation"] span {
+    border-color: #dce7df !important;
+}
+
+.hris-content nav[role="navigation"] a:hover {
+    color: var(--ui-green-800) !important;
+    background: #f1f8f3 !important;
+}
+
+.hris-content nav[role="navigation"] [aria-current="page"] span {
+    color: #fff !important;
+    background: linear-gradient(135deg, var(--ui-green-500), var(--ui-green-800)) !important;
+    border-color: var(--ui-green-700) !important;
+}
+
+html.dark .hris-content table {
+    color: #d8e2dc;
+}
+
+html.dark .hris-content table tbody tr:nth-child(even) {
+    background-color: rgba(255, 255, 255, 0.018);
+}
+
+html.dark .hris-content table td .font-medium,
+html.dark .hris-content table td .font-semibold,
+html.dark .hris-content table td.font-medium,
+html.dark .hris-content table td.font-semibold {
+    color: #f1f5f2;
+}
+
+html.dark .hris-content table td .ui-icon-action {
+    border-color: rgba(148, 163, 184, 0.22);
+    background: rgba(15, 23, 42, 0.72);
+}
+
+/* --------------------------------------------------------------------------
+   Neutral charcoal dark mode
+   Keeps every portal surface, control, table, and custom employee card in
+   one gray family instead of mixing navy, green-black, and white panels.
+   -------------------------------------------------------------------------- */
+html.dark {
+    --page-bg: #18181b;
+    --text-color: #fafafa;
+    --panel-bg: #242427;
+    --border-color: #3f3f46;
+    --muted-color: #d4d4d8;
+    --header-bg: rgba(24, 24, 27, 0.96);
+}
+
+html.dark body.hris-app,
+html.dark .hris-shell,
+html.dark .hris-workspace,
+html.dark .hris-content {
+    background: #18181b !important;
+    color: #fafafa !important;
+}
+
+html.dark .hris-content::before {
+    background: radial-gradient(circle, rgba(63, 63, 70, 0.42), transparent 68%) !important;
+}
+
+html.dark .brand-sidebar {
+    background: linear-gradient(180deg, #27272a 0%, #202023 58%, #18181b 100%) !important;
+    border-right-color: #3f3f46 !important;
+    box-shadow: 16px 0 38px rgba(0, 0, 0, 0.3) !important;
+}
+
+html.dark .brand-sidebar-footer {
+    background: #202023 !important;
+    border-top-color: #3f3f46 !important;
+}
+
+html.dark .brand-sidebar-footer-stat {
+    background: #29292d !important;
+    border-color: #52525b !important;
+}
+
+html.dark .brand-sidebar-footer :is(.text-brand-black, [class*="text-brand-black/"]) {
+    color: #f4f4f5 !important;
+}
+
+html.dark .brand-top-header {
+    background: rgba(32, 32, 35, 0.97) !important;
+    border-bottom-color: #3f3f46 !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24) !important;
+}
+
+html.dark .hris-content .bg-white,
+html.dark .hris-content .bg-gray-50,
+html.dark .hris-content .bg-gray-100,
+html.dark .hris-content .bg-slate-50,
+html.dark .hris-content .bg-slate-100,
+html.dark .hris-content .emp-card,
+html.dark .hris-content .emp-card-header,
+html.dark .hris-content .emp-card-body {
+    background: #242427 !important;
+    background-color: #242427 !important;
+    border-color: #3f3f46 !important;
+    color: #fafafa !important;
+}
+
+html.dark .hris-content .bg-gray-200,
+html.dark .hris-content .bg-gray-300,
+html.dark .hris-content .bg-slate-200,
+html.dark .hris-content .bg-slate-700,
+html.dark .hris-content .bg-slate-800,
+html.dark .hris-content .bg-slate-900 {
+    background-color: #303034 !important;
+    border-color: #52525b !important;
+}
+
+html.dark .hris-content h1,
+html.dark .hris-content h2,
+html.dark .hris-content h3,
+html.dark .hris-content h4,
+html.dark .hris-content h5,
+html.dark .hris-content h6,
+html.dark .hris-content label,
+html.dark .hris-content legend,
+html.dark .hris-content .form-label,
+html.dark .hris-content .emp-card-header h3 {
+    color: #ffffff !important;
+}
+
+html.dark .hris-content p,
+html.dark .hris-content span,
+html.dark .hris-content td,
+html.dark .hris-content li,
+html.dark .hris-content .text-gray-400,
+html.dark .hris-content .text-gray-500,
+html.dark .hris-content .text-gray-600,
+html.dark .hris-content .text-gray-700,
+html.dark .hris-content .text-gray-800,
+html.dark .hris-content .text-gray-900,
+html.dark .hris-content .emp-card-header p {
+    color: #f4f4f5 !important;
+}
+
+html.dark .hris-content input:not([type="checkbox"]):not([type="radio"]),
+html.dark .hris-content select,
+html.dark .hris-content textarea,
+html.dark .hris-content .form-control {
+    background: #2c2c30 !important;
+    background-color: #2c2c30 !important;
+    border-color: #52525b !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    color-scheme: dark;
+}
+
+html.dark .hris-content input::placeholder,
+html.dark .hris-content textarea::placeholder {
+    color: #a1a1aa !important;
+    -webkit-text-fill-color: #a1a1aa !important;
+}
+
+html.dark .hris-content select option {
+    background: #2c2c30 !important;
+    color: #ffffff !important;
+}
+
+html.dark .hris-content input[readonly],
+html.dark .hris-content input:disabled,
+html.dark .hris-content select:disabled,
+html.dark .hris-content textarea:disabled,
+html.dark .hris-content .form-control[readonly],
+html.dark .hris-content .form-control:disabled {
+    background-color: #35353a !important;
+    color: #d4d4d8 !important;
+    -webkit-text-fill-color: #d4d4d8 !important;
+    opacity: 1;
+}
+
+html.dark .hris-content table,
+html.dark .hris-content table tbody,
+html.dark .hris-content table tbody tr {
+    background: #222225 !important;
+    color: #ffffff !important;
+}
+
+html.dark .hris-content table thead,
+html.dark .hris-content table thead.bg-gray-50,
+html.dark .hris-content table tr.bg-gray-50,
+html.dark .hris-content table th {
+    background: #303034 !important;
+    color: #ffffff !important;
+    border-color: #52525b !important;
+}
+
+html.dark .hris-content table td {
+    color: #f4f4f5 !important;
+    border-color: #3f3f46 !important;
+}
+
+html.dark .hris-content table tbody tr:nth-child(even) {
+    background: #29292d !important;
+}
+
+html.dark .hris-content table tbody tr:hover {
+    background: #343438 !important;
+}
+
+html.dark .hris-content table td .ui-icon-action {
+    background: #303034 !important;
+    border-color: #52525b !important;
+}
+
+html.dark .hris-content [class*="bg-blue-50"],
+html.dark .hris-content [class*="bg-blue-100"],
+html.dark .hris-content [class*="bg-green-50"],
+html.dark .hris-content [class*="bg-green-100"],
+html.dark .hris-content [class*="bg-yellow-50"],
+html.dark .hris-content [class*="bg-yellow-100"],
+html.dark .hris-content [class*="bg-amber-50"],
+html.dark .hris-content [class*="bg-amber-100"],
+html.dark .hris-content [class*="bg-red-50"]:not([class*="bg-red-500"]):not([class*="bg-red-600"]):not([class*="bg-red-700"]):not([class*="bg-red-800"]):not([class*="bg-red-900"]),
+html.dark .hris-content [class*="bg-red-100"],
+html.dark .hris-content [class*="bg-purple-50"],
+html.dark .hris-content [class*="bg-purple-100"] {
+    background: #303034 !important;
+    background-color: #303034 !important;
+}
+
+html.dark .hris-content [class*="bg-green-"] .text-green-700,
+html.dark .hris-content [class*="bg-green-"] .text-green-800,
+html.dark .hris-content [class*="bg-green-"] .text-green-900 {
+    color: #86efac !important;
+}
+
+html.dark .hris-content [class*="bg-yellow-"] .text-yellow-700,
+html.dark .hris-content [class*="bg-yellow-"] .text-yellow-800,
+html.dark .hris-content [class*="bg-yellow-"] .text-yellow-900,
+html.dark .hris-content [class*="bg-amber-"] .text-amber-700,
+html.dark .hris-content [class*="bg-amber-"] .text-amber-800,
+html.dark .hris-content [class*="bg-amber-"] .text-amber-900 {
+    color: #fde047 !important;
+}
+
+html.dark .hris-content [class*="bg-red-"] .text-red-700,
+html.dark .hris-content [class*="bg-red-"] .text-red-800,
+html.dark .hris-content [class*="bg-red-"] .text-red-900 {
+    color: #fca5a5 !important;
+}
+
+/* Preserve semantic color identity in dark mode with restrained gradients. */
+html.dark .hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-green-"],
+html.dark .hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-green-"]:has(> i[class*="fa-"]) {
+    background: linear-gradient(135deg, rgba(20, 83, 45, 0.72), #27272a 100%) !important;
+    border-color: #166534 !important;
+}
+
+html.dark .hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-red-"],
+html.dark .hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-red-"]:has(> i[class*="fa-"]) {
+    background: linear-gradient(135deg, rgba(127, 29, 29, 0.68), #27272a 100%) !important;
+    border-color: #991b1b !important;
+}
+
+html.dark .hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-yellow-"],
+html.dark .hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-amber-"],
+html.dark .hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-yellow-"]:has(> i[class*="fa-"]),
+html.dark .hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-amber-"]:has(> i[class*="fa-"]) {
+    background: linear-gradient(135deg, rgba(113, 63, 18, 0.72), #27272a 100%) !important;
+    border-color: #a16207 !important;
+}
+
+html.dark .hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-blue-"],
+html.dark .hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-blue-"]:has(> i[class*="fa-"]) {
+    background: linear-gradient(135deg, rgba(30, 58, 138, 0.68), #27272a 100%) !important;
+    border-color: #1d4ed8 !important;
+}
+
+html.dark .hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-purple-"],
+html.dark .hris-content :is(.ui-status-badge, span.rounded-full)[class*="bg-indigo-"],
+html.dark .hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-purple-"]:has(> i[class*="fa-"]),
+html.dark .hris-content [class*="w-"][class*="h-"][class*="rounded"][class*="bg-indigo-"]:has(> i[class*="fa-"]) {
+    background: linear-gradient(135deg, rgba(76, 29, 149, 0.68), #27272a 100%) !important;
+    border-color: #6d28d9 !important;
+}
+
+html.dark .hris-content [class*="from-blue-"][class*="to-blue-"] {
+    background: linear-gradient(135deg, #303034, #27272a) !important;
+}
+
+html.dark .hris-content .timekeeping-status-card {
+    background: #29292d !important;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+html.dark .hris-content .timekeeping-status-card--blocking {
+    border-color: rgba(248, 113, 113, 0.48) !important;
+    background: linear-gradient(135deg, rgba(127, 29, 29, 0.34), #29292d 82%) !important;
+}
+
+html.dark .hris-content .timekeeping-status-card--review {
+    border-color: rgba(250, 204, 21, 0.42) !important;
+    background: linear-gradient(135deg, rgba(113, 63, 18, 0.38), #29292d 82%) !important;
+}
+
+html.dark .hris-content .timekeeping-status-card--clear {
+    border-color: rgba(74, 222, 128, 0.42) !important;
+    background: linear-gradient(135deg, rgba(20, 83, 45, 0.4), #29292d 82%) !important;
+}
+
+html.dark .hris-content .timekeeping-status-card--blocking .bg-red-500 {
+    background: #dc2626 !important;
+}
+
+html.dark .hris-content .timekeeping-status-card--review .bg-yellow-500 {
+    background: #ca8a04 !important;
+}
+
+html.dark .hris-content .timekeeping-status-card--clear .bg-green-500 {
+    background: #16a34a !important;
+}
+
+html.dark .hris-content .timekeeping-status-card--blocking :is(.text-red-600, .text-red-700, .text-red-900) {
+    color: #fca5a5 !important;
+}
+
+html.dark .hris-content .timekeeping-status-card--review :is(.text-yellow-600, .text-yellow-700, .text-yellow-900) {
+    color: #fde68a !important;
+}
+
+html.dark .hris-content .timekeeping-status-card--clear :is(.text-green-600, .text-green-700, .text-green-900) {
+    color: #86efac !important;
+}
+
+html.dark .hris-content .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+html.dark .hris-content .divide-gray-200 > :not([hidden]) ~ :not([hidden]),
+html.dark .hris-content [class*="border-gray-"],
+html.dark .hris-content [class*="border-slate-"] {
+    border-color: #3f3f46 !important;
+}
+
+html.dark .hris-content input[type="checkbox"],
+html.dark .hris-content input[type="radio"] {
+    background-color: #303034;
+    border-color: #71717a;
+}
+
+/* High-specificity fallback for legacy page-level styles that force white
+   controls with IDs and !important declarations. */
+html.dark .hris-content :is(#dark-control-override, input:not([type="checkbox"]):not([type="radio"]), select, textarea, .form-control) {
+    background: #2c2c30 !important;
+    background-color: #2c2c30 !important;
+    border-color: #52525b !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}
+
+html.dark .hris-content :is(#dark-option-override, select option) {
+    background: #2c2c30 !important;
+    background-color: #2c2c30 !important;
+    color: #ffffff !important;
+}
+
+html.dark .hris-content :is(#dark-date-override, input[type="date"])::-webkit-datetime-edit-text,
+html.dark .hris-content :is(#dark-date-override, input[type="date"])::-webkit-datetime-edit-month-field,
+html.dark .hris-content :is(#dark-date-override, input[type="date"])::-webkit-datetime-edit-day-field,
+html.dark .hris-content :is(#dark-date-override, input[type="date"])::-webkit-datetime-edit-year-field {
+    color: #ffffff !important;
+}
+
+html.dark .hris-content [class*="rounded"][class*="bg-"]:has(> i[class*="fa-"]),
+html.dark .hris-content [class*="rounded"][class*="bg-"]:has(> span:first-child) {
+    border-color: #52525b !important;
+}
+
+/* Schedule Management: custom calendar, sticky grid, and modal surfaces. */
+html.dark .schedule-management-page,
+html.dark .schedule-management-page .schedule-calendar-scroll {
+    background: #18181b !important;
+    color: #fafafa !important;
+    color-scheme: dark;
+}
+
+html.dark .schedule-management-page :is(.schedule-filter-card, .schedule-calendar-card),
+html.dark :is(#scheduleDetailModal, #bulkModal, #bulkDeleteModal) > div {
+    background: #242427 !important;
+    border-color: #3f3f46 !important;
+    color: #fafafa !important;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34) !important;
+}
+
+html.dark .schedule-management-page .schedule-calendar-header {
+    background: linear-gradient(135deg, #303034, #29292d) !important;
+    border-color: #52525b !important;
+}
+
+html.dark .schedule-management-page .schedule-calendar-help {
+    background: #202023 !important;
+    border-color: #3f3f46 !important;
+    color: #d4d4d8 !important;
+}
+
+html.dark .schedule-management-page .schedule-calendar-table,
+html.dark .schedule-management-page .schedule-calendar-table tbody,
+html.dark .schedule-management-page .schedule-calendar-table tbody tr,
+html.dark .schedule-management-page .schedule-calendar-table tbody tr:nth-child(even) {
+    background: #222225 !important;
+}
+
+html.dark .schedule-management-page .schedule-calendar-table :is(th, td) {
+    border-color: #3f3f46 !important;
+}
+
+html.dark .schedule-management-page .schedule-calendar-table th,
+html.dark .schedule-management-page .schedule-employee-column {
+    background: #2c2c30 !important;
+    color: #f4f4f5 !important;
+}
+
+html.dark .schedule-management-page .schedule-calendar-table td.schedule-date-column {
+    background: #222225 !important;
+}
+
+html.dark .schedule-management-page .schedule-calendar-table td.schedule-date-column:hover,
+html.dark .schedule-management-page .schedule-calendar-table tbody tr:hover td.schedule-date-column {
+    background: #303034 !important;
+}
+
+html.dark .schedule-management-page .schedule-calendar-table :is(th, td)[class*="bg-indigo-"] {
+    background: #312e3f !important;
+    box-shadow: inset 0 0 0 1px #6366f1 !important;
+}
+
+html.dark .schedule-management-page .schedule-density-button {
+    color: #d4d4d8 !important;
+}
+
+html.dark .schedule-management-page .schedule-density-button[aria-pressed="true"] {
+    background: #3f3f46 !important;
+    color: #ffffff !important;
+}
+
+html.dark .schedule-management-page .schedule-status-badge[data-schedule-tone="shift"] {
+    background: rgba(20, 83, 45, 0.68) !important;
+    border-color: #22c55e !important;
+    color: #bbf7d0 !important;
+}
+
+html.dark .schedule-management-page .schedule-status-badge[data-schedule-tone="off"] {
+    background: rgba(113, 63, 18, 0.68) !important;
+    border-color: #eab308 !important;
+    color: #fef08a !important;
+}
+
+html.dark .schedule-management-page .schedule-status-badge[data-schedule-tone="absent"] {
+    background: rgba(127, 29, 29, 0.7) !important;
+    border-color: #ef4444 !important;
+    color: #fecaca !important;
+}
+
+html.dark .schedule-management-page .schedule-status-badge[data-schedule-tone="covered"] {
+    background: rgba(88, 28, 135, 0.7) !important;
+    border-color: #a855f7 !important;
+    color: #e9d5ff !important;
+}
+
+html.dark .schedule-management-page .schedule-status-badge[data-schedule-tone="holiday"] {
+    background: rgba(127, 29, 29, 0.7) !important;
+    border-color: #ef4444 !important;
+    color: #fecaca !important;
+}
+
+html.dark .schedule-management-page .calendar-cell-detail,
+html.dark .schedule-management-page .schedule-calendar-table .text-gray-300,
+html.dark .schedule-management-page .schedule-calendar-table .text-gray-400,
+html.dark .schedule-management-page .schedule-calendar-table .text-gray-500 {
+    color: #d4d4d8 !important;
+}
+
+html.dark :is(#scheduleDetailModal, #bulkModal, #bulkDeleteModal) {
+    background-color: rgba(9, 9, 11, 0.78) !important;
+}
+
+html.dark :is(#scheduleDetailModal, #bulkModal, #bulkDeleteModal) :is(h2, h3, h4, label, p, span) {
+    color: #f4f4f5 !important;
+}
+
+html.dark :is(#scheduleDetailModal, #bulkModal, #bulkDeleteModal) :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+    background: #2c2c30 !important;
+    border-color: #52525b !important;
+    color: #ffffff !important;
+}
+
+html.dark :is(#scheduleDetailModal, #bulkModal, #bulkDeleteModal) :is(.bg-gray-50, .bg-white) {
+    background: #29292d !important;
+    border-color: #3f3f46 !important;
+}
+
+@media (max-width: 767px) {
+    .hris-content table {
+        font-size: 0.8rem;
+    }
+
+    .hris-content table th,
+    .hris-content table td {
+        padding-top: 0.7rem !important;
+        padding-bottom: 0.7rem !important;
     }
 }

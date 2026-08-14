@@ -1,28 +1,63 @@
+# Logs
 *.log
-.DS_Store
+
+# Environment
+.env
 .env.backup
 .env.production
-.phpactor.json
-.phpunit.result.cache
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# IDE / Editor
 /.fleet
 /.idea
 /.nova
 /.phpunit.cache
 /.vscode
 /.zed
+
+# PHP
+.phpactor.json
+.phpunit.result.cache
+
+# Authentication
 /auth.json
+
+# Dependencies
+/vendor
 /node_modules
+
+# Build Assets
 /public/build
 /public/hot
 /public/storage
+
+# Laravel Storage
 /storage/*.key
 /storage/pail
-/vendor
+
+# Compiled Blade Views (generated automatically)
+/storage/framework/views/*
+!/storage/framework/views/.gitignore
+
+# Bootstrap Cache (keep .gitignore if present)
+/bootstrap/cache/*.php
+!/bootstrap/cache/.gitignore
+
+# Temporary Debug Scripts
+tmp_*.php
+debug_*.php
+
+# Local Development
 Homestead.json
 Homestead.yaml
-Thumbs.db
-.env
+
+# Project-specific
 /dtrexample
 TASKS-EJHAY.md
-/database/.sql
-/storage/framework/views/.php
+/storage/framework/views/*
+!/storage/framework/views/.gitignore
+tmp_*.php
+/storage/framework/PsySH/

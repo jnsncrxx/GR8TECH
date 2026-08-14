@@ -17,10 +17,14 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class EmployeeController extends Controller
 {
+    private function ensureEmployeeBelongsToCurrentCompany(Employee $employee): void
+    {
+        abort_unless($employee->company_id === CompanyHelper::getCurrentCompanyId(), 404);
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -38,9 +42,25 @@ class EmployeeController extends Controller
         $employees = $query->orderBy('created_at', 'desc')
             ->paginate(15);
 
+        $companyId = $currentCompany?->id;
+        $departments = Department::query()
+            ->when($companyId, fn ($departmentQuery) => $departmentQuery->forCompany($companyId))
+            ->orderBy('name')
+            ->get();
+        $companyEmployees = Employee::query()
+            ->when($companyId, fn ($employeeQuery) => $employeeQuery->forCompany($companyId));
+        $employeeStats = [
+            'total' => (clone $companyEmployees)->count(),
+            'active' => (clone $companyEmployees)
+                ->whereHas('account', fn ($accountQuery) => $accountQuery->where('is_active', true))
+                ->count(),
+            'departments' => $departments->count(),
+            'average_salary' => (float) ((clone $companyEmployees)->avg('salary') ?? 0),
+        ];
+
         $user = Auth::user();
 
-        return view('employees.index', compact('employees', 'user'));
+        return view('employees.index', compact('employees', 'departments', 'employeeStats', 'user'));
     }
 
     /**
@@ -63,8 +83,17 @@ class EmployeeController extends Controller
         }
         $positions = $positions->active()->with('department')->orderBy('name')->get();
         
+        $payrollTemplates = \App\Models\PayrollTemplate::query()
+            ->where('company_id', CompanyHelper::getCurrentCompanyId())
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+
+        // Compute next sequential employee number to preview on the form
+        $nextEmployeeNumber = Employee::generateNextEmployeeNumber();
+        
         $user = Auth::user();
-        return view('employees.create', compact('departments', 'positions', 'user'));
+        return view('employees.create', compact('departments', 'positions', 'payrollTemplates', 'user', 'nextEmployeeNumber'));
     }
 
     /**
@@ -73,85 +102,143 @@ class EmployeeController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'email' => 'required|email|unique:accounts,email',
-            'phone' => 'required|string|max:20',
-            'mobile_number' => 'nullable|string|max:11',
-            'position' => 'required|string|max:255',
-            'department_id' => 'required|exists:departments,id',
-            'salary' => 'required|numeric|min:0',
-            'hire_date' => 'required|date',
-            'date_of_birth' => 'nullable|date',
-            'civil_status' => 'nullable|string|max:100',
-            'home_address' => 'nullable|string|max:1000',
-            'current_address' => 'nullable|string|max:1000',
-            'facebook_link' => 'nullable|url|max:255',
-            'linkedin_link' => 'nullable|url|max:255',
-            'ig_link' => 'nullable|url|max:255',
-            'other_link' => 'nullable|url|max:255',
-            'emergency_full_name' => 'nullable|string|max:255',
-            'emergency_relationship' => 'nullable|string|max:100',
-            'emergency_home_address' => 'nullable|string|max:1000',
+            'first_name'                => 'required|string|max:255',
+            'last_name'                 => 'required|string|max:255',
+            'middle_name'               => 'nullable|string|max:255',
+            'sex'                       => 'nullable|in:Male,Female,Prefer not to say',
+            'email'                     => 'required|email|unique:accounts,email',
+            'phone'                     => 'nullable|string|max:20',
+            'mobile_number'             => 'nullable|string|max:20',
+            'position_id'               => [
+                'required',
+                \Illuminate\Validation\Rule::exists('positions', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
+            'department_id'             => [
+                'required',
+                \Illuminate\Validation\Rule::exists('departments', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
+            'salary'                    => 'required|numeric|min:0',
+            'hire_date'                 => 'required|date',
+            'employee_status'           => 'nullable|string|max:50',
+            'contract_end_date'         => 'nullable|date',
+            'date_of_birth'             => 'nullable|date',
+            'civil_status'              => 'nullable|string|max:100',
+            'home_address'              => 'nullable|string|max:1000',
+            'current_address'           => 'nullable|string|max:1000',
+            'facebook_link'             => 'nullable|url|max:255',
+            'linkedin_link'             => 'nullable|url|max:255',
+            'ig_link'                   => 'nullable|url|max:255',
+            'other_link'                => 'nullable|url|max:255',
+            'emergency_full_name'       => 'nullable|string|max:255',
+            'emergency_relationship'    => 'nullable|string|max:100',
+            'emergency_home_address'    => 'nullable|string|max:1000',
             'emergency_current_address' => 'nullable|string|max:1000',
-            'emergency_mobile_number' => 'nullable|string|max:20',
-            'emergency_email' => 'nullable|email|max:255',
-            'emergency_facebook_link' => 'nullable|url|max:255',
-            'loan_start_date' => 'nullable|date',
-            'loan_end_date' => 'nullable|date|after_or_equal:loan_start_date',
-            'loan_total_amount' => 'nullable|numeric|min:0',
+            'emergency_mobile_number'   => 'nullable|string|max:20',
+            'emergency_email'           => 'nullable|email|max:255',
+            'emergency_facebook_link'   => 'nullable|url|max:255',
+            'loan_start_date'           => 'nullable|date',
+            'loan_end_date'             => 'nullable|date|after_or_equal:loan_start_date',
+            'loan_total_amount'         => 'nullable|numeric|min:0',
             'loan_monthly_amortization' => 'nullable|numeric|min:0',
-            'password' => 'required|string|min:8',
-            'employee_id' => 'nullable|string|max:50|unique:employees,employee_id',
+            'payment_method'            => 'nullable|in:Bank,Cash,Cheque',
+            'account_no'                => 'nullable|required_if:payment_method,Bank|string|max:100',
+            'bank'                      => 'nullable|required_if:payment_method,Bank|string|max:255',
+            'password'                  => 'required|string|min:8',
+            'password_confirmation'     => 'required|string|same:password',
+            'role'                      => 'nullable|in:admin,hr,manager,employee',
+            'employee_id'               => 'nullable|string|max:50|unique:employees,employee_id',
+            'payroll_template_id'       => [
+                'nullable',
+                \Illuminate\Validation\Rule::exists('payroll_templates', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
+            'profile_photo'             => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072',
+        ], [
+            'password_confirmation.same' => 'The confirm password does not match the password.',
+            'account_no.required_if' => 'The account no. field is required when payment method is Bank.',
+            'bank.required_if' => 'The bank field is required when payment method is Bank.',
         ]);
 
         $currentCompany = CompanyHelper::getCurrentCompany();
 
+        // Handle profile photo upload
+        $profilePhotoPath = null;
+        if ($request->hasFile('profile_photo')) {
+            $profilePhotoPath = $request->file('profile_photo')->store('employee-photos', 'public');
+        }
+
         // Create employee
         $employeeData = [
-            'employee_id' => $request->employee_id, // Will be auto-generated if null
-            'first_name' => $request->first_name,
-            'last_name' => $request->last_name,
-            'phone' => $request->phone,
-            'mobile_number' => $request->mobile_number,
-            'position' => $request->position,
-            'department_id' => $request->department_id,
-            'salary' => $request->salary,
-            'hire_date' => $request->hire_date,
-            'date_of_birth' => $request->date_of_birth,
-            'civil_status' => $request->civil_status,
-            'home_address' => $request->home_address,
-            'current_address' => $request->current_address,
-            'facebook_link' => $request->facebook_link,
-            'linkedin_link' => $request->linkedin_link,
-            'ig_link' => $request->ig_link,
-            'other_link' => $request->other_link,
-            'emergency_full_name' => $request->emergency_full_name,
-            'emergency_relationship' => $request->emergency_relationship,
-            'emergency_home_address' => $request->emergency_home_address,
+            'employee_id'               => $request->employee_id, // Will be auto-generated if null
+            'profile_photo'             => $profilePhotoPath,
+            'first_name'                => $request->first_name,
+            'last_name'                 => $request->last_name,
+            'middle_name'               => $request->middle_name,
+            'sex'                       => $request->sex,
+            'phone'                     => $request->phone,
+            'mobile_number'             => $request->mobile_number,
+            'position_id'               => $request->position_id,
+            'department_id'             => $request->department_id,
+            'salary'                    => $request->salary,
+            'hire_date'                 => $request->hire_date,
+            'employee_status'           => $request->employee_status,
+            'contract_end_date'         => $request->contract_end_date,
+            'date_of_birth'             => $request->date_of_birth,
+            'civil_status'              => $request->civil_status,
+            'home_address'              => $request->home_address,
+            'current_address'           => $request->current_address,
+            'facebook_link'             => $request->facebook_link,
+            'linkedin_link'             => $request->linkedin_link,
+            'ig_link'                   => $request->ig_link,
+            'other_link'                => $request->other_link,
+            'emergency_full_name'       => $request->emergency_full_name,
+            'emergency_relationship'    => $request->emergency_relationship,
+            'emergency_home_address'    => $request->emergency_home_address,
             'emergency_current_address' => $request->emergency_current_address,
-            'emergency_mobile_number' => $request->emergency_mobile_number,
-            'emergency_email' => $request->emergency_email,
-            'emergency_facebook_link' => $request->emergency_facebook_link,
-            'loan_start_date' => $request->loan_start_date,
-            'loan_end_date' => $request->loan_end_date,
-            'loan_total_amount' => $request->loan_total_amount,
+            'emergency_mobile_number'   => $request->emergency_mobile_number,
+            'emergency_email'           => $request->emergency_email,
+            'emergency_facebook_link'   => $request->emergency_facebook_link,
+            'loan_start_date'           => $request->loan_start_date,
+            'loan_end_date'             => $request->loan_end_date,
+            'loan_total_amount'         => $request->loan_total_amount,
             'loan_monthly_amortization' => $request->loan_monthly_amortization,
+            'payroll_template_id'       => $request->payroll_template_id,
         ];
         
         if ($currentCompany) {
             $employeeData['company_id'] = $currentCompany->id;
         }
         
-        $employee = Employee::create($employeeData);
+        [$employee, $account] = DB::transaction(function () use ($employeeData, $request) {
+            $employee = Employee::create($employeeData);
 
-        // Create account
-        $account = Account::create([
-            'employee_id' => $employee->id,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'role' => $request->role ?? 'employee',
-        ]);
+            $account = Account::create([
+                'employee_id' => $employee->id,
+                'email'       => $request->email,
+                'password'    => Hash::make($request->password),
+                'role'        => $request->role ?? 'employee',
+            ]);
+
+            // Payment details live on employee_infos (same table used by the
+            // Employee Info → Banking & IDs screen), keyed by employee_id.
+            if ($request->filled('payment_method') || $request->filled('account_no') || $request->filled('bank')) {
+                $employee->info()->updateOrCreate(
+                    ['employee_id' => $employee->id],
+                    [
+                        'payment_method' => $request->payment_method,
+                        'account_no'     => $request->account_no,
+                        'bank'           => $request->bank,
+                    ]
+                );
+            }
+
+            return [$employee, $account];
+        });
 
         // Send welcome email to employee
         try {
@@ -174,6 +261,7 @@ class EmployeeController extends Controller
      */
     public function show(Employee $employee)
     {
+        $this->ensureEmployeeBelongsToCurrentCompany($employee);
         $user = Auth::user();
         $requestedEmployeeId = $employee->id;
         
@@ -201,7 +289,7 @@ class EmployeeController extends Controller
         }
         
         // Load employee relationships
-        $employee->load(['department', 'account', 'payrolls']);
+        $employee->load(['department', 'account', 'payrolls', 'info']);
         
         // Get attendance records - for employees, this will ONLY be their own records
         // For admin/hr/manager, this will be the selected employee's records
@@ -218,6 +306,7 @@ class EmployeeController extends Controller
      */
     public function edit(Employee $employee)
     {
+        $this->ensureEmployeeBelongsToCurrentCompany($employee);
         $currentCompany = CompanyHelper::getCurrentCompany();
         
         $departments = Department::query();
@@ -226,9 +315,21 @@ class EmployeeController extends Controller
         }
         $departments = $departments->get();
         
-        $employee->load('account');
+        $positions = Position::query();
+        if ($currentCompany) {
+            $positions->forCompany($currentCompany->id);
+        }
+        $positions = $positions->active()->with('department')->orderBy('name')->get();
+        
+        $payrollTemplates = \App\Models\PayrollTemplate::query()
+            ->where('company_id', CompanyHelper::getCurrentCompanyId())
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+        
+        $employee->load(['account', 'position', 'info']);
         $user = Auth::user();
-        return view('employees.edit', compact('employee', 'departments', 'user'));
+        return view('employees.edit', compact('employee', 'departments', 'positions', 'payrollTemplates', 'user'));
     }
 
     /**
@@ -236,14 +337,26 @@ class EmployeeController extends Controller
      */
     public function update(Request $request, Employee $employee)
     {
+        $this->ensureEmployeeBelongsToCurrentCompany($employee);
         $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'email' => 'required|email|unique:accounts,email,' . ($employee->account?->id ?? ''),
-            'phone' => 'required|string|max:20',
+            'phone' => 'nullable|string|max:20',
             'mobile_number' => 'nullable|string|max:20',
-            'position' => 'required|string|max:255',
-            'department_id' => 'required|exists:departments,id',
+            'profile_photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072',
+            'position_id' => [
+                'required',
+                \Illuminate\Validation\Rule::exists('positions', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
+            'department_id' => [
+                'required',
+                \Illuminate\Validation\Rule::exists('departments', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
             'salary' => 'required|numeric|min:0',
             'hire_date' => 'required|date',
             'date_of_birth' => 'nullable|date',
@@ -265,8 +378,36 @@ class EmployeeController extends Controller
             'loan_end_date' => 'nullable|date|after_or_equal:loan_start_date',
             'loan_total_amount' => 'nullable|numeric|min:0',
             'loan_monthly_amortization' => 'nullable|numeric|min:0',
+            'payment_method' => 'nullable|in:Bank,Cash,Cheque',
+            'account_no' => 'nullable|required_if:payment_method,Bank|string|max:100',
+            'bank' => 'nullable|required_if:payment_method,Bank|string|max:255',
+            'id_card_no' => 'nullable|string|max:100',
+            'control_no' => 'nullable|string|max:100',
+            'active_status' => 'nullable|in:Active,Inactive',
             'role' => 'required|in:admin,hr,manager,employee',
+            'payroll_template_id' => [
+                'nullable',
+                \Illuminate\Validation\Rule::exists('payroll_templates', 'id')->where(
+                    fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
+                ),
+            ],
+            'edit_reason' => 'required|string|max:1000',
+        ], [
+            'account_no.required_if' => 'The account no. field is required when payment method is Bank.',
+            'bank.required_if' => 'The bank field is required when payment method is Bank.',
+            'edit_reason.required' => 'Please provide a reason for this edit.',
         ]);
+
+        $currentCompany = CompanyHelper::getCurrentCompany();
+
+        // Handle profile photo
+        if ($request->hasFile('profile_photo')) {
+            if ($employee->profile_photo && Storage::disk('public')->exists($employee->profile_photo)) {
+                Storage::disk('public')->delete($employee->profile_photo);
+            }
+            $employee->profile_photo = $request->file('profile_photo')->store('employee-photos', 'public');
+            $employee->save();
+        }
 
         // Update employee
         $employee->update([
@@ -274,7 +415,7 @@ class EmployeeController extends Controller
             'last_name' => $request->last_name,
             'phone' => $request->phone,
             'mobile_number' => $request->mobile_number,
-            'position' => $request->position,
+            'position_id' => $request->position_id,
             'department_id' => $request->department_id,
             'salary' => $request->salary,
             'hire_date' => $request->hire_date,
@@ -297,14 +438,41 @@ class EmployeeController extends Controller
             'loan_end_date' => $request->loan_end_date,
             'loan_total_amount' => $request->loan_total_amount,
             'loan_monthly_amortization' => $request->loan_monthly_amortization,
+            'payroll_template_id' => $request->payroll_template_id,
         ]);
 
-        // Update account if it exists
+        // Payment details, ID tracking, and active status live on employee_infos
+        // (same table used by the Employee Info → Banking & IDs screen), keyed
+        // by employee_id.
+        $employee->info()->updateOrCreate(
+            ['employee_id' => $employee->id],
+            [
+                'payment_method' => $request->payment_method,
+                'account_no'     => $request->account_no,
+                'bank'           => $request->bank,
+                'id_card_no'     => $request->id_card_no,
+                'control_no'     => $request->control_no,
+                'active_status'  => $request->active_status,
+                'last_edited_at'     => now(),
+                'last_edited_reason' => $request->edit_reason,
+            ]
+        );
+
+        // Update account if it exists.
+        // NOTE: attributes are set directly (not via update([...])) so this
+        // isn't silently dropped if is_active isn't in the Account model's
+        // $fillable array.
         if ($employee->account) {
-            $employee->account->update([
-                'email' => $request->email,
-                'role' => $request->role ?? $employee->account->role,
-            ]);
+            $employee->account->email = $request->email;
+            $employee->account->role = $request->role ?? $employee->account->role;
+
+            // The Employee List status badge reads account.is_active, so
+            // keep it in sync with the Active Status field on this form.
+            if ($request->filled('active_status')) {
+                $employee->account->is_active = $request->active_status === 'Active';
+            }
+
+            $employee->account->save();
         }
 
         return redirect()->route('employees.index')
@@ -316,6 +484,7 @@ class EmployeeController extends Controller
      */
     public function destroy(Employee $employee)
     {
+        $this->ensureEmployeeBelongsToCurrentCompany($employee);
         // Delete account first if it exists
         if ($employee->account) {
             $employee->account->delete();
@@ -333,6 +502,7 @@ class EmployeeController extends Controller
      */
     public function payroll(Employee $employee)
     {
+        $this->ensureEmployeeBelongsToCurrentCompany($employee);
         $employee->load(['payrolls' => function($query) {
             $query->orderBy('created_at', 'desc');
         }]);
@@ -489,11 +659,6 @@ class EmployeeController extends Controller
 
         $currentCompany = CompanyHelper::getCurrentCompany();
 
-        if (!Schema::hasTable('employee_other_infos')) {
-            return redirect()->route('employees.other-employee-info', ['employee_id' => $request->input('employee_id')])
-                ->with('error', 'Other employee info table is not ready yet. Please run database migrations first.');
-        }
-
         $validated = $request->validate([
             'employee_id' => 'required|uuid|exists:employees,id',
             'photo' => 'required|image|mimes:jpg,jpeg,png,webp|max:3072',
@@ -505,15 +670,12 @@ class EmployeeController extends Controller
         }
         $employee = $employeeQuery->firstOrFail();
 
-        $otherInfo = $employee->otherInfo()->firstOrNew([]);
-        $otherInfo->employee_id = $employee->id;
-
-        if ($otherInfo->photo_path && Storage::disk('public')->exists($otherInfo->photo_path)) {
-            Storage::disk('public')->delete($otherInfo->photo_path);
+        if ($employee->profile_photo && Storage::disk('public')->exists($employee->profile_photo)) {
+            Storage::disk('public')->delete($employee->profile_photo);
         }
 
-        $otherInfo->photo_path = $request->file('photo')->store('employee-photos', 'public');
-        $otherInfo->save();
+        $employee->profile_photo = $request->file('photo')->store('employee-photos', 'public');
+        $employee->save();
 
         return redirect()->route('employees.other-employee-info', ['employee_id' => $employee->id])
             ->with('success', 'Employee photo uploaded successfully.');
@@ -530,11 +692,6 @@ class EmployeeController extends Controller
 
         $currentCompany = CompanyHelper::getCurrentCompany();
 
-        if (!Schema::hasTable('employee_other_infos')) {
-            return redirect()->route('employees.other-employee-info', ['employee_id' => $request->input('employee_id')])
-                ->with('error', 'Other employee info table is not ready yet. Please run database migrations first.');
-        }
-
         $validated = $request->validate([
             'employee_id' => 'required|uuid|exists:employees,id',
         ]);
@@ -545,14 +702,12 @@ class EmployeeController extends Controller
         }
         $employee = $employeeQuery->firstOrFail();
 
-        $otherInfo = $employee->otherInfo;
-        if ($otherInfo && $otherInfo->photo_path) {
-            if (Storage::disk('public')->exists($otherInfo->photo_path)) {
-                Storage::disk('public')->delete($otherInfo->photo_path);
-            }
-            $otherInfo->photo_path = null;
-            $otherInfo->save();
+        if ($employee->profile_photo && Storage::disk('public')->exists($employee->profile_photo)) {
+            Storage::disk('public')->delete($employee->profile_photo);
         }
+        
+        $employee->profile_photo = null;
+        $employee->save();
 
         return redirect()->route('employees.other-employee-info', ['employee_id' => $employee->id])
             ->with('success', 'Employee photo removed successfully.');
@@ -661,22 +816,235 @@ class EmployeeController extends Controller
             ->with('success', 'Previous employment details saved successfully.');
     }
 
-public function documents($id)
-{
-    $user = auth()->user();
-    $currentCompanyId = session('current_company_id');
-    
-    // Get employee only if they belong to the current company
-    $employee = Employee::with(['department'])
-        ->where('company_id', $currentCompanyId)
-        ->find($id);
-    
-    if (!$employee) {
-        abort(404, 'Employee not found or not in current company');
+    public function employeeInfo(Request $request)
+    {
+        $user = Auth::user();
+        $currentCompany = CompanyHelper::getCurrentCompany();
+
+        $employeesQuery = Employee::orderBy('last_name')->orderBy('first_name');
+        if ($currentCompany) {
+            $employeesQuery->forCompany($currentCompany->id);
+        }
+        $employees = $employeesQuery->get();
+        $selectedEmployee = null;
+        $employeeBalance = null;
+
+        if ($request->has('employee_id')) {
+            $selectedEmployeeQuery = Employee::with('info')->where('id', $request->employee_id);
+            if ($currentCompany) {
+                $selectedEmployeeQuery->forCompany($currentCompany->id);
+            }
+            $selectedEmployee = $selectedEmployeeQuery->first();
+            if ($selectedEmployee) {
+                $employeeBalance = \App\Models\LeaveBalance::where('employee_id', $selectedEmployee->id)
+                    ->where('year', now()->year)
+                    ->first();
+            }
+        }
+
+        return view('employees.info', compact('user', 'employees', 'selectedEmployee', 'employeeBalance'));
     }
-    
-    $documents = [];
-    
-    return view('employees.documents', compact('employee', 'documents', 'user'));
-}
+
+    public function employeeInfoSearch(Request $request)
+    {
+        $query = $request->get('query');
+        $currentCompany = CompanyHelper::getCurrentCompany();
+
+        $employeesQuery = Employee::where(function ($q) use ($query) {
+            $q->where('first_name', 'like', "%{$query}%")
+                ->orWhere('last_name', 'like', "%{$query}%")
+                ->orWhere('employee_id', 'like', "%{$query}%");
+        });
+
+        if ($currentCompany) {
+            $employeesQuery->forCompany($currentCompany->id);
+        }
+
+        $employees = $employeesQuery->limit(10)
+            ->get(['id', 'employee_id', 'first_name', 'last_name']);
+            
+        return response()->json($employees);
+    }
+
+    public function saveEmployeeInfo(Request $request)
+    {
+        $request->validate([
+            'employee_id' => 'required|exists:employees,id',
+        ]);
+
+        $employee = Employee::findOrFail($request->employee_id);
+        
+        // Use updateOrCreate on the info() relation
+        $data = $request->except(['_token', 'employee_id']);
+        
+        // Extract max leave balances
+        $leaveFields = [
+            'max_sick' => 'sick_days_total',
+            'max_vacation' => 'vacation_days_total',
+            'max_sl' => 'bereavement_days_total', // SIL
+            'max_spl' => 'spl_days_total',
+            'max_pl' => 'paternity_days_total',
+            'max_vawc' => 'vawc_days_total',
+            'max_ml' => 'maternity_days_total',
+            'max_bl' => 'bl_days_total', // Need to add to leave balance if missing or just use existing
+            'max_el' => 'emergency_days_total',
+        ];
+
+        $leaveBalanceUpdates = [];
+        foreach ($leaveFields as $requestKey => $dbKey) {
+            if (isset($data[$requestKey]) && $data[$requestKey] !== '') {
+                $leaveBalanceUpdates[$dbKey] = $data[$requestKey];
+            }
+            // Keep them in info for backward compatibility, or remove them
+            // We keep them so that info.blade.php doesn't break if it reads from both
+        }
+
+        if (!empty($leaveBalanceUpdates)) {
+            \App\Models\LeaveBalance::updateOrCreate(
+                ['employee_id' => $employee->id, 'year' => now()->year],
+                $leaveBalanceUpdates
+            );
+        }
+        
+        // Handle checkboxes (if not present in request, set to false)
+        $checkboxes = [
+            'resign_on_next_payroll',
+            'allow_flexible_time',
+            'override_sss_exclude',
+            'override_philhealth_exclude',
+            'override_pagibig_exclude',
+            'override_tax_exclude',
+            'pagibig_voluntary'
+        ];
+        
+        foreach ($checkboxes as $checkbox) {
+            $data[$checkbox] = $request->has($checkbox) ? true : false;
+        }
+        
+        $employee->info()->updateOrCreate(
+            ['employee_id' => $employee->id],
+            $data
+        );
+
+        return redirect()->route('employees.info', ['employee_id' => $employee->id])
+            ->with('success', 'Employee info saved successfully.');
+    }
+
+    public function documents(Request $request)
+    {
+        $user = Auth::user();
+        $currentCompany = CompanyHelper::getCurrentCompany();
+
+        $employeesQuery = Employee::orderBy('last_name')->orderBy('first_name');
+        if ($currentCompany) {
+            $employeesQuery->forCompany($currentCompany->id);
+        }
+        $employees = $employeesQuery->get();
+        $selectedEmployee = null;
+        $folders = collect();
+        $documentsByDate = collect([
+            'Today' => collect(),
+            'Yesterday' => collect(),
+            'Last week' => collect(),
+            'Last month' => collect(),
+            'Older' => collect(),
+        ]);
+
+        if ($request->has('employee_id')) {
+            $selectedEmployeeQuery = Employee::where('id', $request->employee_id);
+            if ($currentCompany) {
+                $selectedEmployeeQuery->forCompany($currentCompany->id);
+            }
+            $selectedEmployee = $selectedEmployeeQuery->first();
+            
+            if ($selectedEmployee) {
+                // Load folders with their documents
+                $folders = \App\Models\DocumentFolder::where('employee_id', $selectedEmployee->id)
+                    ->with(['documents' => fn($q) => $q->orderBy('created_at', 'desc')])
+                    ->orderBy('name')
+                    ->get();
+
+                // Only show unfiled (root-level) documents in date groups
+                $selectedEmployee->load(['documents' => function($q) {
+                    $q->whereNull('folder_id')->orderBy('created_at', 'desc');
+                }]);
+                
+                $now = now();
+                foreach ($selectedEmployee->documents as $doc) {
+                    if ($doc->created_at->isToday()) {
+                        $documentsByDate['Today']->push($doc);
+                    } elseif ($doc->created_at->isYesterday()) {
+                        $documentsByDate['Yesterday']->push($doc);
+                    } elseif ($doc->created_at->isSameWeek($now)) {
+                        $documentsByDate['Last week']->push($doc);
+                    } elseif ($doc->created_at->isSameMonth($now)) {
+                        $documentsByDate['Last month']->push($doc);
+                    } else {
+                        $documentsByDate['Older']->push($doc);
+                    }
+                }
+            }
+        }
+        
+        $documentsByDate = $documentsByDate->filter(fn($group) => $group->isNotEmpty());
+
+        return view('employees.documents', compact('user', 'employees', 'selectedEmployee', 'documentsByDate', 'folders'));
+    }
+
+    public function saveDocuments(Request $request)
+    {
+        $request->validate([
+            'employee_id' => 'required|exists:employees,id',
+            'documents' => 'required|array',
+            'documents.*' => 'required|file|max:2048',
+        ], [
+            'documents.*.max' => 'The document must not exceed 2 MB.',
+        ]);
+
+        $employee = Employee::findOrFail($request->employee_id);
+
+        if ($request->hasFile('documents')) {
+            foreach ($request->file('documents') as $file) {
+                $path = $file->store("documents/{$employee->id}", 'public');
+                $extension = $file->getClientOriginalExtension();
+                
+                $employee->documents()->create([
+                    'id'          => \Illuminate\Support\Str::uuid()->toString(),
+                    'type'        => empty($extension) ? 'document' : strtolower($extension),
+                    'name'        => $file->getClientOriginalName(),
+                    'path'        => $path,
+                    'description' => null,
+                    'folder_id'   => $request->folder_id ?? null,
+                ]);
+            }
+        }
+
+        return redirect()->route('employees.documents', ['employee_id' => $employee->id])
+            ->with('success', 'Documents uploaded successfully.');
+    }
+
+    public function createDocumentFolder(Request $request)
+    {
+        $request->validate([
+            'employee_id' => 'required|exists:employees,id',
+            'name' => 'required|string|max:255',
+        ]);
+
+        \App\Models\DocumentFolder::create([
+            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'employee_id' => $request->employee_id,
+            'name' => $request->name,
+        ]);
+
+        return redirect()->route('employees.documents', ['employee_id' => $request->employee_id])
+            ->with('success', 'Folder "' . $request->name . '" created successfully.');
+    }
+
+    public function deleteDocumentFolder(\App\Models\DocumentFolder $folder)
+    {
+        $folder->delete();
+
+        return redirect()->route('employees.documents', ['employee_id' => $folder->employee_id])
+            ->with('success', 'Folder deleted. Documents inside were moved to the root.');
+    }
 }

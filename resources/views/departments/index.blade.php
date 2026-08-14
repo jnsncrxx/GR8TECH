@@ -10,7 +10,11 @@
             <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Departments</h1>
             <p class="mt-1 text-sm text-gray-600">Manage company departments and their information</p>
         </div>
-        <div class="mt-4 sm:mt-0">
+        <div class="mt-4 sm:mt-0 flex space-x-3">
+            <a href="{{ route('departments.archived') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                <i class="fas fa-box-archive mr-2"></i>
+                Archived Departments
+            </a>
             <a href="{{ route('departments.create') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-lg font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
                 <i class="fas fa-plus mr-2"></i>
                 Add Department
@@ -22,7 +26,7 @@
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
         <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
             <div class="flex-1">
-                <input type="text" id="searchInput" placeholder="Search departments..." 
+                <input type="text" id="searchInput" placeholder="Search departments..."
                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
             </div>
             <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 lg:flex-shrink-0">
@@ -42,7 +46,8 @@
     <!-- Departments Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         @forelse($departments as $department)
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow department-card flex flex-col" 
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow department-card flex flex-col"
+             data-search-row="{{ $department->id }}"
              data-name="{{ strtolower($department->name) }}"
              data-location="{{ $department->location }}">
             <!-- Department Header -->
@@ -63,6 +68,15 @@
 
             <!-- Department Details -->
             <div class="p-6 space-y-4 flex-1">
+                <!-- Manager -->
+                <div>
+                    <h4 class="text-sm font-medium text-gray-700 mb-1">Manager</h4>
+                    <p class="text-sm text-gray-600 flex items-center">
+                        <i class="fas fa-user-tag mr-2 text-gray-400"></i>
+                        {{ $department->manager?->full_name ?: 'Not assigned' }}
+                    </p>
+                </div>
+
                 <!-- Description -->
                 <div>
                     <h4 class="text-sm font-medium text-gray-700 mb-1">Description</h4>
@@ -99,8 +113,8 @@
                             <i class="fas fa-users mr-1"></i>Employees
                         </a>
                     </div>
-                    <button type="button" onclick="openDeleteModal('{{ $department->id }}', '{{ $department->name }}')" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-600 hover:text-red-900 transition-colors">
-                        <i class="fas fa-trash mr-1"></i>Delete
+                    <button type="button" onclick="openRemoveModal('{{ $department->id }}', '{{ $department->name }}', {{ $department->employees_count }})" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-600 hover:text-red-900 transition-colors">
+                        <i class="fas fa-box-archive mr-1"></i>Remove
                     </button>
                 </div>
             </div>
@@ -161,7 +175,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateNoResultsMessage() {
         const visibleCards = Array.from(departmentCards).filter(card => card.style.display !== 'none');
         const noResultsMessage = document.querySelector('.no-results-message');
-        
+
         if (visibleCards.length === 0) {
             if (!noResultsMessage) {
                 // Create no results message
@@ -176,7 +190,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </div>
                 `;
-                
+
                 // Insert after the grid
                 const grid = document.querySelector('.grid.grid-cols-1.md\\:grid-cols-2.lg\\:grid-cols-3.gap-6');
                 grid.appendChild(messageDiv);
@@ -197,46 +211,55 @@ document.addEventListener('DOMContentLoaded', function() {
 function clearFilters() {
     document.getElementById('searchInput').value = '';
     document.getElementById('locationFilter').value = '';
-    
+
     // Trigger filter function
     const event = new Event('input');
     document.getElementById('searchInput').dispatchEvent(event);
 }
 
-// Delete Modal Functions
-function openDeleteModal(departmentId, departmentName) {
-    document.getElementById('deleteDepartmentId').value = departmentId;
-    document.getElementById('deleteDepartmentName').textContent = departmentName;
-    document.getElementById('deleteForm').action = `/departments/${departmentId}`;
-    document.getElementById('deleteModal').classList.remove('hidden');
+// Remove Modal Functions
+function openRemoveModal(departmentId, departmentName, employeesCount) {
+    document.getElementById('removeDepartmentId').value = departmentId;
+    document.getElementById('removeDepartmentName').textContent = departmentName;
+    document.getElementById('removeForm').action = `/departments/${departmentId}`;
+
+    const warning = document.getElementById('removeActiveEmployeesWarning');
+    if (employeesCount > 0) {
+        document.getElementById('removeActiveEmployeesCount').textContent = employeesCount;
+        warning.classList.remove('hidden');
+    } else {
+        warning.classList.add('hidden');
+    }
+
+    document.getElementById('removeModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
 }
 
-function closeDeleteModal() {
-    document.getElementById('deleteModal').classList.add('hidden');
+function closeRemoveModal() {
+    document.getElementById('removeModal').classList.add('hidden');
     document.body.style.overflow = 'auto';
 }
 
 // Close modal when clicking outside
-document.getElementById('deleteModal').addEventListener('click', function(e) {
+document.getElementById('removeModal').addEventListener('click', function(e) {
     if (e.target === this) {
-        closeDeleteModal();
+        closeRemoveModal();
     }
 });
 
 // Close modal with Escape key
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        closeDeleteModal();
+        closeRemoveModal();
     }
 });
 </script>
 
-<!-- Delete Confirmation Modal -->
-<div id="deleteModal" class="fixed inset-0 z-50 hidden overflow-y-auto">
+<!-- Remove Confirmation Modal -->
+<div id="removeModal" class="fixed inset-0 z-50 hidden overflow-y-auto">
     <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
         <!-- Background overlay -->
-        <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onclick="closeDeleteModal()"></div>
+        <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onclick="closeRemoveModal()"></div>
 
         <!-- Modal panel -->
         <div class="inline-block w-full max-w-md p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
@@ -247,26 +270,33 @@ document.addEventListener('keydown', function(e) {
 
             <!-- Modal content -->
             <div class="text-center">
-                <h3 class="text-lg font-medium text-gray-900 mb-2">Delete Department</h3>
-                <p class="text-sm text-gray-500 mb-6">
-                    Are you sure you want to delete <span id="deleteDepartmentName" class="font-semibold text-gray-900"></span>? 
-                    This action cannot be undone and will permanently remove the department and all its data.
+                <h3 class="text-lg font-medium text-gray-900 mb-2">Remove Department</h3>
+                <p class="text-sm text-gray-500 mb-4">
+                    Are you sure you want to remove <span id="removeDepartmentName" class="font-semibold text-gray-900"></span>?
+                    It will be archived and hidden from the active departments list.
                 </p>
+                <div id="removeActiveEmployeesWarning" class="hidden mb-6 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-left">
+                    <p class="text-sm text-yellow-800">
+                        <i class="fas fa-exclamation-circle mr-1"></i>
+                        This department still has <span id="removeActiveEmployeesCount" class="font-semibold"></span> active employee(s) assigned to it.
+                        Are you sure you want to remove it anyway?
+                    </p>
+                </div>
             </div>
 
             <!-- Modal actions -->
             <div class="flex flex-col sm:flex-row gap-3 sm:gap-3">
-                <button type="button" onclick="closeDeleteModal()" 
+                <button type="button" onclick="closeRemoveModal()"
                     class="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors">
                     Cancel
                 </button>
-                <form id="deleteForm" method="POST" class="flex-1">
+                <form id="removeForm" method="POST" class="flex-1">
                     @csrf
                     @method('DELETE')
-                    <input type="hidden" id="deleteDepartmentId" name="department_id" value="">
-                    <button type="submit" 
+                    <input type="hidden" id="removeDepartmentId" name="department_id" value="">
+                    <button type="submit"
                         class="w-full px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors">
-                        Delete Department
+                        Remove Department
                     </button>
                 </form>
             </div>

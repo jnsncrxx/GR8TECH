@@ -5,11 +5,18 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use App\Models\Concerns\HasExpiryWindow;
 use Ramsey\Uuid\Uuid;
 
 class OvertimeRequest extends Model
 {
-    use HasUuids;
+    use HasUuids, HasExpiryWindow;
+
+    const PENDING = 'pending';
+    const APPROVED = 'approved';
+    const REJECTED = 'rejected';
+    const CANCELED = 'canceled';
+    const EXPIRED = 'expired';
 
     protected $keyType = 'string';
     public $incrementing = false;
@@ -26,6 +33,11 @@ class OvertimeRequest extends Model
         'approved_by',
         'approved_at',
         'rejection_reason',
+        'expires_at',
+        'expiry_attempt',
+        'first_expired_at',
+        'resubmitted_at',
+        'final_expired_at',
     ];
 
     protected $casts = [
@@ -35,6 +47,10 @@ class OvertimeRequest extends Model
         'hours' => 'decimal:2',
         'rate_multiplier' => 'decimal:2',
         'approved_at' => 'datetime',
+        'expires_at' => 'datetime',
+        'first_expired_at' => 'datetime',
+        'resubmitted_at' => 'datetime',
+        'final_expired_at' => 'datetime',
     ];
 
     protected static function boot()

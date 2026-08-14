@@ -11,33 +11,6 @@
 @endphp
 
 @section('content')
-<!-- Confirmation Modal -->
-<div id="confirmation-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
-    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div class="mt-3">
-            <!-- Modal Icon -->
-            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4" id="modal-icon-container">
-                <i id="modal-icon" class="fas fa-question-circle text-blue-600 text-xl"></i>
-            </div>
-            
-            <!-- Modal Content -->
-            <div class="text-center">
-                <h3 id="modal-title" class="text-lg font-medium text-gray-900 mb-2"></h3>
-                <p id="modal-message" class="text-sm text-gray-500 mb-4"></p>
-                
-                <!-- Action Buttons -->
-                <div class="flex justify-center space-x-4 mt-6">
-                    <button id="modal-cancel-btn" type="button" class="px-5 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-colors">
-                        Cancel
-                    </button>
-                    <button id="modal-confirm-btn" type="button" class="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
-                        Confirm
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
 <!-- Forgot Time In/Out Modal -->
 <div id="forgot-time-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
@@ -145,6 +118,58 @@
         <p class="text-sm sm:text-base text-gray-600">Here's your personal information and payroll history.</p>
     </div>
 
+    <!-- Authoritative Schedule -->
+    <div class="mb-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="rounded-xl border border-blue-200 bg-blue-50 p-5">
+            <p class="text-sm font-medium text-blue-700">Today’s Assigned Schedule</p>
+            @if($todaySchedule)
+                <p class="mt-2 text-xl font-bold text-blue-950">{{ $todaySchedule->status_label }}</p>
+                @if($todaySchedule->time_in && $todaySchedule->time_out)
+                    <p class="mt-1 text-sm text-blue-800">{{ \Carbon\Carbon::parse($todaySchedule->time_in)->format('g:i A') }}–{{ \Carbon\Carbon::parse($todaySchedule->time_out)->format('g:i A') }} · {{ \App\Helpers\TimezoneHelper::formatHours((float) $todaySchedule->required_hours) }}</p>
+                @elseif($todaySchedule->isFlexible() && in_array($todaySchedule->status, ['Working', 'Overtime']))
+                    <p class="mt-1 text-sm text-blue-800">Flexible · {{ \App\Helpers\TimezoneHelper::formatHours((float) $todaySchedule->required_hours) }} required</p>
+                @endif
+
+                {{-- late/on-time indicator, only makes sense for fixed shifts --}}
+                @if($todayAttendance && $todayAttendance->time_in && !$todaySchedule->isFlexible())
+                    <p class="mt-2">
+                        @if($todayAttendance->isLate())
+                            <span class="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-100 px-2 py-1 rounded-full">
+                                <i class="fas fa-exclamation-circle"></i> Late by {{ $todayAttendance->getLateMinutesFormatted() }}
+                            </span>
+                        @else
+                            <span class="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-100 px-2 py-1 rounded-full">
+                                <i class="fas fa-check-circle"></i> On Time
+                            </span>
+                        @endif
+                    </p>
+                @endif
+            @else
+                <p class="mt-2 font-semibold text-red-700">No schedule assigned</p>
+                <p class="mt-1 text-xs text-red-600">Contact HR before recording attendance.</p>
+            @endif
+        </div>
+        <div class="lg:col-span-2 rounded-xl border border-gray-200 bg-white p-5">
+            <div class="flex items-center justify-between">
+                <p class="text-sm font-medium text-gray-700">Next 7 Days</p>
+                <a href="{{ route('attendance.my') }}" class="text-sm font-medium text-blue-600 hover:text-blue-800">My attendance history</a>
+            </div>
+            <div class="mt-3 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+                @foreach($upcomingSchedules as $schedule)
+                    <div class="rounded-lg border border-gray-200 p-2 text-center">
+                        <p class="text-xs text-gray-500">{{ $schedule->date->format('D, M j') }}</p>
+                        <p class="mt-1 text-xs font-semibold {{ $schedule->status === 'Working' ? 'text-green-700' : 'text-amber-700' }}">{{ $schedule->status_label }}</p>
+                        @if($schedule->time_in)
+                            <p class="text-[11px] text-gray-500">{{ \Carbon\Carbon::parse($schedule->time_in)->format('g:i A') }}</p>
+                        @elseif($schedule->isFlexible() && in_array($schedule->status, ['Working', 'Overtime']))
+                            <p class="text-[11px] text-purple-600">{{ \App\Helpers\TimezoneHelper::formatHours((float) $schedule->required_hours) }} flexi</p>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    </div>
+
     <!-- Time In/Out Section -->
     <div class="mb-6 sm:mb-8">
         <!-- Current Time Display -->
@@ -160,6 +185,12 @@
                 </div>
             </div>
             @if($todayAttendance && $todayAttendance->hasActiveTimeEntry())
+                @php
+                    // banked hours from finished entries only - the still-open
+                    // session gets added live in JS, so it isn't double counted
+                    $completedHoursToday = $todayAttendance->calculateTotalHours();
+                    $expectedHoursToday = $todayAttendance->getExpectedHours();
+                @endphp
                 <div class="mt-4 pt-4 border-t border-blue-400">
                     <div class="text-lg opacity-90">Working for:</div>
                     <div class="text-2xl font-bold" id="working-time">
@@ -181,6 +212,62 @@
                     @if($activeEntry)
                         <script>
                             window.activeSessionStart = "{{ $activeEntry->time_in->toIso8601String() }}";
+                        </script>
+                    @endif
+
+                    @if($expectedHoursToday)
+                        @php
+                            $isFlexibleSchedule = $todaySchedule && $todaySchedule->isFlexible();
+                            $lateWidthPct = 0;
+
+                            if ($isFlexibleSchedule) {
+                                // flexible has no fixed end time, so hours-worked-vs-required is the only sensible measure
+                                $progressPct = min(100, round(($completedHoursToday / max(0.01, $expectedHoursToday)) * 100));
+                            } else {
+                                // fixed: track wall-clock time through the scheduled shift window instead -
+                                // clocking in early or skipping a break shouldn't hit 100% before the shift actually ends
+                                $dateStr = \Carbon\Carbon::parse($todayAttendance->date)->format('Y-m-d');
+                                $shiftStart = \Carbon\Carbon::parse($dateStr . ' ' . ($todaySchedule->time_in ?? '08:00:00'));
+                                $shiftEnd = \Carbon\Carbon::parse($dateStr . ' ' . ($todaySchedule->time_out ?? '17:00:00'));
+                                $now = \App\Helpers\TimezoneHelper::now();
+
+                                $shiftSpanMinutes = max(1, ($shiftEnd->timestamp - $shiftStart->timestamp) / 60);
+                                $elapsedMinutes = max(0, ($now->timestamp - $shiftStart->timestamp) / 60);
+                                $progressPct = min(100, max(0, round(($elapsedMinutes / $shiftSpanMinutes) * 100)));
+
+                                // red segment: only counts if actually late (grace period respected)
+                                if ($todayAttendance->time_in && $todayAttendance->isLate()) {
+                                    $lateMinutesRaw = min($shiftSpanMinutes, $todayAttendance->getLateMinutes());
+                                    $lateWidthPct = round(($lateMinutesRaw / $shiftSpanMinutes) * 100);
+                                }
+                            }
+                        @endphp
+                        <div class="mt-3">
+                            <div class="w-full bg-white bg-opacity-20 rounded-full h-1.5 overflow-hidden flex">
+                                @if(!$isFlexibleSchedule && $lateWidthPct > 0)
+                                    <div
+                                        id="hours-late-bar"
+                                        class="h-1.5"
+                                        style="width: {{ $lateWidthPct }}%; background-color: #ef4444;"
+                                        aria-label="Late time: {{ $todayAttendance->getLateMinutesFormatted() }}"
+                                    ></div>
+                                @endif
+                                <div id="hours-progress-bar" class="bg-white h-1.5 transition-all" style="width: {{ max(0, $progressPct - $lateWidthPct) }}%"></div>
+                            </div>
+                            <div class="flex justify-between text-xs opacity-75 mt-1">
+                                <span id="hours-progress-text">{{ number_format($completedHoursToday, 1) }}h of {{ number_format($expectedHoursToday, 1) }}h</span>
+                                <span id="hours-progress-pct">{{ $progressPct }}%</span>
+                            </div>
+                        </div>
+                        <script>
+                            window.completedHoursBeforeSession = {{ (float) $completedHoursToday }};
+                            window.expectedHoursToday = {{ (float) $expectedHoursToday }};
+                            window.isFixedSchedule = {{ $isFlexibleSchedule ? 'false' : 'true' }};
+                            window.lateWidthPct = {{ (float) $lateWidthPct }};
+                            @if(!$isFlexibleSchedule)
+                                window.scheduledStartTime = "{{ $todaySchedule->time_in ?? '08:00:00' }}";
+                                window.scheduledEndTime = "{{ $todaySchedule->time_out ?? '17:00:00' }}";
+                            @endif
                         </script>
                     @endif
                 </div>
@@ -364,48 +451,71 @@
                 <h3 class="text-lg font-semibold text-gray-900">Quick Actions</h3>
             </div>
             <div class="space-y-4">
-                <!-- Time In Button -->
+                <!-- Clock Status / Time In / Time Out -->
                 @if(!$todayAttendance || !$todayAttendance->hasActiveTimeEntry())
                 <button id="quick-time-in-btn" onclick="confirmTimeIn()" class="w-full flex items-center justify-center px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
                     <i class="fas fa-sign-in-alt mr-2"></i>
                     Time In
                 </button>
                 @else
-                <button disabled class="w-full flex items-center justify-center px-4 py-3 bg-gray-400 text-white rounded-lg cursor-not-allowed">
-                    <i class="fas fa-check mr-2"></i>
-                    Already Clocked In
-                </button>
-                @endif
-
-                <!-- Time Out Button -->
-                @if($todayAttendance && $todayAttendance->hasActiveTimeEntry())
+                <div class="w-full flex items-center justify-center px-4 py-3 bg-green-50 text-green-700 rounded-lg font-medium">
+                    <span class="w-2.5 h-2.5 rounded-full bg-green-500 mr-2"></span>
+                    You're Clocked In
+                </div>
                 <button id="quick-time-out-btn" onclick="confirmTimeOut()" class="w-full flex items-center justify-center px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
                     <i class="fas fa-sign-out-alt mr-2"></i>
                     Time Out
                 </button>
+                @endif
+
+                <!-- Apply Leave -->
+                <a href="{{ route('attendance.leave-management', ['scope' => 'mine']) }}" class="w-full flex items-center justify-center px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
+                    <i class="fas fa-calendar-times mr-2"></i>
+                    Apply Leave
+                </a>
+
+                <!-- Download Payslip -->
+                @php
+                    $latestQuickPayroll = null;
+                    try {
+                        if (isset($user->employee) && $user->employee) {
+                            $latestQuickPayroll = \App\Models\Payroll::where('employee_id', $user->employee->id)
+                                ->whereIn('status', ['approved', 'paid'])
+                                ->latest()
+                                ->first();
+                        }
+                    } catch (\Exception $e) {
+                        $latestQuickPayroll = null;
+                    }
+                @endphp
+                @if($latestQuickPayroll)
+                <button onclick="downloadEmployeePayslip('{{ $latestQuickPayroll->id }}')" class="w-full flex items-center justify-center px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    <i class="fas fa-download mr-2"></i>
+                    Download Payslip
+                </button>
                 @else
-                <button disabled class="w-full flex items-center justify-center px-4 py-3 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed">
-                    <i class="fas fa-sign-out-alt mr-2"></i>
-                    Time Out (Clock In First)
+                <button disabled class="w-full flex items-center justify-center px-4 py-3 bg-gray-200 text-gray-500 rounded-lg cursor-not-allowed">
+                    <i class="fas fa-download mr-2"></i>
+                    No Payslip Available
                 </button>
                 @endif
 
-                <!-- Update Profile Button -->
-                <a href="{{ route('hr.profile') }}" class="w-full flex items-center justify-center px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
-                    <i class="fas fa-edit mr-2"></i>
-                    Update Profile
+                <!-- Contact HR -->
+                <a href="{{ route('hr.contact.index') }}" class="w-full flex items-center justify-center px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
+                    <i class="fas fa-question-circle mr-2"></i>
+                    Contact HR
                 </a>
 
-                <!-- Forgot Time In/Out Button -->
+                <!-- Help & Support -->
+                <a href="{{ route('hr.help-support') }}" class="w-full flex items-center justify-center px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
+                    <i class="fas fa-life-ring mr-2"></i>
+                    Help & Support
+                </a>
+
+                <!-- Forgot Time In/Out -->
                 <button type="button" onclick="openForgotTimeModal()" class="w-full flex items-center justify-center px-4 py-3 bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200 transition-colors">
                     <i class="fas fa-clock mr-2"></i>
                     Forgot to time in / out?
-                </button>
-                
-                <!-- Contact HR Button -->
-                <button class="w-full flex items-center justify-center px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
-                    <i class="fas fa-question-circle mr-2"></i>
-                    Contact HR
                 </button>
             </div>
         </div>
@@ -443,9 +553,14 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ number_format($payroll->gross_pay - $payroll->net_pay, 2) }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">₱{{ number_format($payroll->net_pay, 2) }}</td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $payroll->status === 'processed' ? 'bg-green-100 text-green-800' : ($payroll->status === 'paid' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800') }}">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $payroll->status === 'processed' ? 'bg-green-100 text-green-800' : ($payroll->status === 'paid' ? 'bg-blue-100 text-blue-800' : ($payroll->status === 'canceled' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800')) }}">
                                 {{ ucfirst($payroll->status) }}
                             </span>
+                            @if($payroll->status === 'canceled' && $payroll->rejection_reason)
+                                <div class="text-xs text-red-500 mt-1 max-w-[150px] truncate" title="{{ $payroll->rejection_reason }}">
+                                    Reason: {{ $payroll->rejection_reason }}
+                                </div>
+                            @endif
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm">
                             @if(in_array($payroll->status, ['approved', 'processed', 'paid']))
@@ -474,8 +589,8 @@
 
 <!-- Hidden data for JavaScript -->
 <div id="attendance-data"
-     data-today-attendance='{!! json_encode($todayAttendance) !!}'
-     data-recent-activity='{!! json_encode($recentActivity) !!}'
+     data-today-attendance='@json($todayAttendance)'
+     data-recent-activity='@json($recentActivity)'
      style="display: none;"></div>
 
 <script>
@@ -484,9 +599,6 @@ let currentStatus = null;
 const dataElement = document.getElementById('attendance-data');
 let attendanceRecord = dataElement ? JSON.parse(dataElement.getAttribute('data-today-attendance') || 'null') : null;
 let recentActivity = dataElement ? JSON.parse(dataElement.getAttribute('data-recent-activity') || '[]') : [];
-
-// Modal variables
-let pendingAction = null; // Will store the function to execute after confirmation
 
 // Get Philippine Standard Time (UTC+8)
 function getPhilippineTime() {
@@ -507,48 +619,6 @@ function format12HourTime(date) {
 }
 
 // ============================================================
-// CONFIRMATION MODAL FUNCTIONS
-// ============================================================
-
-// Show confirmation modal
-function showConfirmationModal(title, message, confirmAction, options = {}) {
-    // Store the action to execute after confirmation
-    pendingAction = confirmAction;
-    
-    // Set modal color and icon based on options
-    const modalColor = options.color || 'blue';
-    const modalIcon = options.icon || 'fa-question-circle';
-    
-    // Update modal content
-    document.getElementById('modal-title').textContent = title;
-    document.getElementById('modal-message').textContent = message;
-    document.getElementById('modal-icon').className = `fas ${modalIcon} text-${modalColor}-600 text-xl`;
-    
-    // Update modal styling
-    const modalIconContainer = document.getElementById('modal-icon-container');
-    const confirmBtn = document.getElementById('modal-confirm-btn');
-    
-    // Update modal background color
-    modalIconContainer.className = `mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-${modalColor}-100 mb-4`;
-    
-    // Update confirm button color
-    confirmBtn.className = `px-5 py-2 bg-${modalColor}-600 text-white rounded-md hover:bg-${modalColor}-700 focus:outline-none focus:ring-2 focus:ring-${modalColor}-500 transition-colors`;
-    
-    // Show modal
-    const modal = document.getElementById('confirmation-modal');
-    modal.classList.remove('hidden');
-    modal.classList.add('block');
-}
-
-// Hide confirmation modal
-function hideConfirmationModal() {
-    const modal = document.getElementById('confirmation-modal');
-    modal.classList.remove('block');
-    modal.classList.add('hidden');
-    pendingAction = null;
-}
-
-// ============================================================
 // FORGOT TIME IN/OUT MODAL FUNCTIONS
 // ============================================================
 function openForgotTimeModal() {
@@ -563,31 +633,6 @@ function closeForgotTimeModal() {
     if (!modal) return;
     modal.classList.remove('block');
     modal.classList.add('hidden');
-}
-
-// Initialize modal event listeners
-function initializeModal() {
-    const modal = document.getElementById('confirmation-modal');
-    const cancelBtn = document.getElementById('modal-cancel-btn');
-    const confirmBtn = document.getElementById('modal-confirm-btn');
-    
-    // Close modal when clicking cancel button
-    cancelBtn.addEventListener('click', hideConfirmationModal);
-    
-    // Execute pending action when clicking confirm button
-    confirmBtn.addEventListener('click', function() {
-        if (pendingAction) {
-            pendingAction();
-        }
-        hideConfirmationModal();
-    });
-    
-    // Close modal when clicking outside of it
-    modal.addEventListener('click', function(event) {
-        if (event.target === modal) {
-            hideConfirmationModal();
-        }
-    });
 }
 
 // ============================================================
@@ -644,6 +689,7 @@ function updateClock() {
 }
 
 // Update working time display
+// Update working time display
 function updateWorkingTime() {
     if (!window.activeSessionStart) {
         return;
@@ -659,6 +705,49 @@ function updateWorkingTime() {
     const workingTimeElement = document.getElementById('working-time');
     if (workingTimeElement) {
         workingTimeElement.textContent = `${diffHours}h ${diffMinutes}m`;
+    }
+
+    // real hours worked = banked hours from earlier sessions today + live
+    // elapsed time on the current session (not just time since page load)
+    // real hours worked = banked hours from earlier sessions today + live
+    // elapsed time on the current session (not just time since page load)
+    if (window.expectedHoursToday) {
+        const priorHours = window.completedHoursBeforeSession || 0;
+        const totalHours = priorHours + (diffMs / (1000 * 60 * 60));
+
+        const bar = document.getElementById('hours-progress-bar');
+        const lateBar = document.getElementById('hours-late-bar');
+        const text = document.getElementById('hours-progress-text');
+        const pctLabel = document.getElementById('hours-progress-pct');
+
+        if (text) text.textContent = `${totalHours.toFixed(1)}h of ${window.expectedHoursToday.toFixed(1)}h`;
+
+        if (window.isFixedSchedule && window.scheduledStartTime && window.scheduledEndTime) {
+            // fixed: bar tracks wall-clock time across the scheduled shift window
+            const [startH, startM] = window.scheduledStartTime.split(':').map(Number);
+            const [endH, endM] = window.scheduledEndTime.split(':').map(Number);
+
+            const shiftStart = new Date(timeIn);
+            shiftStart.setHours(startH, startM, 0, 0);
+            const shiftEnd = new Date(timeIn);
+            shiftEnd.setHours(endH, endM, 0, 0);
+
+            const totalShiftMinutes = Math.max(1, (shiftEnd - shiftStart) / 60000);
+            const elapsedMinutes = Math.max(0, (now - shiftStart) / 60000);
+            const pct = Math.min(100, Math.max(0, Math.round((elapsedMinutes / totalShiftMinutes) * 100)));
+
+            // red segment: fixed value computed server-side (grace period already applied)
+            const lateWidthPct = window.lateWidthPct || 0;
+
+            if (lateBar) lateBar.style.width = `${lateWidthPct}%`;
+            if (bar) bar.style.width = `${Math.max(0, pct - lateWidthPct)}%`;
+            if (pctLabel) pctLabel.textContent = `${pct}%`;
+        } else {
+            // flexible: bar tracks hours worked vs required hours (never late - no fixed start time to be late against)
+            const pct = Math.min(100, Math.max(0, Math.round((totalHours / window.expectedHoursToday) * 100)));
+            if (bar) bar.style.width = `${pct}%`;
+            if (pctLabel) pctLabel.textContent = `${pct}%`;
+        }
     }
 }
 
@@ -736,10 +825,14 @@ async function timeOut() {
             showSuccess(data.message);
             attendanceRecord = data.attendance_record;
             updateAttendanceUI();
-            // Refresh the page to show updated data
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
+            const reminder = data.reminder || data.pending_overtime_reminder;
+            if (data.overtime_detected && reminder && typeof showOvertimePromptModal === 'function') {
+                showOvertimePromptModal(reminder, true);
+            } else {
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            }
         } else {
             showError(data.error || 'Failed to clock out');
         }
@@ -755,7 +848,8 @@ async function timeOut() {
 // Show success message
 function showSuccess(message) {
     const toast = document.createElement('div');
-    toast.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+    toast.className = 'fixed top-5 left-1/2 -translate-x-1/2 bg-green-600 text-white px-6 py-3 rounded-xl shadow-2xl font-semibold text-center max-w-lg w-[calc(100%-2rem)]';
+    toast.style.zIndex = '10050';
     toast.textContent = message;
     document.body.appendChild(toast);
     setTimeout(() => {
@@ -766,7 +860,8 @@ function showSuccess(message) {
 // Show error message
 function showError(message) {
     const toast = document.createElement('div');
-    toast.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+    toast.className = 'fixed top-5 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-xl shadow-2xl font-semibold text-center max-w-lg w-[calc(100%-2rem)]';
+    toast.style.zIndex = '10050';
     toast.textContent = message;
     document.body.appendChild(toast);
     setTimeout(() => {
@@ -781,31 +876,6 @@ function showError(message) {
 // Get payslip download URL
 function getPayslipDownloadUrl(payrollId) {
     return `/employee/payslip/download/${payrollId}`;
-}
-
-function getTestDownloadUrl(payrollId) {
-    return `/employee/test-download/${payrollId}`;
-}
-
-// Test function to check if download works
-async function testDownloadRoute(payrollId) {
-    try {
-        const url = getTestDownloadUrl(payrollId);
-        console.log('Testing download route:', url);
-        
-        const response = await fetch(url);
-        const data = await response.json();
-        console.log('Test download route response:', data);
-        
-        if (data.success) {
-            return { success: true, downloadable: data.downloadable, message: data.message };
-        } else {
-            return { success: false, error: data.error || 'Route test failed' };
-        }
-    } catch (error) {
-        console.error('Route test failed:', error);
-        return { success: false, error: 'Route test failed: ' + error.message };
-    }
 }
 
 // Show loading overlay
@@ -852,9 +922,7 @@ function hideLoadingOverlay() {
 }
 
 // Main download function (for navigation button)
-async function downloadEmployeePayslip(payrollId) {
-    console.log('Download Employee Payslip called for ID:', payrollId);
-    
+function downloadEmployeePayslip(payrollId) {
     // Show loading state for navigation button
     const navBtn = document.getElementById('nav-download-payslip-btn');
     if (navBtn) {
@@ -869,42 +937,11 @@ async function downloadEmployeePayslip(payrollId) {
         }, 5000);
     }
     
-    try {
-        // First test the route
-        const testResult = await testDownloadRoute(payrollId);
-        console.log('Test result:', testResult);
-        
-        if (!testResult.success) {
-            throw new Error(testResult.error || 'Cannot connect to server');
-        }
-        
-        if (!testResult.downloadable) {
-            throw new Error('Payslip is not available for download yet. Status: ' + (testResult.payroll_status || 'unknown'));
-        }
-        
-        // Direct download approach
-        const downloadUrl = getPayslipDownloadUrl(payrollId);
-        console.log('Opening download URL:', downloadUrl);
-        
-        // Open in new tab (most reliable)
-        window.open(downloadUrl, '_blank');
-        
-        // Show success message
-        showSuccess('Payslip download started!');
-        
-    } catch (error) {
-        console.error('Download error:', error);
-        showError('Error: ' + error.message);
-    } finally {
-        // Hide any loading overlay
-        hideLoadingOverlay();
-    }
+    window.location.href = getPayslipDownloadUrl(payrollId);
 }
 
 // Download function for table row buttons
-async function downloadSinglePayslip(payrollId) {
-    console.log('Download Single Payslip called for ID:', payrollId);
-    
+function downloadSinglePayslip(payrollId) {
     // Find and update the specific button
     const buttonSelector = `button[onclick*="downloadSinglePayslip('${payrollId}')"]`;
     const buttons = document.querySelectorAll(buttonSelector);
@@ -927,46 +964,11 @@ async function downloadSinglePayslip(payrollId) {
         }, 5000);
     }
     
-    try {
-        // Test the route first
-        const testResult = await testDownloadRoute(payrollId);
-        console.log('Single test result:', testResult);
-        
-        if (!testResult.success) {
-            throw new Error(testResult.error || 'Cannot connect to server');
-        }
-        
-        if (!testResult.downloadable) {
-            throw new Error('Payslip not available for download');
-        }
-        
-        // Direct download in new tab
-        const downloadUrl = getPayslipDownloadUrl(payrollId);
-        window.open(downloadUrl, '_blank');
-        
-        showSuccess('Payslip download started in new tab!');
-        
-    } catch (error) {
-        console.error('Single download error:', error);
-        showError('Error: ' + error.message);
-    } finally {
-        hideLoadingOverlay();
-        
-        // Restore button after a short delay
-        setTimeout(() => {
-            if (btn) {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-            }
-        }, 1000);
-    }
+    window.location.href = getPayslipDownloadUrl(payrollId);
 }
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize the confirmation modal
-    initializeModal();
-    
     // Update clock and working time
     updateClock();
     updateAttendanceUI();

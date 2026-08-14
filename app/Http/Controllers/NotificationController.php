@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\CompanyHelper;
 use App\Models\LoginLog;
 use App\Models\Account;
+use App\Models\OvertimeReminder;
+use App\Models\Period;
 use Illuminate\Http\Request;
 
 class NotificationController extends Controller
@@ -36,8 +39,7 @@ class NotificationController extends Controller
                 ->get();
         }
 
-        return response()->json([
-            'logs' => $logs->map(function($log) {
+        $loginNotifications = $logs->map(function($log) {
                 $employeeName = $log->account && $log->account->employee 
                     ? $log->account->employee->first_name . ' ' . $log->account->employee->last_name
                     : ($log->account ? 'System Account' : 'Unknown Employee');
@@ -50,11 +52,45 @@ class NotificationController extends Controller
                     'user_agent' => $this->parseUserAgent($log->user_agent),
                     'login_time' => $log->created_at->format('M d, Y g:i A'),
                     'time_ago' => $log->created_at->diffForHumans(),
+                    'icon' => 'fa-sign-in-alt',
+                    'color' => 'blue',
+                    'url' => null,
                 ];
-            }),
-            'unread_count' => $this->getUnreadCount($user),
+            });
+        $payrollReminders = $this->payrollLockReminders();
+
+        return response()->json([
+            'logs' => $payrollReminders->concat($loginNotifications)->values(),
+            'unread_count' => min($this->getUnreadCount($user) + $payrollReminders->count(), 99),
             'user_role' => $user->role,
         ]);
+    }
+
+    private function payrollLockReminders()
+    {
+        $currentCompany = CompanyHelper::getCurrentCompany();
+
+        return Period::query()
+            ->when($currentCompany, fn ($query) => $query->where('company_id', $currentCompany->id))
+            ->when(!$currentCompany, fn ($query) => $query->whereNull('company_id'))
+            ->whereDate('end_date', '<', now()->toDateString())
+            ->where('status', '!=', Period::STATUS_LOCKED)
+            ->latest('end_date')
+            ->limit(10)
+            ->get()
+            ->map(fn (Period $period) => [
+                'id' => 'payroll-lock-'.$period->id,
+                'employee_name' => 'Payroll Lock Reminder',
+                'employee_email' => "{$period->name} ended on {$period->end_date->format('M j, Y')} and is still {$period->status_label}.",
+                'ip_address' => $period->status_label,
+                'user_agent' => 'Review and lock payroll',
+                'login_time' => $period->end_date->format('M d, Y'),
+                'time_ago' => $period->end_date->diffForHumans(),
+                'icon' => 'fa-lock-open',
+                'color' => 'orange',
+                'url' => route('attendance.period-management.show', $period->id),
+                'persistent' => true,
+            ]);
     }
 
     private function parseUserAgent($userAgent)
@@ -78,6 +114,97 @@ class NotificationController extends Controller
             ->count();
 
         return min($recentLogsCount, 99); // Cap at 99
+    }
+
+    /**
+     * Personal "my requests" notifications for the current account — Leave /
+     * Overtime / Official Business status changes. Unlike getLoginLogs()
+     * above, this is available to every role, since every employee can file
+     * these requests and needs to know when they're actioned.
+     */
+    public function myNotifications(Request $request)
+    {
+        $account = auth()->user();
+
+        $requestNotifications = $account->notifications()
+            ->latest()
+            ->limit(20)
+            ->get()
+            ->map(function ($notification) {
+                return [
+                    'id' => $notification->id,
+                    'read' => !is_null($notification->read_at),
+                    'time_ago' => $notification->created_at->diffForHumans(),
+                    'sort_at' => $notification->created_at,
+                ] + $notification->data;
+            });
+
+        $overtimeReminders = collect();
+        if ($account->employee_id) {
+            $overtimeReminders = OvertimeReminder::query()
+                ->where('employee_id', $account->employee_id)
+                ->where('status', OvertimeReminder::PENDING)
+                ->latest('date')
+                ->get()
+                ->map(function (OvertimeReminder $reminder) {
+                    $hours = number_format((float) $reminder->extra_hours, 2);
+
+                    return [
+                        'id' => 'ot-reminder-'.$reminder->id,
+                        'read' => false,
+                        'persistent' => true,
+                        'request_type' => 'overtime_reminder',
+                        'title' => 'Unfiled Overtime Reminder',
+                        'message' => "You rendered {$hours} extra hour(s) on {$reminder->date->format('M j, Y')}. Submit or dismiss this reminder from Time In/Out.",
+                        'icon' => 'fa-user-clock',
+                        'color' => 'orange',
+                        'time_ago' => $reminder->created_at->diffForHumans(),
+                        'url' => route('attendance.time-in-out', [
+                            'overtime_reminder' => $reminder->id,
+                        ]),
+                        'sort_at' => $reminder->created_at,
+                    ];
+                });
+        }
+
+        $notifications = $requestNotifications
+            ->map(function (array $notification) {
+                $notification['sort_at'] = $notification['sort_at'] ?? now()->subYears(100);
+                return $notification;
+            })
+            ->concat($overtimeReminders)
+            ->sortByDesc('sort_at')
+            ->map(function (array $notification) {
+                unset($notification['sort_at']);
+                return $notification;
+            })
+            ->values();
+
+        return response()->json([
+            'notifications' => $notifications,
+            'unread_count' => $account->unreadNotifications()->count() + $overtimeReminders->count(),
+        ]);
+    }
+
+    public function markNotificationRead(Request $request, $id)
+    {
+        $account = auth()->user();
+        $notification = $account->notifications()->where('id', $id)->first();
+
+        if (!$notification) {
+            return response()->json(['error' => 'Notification not found'], 404);
+        }
+
+        $notification->markAsRead();
+
+        return response()->json(['success' => true]);
+    }
+
+    public function markAllNotificationsRead(Request $request)
+    {
+        auth()->user()->unreadNotifications()->update(['read_at' => now()]);
+
+        return response()->json(['success' => true]);
     }
 
     public function index()

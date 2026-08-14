@@ -7,7 +7,7 @@
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Attendance Records</h1>
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Daily Attendance</h1>
             <p class="mt-1 text-sm text-gray-600">View daily attendance records</p>
         </div>
         <div class="mt-4 sm:mt-0">
@@ -41,7 +41,7 @@
             <div class="flex-1">
                 <label for="date" class="block text-sm font-medium text-gray-700 mb-2">Select Date</label>
                 <input type="date" name="date" id="date" value="{{ $date->format('Y-m-d') }}" 
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900" style="background-color: white !important; color: #111827 !important;">
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white text-gray-900">
             </div>
             <div class="flex items-end">
                 <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
@@ -129,6 +129,9 @@
                             Department
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Assigned Schedule
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Time In
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -146,9 +149,13 @@
                     @forelse($employees as $employee)
                         @php
                             $attendance = $attendanceRecords->get($employee->id);
+                            $snapshot = $dailySnapshots->get($employee->id);
+                            $schedule = $snapshot['schedule'] ?? null;
+                            $officialBusiness = $snapshot['official_business'] ?? null;
+                            $isOfficialBusiness = $officialBusiness !== null;
                             $initials = strtoupper(substr($employee->first_name, 0, 1) . substr($employee->last_name, 0, 1));
                         @endphp
-                        <tr class="hover:bg-gray-50 transition-colors">
+                        <tr class="hover:bg-gray-50 transition-colors" data-search-row="{{ $employee->id }}">
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="flex items-center">
                                     <div class="flex-shrink-0 h-10 w-10">
@@ -166,11 +173,23 @@
                                 <div class="text-sm text-gray-900">{{ $employee->department->name ?? 'N/A' }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
+                                @if($schedule && $schedule->time_in && $schedule->time_out)
+                                    <div class="text-sm font-medium text-gray-900">{{ \Carbon\Carbon::parse($schedule->time_in)->format('g:i A') }}&ndash;{{ \Carbon\Carbon::parse($schedule->time_out)->format('g:i A') }}</div>
+                                    <div class="text-xs text-gray-500">{{ $schedule->status_label }} &middot; {{ \App\Helpers\TimezoneHelper::formatHours((float) $schedule->required_hours) }}</div>
+                                @elseif($schedule)
+                                    <span class="text-sm font-medium text-gray-700">{{ $schedule->status_label }}</span>
+                                @else
+                                    <span class="text-sm font-medium text-red-600">Missing schedule</span>
+                                @endif
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">
-                                    @if($attendance && $attendance->time_in)
+                                    @if(($snapshot['code'] ?? null) === 'on_leave')
+                                        <span class="font-medium text-indigo-700">Leave</span>
+                                    @elseif($isOfficialBusiness && $officialBusiness->ob_start_time)
+                                        {{ \Carbon\Carbon::parse($officialBusiness->ob_start_time)->format('g:i A') }}
+                                    @elseif($attendance && $attendance->time_in)
                                         {{ \Carbon\Carbon::parse($attendance->time_in)->format('g:i A') }}
-                                    @elseif($attendance && !$attendance->time_in)
-                                        <span class="text-gray-400">-</span>
                                     @else
                                         <span class="text-gray-400">-</span>
                                     @endif
@@ -178,7 +197,11 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">
-                                    @if($attendance && $attendance->time_out)
+                                    @if(($snapshot['code'] ?? null) === 'on_leave')
+                                        <span class="text-gray-400">-</span>
+                                    @elseif($isOfficialBusiness && $officialBusiness->ob_end_time)
+                                        {{ \Carbon\Carbon::parse($officialBusiness->ob_end_time)->format('g:i A') }}
+                                    @elseif($attendance && $attendance->time_out)
                                         {{ \Carbon\Carbon::parse($attendance->time_out)->format('g:i A') }}
                                     @elseif($attendance && $attendance->time_in && !$attendance->time_out)
                                         @php
@@ -200,7 +223,11 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">
-                                    @if($attendance && $attendance->time_in && $attendance->time_out)
+                                    @if(($snapshot['code'] ?? null) === 'on_leave')
+                                        {{ \App\Helpers\TimezoneHelper::formatHours((float) ($schedule?->required_hours ?? 0)) }}
+                                    @elseif($isOfficialBusiness)
+                                        {{ number_format((float) $attendance->total_hours, 2) }} hrs
+                                    @elseif($attendance && $attendance->time_in && $attendance->time_out)
                                         @php
                                             // Load breaks relationship if not already loaded
                                             if (!$attendance->relationLoaded('breaks')) {
@@ -222,37 +249,20 @@
                                 </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                @if($attendance)
-                                    @php
-                                        $statusColors = [
-                                            'present' => 'bg-green-100 text-green-800',
-                                            'absent' => 'bg-red-100 text-red-800',
-                                            'absent_excused' => 'bg-yellow-100 text-yellow-800',
-                                            'absent_unexcused' => 'bg-red-100 text-red-800',
-                                            'absent_sick' => 'bg-orange-100 text-orange-800',
-                                            'absent_personal' => 'bg-purple-100 text-purple-800',
-                                            'late' => 'bg-yellow-100 text-yellow-800',
-                                            'half_day' => 'bg-blue-100 text-blue-800',
-                                            'on_leave' => 'bg-indigo-100 text-indigo-800',
-                                        ];
-                                        $statusColor = $statusColors[$attendance->status] ?? 'bg-gray-100 text-gray-800';
-                                        $statusText = ucfirst(str_replace('_', ' ', $attendance->status));
-                                    @endphp
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $statusColor }}">
-                                        <div class="w-1.5 h-1.5 rounded-full mr-1.5 {{ str_replace('text-', 'bg-', $statusColor) }}"></div>
-                                        {{ $statusText }}
-                                    </span>
-                                @else
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                        <div class="w-1.5 h-1.5 rounded-full mr-1.5 bg-gray-400"></div>
-                                        No Record
-                                    </span>
-                                @endif
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ match($snapshot['severity'] ?? 'neutral') {
+                                    'blocking' => 'bg-red-100 text-red-800',
+                                    'review' => 'bg-amber-100 text-amber-800',
+                                    'covered' => 'bg-indigo-100 text-indigo-800',
+                                    'clear' => 'bg-green-100 text-green-800',
+                                    default => 'bg-gray-100 text-gray-800',
+                                } }}">
+                                    {{ $snapshot['label'] ?? 'Unknown' }}
+                                </span>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-6 py-4 text-center text-gray-500">
+                            <td colspan="7" class="px-6 py-4 text-center text-gray-500">
                                 No employees found
                             </td>
                         </tr>
@@ -292,6 +302,10 @@
                 @forelse($employees as $employee)
                     @php
                         $attendance = $attendanceRecords->get($employee->id);
+                        $snapshot = $dailySnapshots->get($employee->id);
+                        $schedule = $snapshot['schedule'] ?? null;
+                        $officialBusiness = $snapshot['official_business'] ?? null;
+                        $isOfficialBusiness = $officialBusiness !== null;
                         $initials = strtoupper(substr($employee->first_name, 0, 1) . substr($employee->last_name, 0, 1));
                     @endphp
                     <div class="border border-gray-200 rounded-lg p-4">
@@ -305,32 +319,33 @@
                                     <div class="text-sm text-gray-500">{{ $employee->department->name ?? 'N/A' }}</div>
                                 </div>
                             </div>
-                            @if($attendance)
-                                @php
-                                    $statusColors = [
-                                        'present' => 'bg-green-100 text-green-800',
-                                        'absent' => 'bg-red-100 text-red-800',
-                                        'late' => 'bg-yellow-100 text-yellow-800',
-                                        'half_day' => 'bg-blue-100 text-blue-800'
-                                    ];
-                                    $statusColor = $statusColors[$attendance->status] ?? 'bg-gray-100 text-gray-800';
-                                @endphp
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $statusColor }}">
-                                    <div class="w-1.5 h-1.5 rounded-full mr-1 {{ str_replace('text-', 'bg-', $statusColor) }}"></div>
-                                    {{ ucfirst(str_replace('_', ' ', $attendance->status)) }}
-                                </span>
-                            @else
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                    <div class="w-1.5 h-1.5 rounded-full mr-1 bg-gray-400"></div>
-                                    No Record
-                                </span>
-                            @endif
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ match($snapshot['severity'] ?? 'neutral') {
+                                'blocking' => 'bg-red-100 text-red-800',
+                                'review' => 'bg-amber-100 text-amber-800',
+                                'covered' => 'bg-indigo-100 text-indigo-800',
+                                'clear' => 'bg-green-100 text-green-800',
+                                default => 'bg-gray-100 text-gray-800',
+                            } }}">{{ $snapshot['label'] ?? 'Unknown' }}</span>
+                        </div>
+                        <div class="mb-3 rounded-md bg-gray-50 px-3 py-2 text-sm">
+                            <span class="text-gray-500">Schedule:</span>
+                            <span class="font-medium text-gray-900">
+                                @if($schedule && $schedule->time_in && $schedule->time_out)
+                                    {{ \Carbon\Carbon::parse($schedule->time_in)->format('g:i A') }}&ndash;{{ \Carbon\Carbon::parse($schedule->time_out)->format('g:i A') }}
+                                @else
+                                    {{ $schedule?->status_label ?? 'Missing schedule' }}
+                                @endif
+                            </span>
                         </div>
                         <div class="grid grid-cols-3 gap-4 text-sm">
                             <div>
                                 <div class="text-gray-500">Time In</div>
                                 <div class="font-medium">
-                                    @if($attendance && $attendance->time_in)
+                                    @if(($snapshot['code'] ?? null) === 'on_leave')
+                                        <span class="font-medium text-indigo-700">Leave</span>
+                                    @elseif($isOfficialBusiness && $officialBusiness->ob_start_time)
+                                        {{ \Carbon\Carbon::parse($officialBusiness->ob_start_time)->format('g:i A') }}
+                                    @elseif($attendance && $attendance->time_in)
                                         {{ \Carbon\Carbon::parse($attendance->time_in)->format('g:i A') }}
                                     @else
                                         <span class="text-gray-400">-</span>
@@ -340,7 +355,11 @@
                             <div>
                                 <div class="text-gray-500">Time Out</div>
                                 <div class="font-medium">
-                                    @if($attendance && $attendance->time_out)
+                                    @if(($snapshot['code'] ?? null) === 'on_leave')
+                                        <span class="text-gray-400">-</span>
+                                    @elseif($isOfficialBusiness && $officialBusiness->ob_end_time)
+                                        {{ \Carbon\Carbon::parse($officialBusiness->ob_end_time)->format('g:i A') }}
+                                    @elseif($attendance && $attendance->time_out)
                                         {{ \Carbon\Carbon::parse($attendance->time_out)->format('g:i A') }}
                                     @else
                                         <span class="text-gray-400">-</span>
@@ -350,7 +369,11 @@
                             <div>
                                 <div class="text-gray-500">Total Hours</div>
                                 <div class="font-medium">
-                                    @if($attendance && $attendance->time_in && $attendance->time_out)
+                                    @if(($snapshot['code'] ?? null) === 'on_leave')
+                                        {{ \App\Helpers\TimezoneHelper::formatHours((float) ($schedule?->required_hours ?? 0)) }}
+                                    @elseif($isOfficialBusiness)
+                                        {{ number_format((float) $attendance->total_hours, 2) }} hrs
+                                    @elseif($attendance && $attendance->time_in && $attendance->time_out)
                                         @php
                                             // Load breaks relationship if not already loaded
                                             if (!$attendance->relationLoaded('breaks')) {

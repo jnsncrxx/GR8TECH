@@ -170,7 +170,7 @@
                                 {{ $employee->department->name }}
                             </span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $employee->position }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $employee->position?->name ?? 'N/A' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ number_format($employee->salary, 2) }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $employee->hire_date->format('M d, Y') }}</td>
                     </tr>

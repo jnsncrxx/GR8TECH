@@ -61,6 +61,45 @@
                     </p>
                 </div>
 
+                <!-- Manager -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-medium text-gray-900">Manager</h3>
+                        <button type="button" onclick="openManagerModal()" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-900 transition-colors">
+                            <i class="fas fa-user-tag mr-1"></i>
+                            {{ $department->manager ? 'Change' : 'Assign' }}
+                        </button>
+                    </div>
+
+                    @if($department->manager)
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="flex-shrink-0 h-10 w-10">
+                                    <div class="h-10 w-10 rounded-full bg-gradient-to-r from-purple-500 to-purple-600 flex items-center justify-center">
+                                        <span class="text-sm font-medium text-white">
+                                            {{ strtoupper(substr($department->manager->first_name, 0, 1) . substr($department->manager->last_name, 0, 1)) }}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-gray-900">{{ $department->manager->full_name }}</p>
+                                    <p class="text-xs text-gray-500">{{ $department->manager->position?->name ?? 'Manager' }}</p>
+                                </div>
+                            </div>
+                            <form method="POST" action="{{ route('departments.manager.update', $department) }}">
+                                @csrf
+                                @method('PUT')
+                                <input type="hidden" name="employee_id" value="">
+                                <button type="submit" title="Remove manager" class="text-red-500 hover:text-red-700 transition-colors">
+                                    <i class="fas fa-times-circle"></i>
+                                </button>
+                            </form>
+                        </div>
+                    @else
+                        <p class="text-sm text-gray-500">No manager assigned yet.</p>
+                    @endif
+                </div>
+
                 <!-- Department Statistics -->
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                     <h3 class="text-lg font-medium text-gray-900 mb-4">Department Statistics</h3>
@@ -95,9 +134,9 @@
                             <i class="fas fa-users mr-2"></i>
                             View Employees
                         </a>
-                        <button type="button" onclick="openDeleteModal('{{ $department->id }}', '{{ $department->name }}')" class="w-full flex items-center justify-center px-4 py-2 border border-red-300 rounded-lg text-sm font-medium text-red-700 bg-white hover:bg-red-50 transition-colors">
-                            <i class="fas fa-trash mr-2"></i>
-                            Delete Department
+                        <button type="button" onclick="openRemoveModal('{{ $department->id }}', '{{ $department->name }}', {{ $department->employees->count() }})" class="w-full flex items-center justify-center px-4 py-2 border border-red-300 rounded-lg text-sm font-medium text-red-700 bg-white hover:bg-red-50 transition-colors">
+                            <i class="fas fa-box-archive mr-2"></i>
+                            Remove Department
                         </button>
                     </div>
                 </div>
@@ -118,7 +157,7 @@
                             </div>
                             <div class="min-w-0 flex-1">
                                 <p class="text-sm font-medium text-gray-900 truncate">{{ $employee->full_name }}</p>
-                                <p class="text-xs text-gray-500">{{ $employee->position }}</p>
+                                <p class="text-xs text-gray-500">{{ $employee->position?->name ?? 'N/A' }}</p>
                             </div>
                             <div class="flex-shrink-0">
                                 <a href="{{ route('employees.show', $employee) }}" class="text-blue-600 hover:text-blue-900">
@@ -162,40 +201,67 @@
 </div>
 
 <script>
-// Delete Modal Functions
-function openDeleteModal(departmentId, departmentName) {
-    document.getElementById('deleteDepartmentId').value = departmentId;
-    document.getElementById('deleteDepartmentName').textContent = departmentName;
-    document.getElementById('deleteForm').action = `/departments/${departmentId}`;
-    document.getElementById('deleteModal').classList.remove('hidden');
+// Remove Modal Functions
+function openRemoveModal(departmentId, departmentName, employeesCount) {
+    document.getElementById('removeDepartmentId').value = departmentId;
+    document.getElementById('removeDepartmentName').textContent = departmentName;
+    document.getElementById('removeForm').action = `/departments/${departmentId}`;
+
+    const warning = document.getElementById('removeActiveEmployeesWarning');
+    if (employeesCount > 0) {
+        document.getElementById('removeActiveEmployeesCount').textContent = employeesCount;
+        warning.classList.remove('hidden');
+    } else {
+        warning.classList.add('hidden');
+    }
+
+    document.getElementById('removeModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
 }
 
-function closeDeleteModal() {
-    document.getElementById('deleteModal').classList.add('hidden');
+function closeRemoveModal() {
+    document.getElementById('removeModal').classList.add('hidden');
     document.body.style.overflow = 'auto';
 }
 
 // Close modal when clicking outside
-document.getElementById('deleteModal').addEventListener('click', function(e) {
+document.getElementById('removeModal').addEventListener('click', function(e) {
     if (e.target === this) {
-        closeDeleteModal();
+        closeRemoveModal();
     }
 });
 
 // Close modal with Escape key
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        closeDeleteModal();
+        closeRemoveModal();
+        closeManagerModal();
+    }
+});
+
+// Manager Modal Functions
+function openManagerModal() {
+    document.getElementById('managerModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeManagerModal() {
+    document.getElementById('managerModal').classList.add('hidden');
+    document.body.style.overflow = 'auto';
+}
+
+document.getElementById('managerModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeManagerModal();
     }
 });
 </script>
 
-<!-- Delete Confirmation Modal -->
-<div id="deleteModal" class="fixed inset-0 z-50 hidden overflow-y-auto">
+<!-- Remove Confirmation Modal -->
+<div id="removeModal" class="fixed inset-0 z-50 hidden overflow-y-auto">
     <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
         <!-- Background overlay -->
-        <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onclick="closeDeleteModal()"></div>
+        <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onclick="closeRemoveModal()"></div>
 
         <!-- Modal panel -->
         <div class="inline-block w-full max-w-md p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
@@ -206,29 +272,94 @@ document.addEventListener('keydown', function(e) {
 
             <!-- Modal content -->
             <div class="text-center">
-                <h3 class="text-lg font-medium text-gray-900 mb-2">Delete Department</h3>
-                <p class="text-sm text-gray-500 mb-6">
-                    Are you sure you want to delete <span id="deleteDepartmentName" class="font-semibold text-gray-900"></span>? 
-                    This action cannot be undone and will permanently remove the department and all its data.
+                <h3 class="text-lg font-medium text-gray-900 mb-2">Remove Department</h3>
+                <p class="text-sm text-gray-500 mb-4">
+                    Are you sure you want to remove <span id="removeDepartmentName" class="font-semibold text-gray-900"></span>?
+                    It will be archived and hidden from the active departments list.
                 </p>
+                <div id="removeActiveEmployeesWarning" class="hidden mb-6 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-left">
+                    <p class="text-sm text-yellow-800">
+                        <i class="fas fa-exclamation-circle mr-1"></i>
+                        This department still has <span id="removeActiveEmployeesCount" class="font-semibold"></span> active employee(s) assigned to it.
+                        Are you sure you want to remove it anyway?
+                    </p>
+                </div>
             </div>
 
             <!-- Modal actions -->
             <div class="flex flex-col sm:flex-row gap-3 sm:gap-3">
-                <button type="button" onclick="closeDeleteModal()" 
+                <button type="button" onclick="closeRemoveModal()"
                     class="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors">
                     Cancel
                 </button>
-                <form id="deleteForm" method="POST" class="flex-1">
+                <form id="removeForm" method="POST" class="flex-1">
                     @csrf
                     @method('DELETE')
-                    <input type="hidden" id="deleteDepartmentId" name="department_id" value="">
-                    <button type="submit" 
+                    <input type="hidden" id="removeDepartmentId" name="department_id" value="">
+                    <button type="submit"
                         class="w-full px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors">
-                        Delete Department
+                        Remove Department
                     </button>
                 </form>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Set Manager Modal -->
+<div id="managerModal" class="fixed inset-0 z-50 hidden overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+        <!-- Background overlay -->
+        <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onclick="closeManagerModal()"></div>
+
+        <!-- Modal panel -->
+        <div class="inline-block w-full max-w-md p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
+            <!-- Modal header -->
+            <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-blue-100 rounded-full">
+                <i class="fas fa-user-tag text-blue-600 text-xl"></i>
+            </div>
+
+            <!-- Modal content -->
+            <div class="text-center mb-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-2">Set Department Manager</h3>
+                <p class="text-sm text-gray-500">
+                    Choose an employee from {{ $department->name }} to act as the manager.
+                </p>
+            </div>
+
+            @if($department->employees->count() > 0)
+                <form method="POST" action="{{ route('departments.manager.update', $department) }}">
+                    @csrf
+                    @method('PUT')
+                    <div class="text-left mb-6">
+                        <label for="manager_employee_id" class="block text-sm font-medium text-gray-700 mb-1">Manager</label>
+                        <select id="manager_employee_id" name="employee_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
+                            <option value="">No manager</option>
+                            @foreach($department->employees as $employee)
+                                <option value="{{ $employee->id }}" @selected($department->manager_id === $employee->id)>
+                                    {{ $employee->full_name }}{{ $employee->position?->name ? ' — ' . $employee->position->name : '' }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <button type="button" onclick="closeManagerModal()"
+                            class="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                            class="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                            Save
+                        </button>
+                    </div>
+                </form>
+            @else
+                <p class="text-sm text-gray-500 mb-6">This department doesn't have any employees yet. Add employees before assigning a manager.</p>
+                <button type="button" onclick="closeManagerModal()"
+                    class="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors">
+                    Close
+                </button>
+            @endif
         </div>
     </div>
 </div>

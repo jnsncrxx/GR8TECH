@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Payroll;
+use App\Models\Period;
 use App\Models\Account;
 use App\Helpers\CompanyHelper;
 use Illuminate\Support\Facades\DB;
@@ -78,54 +79,103 @@ class RoleBasedDashboardController extends Controller
     private function hrDashboard()
     {
         $currentCompany = CompanyHelper::getCurrentCompany();
-        
+
         $employeeQuery = Employee::query();
         $departmentQuery = Department::query();
-        
+
         if ($currentCompany) {
             $employeeQuery->forCompany($currentCompany->id);
             $departmentQuery->forCompany($currentCompany->id);
         }
-        
+
         $stats = [
-            'total_employees' => $employeeQuery->count(),
-            'total_departments' => $departmentQuery->count(),
-            'new_employees_this_month' => $employeeQuery->whereMonth('created_at', now()->month)->count(),
-            'average_salary' => $employeeQuery->avg('salary') ?? 0,
+            'total_employees' => (clone $employeeQuery)->count(),
+            'total_departments' => (clone $departmentQuery)->count(),
+            'new_employees_this_month' => (clone $employeeQuery)
+                ->whereYear('created_at', now()->year)
+                ->whereMonth('created_at', now()->month)
+                ->count(),
+            'average_salary' => (clone $employeeQuery)->avg('salary') ?? 0,
         ];
 
-        $recent_employees = Employee::query()->with('department');
-        if ($currentCompany) {
-            $recent_employees->forCompany($currentCompany->id);
-        }
-        
-        $recent_employees = $recent_employees->orderBy('created_at', 'desc')
+        $recent_employees = (clone $employeeQuery)
+            ->with(['department', 'position'])
+            ->orderByDesc('created_at')
             ->limit(10)
             ->get();
 
-        $department_breakdown = Department::query();
-        if ($currentCompany) {
-            $department_breakdown->forCompany($currentCompany->id);
-        }
-        
-        $department_breakdown = $department_breakdown->withCount('employees')->get();
+        $department_breakdown = (clone $departmentQuery)
+            ->withCount(['employees' => function ($query) use ($currentCompany) {
+                if ($currentCompany) {
+                    $query->forCompany($currentCompany->id);
+                }
+            }])
+            ->orderByDesc('employees_count')
+            ->get();
 
-        // Calculate payroll statistics
         $payrollQuery = Payroll::query();
         if ($currentCompany) {
-            $payrollQuery->whereHas('employee', function ($q) use ($currentCompany) {
-                $q->forCompany($currentCompany->id);
+            $payrollQuery->whereHas('employee', function ($query) use ($currentCompany) {
+                $query->forCompany($currentCompany->id);
             });
         }
 
         $payroll_stats = [
-            'total_payroll' => $payrollQuery->sum('gross_pay') ?? 0,
-            'processed' => (clone $payrollQuery)->where('status', 'processed')->count(),
+            'total_payroll' => (clone $payrollQuery)->sum('gross_pay') ?? 0,
+            'processed' => (clone $payrollQuery)
+                ->whereIn('status', ['approved', 'paid'])
+                ->count(),
             'pending' => (clone $payrollQuery)->where('status', 'pending')->count(),
             'paid' => (clone $payrollQuery)->where('status', 'paid')->count(),
         ];
 
-        return view('dashboards.hr', compact('stats', 'recent_employees', 'department_breakdown', 'payroll_stats'));
+        // Dynamic Recent Payroll Runs used by dashboards/hr.blade.php.
+        $recent_payroll_runs = Period::query()
+            ->when($currentCompany, function ($query) use ($currentCompany) {
+                $query->where('company_id', $currentCompany->id);
+            })
+            ->where(function ($query) {
+                $query->whereHas('payrolls')
+                    ->orWhereIn('status', [
+                        Period::STATUS_READY,
+                        Period::STATUS_PROCESSING,
+                        Period::STATUS_FOR_REVIEW,
+                        Period::STATUS_FINALIZED,
+                        Period::STATUS_LOCKED,
+                    ]);
+            })
+            ->withCount('payrolls')
+            ->withCount([
+                'payrolls as paid_payrolls_count' => function ($query) {
+                    $query->where('status', 'paid');
+                },
+            ])
+            ->withSum('payrolls', 'gross_pay')
+            ->withSum('payrolls', 'net_pay')
+            ->orderByDesc('payroll_date')
+            ->orderByDesc('created_at')
+            ->limit(5)
+            ->get()
+            ->each(function (Period $run) {
+                $allPayrollsArePaid = $run->payrolls_count > 0
+                    && $run->paid_payrolls_count === $run->payrolls_count;
+
+                $run->dashboard_status = $allPayrollsArePaid
+                    ? 'paid'
+                    : $run->status;
+
+                $run->dashboard_status_label = $allPayrollsArePaid
+                    ? 'Paid'
+                    : $run->status_label;
+            });
+
+        return view('dashboards.hr', compact(
+            'stats',
+            'recent_employees',
+            'department_breakdown',
+            'payroll_stats',
+            'recent_payroll_runs'
+        ));
     }
 
     private function managerDashboard($user)
@@ -185,7 +235,7 @@ class RoleBasedDashboardController extends Controller
 
         $stats = [
             'employee_name' => $employee->full_name,
-            'position' => $employee->position,
+            'position' => $employee->position->name ?? 'N/A',
             'department' => $employee->department->name,
             'salary' => $employee->salary,
             'hire_date' => $employee->hire_date,
@@ -193,6 +243,7 @@ class RoleBasedDashboardController extends Controller
         ];
 
         $recent_payrolls = $employee->payrolls()
+            ->whereIn('status', ['approved', 'paid'])
             ->orderBy('pay_period_start', 'desc')
             ->limit(5)
             ->get();
@@ -205,13 +256,18 @@ class RoleBasedDashboardController extends Controller
                 DB::raw('COUNT(*) as payroll_count'),
             ])
             ->where('employee_id', $employee->id)
-            ->where('status', 'processed')
+            ->whereIn('status', ['approved', 'paid'])
             ->groupBy('year')
             ->orderBy('year', 'desc')
             ->get();
 
         // Get today's attendance record
         $todayAttendance = $employee->getTodayAttendance();
+        $todaySchedule = $employee->getScheduleForDate(today());
+        $upcomingSchedules = $employee->schedules()
+            ->whereBetween('date', [today()->toDateString(), today()->copy()->addDays(7)->toDateString()])
+            ->orderBy('date')
+            ->get();
 
         // Get recent activity (last 5 days)
         $recentActivity = $employee->attendanceRecords()
@@ -225,6 +281,8 @@ class RoleBasedDashboardController extends Controller
             'yearly_summary',
             'employee',
             'todayAttendance',
+            'todaySchedule',
+            'upcomingSchedules',
             'recentActivity'
         ));
     }

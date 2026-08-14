@@ -15,6 +15,9 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->uuid('employee_id')->nullable();
             $table->string('email')->unique();
+            $table->string('google_id')->nullable();
+            $table->string('avatar')->nullable();
+            $table->string('microsoft_id')->nullable();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->enum('role', ['admin', 'hr', 'manager', 'employee'])->default('employee');

@@ -22,25 +22,25 @@
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
         <x-dashboard.stats-card 
             title="Total Employees" 
-            :value="$employees->total()" 
+            :value="$employeeStats['total']"
             icon="fas fa-users" 
             color="blue" 
         />
         <x-dashboard.stats-card 
             title="Active Employees" 
-            :value="$employees->where('account.is_active', true)->count()" 
+            :value="$employeeStats['active']"
             icon="fas fa-user-check" 
             color="green" 
         />
         <x-dashboard.stats-card 
             title="Departments" 
-            :value="\App\Models\Department::count()" 
+            :value="$employeeStats['departments']"
             icon="fas fa-building" 
             color="purple" 
         />
         <x-dashboard.stats-card 
             title="Avg Salary" 
-            :value="'₱' . number_format($employees->avg('salary'), 2)" 
+            :value="'₱' . number_format($employeeStats['average_salary'], 2)"
             icon="fas fa-money-bill-wave" 
             color="yellow" 
         />
@@ -66,7 +66,7 @@
             <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 lg:flex-shrink-0">
                 <select id="departmentFilter" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
                     <option value="">All Departments</option>
-                    @foreach(\App\Models\Department::all() as $department)
+                    @foreach($departments as $department)
                         <option value="{{ $department->id }}">{{ $department->name }}</option>
                     @endforeach
                 </select>
@@ -92,7 +92,7 @@
                             Employee
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Employee ID
+                            Employee No.
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Department
@@ -114,19 +114,32 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     @forelse($employees as $employee)
                     <tr class="hover:bg-gray-50 transition-colors employee-row" 
+                        data-search-row="{{ $employee->id }}"
                         data-name="{{ strtolower($employee->full_name) }}"
                         data-email="{{ strtolower($employee->account?->email ?? '') }}"
                         data-department="{{ $employee->department?->id ?? '' }}"
                         data-role="{{ $employee->account?->role ?? '' }}"
-                        data-position="{{ strtolower($employee->position) }}">
+                        data-position="{{ strtolower($employee->position?->name ?? '') }}">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
                                 <div class="flex-shrink-0 h-10 w-10">
-                                    <div class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center">
-                                        <span class="text-sm font-medium text-white">
-                                            {{ strtoupper(substr($employee->first_name, 0, 1) . substr($employee->last_name, 0, 1)) }}
-                                        </span>
-                                    </div>
+                                    @php
+                                        $idxPhotoUrl = null;
+                                        if ($employee->profile_photo) {
+                                            $idxPhotoUrl = asset('storage/' . $employee->profile_photo);
+                                        } elseif ($employee->otherInfo && $employee->otherInfo->photo_path) {
+                                            $idxPhotoUrl = asset('storage/' . $employee->otherInfo->photo_path);
+                                        }
+                                    @endphp
+                                    @if($idxPhotoUrl)
+                                        <img src="{{ $idxPhotoUrl }}" alt="{{ $employee->full_name }}" class="h-10 w-10 rounded-full object-cover border border-gray-200">
+                                    @else
+                                        <div class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center">
+                                            <span class="text-sm font-medium text-white">
+                                                {{ strtoupper(substr($employee->first_name, 0, 1) . substr($employee->last_name, 0, 1)) }}
+                                            </span>
+                                        </div>
+                                    @endif
                                 </div>
                                 <div class="ml-4">
                                     <div class="text-sm font-medium text-gray-900">
@@ -146,7 +159,7 @@
                             <div class="text-sm text-gray-500">{{ $employee->department?->location ?? '' }}</div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">{{ $employee->position }}</div>
+                            <div class="text-sm text-gray-900">{{ $employee->position?->name }}</div>
                             <div class="text-sm text-gray-500">
                                 {{ $employee->hire_date->format('M d, Y') }}
                             </div>
@@ -166,16 +179,16 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div class="flex space-x-2">
-                                <a href="{{ route('employees.show', $employee) }}" class="text-blue-600 hover:text-blue-900 transition-colors">
+                                <a href="{{ route('employees.info', ['employee_id' => $employee->id]) }}" class="ui-icon-action ui-action-view" title="View employee">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                <a href="{{ route('employees.edit', $employee) }}" class="text-indigo-600 hover:text-indigo-900 transition-colors">
+                                <a href="{{ route('employees.edit', $employee) }}" class="ui-icon-action ui-action-edit" title="Edit employee">
                                     <i class="fas fa-edit"></i>
                                 </a>
-                                <a href="{{ route('employees.payroll', $employee) }}" class="text-green-600 hover:text-green-900 transition-colors">
+                                <a href="{{ route('employees.payroll', $employee) }}" class="ui-icon-action ui-action-payroll" title="View payroll">
                                     <i class="fas fa-money-bill-wave"></i>
                                 </a>
-                                <button type="button" onclick="openDeleteModal('{{ $employee->id }}', '{{ $employee->full_name }}')" class="text-red-600 hover:text-red-900 transition-colors">
+                                <button type="button" onclick="openDeleteModal('{{ $employee->id }}', '{{ $employee->full_name }}')" class="ui-icon-action ui-action-delete" title="Delete employee">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>
@@ -204,15 +217,19 @@
                  data-email="{{ strtolower($employee->account?->email ?? '') }}"
                  data-department="{{ $employee->department?->id ?? '' }}"
                  data-role="{{ $employee->account?->role ?? '' }}"
-                 data-position="{{ strtolower($employee->position) }}">
+                 data-position="{{ strtolower($employee->position?->name ?? '') }}">
                 <div class="flex items-start justify-between">
                     <div class="flex items-center space-x-3">
                         <div class="flex-shrink-0 h-12 w-12">
-                            <div class="h-12 w-12 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center">
-                                <span class="text-sm font-medium text-white">
-                                    {{ strtoupper(substr($employee->first_name, 0, 1) . substr($employee->last_name, 0, 1)) }}
-                                </span>
-                            </div>
+                            @if($employee->profile_photo)
+                                <img src="{{ asset('storage/' . $employee->profile_photo) }}" alt="{{ $employee->full_name }}" class="h-12 w-12 rounded-full object-cover">
+                            @else
+                                <div class="h-12 w-12 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center">
+                                    <span class="text-sm font-medium text-white">
+                                        {{ strtoupper(substr($employee->first_name, 0, 1) . substr($employee->last_name, 0, 1)) }}
+                                    </span>
+                                </div>
+                            @endif
                         </div>
                         <div class="min-w-0 flex-1">
                             <div class="text-sm font-medium text-gray-900 truncate">
@@ -241,7 +258,7 @@
                 <div class="mt-3 grid grid-cols-2 gap-4 text-sm">
                     <div>
                         <div class="text-gray-500">Position</div>
-                        <div class="font-medium text-gray-900">{{ $employee->position }}</div>
+                        <div class="font-medium text-gray-900">{{ $employee->position?->name }}</div>
                     </div>
                     <div>
                         <div class="text-gray-500">Salary</div>
@@ -250,7 +267,7 @@
                 </div>
                 
                 <div class="mt-3 flex justify-end space-x-2">
-                    <a href="{{ route('employees.show', $employee) }}" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-900 transition-colors">
+                    <a href="{{ route('employees.info', ['employee_id' => $employee->id]) }}" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-900 transition-colors">
                         <i class="fas fa-eye mr-1"></i>View
                     </a>
                     <a href="{{ route('employees.edit', $employee) }}" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-900 transition-colors">

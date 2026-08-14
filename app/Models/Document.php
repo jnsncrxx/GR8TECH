@@ -16,6 +16,7 @@ class Document extends Model
     protected $fillable = [
         'id',
         'employee_id',
+        'folder_id',
         'name',
         'type',
         'path',
@@ -25,5 +26,10 @@ class Document extends Model
     public function employee()
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    public function folder()
+    {
+        return $this->belongsTo(DocumentFolder::class, 'folder_id');
     }
 }

@@ -9,7 +9,7 @@
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+    <link href="https://fonts.bunny.net/css?family=manrope:400,500,600,700,800&display=swap" rel="stylesheet" />
 
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -32,19 +32,133 @@
     </script>
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    <style>
+    /* ── Employee Portal — Custom Styles ── */
+    .emp-card {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 1px 4px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.05);
+        border: 1px solid #e5e7eb;
+        margin-bottom: 1.5rem;
+        overflow: hidden;
+    }
+    .emp-card-header {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid #f1f3f5;
+        background: #fafafa;
+    }
+    .emp-card-header .section-icon {
+        width: 34px; height: 34px;
+        border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: .875rem; flex-shrink: 0;
+    }
+    .emp-card-header h3 {
+        font-size: 1rem; font-weight: 600; color: #111827; margin: 0;
+    }
+    .emp-card-header p {
+        font-size: .75rem; color: #6b7280; margin: 0;
+    }
+    .emp-card-body { padding: 1.5rem; }
+
+    /* section accent colours */
+    .sec-personal .section-icon { background:#eff6ff; color:#2563eb; }
+    .sec-work     .section-icon { background:#f0fdf4; color:#16a34a; }
+    .sec-details  .section-icon { background:#fef9c3; color:#ca8a04; }
+    .sec-emergency .section-icon { background:#fff1f2; color:#e11d48; }
+    .sec-loans    .section-icon { background:#f5f3ff; color:#7c3aed; }
+    .sec-account  .section-icon { background:#e0f2fe; color:#0284c7; }
+    .sec-id       .section-icon { background:#fce7f3; color:#db2777; }
+    .sec-statutory .section-icon { background:#f3f4f6; color:#4b5563; }
+    .sec-mfg      .section-icon { background:#fff7ed; color:#ea580c; }
+    .sec-overrides .section-icon { background:#ecfdf5; color:#059669; }
+
+    /* form controls */
+    .form-label {
+        display: block; font-size: .8125rem; font-weight: 500;
+        color: #374151; margin-bottom: .375rem;
+    }
+    .form-control {
+        width: 100%;
+        padding: .5rem .75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: .875rem; color: #111827;
+        background: #fff;
+        transition: border-color .15s, box-shadow .15s;
+        outline: none;
+    }
+    .form-control:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+    }
+    .form-control.is-error { border-color: #ef4444; }
+    .form-control[readonly], .form-control:disabled {
+        background: #f9fafb; color: #6b7280; cursor: not-allowed;
+    }
+    .field-error { font-size: .75rem; color: #ef4444; margin-top: .25rem; display: flex; align-items: center; gap: .25rem; }
+    .field-hint  { font-size: .72rem; color: #9ca3af; margin-top: .25rem; }
+
+    /* Employee number badge */
+    .emp-num-badge {
+        display: inline-flex; align-items: center; gap: .5rem;
+        background: #eff6ff; border: 1.5px solid #bfdbfe;
+        border-radius: 8px; padding: .45rem .9rem;
+        font-size: .875rem; font-weight: 700; color: #1d4ed8;
+        letter-spacing: .03em;
+    }
+    .emp-num-badge i { color: #93c5fd; }
+
+    /* Profile photo */
+    .photo-wrap {
+        position: relative; width: 100px; height: 100px; cursor: pointer;
+    }
+    .photo-wrap img, .photo-wrap .photo-placeholder {
+        width: 100px; height: 100px; border-radius: 50%;
+        object-fit: cover; border: 3px solid #e5e7eb;
+    }
+    .photo-wrap .photo-placeholder {
+        display: flex; align-items: center; justify-content: center;
+        background: linear-gradient(135deg,#e0f2fe,#ddd6fe);
+        color: #64748b; font-size: 2rem;
+    }
+    .photo-overlay {
+        position: absolute; bottom: 2px; right: 2px;
+        background: #2563eb; color: #fff; width: 28px; height: 28px;
+        border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        font-size: .75rem; box-shadow: 0 2px 4px rgba(0,0,0,.15); border: 2px solid #fff;
+    }
+
+    /* Universal search — highlight flash applied to the target row/card
+       after navigating in from a search result (see data-search-row). */
+    @keyframes searchHighlightFlash {
+        0%   { background-color: rgba(250, 204, 21, .45); }
+        100% { background-color: transparent; }
+    }
+    .search-highlight-flash {
+        animation: searchHighlightFlash 2.2s ease-out 1;
+        outline: 2px solid rgba(37, 99, 235, .55);
+        outline-offset: -1px;
+        border-radius: 6px;
+    }
+    </style>
 </head>
-<body class="font-sans antialiased bg-brand-surface text-brand-black">
-    <div class="min-h-screen">
+<body class="hris-app font-sans antialiased bg-brand-surface text-brand-black">
+    <div class="hris-shell min-h-screen">
         <!-- Sidebar -->
         <x-dashboard.sidebar :user="$user" :activeRoute="$activeRoute ?? 'dashboard'" />
 
         <!-- Main Content -->
-        <div class="lg:ml-72">
+        <div class="hris-workspace lg:ml-72">
             <!-- Top Navigation -->
-            <x-dashboard.header :title="$pageTitle ?? 'Dashboard'" :user="$user" />
+            <x-dashboard.header :title="html_entity_decode(trim($__env->yieldContent('title', 'Dashboard')), ENT_QUOTES | ENT_HTML5, 'UTF-8')" :user="$user" />
 
             <!-- Dashboard Content -->
-            <main class="p-3 sm:p-4 lg:p-6 xl:p-8">
+            <main class="hris-content p-3 sm:p-4 lg:p-6 xl:p-8">
                 @yield('content')
             </main>
         </div>
@@ -54,6 +168,75 @@
     </div>
 
     <script>
+    // Keep the sticky header as the single page-level title. Many legacy views
+    // also render the same H1 inside <main>; hide only exact text duplicates so
+    // distinct section headings and dynamic record titles remain visible.
+    function removeDuplicatePageTitle() {
+        const headerTitle = document.getElementById('page-header-title');
+        const main = document.querySelector('main.hris-content');
+
+        if (!headerTitle || !main) return;
+
+        const normalizeTitle = (value) => value.replace(/\s+/g, ' ').trim().toLocaleLowerCase();
+        const expectedTitle = normalizeTitle(headerTitle.textContent || '');
+
+        if (!expectedTitle) return;
+
+        const duplicateTitle = Array.from(main.querySelectorAll('h1'))
+            .find((heading) => normalizeTitle(heading.textContent || '') === expectedTitle);
+
+        if (duplicateTitle) {
+            const introCopy = duplicateTitle.parentElement;
+            const hasInteractiveContent = introCopy?.querySelector('a, button, input, select, textarea, form');
+            const introRow = introCopy?.parentElement;
+            const rowHasInteractiveContent = introRow?.querySelector('a, button, input, select, textarea, form');
+
+            if (introRow && !rowHasInteractiveContent) {
+                introRow.hidden = true;
+                introRow.setAttribute('aria-hidden', 'true');
+                introRow.dataset.duplicatePageIntro = 'true';
+            } else if (introCopy && !hasInteractiveContent) {
+                introCopy.hidden = true;
+                introCopy.setAttribute('aria-hidden', 'true');
+                introCopy.dataset.duplicatePageIntro = 'true';
+
+                if (introRow?.children.length > 1) {
+                    introRow.dataset.pageIntroActions = 'true';
+                }
+            } else {
+                duplicateTitle.hidden = true;
+                duplicateTitle.setAttribute('aria-hidden', 'true');
+                duplicateTitle.dataset.duplicatePageTitle = 'true';
+            }
+        }
+    }
+
+    removeDuplicatePageTitle();
+
+    // Universal search: scroll to and highlight the record the user picked.
+    // Any list/table row can opt in by adding a data-search-row attribute set to that record's id.
+    function highlightSearchResult() {
+        const params = new URLSearchParams(window.location.search);
+        const highlightId = params.get('highlight');
+        if (!highlightId) return;
+
+        const target = document.querySelector(`[data-search-row="${CSS.escape(highlightId)}"]`);
+
+        if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            target.classList.add('search-highlight-flash');
+            setTimeout(() => target.classList.remove('search-highlight-flash'), 2200);
+        }
+
+        // Strip the param so refreshing/sharing the URL doesn't re-trigger it.
+        params.delete('highlight');
+        const newSearch = params.toString();
+        const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash;
+        window.history.replaceState({}, '', newUrl);
+    }
+
+    highlightSearchResult();
+
     function toggleSidebar() {
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebar-overlay');
@@ -121,9 +304,14 @@
 
             if (response.ok) {
                 showSidebarMessage(data.message, 'success');
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1000);
+                const reminder = data.reminder || data.pending_overtime_reminder;
+                if (data.overtime_detected && reminder && typeof showOvertimePromptModal === 'function') {
+                    showOvertimePromptModal(reminder, true);
+                } else {
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                }
             } else {
                 showSidebarMessage(data.error || 'Failed to clock out', 'error');
                 btn.disabled = false;
@@ -139,7 +327,8 @@
 
     function showSidebarMessage(message, type) {
         const toast = document.createElement('div');
-        toast.className = `fixed top-4 right-4 ${type === 'success' ? 'bg-green-500' : 'bg-red-500'} text-white px-6 py-3 rounded-lg shadow-lg z-50`;
+        toast.className = `fixed top-5 left-1/2 -translate-x-1/2 ${type === 'success' ? 'bg-green-600' : 'bg-red-600'} text-white px-6 py-3 rounded-xl shadow-2xl font-semibold text-center max-w-lg w-[calc(100%-2rem)]`;
+        toast.style.zIndex = '10050';
         toast.textContent = message;
         document.body.appendChild(toast);
         setTimeout(() => {
@@ -197,5 +386,92 @@
     updateTime();
     setInterval(updateTime, 60000);
     </script>
+    @stack('scripts')
+
+    <!-- Confirmation Modal (shared across all dashboards - admin, hr, manager, employee) -->
+    <div id="confirmation-modal" class="fixed inset-0 hidden z-50 items-center justify-center overflow-y-auto bg-gray-900/60 p-4 backdrop-blur-sm">
+        <div class="mx-auto w-full max-w-sm rounded-xl border border-gray-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-neutral-800">
+            <div class="mt-3">
+                <!-- Modal Icon -->
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4" id="modal-icon-container">
+                    <i id="modal-icon" class="fas fa-question-circle text-blue-600 text-xl"></i>
+                </div>
+
+                <!-- Modal Content -->
+                <div class="text-center">
+                    <h3 id="modal-title" class="text-lg font-medium text-gray-900 mb-2 dark:text-white"></h3>
+                    <p id="modal-message" class="text-sm text-gray-500 mb-4 dark:text-gray-300"></p>
+
+                    <!-- Action Buttons -->
+                    <div class="flex justify-center space-x-4 mt-6">
+                        <button id="modal-cancel-btn" type="button" class="px-5 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-colors dark:bg-neutral-700 dark:text-white dark:hover:bg-neutral-600">
+                            Cancel
+                        </button>
+                        <button id="modal-confirm-btn" type="button" class="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
+                            Confirm
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ============================================================
+    // CONFIRMATION MODAL FUNCTIONS (shared across every dashboard)
+    // ============================================================
+    let pendingAction = null; // Will store the function to execute after confirmation
+
+    function showConfirmationModal(title, message, confirmAction, options = {}) {
+        pendingAction = confirmAction;
+
+        const modalColor = options.color || 'blue';
+        const modalIcon = options.icon || 'fa-question-circle';
+
+        document.getElementById('modal-title').textContent = title;
+        document.getElementById('modal-message').textContent = message;
+        document.getElementById('modal-icon').className = `fas ${modalIcon} text-${modalColor}-600 text-xl`;
+
+        const modalIconContainer = document.getElementById('modal-icon-container');
+        const confirmBtn = document.getElementById('modal-confirm-btn');
+
+        modalIconContainer.className = `mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-${modalColor}-100 mb-4`;
+        confirmBtn.className = `px-5 py-2 bg-${modalColor}-600 text-white rounded-md hover:bg-${modalColor}-700 focus:outline-none focus:ring-2 focus:ring-${modalColor}-500 transition-colors`;
+
+        const modal = document.getElementById('confirmation-modal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function hideConfirmationModal() {
+        const modal = document.getElementById('confirmation-modal');
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+        pendingAction = null;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const modal = document.getElementById('confirmation-modal');
+        const cancelBtn = document.getElementById('modal-cancel-btn');
+        const confirmBtn = document.getElementById('modal-confirm-btn');
+
+        cancelBtn.addEventListener('click', hideConfirmationModal);
+
+        confirmBtn.addEventListener('click', function() {
+            if (pendingAction) {
+                pendingAction();
+            }
+            hideConfirmationModal();
+        });
+
+        modal.addEventListener('click', function(event) {
+            if (event.target === modal) {
+                hideConfirmationModal();
+            }
+        });
+    });
+    </script>
+
+    <x-overtime-reminder-modal />
 </body>
 </html>

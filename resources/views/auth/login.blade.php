@@ -3,9 +3,9 @@
 @section('title', 'Login')
 
 @section('content')
-<div class="min-h-screen bg-[linear-gradient(135deg,_rgba(45,147,68,0.14)_0%,_rgba(255,255,255,0.98)_50%,_rgba(237,28,36,0.12)_100%)] dark:bg-slate-950">
-    <div class="grid min-h-screen lg:grid-cols-2">
-        <section class="relative overflow-hidden bg-[#2D9344] px-6 py-8 sm:px-10 sm:py-10 lg:px-12 lg:py-12 flex flex-col justify-between text-[#FFFFFF] dark:bg-slate-950 dark:text-white">
+<div class="auth-shell min-h-screen">
+    <div class="grid min-h-screen lg:grid-cols-[1.08fr_0.92fr]">
+        <section class="auth-brand-panel relative overflow-hidden px-6 py-8 sm:px-10 sm:py-10 lg:px-14 lg:py-14 flex flex-col justify-between text-white">
             <div class="absolute inset-0 opacity-15">
                 <div class="absolute left-10 top-10 h-40 w-40 rounded-full border border-white/40"></div>
                 <div class="absolute left-24 top-24 h-72 w-72 rounded-full border border-white/20"></div>
@@ -14,7 +14,9 @@
 
             <div class="relative z-10 flex items-start justify-between gap-6">
                 <div>
-                    <h1 class="text-5xl sm:text-6xl lg:text-7xl font-black leading-none tracking-tight text-white">GR8 Tech</h1>
+                    <div class="auth-mark mb-8"><i class="fas fa-chart-line"></i></div>
+                    <p class="text-xs font-bold uppercase tracking-[0.28em] text-white/70">Human Resources Information System</p>
+                    <h1 class="mt-4 text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-none tracking-tight text-white">GR8 Tech</h1>
                     <p class="mt-4 max-w-md text-sm sm:text-base text-white/90">
                         Enterprise-grade payroll, attendance, and HR operations with a focused brand system.
                     </p>
@@ -25,6 +27,7 @@
                 <div class="space-y-2">
                         <p class="text-lg sm:text-xl font-semibold text-black dark:text-white">ENTERPRISE INC.</p>
                         <p class="max-w-sm text-sm text-white/80 dark:text-white/70">Secure access for payroll, HR, and employee self-service.</p>
+                </div>
                 <div class="relative h-32 w-40 shrink-0">
                     <div class="absolute right-0 bottom-0 h-24 w-36 rounded-tr-3xl border-r-2 border-b-2 border-black/90"></div>
                     <div class="absolute right-8 bottom-10 h-3 w-3 rounded-full bg-black"></div>
@@ -37,19 +40,19 @@
             </div>
         </section>
 
-        <section class="relative flex items-center justify-center bg-[#ED1C24] px-6 py-10 sm:px-8 lg:px-12 dark:bg-slate-950">
+        <section class="auth-form-panel relative flex items-center justify-center px-6 py-10 sm:px-8 lg:px-14">
             <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.2),_transparent_35%),radial-gradient(circle_at_bottom_left,_rgba(0,0,0,0.14),_transparent_30%)] dark:bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.08),_transparent_35%),radial-gradient(circle_at_bottom_left,_rgba(255,255,255,0.04),_transparent_30%)]"></div>
 
             <div class="relative z-10 w-full max-w-md">
-                <div class="mb-6 sm:mb-8 text-center text-white">
-                    <div class="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-xl shadow-black/20 dark:bg-slate-900">
-                        <i class="fas fa-building text-2xl text-black"></i>
+                <div class="mb-6 sm:mb-8 text-center">
+                    <div class="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-xl shadow-emerald-950/10 ring-1 ring-slate-200 dark:bg-slate-900">
+                        <i class="fas fa-building text-2xl text-[#23773A]"></i>
                     </div>
-                    <h2 class="mt-4 text-2xl sm:text-3xl font-bold text-white">Sign in to your account</h2>
-                    <p class="mt-2 text-sm text-white/85">Use your company credentials to continue.</p>
+                    <h2 class="mt-4 text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">Welcome back</h2>
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Sign in with your company credentials to continue.</p>
                 </div>
 
-                <div class="rounded-3xl border border-black/10 bg-white/95 p-6 sm:p-8 shadow-2xl backdrop-blur-xl dark:border-slate-700/60 dark:bg-slate-900/95 dark:text-slate-100">
+                <div class="auth-card rounded-3xl border border-white/80 bg-white/90 p-6 sm:p-8 shadow-2xl backdrop-blur-xl dark:border-slate-700/60 dark:bg-slate-900/95 dark:text-slate-100">
                     <form method="POST" action="{{ route('login.post') }}" class="space-y-5">
                         @csrf
 
@@ -117,7 +120,7 @@
 
                         <button
                             type="submit"
-                            class="w-full rounded-xl bg-[#2D9344] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-black/15 transition-all duration-300 hover:bg-black hover:shadow-xl"
+                            class="auth-submit w-full rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-300"
                         >
                             <i class="fas fa-sign-in-alt mr-2"></i>Sign In
                         </button>
@@ -132,17 +135,17 @@
                         </div>
 
                         <div class="grid grid-cols-2 gap-3">
-                            <button type="button" class="flex items-center justify-center rounded-xl border border-black/15 bg-white px-3 py-2.5 text-sm text-black transition-all duration-300 hover:border-[#2D9344] hover:text-[#2D9344] dark:border-slate-700/60 dark:bg-slate-800 dark:text-slate-100 dark:hover:text-[#2D9344]">
+                            <a href="{{ route('auth.google') }}" class="flex items-center justify-center rounded-xl border border-black/15 bg-white px-3 py-2.5 text-sm text-black transition-all duration-300 hover:border-[#2D9344] hover:text-[#2D9344] dark:border-slate-700/60 dark:bg-slate-800 dark:text-slate-100 dark:hover:text-[#2D9344]">
                                 <i class="fab fa-google mr-2 text-[#ED1C24] text-sm"></i>Google
-                            </button>
-                            <button type="button" class="flex items-center justify-center rounded-xl border border-black/15 bg-white px-3 py-2.5 text-sm text-black transition-all duration-300 hover:border-[#2D9344] hover:text-[#2D9344] dark:border-slate-700/60 dark:bg-slate-800 dark:text-slate-100 dark:hover:text-[#2D9344]">
+                            </a>
+                            <a href="{{ route('auth.microsoft') }}" class="flex items-center justify-center rounded-xl border border-black/15 bg-white px-3 py-2.5 text-sm text-black transition-all duration-300 hover:border-[#2D9344] hover:text-[#2D9344] dark:border-slate-700/60 dark:bg-slate-800 dark:text-slate-100 dark:hover:text-[#2D9344]">
                                 <i class="fab fa-microsoft mr-2 text-black text-sm dark:text-white"></i>Microsoft
-                            </button>
+                            </a>
                         </div>
                     </form>
                 </div>
 
-                <p class="mt-6 text-center text-xs text-white/80">© 2025 Enterprise Inc. All rights reserved.</p>
+                <p class="mt-6 text-center text-xs text-slate-500">© 2026 GR8 Tech Enterprise Inc. All rights reserved.</p>
             </div>
         </section>
     </div>

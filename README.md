@@ -1,30 +1,38 @@
-# Payroll Management System
+# GR8TECH Payroll Management System
 
-A comprehensive Laravel-based payroll management system with attendance tracking, employee management, and department organization.
+A comprehensive Laravel-based HRIS and payroll management system with employee management, attendance tracking, schedules, requests, payroll processing, and department organization.
 
-## 🚀 Features
+## Features
 
 - **Employee Management**: Complete CRUD operations for employee records
-- **Department Management**: Organize employees by departments
-- **Attendance System**: 
+- **Department and Position Management**: Organize employees by company, department, and position
+- **Attendance System**:
   - Time In/Out functionality
-  - Daily attendance tracking
-  - Timekeeping records
-  - Overtime management
-  - Leave management
-- **Real-time Clock**: Live time display with Philippine timezone
-- **Responsive Design**: Mobile-first approach with Tailwind CSS
-- **Role-based Access**: Admin and HR role management
+  - Daily attendance and timekeeping records
+  - DTR import and attendance corrections
+  - Schedule management and templates
+  - Overtime, Leave, and Official Business requests
+  - Attendance exception review before payroll generation
+- **Payroll Management**:
+  - Semi-monthly payroll periods
+  - Pre-payroll validation, generation, review, finalization, and locking
+  - Paid and unpaid leave, overtime, loans, deductions, payments, and payslips
+- **Universal Search and Reports**: Role- and company-scoped records, consolidated reports, and exports
+- **Real-time Clock**: Live time display using Philippine Standard Time
+- **Responsive Design**: Desktop, tablet, and mobile layouts with light and dark modes
+- **Role-based Access**: Employee, Manager, HR, and Admin access with personal My Portal functions
+- **Multi-company Isolation**: Records and filter options follow the active company
 
-## 🛠️ Tech Stack
+## Tech Stack
 
-- **Backend**: Laravel 11
-- **Frontend**: Blade Templates + Tailwind CSS v3
-- **Database**: MySQL/PostgreSQL
-- **Build Tool**: Vite
-- **Icons**: FontAwesome 6
+- **Backend**: Laravel 12 and PHP 8.2+
+- **Frontend**: Blade Templates, Alpine.js, and Tailwind CSS v3
+- **Database**: MySQL/PostgreSQL; SQLite where configured for tests
+- **Build Tool**: Vite 6
+- **Icons**: Font Awesome 6
+- **Reports and Exports**: DomPDF, Laravel Excel, and PhpSpreadsheet
 
-## 📋 Prerequisites
+## Prerequisites
 
 - PHP 8.2 or higher
 - Composer
@@ -32,63 +40,94 @@ A comprehensive Laravel-based payroll management system with attendance tracking
 - MySQL/PostgreSQL
 - Git
 
-## 🔧 Installation
+## Installation
 
 ### 1. Clone the Repository
+
 ```bash
-git clone <repository-url>
-cd PayrollLaravel
+git clone https://github.com/jnsncrxx/GR8TECH.git
+cd GR8TECH
 ```
 
 ### 2. Install PHP Dependencies
+
 ```bash
 composer install
 ```
 
 ### 3. Install Node.js Dependencies
+
 ```bash
 npm install
 ```
 
 ### 4. Environment Setup
+
+For Bash:
+
 ```bash
 cp .env.example .env
 php artisan key:generate
 ```
 
+For PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+php artisan key:generate
+```
+
 ### 5. Database Configuration
-Update your `.env` file with database credentials:
+
+Update your `.env` file with the correct application URL and database credentials:
+
 ```env
+APP_URL=http://127.0.0.1:8000
+
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=payroll_system
-DB_USERNAME=your_username
-DB_PASSWORD=your_password
+DB_DATABASE=payrolllaravel
+DB_USERNAME=root
+DB_PASSWORD=
 ```
 
 ### 6. Run Database Migrations
+
 ```bash
 php artisan migrate
 ```
 
 ### 7. Build Assets
+
 ```bash
 npm run build
 ```
 
 ### 8. Start Development Server
+
+Use the combined development command:
+
+```bash
+composer run dev
+```
+
+Or run Laravel and Vite separately:
+
 ```bash
 # Terminal 1: Laravel server
 php artisan serve
 
-# Terminal 2: Vite dev server (for hot reloading)
+# Terminal 2: Vite dev server
 npm run dev
 ```
 
-## 🎨 Frontend Development
+Run a queue worker when testing queued notifications, reminders, or jobs.
+
+## Frontend Development
 
 ### Available NPM Scripts
+
 ```bash
 npm run dev          # Start Vite dev server with hot reloading
 npm run build        # Build for production
@@ -97,42 +136,81 @@ npm run hot          # Start dev server with host access
 ```
 
 ### Tailwind CSS Configuration
+
 The project uses Tailwind CSS v3 with the following plugins:
-- `@tailwindcss/forms` - Better form styling
+
+- `@tailwindcss/forms` - Form styling
 - `@tailwindcss/typography` - Typography utilities
 
-### Custom CSS Classes
-- `.scrollbar-thin` - Custom scrollbar styling
-- `.animate-float` - Floating animation
-- Mobile-optimized touch targets and spacing
+### UI Conventions
 
-## 🗄️ Database Structure
+- Responsive tables and cards
+- Compact, scrollable data views where appropriate
+- Consistent action icons, buttons, status colors, and modal styling
+- Light and dark mode support across forms, tables, rows, backgrounds, and text
+
+## Database Structure
 
 ### Key Tables
+
+- `companies` - Company records and active-company scope
 - `employees` - Employee information
 - `departments` - Department data
+- `positions` - Position data
 - `attendance_records` - Daily attendance tracking
-- `work_schedules` - Employee work schedules
-- `overtime_requests` - Overtime management
-- `leave_requests` - Leave management
-- `leave_balances` - Leave balance tracking
+- `employee_schedules` - Employee schedule assignments
+- `schedule_templates` - Reusable schedule definitions
+- `overtime_requests` - Overtime requests and review history
+- `leave_requests` - Leave requests and expiration state
+- `official_business_requests` - Official Business requests
+- `payroll_periods` - Payroll cutoff and workflow state
+- `payrolls` - Generated payroll records
+- `payments` - Payroll payment records
+- `employee_loans` - Employee loan requests and balances
 
-## 🔐 Authentication & Roles
+## Authentication & Roles
 
 The system supports role-based access control:
-- **Admin**: Full system access
-- **HR**: Human resources management
-- **Employee**: Basic attendance functions
 
-## 📱 Responsive Design
+- **Admin**: Authorized system administration, workforce, payroll, reports, accounts, and developer tools
+- **HR**: Workforce management, attendance and request review, payroll operations, reports, and loan types
+- **Manager**: Personal employee services and authorized team/request review; can review employee loans but cannot manage loan types
+- **Employee**: Personal attendance, schedules, requests, payslips, loans, documents, and profile
 
-- **Desktop**: Full-featured interface with tables
-- **Mobile**: Card-based layout for better touch interaction
-- **Tablet**: Optimized for medium screens
+Employee-linked Admin, HR, and Manager accounts use **My Portal** for their own employee records and requests. Users cannot approve or reject their own requests where review separation is required.
 
-## 🚀 Deployment
+## Request and Payroll Rules
+
+- Pending Leave, OT, and OB requests may be edited or cancelled by their owner when the related payroll period is not protected.
+- Requests expire after an initial 24-hour window and may be re-requested once for a final 24-hour window.
+- Final expiry prevents another re-request.
+- Future scheduled dates display as **Scheduled**, not **Absent**.
+- Attendance, Leave, OB, and OT must pass pre-payroll validation before payroll generation.
+- Finalized and locked payroll periods protect overlapping attendance and requests from incompatible changes.
+- Payroll deadlines provide status, reminders, extensions, and audit information; finalization and locking remain authorized actions.
+
+## Testing
+
+Before opening or merging a pull request, run:
+
+```bash
+php artisan test
+npm run build
+```
+
+Ensure all automated tests pass and the frontend builds successfully.
+
+## Responsive Design
+
+- **Desktop**: Full-featured interface with tables and management tools
+- **Mobile**: Card-based and responsive layouts for touch interaction
+- **Tablet**: Optimized layouts for medium screens
+- **Dark Mode**: Consistent dark backgrounds, fields, tables, status cards, borders, and readable text
+
+## Deployment
 
 ### Production Build
+
 ```bash
 npm run build
 php artisan config:cache
@@ -141,61 +219,42 @@ php artisan view:cache
 ```
 
 ### Environment Variables for Production
+
 ```env
 APP_ENV=production
 APP_DEBUG=false
 APP_URL=https://your-domain.com
 ```
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
-
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-## Laravel Sponsors
-
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
-
-### Premium Partners
-
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+Before deployment, run migrations and tests on a disposable or backed-up database, confirm queue scheduling, and protect `.env`, database backups, payroll exports, OAuth credentials, and employee documents.
 
 ## Contributing
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+1. Update your local `develop` branch.
+2. Create a focused feature branch (`git switch -c feature/amazing-feature`).
+3. Commit your changes (`git commit -m "feat: add amazing feature"`).
+4. Push the branch (`git push --set-upstream origin feature/amazing-feature`).
+5. Open a pull request targeting `develop`.
+6. Include a short summary, changed behavior, and validation results.
 
-## Code of Conduct
+## Additional References
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+- [`README_timekeeping_import.md`](README_timekeeping_import.md) - DTR/timekeeping import guidance
+- [`GMAIL_SMTP_SETUP.md`](GMAIL_SMTP_SETUP.md) - SMTP configuration
+- [`EMAIL_TEMPLATES.md`](EMAIL_TEMPLATES.md) - Notification email templates
+
+## Learning Laravel
+
+Laravel has extensive official documentation and a broad learning ecosystem:
+
+- [Laravel Documentation](https://laravel.com/docs)
+- [Laravel Bootcamp](https://bootcamp.laravel.com)
+- [Laracasts](https://laracasts.com)
 
 ## Security Vulnerabilities
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Do not disclose security vulnerabilities publicly. Report them privately to the repository maintainers with reproduction steps and affected components.
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
-"# GR8TECH-" 
-"# GR8TECH-" 
+This project uses the MIT license declared in `composer.json`.

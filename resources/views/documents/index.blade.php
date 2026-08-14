@@ -6,7 +6,7 @@
 <div class="min-h-screen bg-gray-50">
     <!-- Header -->
     <div class="bg-white shadow-sm border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="w-full max-w-none px-4 sm:px-6 lg:px-8">
             <div class="py-6">
                 <div class="flex items-center justify-between">
                     <div>
@@ -58,9 +58,9 @@
     </div>
 
     <!-- Content -->
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div class="w-full max-w-none px-4 sm:px-6 lg:px-8 py-6">
         <!-- Filters -->
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+        <div class="w-full bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
             <div class="px-6 py-4 border-b border-gray-200">
                 <h3 class="text-lg font-medium text-gray-900">Filter Employees</h3>
             </div>
@@ -104,7 +104,7 @@
         </div>
 
         <!-- Employees List -->
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div class="w-full bg-white rounded-lg shadow-sm border border-gray-200">
             <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
                 <h3 class="text-lg font-medium text-gray-900">Employees</h3>
                 <span class="text-sm text-gray-600">{{ $employees->total() }} employee(s) found</span>
@@ -144,14 +144,14 @@
                                 <div class="text-sm text-gray-900">{{ $employee->department->name ?? 'N/A' }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ $employee->position }}</div>
+                                <div class="text-sm text-gray-900">{{ $employee->position?->name ?? 'N/A' }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                    @if($employee->status == 'active') bg-green-100 text-green-800
-                                    @elseif($employee->status == 'on-leave') bg-yellow-100 text-yellow-800
+                                    @if($employee->employee_status == 'active') bg-green-100 text-green-800
+                                    @elseif(in_array($employee->employee_status, ['on-leave', 'on_leave'])) bg-yellow-100 text-yellow-800
                                     @else bg-red-100 text-red-800 @endif">
-                                    {{ ucfirst($employee->status) }}
+                                    {{ str($employee->employee_status ?? 'inactive')->replace(['-', '_'], ' ')->title() }}
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
@@ -161,11 +161,11 @@
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <button onclick="viewEmployee({{ $employee->id }})" 
+                                <button onclick="viewEmployee(@js($employee->id))"
                                         class="text-blue-600 hover:text-blue-900 mr-4">
                                     <i class="fas fa-eye mr-1"></i> View
                                 </button>
-                                <a href="{{ route('employees.documents', $employee->id) }}" 
+                                <a href="{{ route('employees.documents', ['employee_id' => $employee->id]) }}"
                                    class="text-green-600 hover:text-green-900">
                                     <i class="fas fa-folder mr-1"></i> Documents
                                 </a>
@@ -359,7 +359,7 @@
                     
                     // Update the View Documents button
                     const viewDocsBtn = document.getElementById('viewDocumentsBtn');
-                    viewDocsBtn.href = `/employees/${employeeId}/documents`;
+                    viewDocsBtn.href = `/employees/documents?employee_id=${encodeURIComponent(employeeId)}`;
                     
                     // Add export button to modal
                     const exportBtn = document.getElementById('exportEmployeeBtn');

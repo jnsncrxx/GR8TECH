@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasExpiryWindow;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -10,6 +11,40 @@ use Ramsey\Uuid\Uuid;
 class LeaveRequest extends Model
 {
     use HasUuids;
+    use HasExpiryWindow;
+
+    // Statuses used by HasExpiryWindow (PENDING/EXPIRED) and elsewhere.
+    public const PENDING = 'pending';
+    public const APPROVED = 'approved';
+    public const REJECTED = 'rejected';
+    public const CANCELLED = 'cancelled';
+    public const EXPIRED = 'expired';
+
+    public const UNCAPPED_LEAVE_TYPES = [
+        // All leave types are now capped and require balances to be set.
+    ];
+
+    // Display labels for each stored leave_type value. Centralized here so
+    // the request form, leave management table/filters, and balance widgets
+    // all show the same wording without duplicating it in every view.
+    public const LEAVE_TYPE_LABELS = [
+        'vacation' => 'Vacation Leave',
+        'sick' => 'Sick Leave',
+        'sil' => 'SIL (Service Incentive Leave)',
+        'personal' => 'Personal Leave/Leave Without Pay',
+        'emergency' => 'Emergency Leave',
+        'maternity' => 'Maternity Leave',
+        'paternity' => 'Paternity Leave',
+        'bereavement' => 'Bereavement Leave',
+        'spl' => 'Solo Parent Leave',
+        'vawc' => 'VAWC Leave',
+        'study' => 'Others',
+    ];
+
+    public static function labelFor(string $leaveType): string
+    {
+        return static::LEAVE_TYPE_LABELS[$leaveType] ?? ucfirst(str_replace('_', ' ', $leaveType));
+    }
 
     protected $keyType = 'string';
     public $incrementing = false;
@@ -25,12 +60,23 @@ class LeaveRequest extends Model
         'approved_by',
         'approved_at',
         'rejection_reason',
+        'is_paid',
+        'expires_at',
+        'expiry_attempt',
+        'first_expired_at',
+        'resubmitted_at',
+        'final_expired_at',
     ];
 
     protected $casts = [
-        'start_date' => 'date',
-        'end_date' => 'date',
-        'approved_at' => 'datetime',
+        'start_date'       => 'date',
+        'end_date'         => 'date',
+        'approved_at'      => 'datetime',
+        'expires_at'       => 'datetime',
+        'first_expired_at' => 'datetime',
+        'resubmitted_at'   => 'datetime',
+        'final_expired_at' => 'datetime',
+        'is_paid'          => 'boolean',
     ];
 
     protected static function boot()

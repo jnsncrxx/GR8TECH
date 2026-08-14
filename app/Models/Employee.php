@@ -18,15 +18,22 @@ class Employee extends Model
 
     protected $fillable = [
         'employee_id',
+        'profile_photo',
         'first_name',
         'last_name',
+        'middle_name',
         'phone',
+        'sex',
         'department_id',
         'position_id',
         'created_by',
         'position', // deprecated, for migration only
         'salary',
+        'payroll_template_id',
         'hire_date',
+        'employee_status',
+        'contract_end_date',
+        'regularization_date',
         'company_id',
         'date_of_birth',
         'civil_status',
@@ -60,12 +67,14 @@ class Employee extends Model
     }
 
     protected $casts = [
-        'salary' => 'decimal:2',
-        'hire_date' => 'date',
-        'date_of_birth' => 'date',
-        'loan_start_date' => 'date',
-        'loan_end_date' => 'date',
-        'loan_total_amount' => 'decimal:2',
+        'salary'              => 'decimal:2',
+        'hire_date'           => 'date',
+        'regularization_date' => 'date',
+        'date_of_birth'       => 'date',
+        'contract_end_date'   => 'date',
+        'loan_start_date'     => 'date',
+        'loan_end_date'       => 'date',
+        'loan_total_amount'   => 'decimal:2',
         'loan_monthly_amortization' => 'decimal:2',
     ];
 
@@ -89,9 +98,27 @@ class Employee extends Model
             }
             // Only auto-generate employee_id if none was provided
             if (empty($model->employee_id)) {
-                $model->employee_id = 'EMP-' . str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT);
+                $model->employee_id = static::generateNextEmployeeNumber();
             }
         });
+    }
+
+    /**
+     * Generate the next sequential employee number (EMP-0001, EMP-0002, ...).
+     */
+    public static function generateNextEmployeeNumber(): string
+    {
+        // Find the highest existing EMP-NNNN number
+        $last = static::where('employee_id', 'like', 'EMP-%')
+            ->orderByRaw('CAST(SUBSTRING(employee_id, 5) AS UNSIGNED) DESC')
+            ->value('employee_id');
+
+        $nextNumber = 1;
+        if ($last && preg_match('/^EMP-(\d+)$/', $last, $m)) {
+            $nextNumber = (int) $m[1] + 1;
+        }
+
+        return 'EMP-' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
     }
 
     public function newUniqueId()
@@ -122,9 +149,42 @@ class Employee extends Model
         return $query->where('company_id', $companyId);
     }
 
+    /**
+     * Whether the given manager (by employee id) is this employee's
+     * manager for approval-scoping purposes — i.e. this employee's
+     * department currently has that manager assigned as its manager.
+     * Used to restrict Manager-role Approve/Reject/Cancel actions to
+     * their own team.
+     */
+    public function isManagedBy(?string $managerEmployeeId): bool
+    {
+        if (!$managerEmployeeId) {
+            return false;
+        }
+
+        return $this->department && $this->department->manager_id === $managerEmployeeId;
+    }
+
+    /**
+     * Scope to employees whose department's manager is the given manager
+     * employee id. Query-builder counterpart to isManagedBy(), for
+     * list/index filtering.
+     */
+    public function scopeManagedBy($query, string $managerEmployeeId)
+    {
+        return $query->whereHas('department', function ($department) use ($managerEmployeeId) {
+            $department->where('manager_id', $managerEmployeeId);
+        });
+    }
+
     public function payrolls(): HasMany
     {
         return $this->hasMany(Payroll::class);
+    }
+
+    public function loans(): HasMany
+    {
+        return $this->hasMany(Loan::class);
     }
 
     public function account(): HasOne
@@ -135,6 +195,11 @@ class Employee extends Model
     public function attendanceRecords(): HasMany
     {
         return $this->hasMany(AttendanceRecord::class);
+    }
+
+    public function payrollTemplate(): BelongsTo
+    {
+        return $this->belongsTo(PayrollTemplate::class);
     }
 
     public function workSchedules(): HasMany
@@ -273,9 +338,19 @@ class Employee extends Model
             ->where('effective_date', '<=', $date)
             ->where(function ($query) use ($date) {
                 $query->whereNull('end_date')
-                      ->orWhere('end_date', '>=', $date);
+                    ->orWhere('end_date', '>=', $date);
             })
             ->orderBy('effective_date', 'desc')
+            ->first();
+    }
+
+    // Get employee's schedule for a specific date
+    public function getScheduleForDate($date)
+    {
+        $dateStr = $date instanceof \Carbon\Carbon ? $date->format('Y-m-d') : $date;
+
+        return $this->schedules()
+            ->where('date', $dateStr)
             ->first();
     }
 
@@ -295,7 +370,7 @@ class Employee extends Model
     public function getTodayAttendance()
     {
         return $this->attendanceRecords()
-            ->where('date', today())
+            ->whereDate('date', today())
             ->first();
     }
 
@@ -315,9 +390,44 @@ class Employee extends Model
         return $this->account()->exists();
     }
 
-        public function documents()
+
+
+    public function info()
+    {
+        return $this->hasOne(EmployeeInfo::class);
+    }
+
+    public function documents()
     {
         return $this->hasMany(Document::class);
     }
 
+    /**
+     * Check if this employee has completed at least one year as a regular
+     * employee.
+     *
+     * Uses regularization_date if set, otherwise falls back to hire_date.
+     * Returns false when neither date is available.
+     */
+    public function hasCompletedOneYearAsRegular(): bool
+    {
+        $anchor = $this->regularization_date ?? $this->hire_date;
+
+        if (!$anchor) {
+            return false;
+        }
+
+        return \Carbon\Carbon::parse($anchor)->addYear()->isPast();
+    }
+
+    /**
+     * The date used as the anchor for the 1-year regular-employee rule.
+     * Returns regularization_date if set, otherwise hire_date.
+     */
+    public function regularAnchorDate(): ?\Carbon\Carbon
+    {
+        $date = $this->regularization_date ?? $this->hire_date;
+
+        return $date ? \Carbon\Carbon::parse($date) : null;
+    }
 }

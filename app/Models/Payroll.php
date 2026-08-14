@@ -19,6 +19,8 @@ class Payroll extends Model
     protected $fillable = [
         'id',
         'employee_id',
+        'period_id',
+        'company_id',
         'pay_period_start',
         'pay_period_end',
         'basic_salary',
@@ -35,13 +37,26 @@ class Payroll extends Model
         'overtime_rate',
         'overtime_pay',
         'scheduled_hours',
+        'worked_hours',
+        'late_minutes',
+        'undertime_minutes',
+        'late_deduction',
+        'undertime_deduction',
+        'absence_deduction',
         'night_differential_hours',
         'night_differential_rate',
         'night_differential_pay',
         'rest_day_premium_pay',
         'allowances',
         'bonuses',
+        'other_earnings',
+        'paid_leave_days',
+        'paid_leave_pay',
+        'unpaid_leave_days',
+        'unpaid_leave_deduction',
         'deductions',
+        'other_deductions',
+        'loan_deduction',
         'sss', // MISSING FROM YOUR TABLE - ADD THIS
         'phic', // MISSING FROM YOUR TABLE - ADD THIS
         'hdmf', // MISSING FROM YOUR TABLE - ADD THIS
@@ -76,13 +91,26 @@ class Payroll extends Model
         'overtime_rate' => 'decimal:2',
         'overtime_pay' => 'decimal:2',
         'scheduled_hours' => 'decimal:2',
+        'worked_hours' => 'decimal:2',
+        'late_minutes' => 'integer',
+        'undertime_minutes' => 'integer',
+        'late_deduction' => 'decimal:2',
+        'undertime_deduction' => 'decimal:2',
+        'absence_deduction' => 'decimal:2',
         'night_differential_hours' => 'decimal:2',
         'night_differential_rate' => 'decimal:2',
         'night_differential_pay' => 'decimal:2',
         'rest_day_premium_pay' => 'decimal:2',
         'allowances' => 'decimal:2',
         'bonuses' => 'decimal:2',
+        'other_earnings' => 'decimal:2',
+        'paid_leave_days' => 'integer',
+        'paid_leave_pay' => 'decimal:2',
+        'unpaid_leave_days' => 'integer',
+        'unpaid_leave_deduction' => 'decimal:2',
         'deductions' => 'decimal:2',
+        'other_deductions' => 'decimal:2',
+        'loan_deduction' => 'decimal:2',
         'sss' => 'decimal:2', // ADD THIS
         'phic' => 'decimal:2', // ADD THIS
         'hdmf' => 'decimal:2', // ADD THIS
@@ -105,6 +133,16 @@ class Payroll extends Model
             if (empty($model->id)) {
                 $model->id = Uuid::uuid4()->toString();
             }
+
+            $model->assertPeriodIsNotLocked();
+        });
+
+        static::updating(function ($model) {
+            $model->assertLockedPeriodUpdateIsAllowed();
+        });
+
+        static::deleting(function ($model) {
+            $model->assertPeriodIsNotLocked();
         });
     }
 
@@ -122,6 +160,74 @@ class Payroll extends Model
         });
     }
 
+
+    /**
+     * Prevent Eloquent create/update/delete operations for payroll records
+     * that belong to a locked payroll period.
+     */
+    public function assertPeriodIsNotLocked(): void
+    {
+        if ($this->belongsToLockedPeriod()) {
+            throw new \LogicException(
+                'This payroll belongs to a locked period and can no longer be modified.'
+            );
+        }
+    }
+
+    /**
+     * Locked runs freeze computation fields but still permit the controlled
+     * Approved -> Paid transition and its payment audit metadata.
+     */
+    public function assertLockedPeriodUpdateIsAllowed(): void
+    {
+        if (! $this->belongsToLockedPeriod()) {
+            return;
+        }
+
+        $allowedFields = [
+            'status',
+            'paid_at',
+            'paid_by',
+            'payment_id',
+            'payment_reference',
+            'payslip_file',
+            'updated_at',
+        ];
+        $blockedFields = array_diff(array_keys($this->getDirty()), $allowedFields);
+
+        if (! empty($blockedFields)) {
+            throw new \LogicException(
+                'Locked payroll computation fields cannot be modified: ' . implode(', ', $blockedFields) . '.'
+            );
+        }
+
+        if ($this->isDirty('status') && $this->status !== 'paid') {
+            throw new \LogicException('A locked payroll may only transition to Paid.');
+        }
+    }
+
+    private function belongsToLockedPeriod(): bool
+    {
+        if (! empty($this->period_id)) {
+            return Period::query()
+                ->whereKey($this->period_id)
+                ->where('status', Period::STATUS_LOCKED)
+                ->exists();
+        }
+
+        if (! empty($this->pay_period_start) && ! empty($this->pay_period_end)) {
+            // Backward-compatible fallback for legacy payroll rows that have not
+            // yet been linked to a payroll period.
+            return Period::query()
+                ->whereDate('start_date', $this->pay_period_start)
+                ->whereDate('end_date', $this->pay_period_end)
+                ->where('status', Period::STATUS_LOCKED)
+                ->exists();
+        }
+
+        return false;
+    }
+
     public function newUniqueId()
     {
         return (string) Uuid::uuid4();
@@ -130,6 +236,11 @@ class Payroll extends Model
     public function uniqueIds()
     {
         return ['id'];
+    }
+
+    public function period(): BelongsTo
+    {
+        return $this->belongsTo(Period::class);
     }
 
     public function employee(): BelongsTo
@@ -190,7 +301,8 @@ class Payroll extends Model
      */
     public function getNightDifferentialPayAttribute(): float
     {
-        if ($this->attributes['night_differential_pay'] !== null) {
+        if (array_key_exists('night_differential_pay', $this->attributes)
+            && $this->attributes['night_differential_pay'] !== null) {
             return (float) $this->attributes['night_differential_pay'];
         }
         
@@ -225,8 +337,7 @@ class Payroll extends Model
     {
         $deductions = (float) ($this->deductions ?? 0);
         $tax = (float) ($this->tax_amount ?? 0);
-        $statutory = $this->total_statutory_deductions;
         
-        return $deductions + $tax + $statutory;
+        return $deductions + $tax;
     }
 }

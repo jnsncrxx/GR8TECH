@@ -54,7 +54,7 @@
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
         <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
             <div class="flex-1">
-                <input type="text" id="searchInput" placeholder="Search employees..." 
+                <input type="text" id="searchInput" placeholder="Search employees..."
                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors">
             </div>
             <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 lg:flex-shrink-0">
@@ -106,11 +106,11 @@
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     @forelse($employees as $employee)
-                    <tr class="hover:bg-gray-50 transition-colors employee-row" 
+                    <tr class="hover:bg-gray-50 transition-colors employee-row"
                         data-name="{{ strtolower($employee->full_name) }}"
                         data-email="{{ strtolower($employee->account?->email ?? '') }}"
                         data-role="{{ $employee->account?->role ?? '' }}"
-                        data-position="{{ strtolower($employee->position) }}"
+                        data-position="{{ strtolower($employee->position?->name ?? '') }}"
                         data-status="{{ $employee->account?->is_active ? 'active' : 'inactive' }}">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
@@ -122,8 +122,13 @@
                                     </div>
                                 </div>
                                 <div class="ml-4">
-                                    <div class="text-sm font-medium text-gray-900">
+                                    <div class="text-sm font-medium text-gray-900 flex items-center">
                                         {{ $employee->full_name }}
+                                        @if($department->manager_id === $employee->id)
+                                            <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                                <i class="fas fa-user-tag mr-1"></i>Manager
+                                            </span>
+                                        @endif
                                     </div>
                                     <div class="text-sm text-gray-500">
                                         {{ $employee->account?->email ?? 'No email' }}
@@ -132,7 +137,7 @@
                             </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">{{ $employee->position }}</div>
+                            <div class="text-sm text-gray-900">{{ $employee->position?->name ?? 'N/A' }}</div>
                             <div class="text-sm text-gray-500">{{ ucfirst($employee->account?->role ?? 'No role') }}</div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
@@ -164,6 +169,14 @@
                                 <a href="{{ route('employees.payroll', $employee) }}" class="text-green-600 hover:text-green-900 transition-colors">
                                     <i class="fas fa-money-bill-wave"></i>
                                 </a>
+                                <form method="POST" action="{{ route('departments.manager.update', $department) }}">
+                                    @csrf
+                                    @method('PUT')
+                                    <input type="hidden" name="employee_id" value="{{ $department->manager_id === $employee->id ? '' : $employee->id }}">
+                                    <button type="submit" title="{{ $department->manager_id === $employee->id ? 'Remove as manager' : 'Set as manager' }}" class="{{ $department->manager_id === $employee->id ? 'text-purple-600 hover:text-purple-900' : 'text-gray-400 hover:text-purple-600' }} transition-colors">
+                                        <i class="fas fa-user-tag"></i>
+                                    </button>
+                                </form>
                             </div>
                         </td>
                     </tr>
@@ -185,11 +198,11 @@
         <!-- Mobile Cards -->
         <div class="lg:hidden">
             @forelse($employees as $employee)
-            <div class="border-b border-gray-200 p-4 hover:bg-gray-50 transition-colors employee-row" 
+            <div class="border-b border-gray-200 p-4 hover:bg-gray-50 transition-colors employee-row"
                  data-name="{{ strtolower($employee->full_name) }}"
                  data-email="{{ strtolower($employee->account?->email ?? '') }}"
                  data-role="{{ $employee->account?->role ?? '' }}"
-                 data-position="{{ strtolower($employee->position) }}"
+                 data-position="{{ strtolower($employee->position?->name ?? '') }}"
                  data-status="{{ $employee->account?->is_active ? 'active' : 'inactive' }}">
                 <div class="flex items-start justify-between">
                     <div class="flex items-center space-x-3">
@@ -201,14 +214,19 @@
                             </div>
                         </div>
                         <div class="min-w-0 flex-1">
-                            <div class="text-sm font-medium text-gray-900 truncate">
+                            <div class="text-sm font-medium text-gray-900 truncate flex items-center">
                                 {{ $employee->full_name }}
+                                @if($department->manager_id === $employee->id)
+                                    <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                        <i class="fas fa-user-tag mr-1"></i>Manager
+                                    </span>
+                                @endif
                             </div>
                             <div class="text-sm text-gray-500 truncate">
                                 {{ $employee->account?->email ?? 'No email' }}
                             </div>
                             <div class="text-sm text-gray-500">
-                                {{ $employee->position }}
+                                {{ $employee->position?->name ?? 'N/A' }}
                             </div>
                         </div>
                     </div>
@@ -220,7 +238,7 @@
                         </span>
                     </div>
                 </div>
-                
+
                 <div class="mt-3 grid grid-cols-2 gap-4 text-sm">
                     <div>
                         <div class="text-gray-500">Salary</div>
@@ -231,7 +249,7 @@
                         <div class="font-medium text-gray-900">{{ $employee->hire_date->format('M d, Y') }}</div>
                     </div>
                 </div>
-                
+
                 <div class="mt-3 flex justify-end space-x-2">
                     <a href="{{ route('employees.show', $employee) }}" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-900 transition-colors">
                         <i class="fas fa-eye mr-1"></i>View
@@ -242,6 +260,14 @@
                     <a href="{{ route('employees.payroll', $employee) }}" class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-green-600 hover:text-green-900 transition-colors">
                         <i class="fas fa-money-bill-wave mr-1"></i>Payroll
                     </a>
+                    <form method="POST" action="{{ route('departments.manager.update', $department) }}">
+                        @csrf
+                        @method('PUT')
+                        <input type="hidden" name="employee_id" value="{{ $department->manager_id === $employee->id ? '' : $employee->id }}">
+                        <button type="submit" class="inline-flex items-center px-3 py-1.5 text-xs font-medium {{ $department->manager_id === $employee->id ? 'text-purple-600 hover:text-purple-900' : 'text-gray-500 hover:text-purple-600' }} transition-colors">
+                            <i class="fas fa-user-tag mr-1"></i>{{ $department->manager_id === $employee->id ? 'Remove' : 'Set as Manager' }}
+                        </button>
+                    </form>
                 </div>
             </div>
             @empty
@@ -284,9 +310,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const status = row.dataset.status || '';
 
             // Check search term
-            const matchesSearch = searchTerm === '' || 
-                name.includes(searchTerm) || 
-                email.includes(searchTerm) || 
+            const matchesSearch = searchTerm === '' ||
+                name.includes(searchTerm) ||
+                email.includes(searchTerm) ||
                 position.includes(searchTerm);
 
             // Check role filter
@@ -310,7 +336,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateNoResultsMessage() {
         const visibleRows = Array.from(employeeRows).filter(row => row.style.display !== 'none');
         const noResultsMessage = document.querySelector('.no-results-message');
-        
+
         if (visibleRows.length === 0) {
             if (!noResultsMessage) {
                 // Create no results message
@@ -323,7 +349,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <p class="text-sm">Try adjusting your search or filters.</p>
                     </div>
                 `;
-                
+
                 // Insert after the table/cards container
                 const tableContainer = document.querySelector('.bg-white.rounded-lg.shadow-sm.border.border-gray-200.overflow-hidden');
                 tableContainer.appendChild(messageDiv);
@@ -346,7 +372,7 @@ function clearFilters() {
     document.getElementById('searchInput').value = '';
     document.getElementById('roleFilter').value = '';
     document.getElementById('statusFilter').value = '';
-    
+
     // Trigger filter function
     const event = new Event('input');
     document.getElementById('searchInput').dispatchEvent(event);

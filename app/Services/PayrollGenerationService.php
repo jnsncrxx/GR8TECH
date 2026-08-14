@@ -6,6 +6,8 @@ use App\Models\Payroll;
 use App\Models\Employee;
 use App\Models\AttendanceRecord;
 use App\Models\EmployeeSchedule;
+use App\Models\LeaveRequest;
+use App\Models\PayrollAdjustment;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -25,7 +27,7 @@ class PayrollGenerationService
      * @param array|null $employeeIds Optional array of employee IDs to process
      * @return array Preview payroll data
      */
-    public function generatePayrollPreview(array $periodData, array $comprehensiveData, ?array $employeeIds = null): array
+    public function generatePayrollPreview(array $periodData, array $comprehensiveData, ?array $employeeIds = null, ?string $payrollTemplateId = null): array
     {
         $generatedPayrolls = [];
 
@@ -44,7 +46,7 @@ class PayrollGenerationService
             }
 
             try {
-                $payrollData = $this->calculatePayrollPreviewFromRecords($employee, $employeeRecords, $periodData);
+                $payrollData = $this->calculatePayrollPreviewFromRecords($employee, $employeeRecords, $periodData, $payrollTemplateId);
                 if ($payrollData) {
                     $generatedPayrolls[] = $payrollData;
                 }
@@ -65,7 +67,7 @@ class PayrollGenerationService
      * @return array Created Payroll models
      * @throws \Exception
      */
-    public function generatePayrollFromComprehensiveData(array $periodData, array $comprehensiveData, ?array $employeeIds = null): array
+    public function generatePayrollFromComprehensiveData(array $periodData, array $comprehensiveData, ?array $employeeIds = null, ?string $payrollTemplateId = null): array
     {
         try {
             DB::beginTransaction();
@@ -87,7 +89,7 @@ class PayrollGenerationService
                 }
 
                 try {
-                    $payroll = $this->calculatePayrollFromRecords($employee, $employeeRecords, $periodData);
+                    $payroll = $this->calculatePayrollFromRecords($employee, $employeeRecords, $periodData, $payrollTemplateId);
                     if ($payroll) {
                         $generatedPayrolls[] = $payroll;
                     }
@@ -113,12 +115,12 @@ class PayrollGenerationService
      * @param array|null $employeeIds
      * @return array list of saved file paths
      */
-// Replace your current generatePayslip method with this:
+    // Replace your current generatePayslip method with this:
 
 
-private function generateSimplePayslipHTML(Payroll $payroll, Employee $employee): string
-{
-    return '
+    private function generateSimplePayslipHTML(Payroll $payroll, Employee $employee): string
+    {
+        return '
     <!DOCTYPE html>
     <html>
     <head>
@@ -134,7 +136,7 @@ private function generateSimplePayslipHTML(Payroll $payroll, Employee $employee)
     </head>
     <body>
         <div class="header">
-            <h1>Aeternitas Company</h1>
+            <h1>GR8 TECH ENTERPRISE INC.</h1>
             <h2>PAYSLIP</h2>
         </div>
         
@@ -168,178 +170,177 @@ private function generateSimplePayslipHTML(Payroll $payroll, Employee $employee)
         </div>
     </body>
     </html>';
-}
+    }
 
-public function debugPayslipGeneration(Payroll $payroll)
-{
-    Log::channel('single')->debug('=== START DEBUG ===');
-    
-    try {
-        // Step 1: Find employee
-        $employee = Employee::find($payroll->employee_id);
-        Log::debug('Step 1 - Employee found: ' . ($employee ? 'Yes' : 'No'));
-        
+    public function debugPayslipGeneration(Payroll $payroll)
+    {
+        Log::channel('single')->debug('=== START DEBUG ===');
+
+        try {
+            // Step 1: Find employee
+            $employee = Employee::find($payroll->employee_id);
+            Log::debug('Step 1 - Employee found: ' . ($employee ? 'Yes' : 'No'));
+
+            if (!$employee) {
+                return null;
+            }
+
+            // Step 2: Check view
+            $viewPath = 'payslips.pdf';
+            $viewExists = View::exists($viewPath);
+            Log::debug('Step 2 - View exists: ' . ($viewExists ? 'Yes' : 'No'));
+
+            // Step 3: Generate HTML
+            $html = View::make($viewPath, [
+                'payroll' => $payroll,
+                'employee' => $employee,
+                'company' => CompanyHelper::getCurrentCompany(),
+                'today' => now()->format('F j, Y')
+            ])->render();
+
+            Log::debug('Step 3 - HTML generated: ' . strlen($html) . ' bytes');
+
+            // Step 4: Check DomPDF
+            $dompdfExists = class_exists('\Barryvdh\DomPDF\Facade\Pdf');
+            Log::debug('Step 4 - DomPDF exists: ' . ($dompdfExists ? 'Yes' : 'No'));
+
+            if (!$dompdfExists) {
+                return null;
+            }
+
+            // Step 5: Generate PDF
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html);
+            $content = $pdf->output();
+            Log::debug('Step 5 - PDF generated: ' . strlen($content) . ' bytes');
+
+            // Step 6: Save to storage
+            $dir = "payslips/test";
+            Storage::makeDirectory($dir);
+            Log::debug('Step 6 - Directory created');
+
+            $filename = "{$dir}/test_{$payroll->id}.pdf";
+            $saved = Storage::put($filename, $content);
+            Log::debug('Step 7 - File saved: ' . ($saved ? 'Yes' : 'No'));
+
+            if ($saved) {
+                $url = Storage::url($filename);
+                Log::debug('Step 8 - URL: ' . $url);
+                return $url;
+            }
+        } catch (\Exception $e) {
+            Log::debug('ERROR: ' . $e->getMessage());
+            Log::debug('TRACE: ' . $e->getTraceAsString());
+        }
+
+        Log::debug('=== END DEBUG ===');
+        return null;
+    }
+
+
+    /**
+     * Recalculate payroll values based on company Excel formulas
+     */
+    private function recalculatePayrollForExport(Payroll $payroll)
+    {
+        $employee = $payroll->employee;
         if (!$employee) {
-            return null;
+            Log::warning("Payroll {$payroll->id} has no employee relationship");
+            return;
         }
-        
-        // Step 2: Check view
-        $viewPath = 'payslips.pdf';
-        $viewExists = View::exists($viewPath);
-        Log::debug('Step 2 - View exists: ' . ($viewExists ? 'Yes' : 'No'));
-        
-        // Step 3: Generate HTML
-        $html = View::make($viewPath, [
-            'payroll' => $payroll,
-            'employee' => $employee,
-            'company' => CompanyHelper::getCurrentCompany(),
-            'today' => now()->format('F j, Y')
-        ])->render();
-        
-        Log::debug('Step 3 - HTML generated: ' . strlen($html) . ' bytes');
-        
-        // Step 4: Check DomPDF
-        $dompdfExists = class_exists('\Barryvdh\DomPDF\Facade\Pdf');
-        Log::debug('Step 4 - DomPDF exists: ' . ($dompdfExists ? 'Yes' : 'No'));
-        
-        if (!$dompdfExists) {
-            return null;
-        }
-        
-        // Step 5: Generate PDF
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html);
-        $content = $pdf->output();
-        Log::debug('Step 5 - PDF generated: ' . strlen($content) . ' bytes');
-        
-        // Step 6: Save to storage
-        $dir = "payslips/test";
-        Storage::makeDirectory($dir);
-        Log::debug('Step 6 - Directory created');
-        
-        $filename = "{$dir}/test_{$payroll->id}.pdf";
-        $saved = Storage::put($filename, $content);
-        Log::debug('Step 7 - File saved: ' . ($saved ? 'Yes' : 'No'));
-        
-        if ($saved) {
-            $url = Storage::url($filename);
-            Log::debug('Step 8 - URL: ' . $url);
-            return $url;
-        }
-        
-    } catch (\Exception $e) {
-        Log::debug('ERROR: ' . $e->getMessage());
-        Log::debug('TRACE: ' . $e->getTraceAsString());
-    }
-    
-    Log::debug('=== END DEBUG ===');
-    return null;
-}
 
+        // Get rates based on company Excel formulas
+        $monthlyRate = $payroll->monthly_rate ?? $employee->salary ?? 0;
 
-/**
- * Recalculate payroll values based on company Excel formulas
- */
-private function recalculatePayrollForExport(Payroll $payroll)
-{
-    $employee = $payroll->employee;
-    if (!$employee) {
-        Log::warning("Payroll {$payroll->id} has no employee relationship");
-        return;
-    }
-    
-    // Get rates based on company Excel formulas
-    $monthlyRate = $payroll->monthly_rate ?? $employee->salary ?? 0;
-    
-    // If monthly rate is zero but employee has salary
-    if ($monthlyRate == 0 && $employee->salary > 0) {
-        $monthlyRate = $employee->salary;
-    }
-    
-    // Calculate rates using Excel formulas from your company spreadsheet
-    $semiMonthlyRate = $monthlyRate / 2;
-    $dailyRate = $payroll->daily_rate ?? $employee->daily_rate ?? 0;
-    
-    // If daily rate is zero, calculate using company formula: =E16*12/313
-    if ($dailyRate == 0) {
-        $dailyRate = ($monthlyRate * 12) / 313;
-    }
-    
-    $hourlyRate = $payroll->hourly_rate ?? $employee->hourly_rate ?? ($dailyRate / 8);
-    $overtimeRate = $payroll->overtime_rate ?? ($hourlyRate * 1.25); // 125% of hourly rate
-    $nightDiffRate = $payroll->night_differential_rate ?? ($hourlyRate * 0.10); // 10% of hourly rate
-    
-    // Calculate basic salary if zero
-    $basicSalary = $payroll->basic_salary;
-    if ($basicSalary == 0) {
-        // Use semi-monthly rate or calculate from daily rate
-        if ($semiMonthlyRate > 0) {
-            $basicSalary = $semiMonthlyRate;
-        } elseif ($dailyRate > 0) {
-            // Default to 13 working days in a semi-monthly period
-            $basicSalary = $dailyRate * 13;
+        // If monthly rate is zero but employee has salary
+        if ($monthlyRate == 0 && $employee->salary > 0) {
+            $monthlyRate = $employee->salary;
         }
+
+        // Calculate rates using Excel formulas from your company spreadsheet
+        $semiMonthlyRate = $monthlyRate / 2;
+        $dailyRate = $payroll->daily_rate ?? $employee->daily_rate ?? 0;
+
+        // If daily rate is zero, calculate using company formula: =E16*12/313
+        if ($dailyRate == 0) {
+            $dailyRate = ($monthlyRate * 12) / 313;
+        }
+
+        $hourlyRate = $payroll->hourly_rate ?? $employee->hourly_rate ?? ($dailyRate / 8);
+        $overtimeRate = $payroll->overtime_rate ?? ($hourlyRate * 1.25); // 125% of hourly rate
+        $nightDiffRate = $payroll->night_differential_rate ?? ($hourlyRate * 0.10); // 10% of hourly rate
+
+        // Calculate basic salary if zero
+        $basicSalary = $payroll->basic_salary;
+        if ($basicSalary == 0) {
+            // Use semi-monthly rate or calculate from daily rate
+            if ($semiMonthlyRate > 0) {
+                $basicSalary = $semiMonthlyRate;
+            } elseif ($dailyRate > 0) {
+                // Default to 13 working days in a semi-monthly period
+                $basicSalary = $dailyRate * 13;
+            }
+        }
+
+        // Calculate overtime pay using Excel formula: =H14*L14*1.25
+        $overtimePay = $payroll->overtime_pay;
+        if ($overtimePay == 0 && ($payroll->overtime_hours ?? 0) > 0) {
+            $overtimePay = ($payroll->overtime_hours ?? 0) * $hourlyRate * 1.25;
+        }
+
+        // Calculate night differential using Excel formula: =H14*0.1*X14
+        $nightDiffPay = $payroll->night_differential_pay;
+        if ($nightDiffPay == 0 && ($payroll->night_differential_hours ?? 0) > 0) {
+            $nightDiffPay = ($payroll->night_differential_hours ?? 0) * $hourlyRate * 0.10;
+        }
+
+        // Calculate statutory deductions based on your company Excel
+        $sss = $payroll->sss ?? 450.00; // Default from Excel
+        $phic = $payroll->phic ?? ($monthlyRate >= 10000 ? 225.88 : 0); // Excel: =451.75/2
+        $hdmf = $payroll->hdmf ?? 100.00; // Fixed amount
+
+        // Calculate gross pay
+        $grossPay = $payroll->gross_pay;
+        if ($grossPay == 0) {
+            $grossPay = $basicSalary
+                + $overtimePay
+                + $nightDiffPay
+                + ($payroll->rest_day_premium_pay ?? 0)
+                + ($payroll->allowances ?? 0)
+                + ($payroll->bonuses ?? 0);
+        }
+
+        // Calculate net pay
+        $netPay = $payroll->net_pay;
+        if ($netPay == 0) {
+            $totalDeductions = ($payroll->deductions ?? 0) + $sss + $phic + $hdmf + ($payroll->tax_amount ?? 0);
+            $netPay = $grossPay - $totalDeductions;
+        }
+
+        // Update payroll with calculated values
+        $payroll->update([
+            'monthly_rate' => $monthlyRate,
+            'semi_monthly_rate' => $semiMonthlyRate,
+            'daily_rate' => round($dailyRate, 2),
+            'hourly_rate' => round($hourlyRate, 2),
+            'overtime_rate' => round($overtimeRate, 2),
+            'night_differential_rate' => round($nightDiffRate, 2),
+            'basic_salary' => round($basicSalary, 2),
+            'overtime_pay' => round($overtimePay, 2),
+            'night_differential_pay' => round($nightDiffPay, 2),
+            'sss' => $sss,
+            'phic' => round($phic, 2),
+            'hdmf' => $hdmf,
+            'gross_pay' => round($grossPay, 2),
+            'net_pay' => round($netPay, 2),
+            'updated_at' => now()
+        ]);
+
+        Log::info("Recalculated payroll {$payroll->id} for export", [
+            'basic_salary' => $basicSalary,
+            'gross_pay' => $grossPay,
+            'net_pay' => $netPay
+        ]);
     }
-    
-    // Calculate overtime pay using Excel formula: =H14*L14*1.25
-    $overtimePay = $payroll->overtime_pay;
-    if ($overtimePay == 0 && ($payroll->overtime_hours ?? 0) > 0) {
-        $overtimePay = ($payroll->overtime_hours ?? 0) * $hourlyRate * 1.25;
-    }
-    
-    // Calculate night differential using Excel formula: =H14*0.1*X14
-    $nightDiffPay = $payroll->night_differential_pay;
-    if ($nightDiffPay == 0 && ($payroll->night_differential_hours ?? 0) > 0) {
-        $nightDiffPay = ($payroll->night_differential_hours ?? 0) * $hourlyRate * 0.10;
-    }
-    
-    // Calculate statutory deductions based on your company Excel
-    $sss = $payroll->sss ?? 450.00; // Default from Excel
-    $phic = $payroll->phic ?? ($monthlyRate >= 10000 ? 225.88 : 0); // Excel: =451.75/2
-    $hdmf = $payroll->hdmf ?? 100.00; // Fixed amount
-    
-    // Calculate gross pay
-    $grossPay = $payroll->gross_pay;
-    if ($grossPay == 0) {
-        $grossPay = $basicSalary 
-            + $overtimePay 
-            + $nightDiffPay 
-            + ($payroll->rest_day_premium_pay ?? 0)
-            + ($payroll->allowances ?? 0)
-            + ($payroll->bonuses ?? 0);
-    }
-    
-    // Calculate net pay
-    $netPay = $payroll->net_pay;
-    if ($netPay == 0) {
-        $totalDeductions = ($payroll->deductions ?? 0) + $sss + $phic + $hdmf + ($payroll->tax_amount ?? 0);
-        $netPay = $grossPay - $totalDeductions;
-    }
-    
-    // Update payroll with calculated values
-    $payroll->update([
-        'monthly_rate' => $monthlyRate,
-        'semi_monthly_rate' => $semiMonthlyRate,
-        'daily_rate' => round($dailyRate, 2),
-        'hourly_rate' => round($hourlyRate, 2),
-        'overtime_rate' => round($overtimeRate, 2),
-        'night_differential_rate' => round($nightDiffRate, 2),
-        'basic_salary' => round($basicSalary, 2),
-        'overtime_pay' => round($overtimePay, 2),
-        'night_differential_pay' => round($nightDiffPay, 2),
-        'sss' => $sss,
-        'phic' => round($phic, 2),
-        'hdmf' => $hdmf,
-        'gross_pay' => round($grossPay, 2),
-        'net_pay' => round($netPay, 2),
-        'updated_at' => now()
-    ]);
-    
-    Log::info("Recalculated payroll {$payroll->id} for export", [
-        'basic_salary' => $basicSalary,
-        'gross_pay' => $grossPay,
-        'net_pay' => $netPay
-    ]);
-}
 
     /**
      * Export payroll data to CSV/Excel
@@ -349,409 +350,409 @@ private function recalculatePayrollForExport(Payroll $payroll)
      * @param string $format csv or xlsx
      * @return string Path to exported file
      */
-public function exportPayrollToExcel(?array $periodData = null, ?array $employeeIds = null, string $format = 'csv'): string
-{
-    // Use window function to get latest payroll per employee per period (same as index page)
-    $latestPayrollsSubquery = DB::table('payrolls as p1')
-        ->select(
-            'p1.id',
-            'p1.employee_id',
-            'p1.pay_period_start',
-            'p1.pay_period_end',
-            'p1.status',
-            'p1.basic_salary',
-            'p1.overtime_pay',
-            'p1.overtime_hours',
-            'p1.overtime_rate',
-            'p1.allowances',
-            'p1.bonuses',
-            'p1.deductions',
-            'p1.tax_amount',
-            'p1.net_pay',
-            'p1.gross_pay',
-            'p1.night_differential_hours',
-            'p1.night_differential_rate',
-            'p1.night_differential_pay',
-            'p1.rest_day_premium_pay',
-            // Use correct column names from your database schema
-            'p1.sss',           // Changed from sss_contribution
-            'p1.phic',          // Changed from phic_contribution
-            'p1.hdmf',          // Changed from hdmf_contribution
-            'p1.approved_at',
-            'p1.paid_at',
-            'p1.created_at',
-            DB::raw('ROW_NUMBER() OVER (PARTITION BY p1.employee_id, p1.pay_period_start, p1.pay_period_end ORDER BY p1.created_at DESC) as rn')
-        );
-    
-    // Build date filter for subquery
-    $subqueryBindings = [];
-    if (!empty($periodData['start_date']) && !empty($periodData['end_date'])) {
-        $latestPayrollsSubquery->where(function($q) use ($periodData) {
-            $q->where(function($subQ) use ($periodData) {
-                $subQ->whereBetween('p1.pay_period_start', [$periodData['start_date'], $periodData['end_date']]);
-            })->orWhere(function($subQ) use ($periodData) {
-                $subQ->whereBetween('p1.pay_period_end', [$periodData['start_date'], $periodData['end_date']]);
-            })->orWhere(function($subQ) use ($periodData) {
-                $subQ->where('p1.pay_period_start', '<=', $periodData['start_date'])
-                     ->where('p1.pay_period_end', '>=', $periodData['end_date']);
-            })->orWhere(function($subQ) use ($periodData) {
-                $subQ->where('p1.pay_period_start', $periodData['start_date'])
-                     ->where('p1.pay_period_end', $periodData['end_date']);
+    public function exportPayrollToExcel(?array $periodData = null, ?array $employeeIds = null, string $format = 'csv'): string
+    {
+        // Use window function to get latest payroll per employee per period (same as index page)
+        $latestPayrollsSubquery = DB::table('payrolls as p1')
+            ->select(
+                'p1.id',
+                'p1.employee_id',
+                'p1.pay_period_start',
+                'p1.pay_period_end',
+                'p1.status',
+                'p1.basic_salary',
+                'p1.overtime_pay',
+                'p1.overtime_hours',
+                'p1.overtime_rate',
+                'p1.allowances',
+                'p1.bonuses',
+                'p1.deductions',
+                'p1.tax_amount',
+                'p1.net_pay',
+                'p1.gross_pay',
+                'p1.night_differential_hours',
+                'p1.night_differential_rate',
+                'p1.night_differential_pay',
+                'p1.rest_day_premium_pay',
+                // Use correct column names from your database schema
+                'p1.sss',           // Changed from sss_contribution
+                'p1.phic',          // Changed from phic_contribution
+                'p1.hdmf',          // Changed from hdmf_contribution
+                'p1.approved_at',
+                'p1.paid_at',
+                'p1.created_at',
+                DB::raw('ROW_NUMBER() OVER (PARTITION BY p1.employee_id, p1.pay_period_start, p1.pay_period_end ORDER BY p1.created_at DESC) as rn')
+            );
+
+        // Build date filter for subquery
+        $subqueryBindings = [];
+        if (!empty($periodData['start_date']) && !empty($periodData['end_date'])) {
+            $latestPayrollsSubquery->where(function ($q) use ($periodData) {
+                $q->where(function ($subQ) use ($periodData) {
+                    $subQ->whereBetween('p1.pay_period_start', [$periodData['start_date'], $periodData['end_date']]);
+                })->orWhere(function ($subQ) use ($periodData) {
+                    $subQ->whereBetween('p1.pay_period_end', [$periodData['start_date'], $periodData['end_date']]);
+                })->orWhere(function ($subQ) use ($periodData) {
+                    $subQ->where('p1.pay_period_start', '<=', $periodData['start_date'])
+                        ->where('p1.pay_period_end', '>=', $periodData['end_date']);
+                })->orWhere(function ($subQ) use ($periodData) {
+                    $subQ->where('p1.pay_period_start', $periodData['start_date'])
+                        ->where('p1.pay_period_end', $periodData['end_date']);
+                });
             });
-        });
-    } elseif (!empty($periodData['start_date'])) {
-        $latestPayrollsSubquery->where('p1.pay_period_start', '>=', $periodData['start_date']);
-    } elseif (!empty($periodData['end_date'])) {
-        $latestPayrollsSubquery->where('p1.pay_period_end', '<=', $periodData['end_date']);
-    }
-    
-    if (!empty($employeeIds)) {
-        $latestPayrollsSubquery->whereIn('p1.employee_id', $employeeIds);
-    }
+        } elseif (!empty($periodData['start_date'])) {
+            $latestPayrollsSubquery->where('p1.pay_period_start', '>=', $periodData['start_date']);
+        } elseif (!empty($periodData['end_date'])) {
+            $latestPayrollsSubquery->where('p1.pay_period_end', '<=', $periodData['end_date']);
+        }
 
-    // Get only the latest payroll per employee per period
-    $latestPayrollsQuery = DB::table(DB::raw("({$latestPayrollsSubquery->toSql()}) as latest_payrolls"))
-        ->mergeBindings($latestPayrollsSubquery)
-        ->where('latest_payrolls.rn', 1)
-        ->select('latest_payrolls.*');
-    
-    $latestPayrollIds = $latestPayrollsQuery->pluck('id')->toArray();
-    
-    // Now get the full payroll records with relationships
-    $query = Payroll::with(['employee', 'employee.department'])
-        ->whereIn('id', $latestPayrollIds);
-    
-    $payrolls = $query->orderBy('pay_period_start', 'desc')
-                      ->orderBy('employee_id')
-                      ->get();
+        if (!empty($employeeIds)) {
+            $latestPayrollsSubquery->whereIn('p1.employee_id', $employeeIds);
+        }
 
-    if ($payrolls->isEmpty()) {
-        $dateRange = !empty($periodData['start_date']) && !empty($periodData['end_date']) 
-            ? "from {$periodData['start_date']} to {$periodData['end_date']}" 
-            : "for the selected period";
-        throw new \Exception("No payroll records found {$dateRange}. Please generate payrolls first or select a different date range.");
+        // Get only the latest payroll per employee per period
+        $latestPayrollsQuery = DB::table(DB::raw("({$latestPayrollsSubquery->toSql()}) as latest_payrolls"))
+            ->mergeBindings($latestPayrollsSubquery)
+            ->where('latest_payrolls.rn', 1)
+            ->select('latest_payrolls.*');
+
+        $latestPayrollIds = $latestPayrollsQuery->pluck('id')->toArray();
+
+        // Now get the full payroll records with relationships
+        $query = Payroll::with(['employee', 'employee.department'])
+            ->whereIn('id', $latestPayrollIds);
+
+        $payrolls = $query->orderBy('pay_period_start', 'desc')
+            ->orderBy('employee_id')
+            ->get();
+
+        if ($payrolls->isEmpty()) {
+            $dateRange = !empty($periodData['start_date']) && !empty($periodData['end_date'])
+                ? "from {$periodData['start_date']} to {$periodData['end_date']}"
+                : "for the selected period";
+            throw new \Exception("No payroll records found {$dateRange}. Please generate payrolls first or select a different date range.");
+        }
+
+        // Log for debugging
+        Log::info('Exporting payroll data', [
+            'total_payrolls' => $payrolls->count(),
+            'period' => $periodData,
+            'employee_ids' => $employeeIds,
+            'sample_payroll' => $payrolls->first() ? [
+                'id' => $payrolls->first()->id,
+                'employee_id' => $payrolls->first()->employee_id,
+                'has_employee' => !is_null($payrolls->first()->employee),
+                'basic_salary' => $payrolls->first()->basic_salary,
+                'gross_pay' => $payrolls->first()->gross_pay
+            ] : null
+        ]);
+
+        if ($format === 'csv') {
+            return $this->exportToCSV($payrolls);
+        } elseif ($format === 'xlsx') {
+            return $this->exportToXLSX($payrolls);
+        } else {
+            throw new \InvalidArgumentException('Unsupported format: ' . $format);
+        }
     }
-
-    // Log for debugging
-    Log::info('Exporting payroll data', [
-        'total_payrolls' => $payrolls->count(),
-        'period' => $periodData,
-        'employee_ids' => $employeeIds,
-        'sample_payroll' => $payrolls->first() ? [
-            'id' => $payrolls->first()->id,
-            'employee_id' => $payrolls->first()->employee_id,
-            'has_employee' => !is_null($payrolls->first()->employee),
-            'basic_salary' => $payrolls->first()->basic_salary,
-            'gross_pay' => $payrolls->first()->gross_pay
-        ] : null
-    ]);
-
-    if ($format === 'csv') {
-        return $this->exportToCSV($payrolls);
-    } elseif ($format === 'xlsx') {
-        return $this->exportToXLSX($payrolls);
-    } else {
-        throw new \InvalidArgumentException('Unsupported format: ' . $format);
-    }
-}
 
     /**
      * Export to CSV format
      */
-private function exportToCSV($payrolls): string
-{
-    $filename = 'payroll_export_' . date('Ymd_His') . '.csv';
-    $filepath = storage_path('app/exports/' . $filename);
-    
-    // Ensure directory exists
-    $directory = storage_path('app/exports');
-    if (!is_dir($directory)) {
-        mkdir($directory, 0755, true);
-    }
+    private function exportToCSV($payrolls): string
+    {
+        $filename = 'payroll_export_' . date('Ymd_His') . '.csv';
+        $filepath = storage_path('app/exports/' . $filename);
 
-    $handle = fopen($filepath, 'w');
-    
-    if (!$handle) {
-        throw new \Exception('Unable to create CSV file: ' . $filepath);
-    }
-    
-    // Add BOM for Excel UTF-8 support
-    fwrite($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
-    
-    // SIMPLIFIED headers - only essential columns
-    $headers = [
-        'Employee ID',
-        'Employee Name',
-        'Department',
-        'Period Start',
-        'Period End',
-        'Basic Salary',
-        'Overtime Hours',
-        'Overtime Pay',
-        'Allowances',
-        'Bonuses',
-        'Deductions',
-        'Tax Amount',
-        'SSS',
-        'PHIC',
-        'HDMF',
-        'Gross Pay',
-        'Net Pay',
-        'Status'
-    ];
-    fputcsv($handle, $headers);
-
-    // Data rows
-    $totalBasicSalary = 0;
-    $totalOvertimePay = 0;
-    $totalAllowances = 0;
-    $totalBonuses = 0;
-    $totalDeductions = 0;
-    $totalTaxAmount = 0;
-    $totalSSS = 0;
-    $totalPHIC = 0;
-    $totalHDMF = 0;
-    $totalGrossPay = 0;
-    $totalNetPay = 0;
-    
-    foreach ($payrolls as $payroll) {
-        $employee = $payroll->employee;
-        
-        if (!$employee) {
-            Log::warning("Skipping payroll {$payroll->id} - no employee found");
-            continue;
+        // Ensure directory exists
+        $directory = storage_path('app/exports');
+        if (!is_dir($directory)) {
+            mkdir($directory, 0755, true);
         }
-        
-        // Use actual values from payroll
-        $row = [
-            $employee->employee_id ?? '',
-            $employee->full_name ?? $employee->first_name . ' ' . $employee->last_name,
-            $employee->department->name ?? 'N/A',
-            $payroll->pay_period_start,
-            $payroll->pay_period_end,
-            number_format($payroll->basic_salary, 2),
-            number_format($payroll->overtime_hours ?? 0, 2),
-            number_format($payroll->overtime_pay ?? 0, 2),
-            number_format($payroll->allowances ?? 0, 2),
-            number_format($payroll->bonuses ?? 0, 2),
-            number_format($payroll->deductions ?? 0, 2),
-            number_format($payroll->tax_amount ?? 0, 2),
-            number_format($payroll->sss ?? 0, 2),
-            number_format($payroll->phic ?? 0, 2),
-            number_format($payroll->hdmf ?? 0, 2),
-            number_format($payroll->gross_pay ?? 0, 2),
-            number_format($payroll->net_pay ?? 0, 2),
-            ucfirst($payroll->status)
+
+        $handle = fopen($filepath, 'w');
+
+        if (!$handle) {
+            throw new \Exception('Unable to create CSV file: ' . $filepath);
+        }
+
+        // Add BOM for Excel UTF-8 support
+        fwrite($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+        // SIMPLIFIED headers - only essential columns
+        $headers = [
+            'Employee ID',
+            'Employee Name',
+            'Department',
+            'Period Start',
+            'Period End',
+            'Basic Salary',
+            'Overtime Hours',
+            'Overtime Pay',
+            'Allowances',
+            'Bonuses',
+            'Deductions',
+            'Tax Amount',
+            'SSS',
+            'PHIC',
+            'HDMF',
+            'Gross Pay',
+            'Net Pay',
+            'Status'
         ];
-        fputcsv($handle, $row);
-        
-        // Accumulate totals
-        $totalBasicSalary += $payroll->basic_salary;
-        $totalOvertimePay += $payroll->overtime_pay ?? 0;
-        $totalAllowances += $payroll->allowances ?? 0;
-        $totalBonuses += $payroll->bonuses ?? 0;
-        $totalDeductions += $payroll->deductions ?? 0;
-        $totalTaxAmount += $payroll->tax_amount ?? 0;
-        $totalSSS += $payroll->sss ?? 0;
-        $totalPHIC += $payroll->phic ?? 0;
-        $totalHDMF += $payroll->hdmf ?? 0;
-        $totalGrossPay += $payroll->gross_pay ?? 0;
-        $totalNetPay += $payroll->net_pay ?? 0;
+        fputcsv($handle, $headers);
+
+        // Data rows
+        $totalBasicSalary = 0;
+        $totalOvertimePay = 0;
+        $totalAllowances = 0;
+        $totalBonuses = 0;
+        $totalDeductions = 0;
+        $totalTaxAmount = 0;
+        $totalSSS = 0;
+        $totalPHIC = 0;
+        $totalHDMF = 0;
+        $totalGrossPay = 0;
+        $totalNetPay = 0;
+
+        foreach ($payrolls as $payroll) {
+            $employee = $payroll->employee;
+
+            if (!$employee) {
+                Log::warning("Skipping payroll {$payroll->id} - no employee found");
+                continue;
+            }
+
+            // Use actual values from payroll
+            $row = [
+                $employee->employee_id ?? '',
+                $employee->full_name ?? $employee->first_name . ' ' . $employee->last_name,
+                $employee->department->name ?? 'N/A',
+                $payroll->pay_period_start,
+                $payroll->pay_period_end,
+                number_format($payroll->basic_salary, 2),
+                number_format($payroll->overtime_hours ?? 0, 2),
+                number_format($payroll->overtime_pay ?? 0, 2),
+                number_format($payroll->allowances ?? 0, 2),
+                number_format($payroll->bonuses ?? 0, 2),
+                number_format($payroll->deductions ?? 0, 2),
+                number_format($payroll->tax_amount ?? 0, 2),
+                number_format($payroll->sss ?? 0, 2),
+                number_format($payroll->phic ?? 0, 2),
+                number_format($payroll->hdmf ?? 0, 2),
+                number_format($payroll->gross_pay ?? 0, 2),
+                number_format($payroll->net_pay ?? 0, 2),
+                ucfirst($payroll->status)
+            ];
+            fputcsv($handle, $row);
+
+            // Accumulate totals
+            $totalBasicSalary += $payroll->basic_salary;
+            $totalOvertimePay += $payroll->overtime_pay ?? 0;
+            $totalAllowances += $payroll->allowances ?? 0;
+            $totalBonuses += $payroll->bonuses ?? 0;
+            $totalDeductions += $payroll->deductions ?? 0;
+            $totalTaxAmount += $payroll->tax_amount ?? 0;
+            $totalSSS += $payroll->sss ?? 0;
+            $totalPHIC += $payroll->phic ?? 0;
+            $totalHDMF += $payroll->hdmf ?? 0;
+            $totalGrossPay += $payroll->gross_pay ?? 0;
+            $totalNetPay += $payroll->net_pay ?? 0;
+        }
+
+        // Add summary/total row
+        $totals = [
+            '',
+            '',
+            'TOTALS:',
+            '',
+            '',
+            number_format($totalBasicSalary, 2),
+            '',
+            number_format($totalOvertimePay, 2),
+            number_format($totalAllowances, 2),
+            number_format($totalBonuses, 2),
+            number_format($totalDeductions, 2),
+            number_format($totalTaxAmount, 2),
+            number_format($totalSSS, 2),
+            number_format($totalPHIC, 2),
+            number_format($totalHDMF, 2),
+            number_format($totalGrossPay, 2),
+            number_format($totalNetPay, 2),
+            ''
+        ];
+        fputcsv($handle, $totals);
+
+        fclose($handle);
+
+        // Log export completion
+        Log::info('CSV export completed', [
+            'filename' => $filename,
+            'records_exported' => $payrolls->count(),
+            'file_size' => filesize($filepath)
+        ]);
+
+        return 'exports/' . $filename;
     }
-    
-    // Add summary/total row
-    $totals = [
-        '',
-        '',
-        'TOTALS:',
-        '',
-        '',
-        number_format($totalBasicSalary, 2),
-        '',
-        number_format($totalOvertimePay, 2),
-        number_format($totalAllowances, 2),
-        number_format($totalBonuses, 2),
-        number_format($totalDeductions, 2),
-        number_format($totalTaxAmount, 2),
-        number_format($totalSSS, 2),
-        number_format($totalPHIC, 2),
-        number_format($totalHDMF, 2),
-        number_format($totalGrossPay, 2),
-        number_format($totalNetPay, 2),
-        ''
-    ];
-    fputcsv($handle, $totals);
-
-    fclose($handle);
-
-    // Log export completion
-    Log::info('CSV export completed', [
-        'filename' => $filename,
-        'records_exported' => $payrolls->count(),
-        'file_size' => filesize($filepath)
-    ]);
-
-    return 'exports/' . $filename;
-}
 
     /**
      * Export to XLSX format (using PhpSpreadsheet if available)
      */
-  private function exportToXLSX($payrolls): string
-{
-    if (!class_exists('\PhpOffice\PhpSpreadsheet\Spreadsheet')) {
-        throw new \Exception('PhpSpreadsheet not installed. Please install via composer: composer require phpoffice/phpspreadsheet');
-    }
-
-    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-    $sheet = $spreadsheet->getActiveSheet();
-    
-    // Set document properties
-    $spreadsheet->getProperties()
-        ->setCreator('Payroll System')
-        ->setLastModifiedBy('Payroll System')
-        ->setTitle('Payroll Export')
-        ->setSubject('Payroll Data')
-        ->setDescription('Payroll export generated from system');
-    
-    // SIMPLIFIED headers
-    $headers = [
-        'A' => 'Employee ID',
-        'B' => 'Employee Name',
-        'C' => 'Department',
-        'D' => 'Period Start',
-        'E' => 'Period End',
-        'F' => 'Basic Salary',
-        'G' => 'Overtime Hours',
-        'H' => 'Overtime Pay',
-        'I' => 'Allowances',
-        'J' => 'Bonuses',
-        'K' => 'Deductions',
-        'L' => 'Tax Amount',
-        'M' => 'SSS',
-        'N' => 'PHIC',
-        'O' => 'HDMF',
-        'P' => 'Gross Pay',
-        'Q' => 'Net Pay',
-        'R' => 'Status'
-    ];
-
-    // Set headers with styling
-    foreach ($headers as $col => $header) {
-        $sheet->setCellValue($col . '1', $header);
-        $sheet->getStyle($col . '1')->getFont()->setBold(true);
-        $sheet->getStyle($col . '1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID);
-        $sheet->getStyle($col . '1')->getFill()->getStartColor()->setARGB('FFE0E0E0');
-    }
-
-    // Data rows
-    $row = 2;
-    foreach ($payrolls as $payroll) {
-        $employee = $payroll->employee;
-        
-        if (!$employee) {
-            continue;
+    private function exportToXLSX($payrolls): string
+    {
+        if (!class_exists('\PhpOffice\PhpSpreadsheet\Spreadsheet')) {
+            throw new \Exception('PhpSpreadsheet not installed. Please install via composer: composer require phpoffice/phpspreadsheet');
         }
-        
-        // Set data
-        $sheet->setCellValue('A' . $row, $employee->employee_id ?? '');
-        $sheet->setCellValue('B' . $row, $employee->full_name ?? $employee->first_name . ' ' . $employee->last_name);
-        $sheet->setCellValue('C' . $row, $employee->department->name ?? 'N/A');
-        $sheet->setCellValue('D' . $row, $payroll->pay_period_start);
-        $sheet->setCellValue('E' . $row, $payroll->pay_period_end);
-        $sheet->setCellValue('F' . $row, $payroll->basic_salary);
-        $sheet->setCellValue('G' . $row, $payroll->overtime_hours ?? 0);
-        $sheet->setCellValue('H' . $row, $payroll->overtime_pay ?? 0);
-        $sheet->setCellValue('I' . $row, $payroll->allowances ?? 0);
-        $sheet->setCellValue('J' . $row, $payroll->bonuses ?? 0);
-        $sheet->setCellValue('K' . $row, $payroll->deductions ?? 0);
-        $sheet->setCellValue('L' . $row, $payroll->tax_amount ?? 0);
-        $sheet->setCellValue('M' . $row, $payroll->sss ?? 0);
-        $sheet->setCellValue('N' . $row, $payroll->phic ?? 0);
-        $sheet->setCellValue('O' . $row, $payroll->hdmf ?? 0);
-        $sheet->setCellValue('P' . $row, $payroll->gross_pay ?? 0);
-        $sheet->setCellValue('Q' . $row, $payroll->net_pay ?? 0);
-        $sheet->setCellValue('R' . $row, ucfirst($payroll->status));
-        
-        $row++;
-    }
-    
-    // Add totals row
-    $totalRow = $row;
-    $sheet->setCellValue('C' . $totalRow, 'TOTALS:');
-    
-    // Total formulas for currency columns
-    $totalColumns = ['F', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'];
-    foreach ($totalColumns as $col) {
-        $sheet->setCellValue($col . $totalRow, '=SUM(' . $col . '2:' . $col . ($row-1) . ')');
-    }
-    
-    // Format totals row
-    $sheet->getStyle('C' . $totalRow . ':R' . $totalRow)->getFont()->setBold(true);
-    $sheet->getStyle('C' . $totalRow . ':R' . $totalRow)->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID);
-    $sheet->getStyle('C' . $totalRow . ':R' . $totalRow)->getFill()->getStartColor()->setARGB('FFF0F0F0');
-    
-    // Auto-size columns
-    for ($col = 1; $col <= count($headers); $col++) {
-        $column = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col);
-        $sheet->getColumnDimension($column)->setAutoSize(true);
-    }
-    
-    // Format currency columns (columns F to Q)
-    $currencyColumns = ['F', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'];
-    foreach ($currencyColumns as $col) {
-        $lastRow = $row - 1;
-        if ($lastRow >= 2) {
-            $range = $col . '2:' . $col . $lastRow;
-            $sheet->getStyle($range)
-                  ->getNumberFormat()
-                  ->setFormatCode('#,##0.00');
+
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Set document properties
+        $spreadsheet->getProperties()
+            ->setCreator('Payroll System')
+            ->setLastModifiedBy('Payroll System')
+            ->setTitle('Payroll Export')
+            ->setSubject('Payroll Data')
+            ->setDescription('Payroll export generated from system');
+
+        // SIMPLIFIED headers
+        $headers = [
+            'A' => 'Employee ID',
+            'B' => 'Employee Name',
+            'C' => 'Department',
+            'D' => 'Period Start',
+            'E' => 'Period End',
+            'F' => 'Basic Salary',
+            'G' => 'Overtime Hours',
+            'H' => 'Overtime Pay',
+            'I' => 'Allowances',
+            'J' => 'Bonuses',
+            'K' => 'Deductions',
+            'L' => 'Tax Amount',
+            'M' => 'SSS',
+            'N' => 'PHIC',
+            'O' => 'HDMF',
+            'P' => 'Gross Pay',
+            'Q' => 'Net Pay',
+            'R' => 'Status'
+        ];
+
+        // Set headers with styling
+        foreach ($headers as $col => $header) {
+            $sheet->setCellValue($col . '1', $header);
+            $sheet->getStyle($col . '1')->getFont()->setBold(true);
+            $sheet->getStyle($col . '1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID);
+            $sheet->getStyle($col . '1')->getFill()->getStartColor()->setARGB('FFE0E0E0');
         }
-    }
-    
-    // Format totals row currency
-    $sheet->getStyle('F' . $totalRow . ':Q' . $totalRow)
-          ->getNumberFormat()
-          ->setFormatCode('#,##0.00');
-    
-    // Add borders
-    $styleArray = [
-        'borders' => [
-            'allBorders' => [
-                'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
-                'color' => ['argb' => 'FF000000'],
+
+        // Data rows
+        $row = 2;
+        foreach ($payrolls as $payroll) {
+            $employee = $payroll->employee;
+
+            if (!$employee) {
+                continue;
+            }
+
+            // Set data
+            $sheet->setCellValue('A' . $row, $employee->employee_id ?? '');
+            $sheet->setCellValue('B' . $row, $employee->full_name ?? $employee->first_name . ' ' . $employee->last_name);
+            $sheet->setCellValue('C' . $row, $employee->department->name ?? 'N/A');
+            $sheet->setCellValue('D' . $row, $payroll->pay_period_start);
+            $sheet->setCellValue('E' . $row, $payroll->pay_period_end);
+            $sheet->setCellValue('F' . $row, $payroll->basic_salary);
+            $sheet->setCellValue('G' . $row, $payroll->overtime_hours ?? 0);
+            $sheet->setCellValue('H' . $row, $payroll->overtime_pay ?? 0);
+            $sheet->setCellValue('I' . $row, $payroll->allowances ?? 0);
+            $sheet->setCellValue('J' . $row, $payroll->bonuses ?? 0);
+            $sheet->setCellValue('K' . $row, $payroll->deductions ?? 0);
+            $sheet->setCellValue('L' . $row, $payroll->tax_amount ?? 0);
+            $sheet->setCellValue('M' . $row, $payroll->sss ?? 0);
+            $sheet->setCellValue('N' . $row, $payroll->phic ?? 0);
+            $sheet->setCellValue('O' . $row, $payroll->hdmf ?? 0);
+            $sheet->setCellValue('P' . $row, $payroll->gross_pay ?? 0);
+            $sheet->setCellValue('Q' . $row, $payroll->net_pay ?? 0);
+            $sheet->setCellValue('R' . $row, ucfirst($payroll->status));
+
+            $row++;
+        }
+
+        // Add totals row
+        $totalRow = $row;
+        $sheet->setCellValue('C' . $totalRow, 'TOTALS:');
+
+        // Total formulas for currency columns
+        $totalColumns = ['F', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'];
+        foreach ($totalColumns as $col) {
+            $sheet->setCellValue($col . $totalRow, '=SUM(' . $col . '2:' . $col . ($row - 1) . ')');
+        }
+
+        // Format totals row
+        $sheet->getStyle('C' . $totalRow . ':R' . $totalRow)->getFont()->setBold(true);
+        $sheet->getStyle('C' . $totalRow . ':R' . $totalRow)->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID);
+        $sheet->getStyle('C' . $totalRow . ':R' . $totalRow)->getFill()->getStartColor()->setARGB('FFF0F0F0');
+
+        // Auto-size columns
+        for ($col = 1; $col <= count($headers); $col++) {
+            $column = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col);
+            $sheet->getColumnDimension($column)->setAutoSize(true);
+        }
+
+        // Format currency columns (columns F to Q)
+        $currencyColumns = ['F', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'];
+        foreach ($currencyColumns as $col) {
+            $lastRow = $row - 1;
+            if ($lastRow >= 2) {
+                $range = $col . '2:' . $col . $lastRow;
+                $sheet->getStyle($range)
+                    ->getNumberFormat()
+                    ->setFormatCode('#,##0.00');
+            }
+        }
+
+        // Format totals row currency
+        $sheet->getStyle('F' . $totalRow . ':Q' . $totalRow)
+            ->getNumberFormat()
+            ->setFormatCode('#,##0.00');
+
+        // Add borders
+        $styleArray = [
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                    'color' => ['argb' => 'FF000000'],
+                ],
             ],
-        ],
-    ];
-    
-    $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
-    $sheet->getStyle('A1:' . $lastColumn . $totalRow)->applyFromArray($styleArray);
+        ];
 
-    $filename = 'payroll_export_' . date('Ymd_His') . '.xlsx';
-    $filepath = storage_path('app/exports/' . $filename);
-    
-    // Ensure directory exists
-    $directory = storage_path('app/exports');
-    if (!is_dir($directory)) {
-        mkdir($directory, 0755, true);
+        $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
+        $sheet->getStyle('A1:' . $lastColumn . $totalRow)->applyFromArray($styleArray);
+
+        $filename = 'payroll_export_' . date('Ymd_His') . '.xlsx';
+        $filepath = storage_path('app/exports/' . $filename);
+
+        // Ensure directory exists
+        $directory = storage_path('app/exports');
+        if (!is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        $writer->save($filepath);
+
+        // Verify file was created
+        if (!file_exists($filepath)) {
+            throw new \Exception('XLSX file was not created: ' . $filepath);
+        }
+
+        Log::info('Excel export completed', [
+            'filename' => $filename,
+            'records_exported' => $payrolls->count(),
+            'file_size' => filesize($filepath)
+        ]);
+
+        return 'exports/' . $filename;
     }
-
-    $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-    $writer->save($filepath);
-
-    // Verify file was created
-    if (!file_exists($filepath)) {
-        throw new \Exception('XLSX file was not created: ' . $filepath);
-    }
-    
-    Log::info('Excel export completed', [
-        'filename' => $filename,
-        'records_exported' => $payrolls->count(),
-        'file_size' => filesize($filepath)
-    ]);
-
-    return 'exports/' . $filename;
-}
 
     /**
      * Alias for generatePayrollFromComprehensiveData
@@ -776,14 +777,14 @@ private function exportToCSV($payrolls): string
             if (!empty($periodData['end_date'])) {
                 $query->where('pay_period_end', '<=', $periodData['end_date']);
             }
-            
+
             // Add employee filtering
             if (!empty($employeeIds)) {
                 $query->whereIn('employee_id', $employeeIds);
             }
 
             $payrolls = $query->get();
-            
+
             if ($payrolls->isEmpty()) {
                 Log::info('No pending payrolls found to approve');
                 return 0;
@@ -794,12 +795,12 @@ private function exportToCSV($payrolls): string
                 try {
                     // Calculate gross pay if not already calculated
                     if (empty($payroll->gross_pay)) {
-                        $grossPay = $payroll->basic_salary 
+                        $grossPay = $payroll->basic_salary
                             + ($payroll->overtime_hours * $payroll->overtime_rate)
                             + $payroll->bonuses;
-                        
+
                         $netPay = $grossPay - $payroll->deductions - $payroll->tax_amount;
-                        
+
                         $payroll->gross_pay = $grossPay;
                         $payroll->net_pay = $netPay;
                     }
@@ -810,15 +811,14 @@ private function exportToCSV($payrolls): string
                         'approved_by' => $approvedBy,
                         'processed_at' => now(),
                     ]);
-                    
+
                     $count++;
-                    
+
                     Log::info('Approved payroll', [
                         'payroll_id' => $payroll->id,
                         'employee_id' => $payroll->employee_id,
                         'approved_by' => $approvedBy
                     ]);
-
                 } catch (\Exception $e) {
                     Log::error('Failed to approve payroll ' . $payroll->id . ': ' . $e->getMessage());
                     // Continue with next payroll even if one fails
@@ -888,7 +888,7 @@ private function exportToCSV($payrolls): string
                             'paid_at' => ($status === 'success') ? now() : null,
                             'meta' => null,
                         ]);
-                        
+
                         Log::info('Payment record created', [
                             'payment_id' => $payment->id,
                             'payroll_id' => $payroll->id,
@@ -917,8 +917,7 @@ private function exportToCSV($payrolls): string
                     $payroll->status = 'paid';
                     $payroll->paid_at = now();
                     $payroll->paid_by = $processedBy;
-                    $result['processed']++;
-                    
+
                     Log::info('Payroll marked as paid', [
                         'payroll_id' => $payroll->id,
                         'employee_id' => $payroll->employee_id,
@@ -926,12 +925,21 @@ private function exportToCSV($payrolls): string
                     ]);
                 } else {
                     $payroll->status = 'payment_failed';
-                    $result['failed']++;
                 }
 
                 $payroll->save();
+
+                if ($status === 'success') {
+                    $this->recordLoanPayments($payroll);
+                }
+
                 DB::commit();
 
+                if ($status === 'success') {
+                    $result['processed']++;
+                } else {
+                    $result['failed']++;
+                }
             } catch (\Exception $e) {
                 DB::rollBack();
                 Log::error('processPayments error', [
@@ -958,103 +966,101 @@ private function exportToCSV($payrolls): string
      * @param Payroll $payroll
      * @return string|null File path
      */
-public function generatePayslip(Payroll $payroll): ?string
-{
-    try {
-        \Illuminate\Support\Facades\Log::info('Starting payslip generation for payroll: ' . $payroll->id);
-        
-        // 1. Get employee
-        $employee = Employee::find($payroll->employee_id);
-        if (!$employee) {
-            \Illuminate\Support\Facades\Log::warning('Employee not found for payroll: ' . $payroll->id);
-            return null;
-        }
-        
-        \Illuminate\Support\Facades\Log::info('Employee found: ' . $employee->full_name);
-        
-        // 2. Get company
-        $company = CompanyHelper::getCurrentCompany() ?? (object)['name' => 'Aeternitas Company'];
-        
-        // 3. Get HTML content (you might need to create a view or use inline HTML)
-        $html = $this->generatePayslipHtmlService($payroll, $employee, $company);
-        
-        // 4. Generate PDF
-        if (!class_exists('\Barryvdh\DomPDF\Facade\Pdf')) {
-            \Illuminate\Support\Facades\Log::error('DomPDF not installed');
-            return null;
-        }
-        
+    public function generatePayslip(Payroll $payroll): ?string
+    {
         try {
-            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html);
-            $pdf->setPaper('A4', 'portrait');
-            $pdf->setOption('defaultFont', 'dejavusans'); // Add this line
-            $pdf->setOption('isHtml5ParserEnabled', true);
-            $content = $pdf->output();
-            \Illuminate\Support\Facades\Log::info('PDF generated: ' . strlen($content) . ' bytes');
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('PDF generation failed: ' . $e->getMessage());
-            return null;
-        }
-        
-        // 5. Create directory and filename
-        $dir = 'payslips';
-        \Illuminate\Support\Facades\Storage::makeDirectory($dir);
-        
-        // Simple filename without colons or spaces
-        $filename = $dir . '/payslip_' . $payroll->id . '.pdf';
-        
-        \Illuminate\Support\Facades\Log::info('Saving file: ' . $filename);
-        
-        // 6. Save file
-        if (\Illuminate\Support\Facades\Storage::put($filename, $content)) {
-            \Illuminate\Support\Facades\Log::info('File saved successfully');
-            
-            // 7. Update payroll record
-            if (\Illuminate\Support\Facades\Schema::hasColumn('payrolls', 'payslip_file')) {
-                $payroll->payslip_file = $filename;
-                $payroll->saveQuietly();
-                \Illuminate\Support\Facades\Log::info('Payroll record updated with payslip file');
-            }
-            
-            // 8. Return URL
-            $url = \Illuminate\Support\Facades\Storage::url($filename);
-            \Illuminate\Support\Facades\Log::info('Payslip generated: ' . $url);
-            
-            return $url;
-            
-        } else {
-            \Illuminate\Support\Facades\Log::error('Failed to save file: ' . $filename);
-            return null;
-        }
-        
-    } catch (\Exception $e) {
-        \Illuminate\Support\Facades\Log::error('generatePayslip error: ' . $e->getMessage());
-        \Illuminate\Support\Facades\Log::error('Trace: ' . $e->getTraceAsString());
-        return null;
-    }
-}
+            \Illuminate\Support\Facades\Log::info('Starting payslip generation for payroll: ' . $payroll->id);
 
-/**
- * Generate HTML for payslip in service
- */
-private function generatePayslipHtmlService(Payroll $payroll, Employee $employee, $company): string
-{
-    $status = $payroll->status;
-    $today = now()->format('F j, Y');
-    
-    // Status color mapping
-    $statusColors = [
-        'pending' => '#e53e3e',
-        'approved' => '#38a169',
-        'paid' => '#3182ce',
-        'canceled' => '#718096',
-        'cancelled' => '#718096',
-        'rejected' => '#e53e3e'
-    ];
-    
-    $statusColor = $statusColors[$status] ?? '#718096';
-    
-    $html = '
+            // 1. Get employee
+            $employee = Employee::find($payroll->employee_id);
+            if (!$employee) {
+                \Illuminate\Support\Facades\Log::warning('Employee not found for payroll: ' . $payroll->id);
+                return null;
+            }
+
+            \Illuminate\Support\Facades\Log::info('Employee found: ' . $employee->full_name);
+
+            // 2. Get company
+            $company = CompanyHelper::getCurrentCompany() ?? (object)['name' => 'GR8 TECH ENTERPRISE INC.'];
+
+            // 3. Get HTML content (you might need to create a view or use inline HTML)
+            $html = $this->generatePayslipHtmlService($payroll, $employee, $company);
+
+            // 4. Generate PDF
+            if (!class_exists('\Barryvdh\DomPDF\Facade\Pdf')) {
+                \Illuminate\Support\Facades\Log::error('DomPDF not installed');
+                return null;
+            }
+
+            try {
+                $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html);
+                $pdf->setPaper('A4', 'portrait');
+                $pdf->setOption('defaultFont', 'dejavusans'); // Add this line
+                $pdf->setOption('isHtml5ParserEnabled', true);
+                $content = $pdf->output();
+                \Illuminate\Support\Facades\Log::info('PDF generated: ' . strlen($content) . ' bytes');
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('PDF generation failed: ' . $e->getMessage());
+                return null;
+            }
+
+            // 5. Create directory and filename
+            $dir = 'payslips';
+            \Illuminate\Support\Facades\Storage::makeDirectory($dir);
+
+            // Simple filename without colons or spaces
+            $filename = $dir . '/payslip_' . $payroll->id . '.pdf';
+
+            \Illuminate\Support\Facades\Log::info('Saving file: ' . $filename);
+
+            // 6. Save file
+            if (\Illuminate\Support\Facades\Storage::put($filename, $content)) {
+                \Illuminate\Support\Facades\Log::info('File saved successfully');
+
+                // 7. Update payroll record
+                if (\Illuminate\Support\Facades\Schema::hasColumn('payrolls', 'payslip_file')) {
+                    $payroll->payslip_file = $filename;
+                    $payroll->saveQuietly();
+                    \Illuminate\Support\Facades\Log::info('Payroll record updated with payslip file');
+                }
+
+                // 8. Return URL
+                $url = \Illuminate\Support\Facades\Storage::url($filename);
+                \Illuminate\Support\Facades\Log::info('Payslip generated: ' . $url);
+
+                return $url;
+            } else {
+                \Illuminate\Support\Facades\Log::error('Failed to save file: ' . $filename);
+                return null;
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('generatePayslip error: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('Trace: ' . $e->getTraceAsString());
+            return null;
+        }
+    }
+
+    /**
+     * Generate HTML for payslip in service
+     */
+    private function generatePayslipHtmlService(Payroll $payroll, Employee $employee, $company): string
+    {
+        $status = $payroll->status;
+        $today = now()->format('F j, Y');
+
+        // Status color mapping
+        $statusColors = [
+            'pending' => '#e53e3e',
+            'approved' => '#38a169',
+            'paid' => '#3182ce',
+            'canceled' => '#718096',
+            'cancelled' => '#718096',
+            'rejected' => '#e53e3e'
+        ];
+
+        $statusColor = $statusColors[$status] ?? '#718096';
+
+        $html = '
     <!DOCTYPE html>
     <html>
     <head>
@@ -1093,737 +1099,1343 @@ private function generatePayslipHtmlService(Payroll $payroll, Employee $employee
         <table class="table">
             <tr><th>Earnings</th><th>Amount</th></tr>
             <tr><td>Basic Salary</td><td>₱' . number_format($payroll->basic_salary, 2) . '</td></tr>';
-    
-    if ($payroll->overtime_pay > 0) {
-        $html .= '<tr><td>Overtime Pay</td><td>₱' . number_format($payroll->overtime_pay, 2) . '</td></tr>';
-    }
-    if ($payroll->bonuses > 0) {
-        $html .= '<tr><td>Bonuses</td><td>₱' . number_format($payroll->bonuses, 2) . '</td></tr>';
-    }
-    if ($payroll->allowances > 0) {
-        $html .= '<tr><td>Allowances</td><td>₱' . number_format($payroll->allowances, 2) . '</td></tr>';
-    }
-    
-    $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($payroll->gross_pay, 2) . '</td></tr>
+
+        if ($payroll->overtime_pay > 0) {
+            $html .= '<tr><td>Overtime Pay</td><td>₱' . number_format($payroll->overtime_pay, 2) . '</td></tr>';
+        }
+        if ($payroll->bonuses > 0) {
+            $html .= '<tr><td>Bonuses</td><td>₱' . number_format($payroll->bonuses, 2) . '</td></tr>';
+        }
+        if ($payroll->allowances > 0) {
+            $html .= '<tr><td>Allowances</td><td>₱' . number_format($payroll->allowances, 2) . '</td></tr>';
+        }
+$html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($payroll->gross_pay, 2) . '</td></tr>
         </table>
-        
+
         <table class="table">
             <tr><th>Deductions</th><th>Amount</th></tr>';
-    
-    if ($payroll->deductions > 0) {
-        $html .= '<tr><td>Deductions</td><td>₱' . number_format($payroll->deductions, 2) . '</td></tr>';
-    }
-    if ($payroll->tax_amount > 0) {
-        $html .= '<tr><td>Tax</td><td>₱' . number_format($payroll->tax_amount, 2) . '</td></tr>';
-    }
-    if ($payroll->sss > 0) {
-        $html .= '<tr><td>SSS</td><td>₱' . number_format($payroll->sss, 2) . '</td></tr>';
-    }
-    if ($payroll->phic > 0) {
-        $html .= '<tr><td>PhilHealth</td><td>₱' . number_format($payroll->phic, 2) . '</td></tr>';
-    }
-    if ($payroll->hdmf > 0) {
-        $html .= '<tr><td>Pag-IBIG</td><td>₱' . number_format($payroll->hdmf, 2) . '</td></tr>';
-    }
-    
-    $totalDeductions = $payroll->deductions + $payroll->tax_amount + ($payroll->sss ?? 0) + ($payroll->phic ?? 0) + ($payroll->hdmf ?? 0);
-    
-    $html .= '<tr class="total"><td>Total Deductions</td><td>₱' . number_format($totalDeductions, 2) . '</td></tr>
+
+        if (($payroll->unpaid_leave_deduction ?? 0) > 0) {
+            $html .= '<tr><td>Unpaid Leave</td><td>₱' . number_format($payroll->unpaid_leave_deduction, 2) . '</td></tr>';
+        }
+        if (($payroll->late_deduction ?? 0) > 0) {
+            $html .= '<tr><td>Late (' . (int) ($payroll->late_minutes ?? 0) . ' min)</td><td>₱' . number_format($payroll->late_deduction, 2) . '</td></tr>';
+        }
+        if (($payroll->undertime_deduction ?? 0) > 0) {
+            $html .= '<tr><td>Undertime (' . (int) ($payroll->undertime_minutes ?? 0) . ' min)</td><td>₱' . number_format($payroll->undertime_deduction, 2) . '</td></tr>';
+        }
+        if (($payroll->absence_deduction ?? 0) > 0) {
+            $html .= '<tr><td>Absence</td><td>₱' . number_format($payroll->absence_deduction, 2) . '</td></tr>';
+        }
+        if (($payroll->loan_deduction ?? 0) > 0) {
+            $html .= '<tr><td>Loan Amortization</td><td>₱' . number_format($payroll->loan_deduction, 2) . '</td></tr>';
+        }
+        if (($payroll->other_deductions ?? 0) > 0) {
+            $html .= '<tr><td>Other Deductions</td><td>₱' . number_format($payroll->other_deductions, 2) . '</td></tr>';
+        }
+        if (($payroll->sss ?? 0) > 0) {
+            $html .= '<tr><td>SSS</td><td>₱' . number_format($payroll->sss, 2) . '</td></tr>';
+        }
+        if (($payroll->phic ?? 0) > 0) {
+            $html .= '<tr><td>PhilHealth</td><td>₱' . number_format($payroll->phic, 2) . '</td></tr>';
+        }
+        if (($payroll->hdmf ?? 0) > 0) {
+            $html .= '<tr><td>Pag-IBIG</td><td>₱' . number_format($payroll->hdmf, 2) . '</td></tr>';
+        }
+        if (($payroll->tax_amount ?? 0) > 0) {
+            $html .= '<tr><td>Tax</td><td>₱' . number_format($payroll->tax_amount, 2) . '</td></tr>';
+        }
+
+        $totalDeductions = ($payroll->deductions ?? 0) + ($payroll->tax_amount ?? 0);
+
+       $html .= '<tr class="total"><td>Total Deductions</td><td>₱' . number_format($totalDeductions, 2) . '</td></tr>
         </table>
-        
+
         <div style="text-align: center; padding: 20px; border: 2px solid #000; margin: 20px 0;">
             <h2>NET PAY: ₱' . number_format($payroll->net_pay, 2) . '</h2>
         </div>
-        
+
         <div style="text-align: center; font-size: 12px; margin-top: 40px;">
             <p>Generated on ' . $today . '</p>
         </div>
     </body>
     </html>';
-    
-    return $html;
-}
+
+        return $html;
+    }
 
 
-/**
- * Calculate all payroll components with exact Excel formulas
- */
-private function calculateAllPayrollComponents(Employee $employee, $employeeRecords, array $periodData): array
-{
-    // Get rates from employee or calculate them
-    $monthlyRate = $employee->salary ?? 0;
-    $semiMonthlyRate = $monthlyRate / 2;
-    $dailyRate = $employee->daily_rate ?? ($monthlyRate * 12 / 313); // Excel formula: =E16*12/313
-    $hourlyRate = $dailyRate / 8; // Excel formula: =+G16/8
-    
-    // Calculate basic working days and hours
-    $daysWorked = $this->calculateDaysWorkedFromRecords($employeeRecords);
-    $basicSalary = $daysWorked * $dailyRate;
-    
-    // Calculate overtime with Excel multipliers
-    $overtimeData = $this->calculateOvertimeWithExcelRates($employeeRecords, $hourlyRate);
-    
-    // Calculate night differential with Excel formula (10% of hourly rate)
-    $nightDiffData = $this->calculateNightDifferentialWithExcelRates($employeeRecords, $hourlyRate);
-    
-    // Calculate holiday premiums with Excel multipliers
-    $holidayData = $this->calculateHolidayPayWithExcelRates($employee, $employeeRecords, $dailyRate, $hourlyRate);
-    
-    // Calculate rest day premiums
-    $restDayData = $this->calculateRestDayPremiumWithExcelRates($employee, $employeeRecords, $dailyRate);
-    
-    // Calculate allowances (incentive leave from Excel - 5 days)
-    $allowances = $this->calculateAllowances($employee, $dailyRate);
-    
-    // Calculate statutory deductions (SSS, PHIC, HDMF)
-    $statutoryDeductions = $this->calculateStatutoryDeductions($employee, $monthlyRate);
-    
-    // Calculate late/undertime deductions
-    $lateDeductions = $this->calculateLateUndertimeDeductions($employeeRecords, $hourlyRate);
-    
-    // Calculate absence deductions
-    $absentDeductions = $this->calculateAbsenceDeductions($employeeRecords, $dailyRate);
-    
-    // Total deductions
-    $totalDeductions = $lateDeductions + $absentDeductions + 
-                      $statutoryDeductions['sss'] + 
-                      $statutoryDeductions['phic'] + 
-                      $statutoryDeductions['hdmf'];
-    
-    // Calculate gross pay using Excel formula pattern
-    $grossPay = $this->calculateGrossPayWithExcelFormula(
-        $basicSalary,
-        $overtimeData['total_pay'],
-        $nightDiffData['total_pay'],
-        $holidayData['total_pay'],
-        $restDayData['total_pay'],
-        $allowances,
-        0, // bonuses
-        $lateDeductions,
-        $absentDeductions
-    );
-    
-    // Calculate tax
-    $taxAmount = $this->calculateTax($grossPay);
-    
-    // Calculate net pay
-    $netPay = $grossPay - $totalDeductions - $taxAmount;
-    
-    return [
-        'monthly_rate' => $monthlyRate,
-        'semi_monthly_rate' => $semiMonthlyRate,
-        'daily_rate' => $dailyRate,
-        'hourly_rate' => $hourlyRate,
-        'basic_salary' => $basicSalary,
-        'days_worked' => $daysWorked,
-        'overtime_hours' => $overtimeData['total_hours'],
-        'overtime_rate' => $hourlyRate * 1.25, // Excel: 125% of hourly rate
-        'overtime_pay' => $overtimeData['total_pay'],
-        'night_differential_hours' => $nightDiffData['total_hours'],
-        'night_differential_rate' => $hourlyRate * 0.10, // Excel: 10% of hourly rate
-        'night_differential_pay' => $nightDiffData['total_pay'],
-        'rest_day_premium_pay' => $restDayData['total_pay'],
-        'allowances' => $allowances,
-        'bonuses' => 0,
-        'total_deductions' => $totalDeductions,
-        'late_deductions' => $lateDeductions,
-        'absent_deductions' => $absentDeductions,
-        'sss' => $statutoryDeductions['sss'],
-        'phic' => $statutoryDeductions['phic'],
-        'hdmf' => $statutoryDeductions['hdmf'],
-        'tax_amount' => $taxAmount,
-        'gross_pay' => $grossPay,
-        'net_pay' => $netPay,
-        // Holiday data for reference
-        'holiday_basic_pay' => $holidayData['basic_pay'] ?? 0,
-        'holiday_premium' => $holidayData['premium_pay'] ?? 0,
-        'special_holiday_premium' => $holidayData['special_premium'] ?? 0,
-        'regular_holiday_days' => $holidayData['regular_days'] ?? 0,
-        'special_holiday_days' => $holidayData['special_days'] ?? 0,
-        'scheduled_hours' => $daysWorked * 8, // Assuming 8 hours per day
-    ];
-}
+    /**
+     * Calculate all payroll components with exact Excel formulas
+     */
+    private function calculateAllPayrollComponents(Employee $employee, $employeeRecords, array $periodData, ?string $payrollTemplateId = null): array
+    {
+        // Templates are optional. Explicit/employee/position templates take
+        // priority; when none is assigned, payroll uses the employee's salary
+        // and the rates derived from that salary.
+        $template = null;
+        if ($payrollTemplateId) {
+            $template = \App\Models\PayrollTemplate::find($payrollTemplateId);
+        }
+        if (! $template && $employee->payroll_template_id) {
+            $template = $employee->payrollTemplate;
+        }
+        if (! $template && $employee->position?->payroll_template_id) {
+            $template = $employee->position->payrollTemplate;
+        }
 
-/**
- * Calculate days worked from attendance records
- */
-private function calculateDaysWorkedFromRecords($employeeRecords): float
-{
-    $totalHours = 0;
-    
-    foreach ($employeeRecords as $record) {
-        // Only count actual hours worked on working days
-        if ($record['schedule_status'] === 'Working' && 
-            $record['attendance_status'] === 'Present') {
+        $monthlyRate = $template && $template->monthly_rate !== null
+            ? (float) $template->monthly_rate
+            : (float) ($employee->salary ?? 0);
+        $semiMonthlyRate = $monthlyRate / 2;
+        $dailyRate = $template && $template->daily_rate !== null
+            ? (float) $template->daily_rate
+            : (float) ($employee->daily_rate ?? ($monthlyRate / 26));
+        $hourlyRate = $template && $template->hourly_rate !== null
+            ? (float) $template->hourly_rate
+            : (float) ($employee->hourly_rate ?? ($dailyRate / 8));
+
+        // Calculate basic working days and hours
+        $daysWorked = $this->calculateDaysWorkedFromRecords($employeeRecords);
+        
+        // Calculate period duration if missing
+        $daysInPeriod = $periodData['days_in_period'] ?? 
+            Carbon::parse($periodData['start_date'])->diffInDays(Carbon::parse($periodData['end_date'])) + 1;
             
-            // Parse scheduled hours from the record
-            $hours = $this->parseFormattedHours($record['scheduled_hours'] ?? '0 hrs 0 mins');
-            $totalHours += $hours;
+        // Use fixed monthly or semi-monthly rate for basic salary as requested
+        if ($daysInPeriod >= 25) {
+            $basicSalary = $monthlyRate;
+        } else {
+            $basicSalary = $semiMonthlyRate;
         }
-    }
-    
-    // Convert hours to days (assuming 8 hours per day)
-    return $totalHours / 8;
-}
 
-/**
- * Calculate overtime with exact Excel multipliers
- */
-private function calculateOvertimeWithExcelRates($employeeRecords, $hourlyRate): array
-{
-    $totalHours = 0;
-    $totalPay = 0;
-    
-    foreach ($employeeRecords as $record) {
-        // Regular OT: hours × 1.25 × hourly rate
-        if ($record['overtime'] > 0) {
-            $totalHours += $record['overtime'];
-            $totalPay += $record['overtime'] * $hourlyRate * 1.25;
+        // Calculate overtime with Excel multipliers
+        $overtimeData = $this->calculateOvertimeWithExcelRates($employeeRecords, $hourlyRate);
+
+        // Calculate night differential with Excel formula (10% of hourly rate)
+        $nightDiffData = $this->calculateNightDifferentialWithExcelRates($employeeRecords, $hourlyRate);
+
+        // Calculate holiday premiums with Excel multipliers
+        $holidayData = $this->calculateHolidayPayWithExcelRates($employee, $employeeRecords, $dailyRate, $hourlyRate);
+
+        // Calculate rest day premiums
+        $restDayData = $this->calculateRestDayPremiumWithExcelRates($employee, $employeeRecords, $dailyRate);
+
+        // Calculate approved leave compensation for the payroll period
+        $leaveData = $this->calculateApprovedLeaveData($employee, $periodData, $employeeRecords);
+
+        // Calculate only earned/configured allowances. Leave pay must come
+        // from approved leave dates, never from an unconditional five-day grant.
+        $allowances = $this->calculateAllowances($employee, $dailyRate, $leaveData);
+        if ($template && $template->allowances !== null) {
+            $allowances['total'] = (float) $template->allowances;
         }
-        
-        // LH OT: hours × 2.0 × 1.3 × hourly rate (Excel: =H17*200%*1.3*N17)
-        if (isset($record['lh_overtime']) && $record['lh_overtime'] > 0) {
-            $totalHours += $record['lh_overtime'];
-            $totalPay += $record['lh_overtime'] * $hourlyRate * 2.0 * 1.3;
-        }
-        
-        // SH OT: hours × 1.3 × hourly rate (Excel: =H14*P14*1.3)
-        if (isset($record['sh_overtime']) && $record['sh_overtime'] > 0) {
-            $totalHours += $record['sh_overtime'];
-            $totalPay += $record['sh_overtime'] * $hourlyRate * 1.3;
-        }
-    }
-    
-    return [
-        'total_hours' => $totalHours,
-        'total_pay' => round($totalPay, 2)
-    ];
-}
 
-/**
- * Calculate night differential with Excel formula (10% of hourly rate)
- */
-private function calculateNightDifferentialWithExcelRates($employeeRecords, $hourlyRate): array
-{
-    $totalHours = 0;
-    
-    foreach ($employeeRecords as $record) {
-        if (isset($record['night_differential_hours']) && $record['night_differential_hours'] > 0) {
-            $totalHours += $record['night_differential_hours'];
-        }
-    }
-    
-    // Excel formula: =H14*0.1*X14 (hours × 10% × hourly rate)
-    $totalPay = $totalHours * $hourlyRate * 0.10;
-    
-    return [
-        'total_hours' => $totalHours,
-        'total_pay' => round($totalPay, 2)
-    ];
-}
+        // Resolve monthly statutory amounts first, including template overrides,
+        // then allocate them across the payroll frequency. Standard cutoffs are
+        // semi-monthly, while periods spanning at least 25 days are monthly.
+        $statutoryDeductionDivisor = $daysInPeriod >= 25 ? 1 : 2;
+        $statutoryDeductions = $this->calculateStatutoryDeductions(
+            $monthlyRate,
+            $statutoryDeductionDivisor,
+            [
+                'sss' => $template?->sss,
+                'phic' => $template?->phic,
+                'hdmf' => $template?->hdmf,
+            ]
+        );
 
-/**
- * Calculate holiday pay with Excel multipliers
- */
-private function calculateHolidayPayWithExcelRates(Employee $employee, $employeeRecords, $dailyRate, $hourlyRate): array
-{
-    $regularHolidayDays = 0;
-    $specialHolidayDays = 0;
-    $totalPay = 0;
-    
-    foreach ($employeeRecords as $record) {
-        if ($record['schedule_status'] === 'Regular Holiday') {
-            $regularHolidayDays++;
-            // Excel: =G14*R14*0.3 (daily rate × 1 × 30%)
-            $totalPay += $dailyRate * 1 * 0.30;
-        } elseif ($record['schedule_status'] === 'Special Holiday') {
-            $specialHolidayDays++;
-            // Excel: =G14*R14*0.3 (daily rate × 1 × 30%)
-            $totalPay += $dailyRate * 1 * 0.30;
-        }
-    }
-    
-    return [
-        'regular_holiday_days' => $regularHolidayDays,
-        'special_holiday_days' => $specialHolidayDays,
-        'total_pay' => round($totalPay, 2)
-    ];
-}
+        // Calculate late/undertime deductions
+        $timeDeductions = $this->calculateLateUndertimeDeductions($employeeRecords, $hourlyRate);
 
-/**
- * Calculate rest day premium with Excel rates
- */
-private function calculateRestDayPremiumWithExcelRates(Employee $employee, $employeeRecords, $dailyRate): array
-{
-    $totalPay = 0;
-    
-    // Rest day duty: daily rate × 1.3 (Excel: =H14*V14*1.3)
-    foreach ($employeeRecords as $record) {
-        if ($record['schedule_status'] === 'Leave' && $record['attendance_status'] === 'Present') {
-            // Excel formula for rest day duty
-            $totalPay += $dailyRate * 1.3;
-        }
-    }
-    
-    return [
-        'total_pay' => round($totalPay, 2)
-    ];
-}
+        // Calculate absence deductions
+        $absentDeductions = $this->calculateAbsenceDeductions($employeeRecords, $dailyRate);
 
-/**
- * Calculate late/undertime deductions based on Excel formula
- */
-private function calculateLateUndertimeDeductions($employeeRecords, $hourlyRate): float
-{
-    $totalMinutes = 0;
-    
-    foreach ($employeeRecords as $record) {
-        if (isset($record['late_minutes']) && $record['late_minutes'] > 0) {
-            $totalMinutes += $record['late_minutes'];
-        }
-    }
-    
-    // Excel formula: =H14/60*AB14 (hourly rate ÷ 60 × total minutes)
-    $deduction = ($hourlyRate / 60) * $totalMinutes;
-    
-    return round($deduction, 2);
-}
+        // Unpaid leave deduction (personal / emergency leave days × daily rate)
+        $unpaidLeaveDeduction = $leaveData['unpaid_leave_deduction'] ?? 0;
 
-/**
- * Calculate absence deductions
- */
-private function calculateAbsenceDeductions($employeeRecords, $dailyRate): float
-{
-    $absentDays = 0;
-    
-    foreach ($employeeRecords as $record) {
-        if ($record['attendance_status'] === 'Absent' && 
-            $record['schedule_status'] === 'Working') {
-            $absentDays++;
-        }
-    }
-    
-    // Excel: =G14*Z14 (daily rate × absent days)
-    return round($absentDays * $dailyRate, 2);
-}
+        $otherDeductions = $template && $template->deductions !== null
+            ? (float) $template->deductions
+            : 0.0;
+        $scheduledLoanDeduction = $this->calculateLoanDeduction($employee, $periodData);
+        $payrollAdjustments = $this->calculatePayrollAdjustments($employee, $periodData);
 
-/**
- * Calculate allowances (incentive leave)
- */
-private function calculateAllowances(Employee $employee, $employeeRecords): array
-{
-    $incentiveLeaveDays = 5; // Default from Excel
-    $totalAllowance = $employee->daily_rate * $incentiveLeaveDays;
-    
-    return [
-        'incentive_leave_days' => $incentiveLeaveDays,
-        'total' => round($totalAllowance, 2)
-    ];
-}
+        // Calculate gross pay using Excel formula pattern
+        $grossPay = $this->calculateGrossPayWithExcelFormula(
+            $basicSalary,
+            $overtimeData['total_pay'],
+            $nightDiffData['total_pay'],
+            $holidayData['total_pay'],
+            $restDayData['total_pay'],
+            $allowances['total'] + $payrollAdjustments['allowances'],
+            $payrollAdjustments['bonuses'] + $payrollAdjustments['other_earnings']
+        );
 
-/**
- * Calculate statutory deductions based on Excel values
- */
-private function calculateStatutoryDeductions(Employee $employee, $monthlyRate): array
-{
-    // Default values from Excel
-    $sss = 450.00; // For drivers with daily rate 695
-    $phic = $monthlyRate >= 10000 ? 225.88 : 0; // Excel: =451.75/2
-    $hdmf = 100.00; // Fixed amount
-    
-    return [
-        'sss' => $sss,
-        'phic' => $phic,
-        'hdmf' => $hdmf
-    ];
-}
+        // Attendance penalties can consume the basic salary earned for the
+        // cutoff, but must not consume paid leave, allowances, or premiums.
+        // This also prevents a daily-rate rounding difference from making an
+        // employee owe the company after a fully absent cutoff.
+        $scheduledAttendanceDeductions = $timeDeductions['total']
+            + $absentDeductions
+            + $unpaidLeaveDeduction;
+        $attendanceDeductionBudget = max(0, (float) $basicSalary);
+        $applyAttendanceDeduction = static function (float $scheduled) use (&$attendanceDeductionBudget): float {
+            $applied = min(max(0, $scheduled), max(0, $attendanceDeductionBudget));
+            $attendanceDeductionBudget -= $applied;
+            return round($applied, 2);
+        };
+        $appliedLateDeduction = $applyAttendanceDeduction((float) $timeDeductions['late']);
+        $appliedUndertimeDeduction = $applyAttendanceDeduction((float) $timeDeductions['undertime']);
+        $appliedAbsenceDeduction = $applyAttendanceDeduction((float) $absentDeductions);
+        $appliedUnpaidLeaveDeduction = $applyAttendanceDeduction((float) $unpaidLeaveDeduction);
+        $appliedAttendanceDeductions = round(
+            $appliedLateDeduction
+            + $appliedUndertimeDeduction
+            + $appliedAbsenceDeduction
+            + $appliedUnpaidLeaveDeduction,
+            2
+        );
 
-/**
- * Calculate gross pay using Excel formula pattern
- */
-private function calculateGrossPayWithExcelFormula(
-    $basicSalary,
-    $overtimeData,
-    $nightDiffData,
-    $holidayData,
-    $restDayData,
-    $allowances,
-    $lateDeductions,
-    $absentDeductions
-): float {
-    // Excel formula pattern from your file:
-    // =G14*K14+I14+J14+M14+O14+Q14+S14+U14+W14+Y14-AC14
-    
-    // Where:
-    // G14*K14 = Basic salary
-    // I14 = Incentive leave
-    // J14, M14, O14, Q14, S14, U14, W14, Y14 = Various premiums and allowances
-    // AC14 = Late deductions
-    
-    $grossPay = $basicSalary
-        + $allowances['total']  // Incentive leave
-        + $overtimeData['total_pay']
-        + $nightDiffData['total_pay']
-        + $holidayData['total_pay']
-        + $restDayData['total_pay']
-        - $lateDeductions
-        - $absentDeductions;
-    
-    return round($grossPay, 2);
-}
+        $remainingPay = max(0, $grossPay - $appliedAttendanceDeductions);
 
-/**
- * Export to Excel with comprehensive calculations
- */
-public function exportPayrollWithCalculations($payrolls, $format = 'xlsx')
-{
-    // Ensure payrolls have employee relationships loaded
-    $payrolls->load(['employee', 'employee.department']);
-    
-    $filename = 'payroll_export_detailed_' . date('Ymd_His') . '.' . $format;
-    
-    // Ensure directory exists
-    $directory = storage_path('app/exports');
-    if (!is_dir($directory)) {
-        mkdir($directory, 0755, true);
-    }
-    
-    if ($format === 'csv') {
-        return $this->exportDetailedToCSV($payrolls, $filename);
-    } elseif ($format === 'xlsx') {
-        return $this->exportDetailedToXLSX($payrolls, $filename);
-    } else {
-        throw new \Exception('Unsupported format: ' . $format);
-    }
-}
+        // Withholding tax is based on compensation remaining after absence,
+        // late, undertime, and unpaid-leave adjustments—not the unreduced
+        // fixed salary. Never withhold more than the employee can receive.
+        $taxablePay = max(0, $remainingPay - $payrollAdjustments['non_taxable_earnings']);
+        $scheduledTaxAmount = $this->calculateTax($taxablePay);
+        $taxAmount = min($scheduledTaxAmount, $remainingPay);
+        $remainingPay -= $taxAmount;
 
-/**
- * Export detailed data to CSV (FIXED)
- */
-private function exportDetailedToCSV($payrolls, $filename)
-{
-    $filepath = storage_path('app/exports/' . $filename);
-    
-    // Ensure directory exists
-    $directory = storage_path('app/exports');
-    if (!is_dir($directory)) {
-        mkdir($directory, 0755, true);
-    }
+        // Apply the remaining deductions in a deterministic priority order.
+        // Capping each item records a valid zero net pay instead of creating a
+        // negative payslip. Loan amounts not collected remain available for a
+        // future cutoff because only the applied amount is persisted.
+        $applyDeduction = static function (float $scheduled) use (&$remainingPay): float {
+            $applied = min(max(0, $scheduled), max(0, $remainingPay));
+            $remainingPay -= $applied;
+            return round($applied, 2);
+        };
 
-    $handle = fopen($filepath, 'w');
-    
-    if (!$handle) {
-        throw new \Exception('Unable to create CSV file: ' . $filepath);
-    }
-    
-    // Add BOM for Excel UTF-8 support
-    fwrite($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
-    
-    // Comprehensive headers
-    $headers = [
-        'Payroll ID',
-        'Employee ID',
-        'Employee Name',
-        'Department',
-        'Period Start',
-        'Period End',
-        'Monthly Rate',
-        'Semi-Monthly Rate',
-        'Daily Rate',
-        'Hourly Rate',
-        'Basic Salary',
-        'Overtime Hours',
-        'Overtime Rate',
-        'Overtime Pay',
-        'Night Differential Hours',
-        'Night Differential Rate',
-        'Night Differential Pay',
-        'Rest Day Premium Pay',
-        'Allowances',
-        'Bonuses',
-        'Deductions',
-        'SSS',
-        'PHIC',
-        'HDMF',
-        'Tax Amount',
-        'Gross Pay',
-        'Net Pay',
-        'Status'
-    ];
-    fputcsv($handle, $headers);
-    
-    foreach ($payrolls as $payroll) {
-        $employee = $payroll->employee;
-        
-        if (!$employee) {
-            continue;
-        }
-        
-        // Ensure we have calculated values
-        $this->recalculatePayrollForExport($payroll);
-        $payroll->refresh(); // Get updated values
-        
-        $row = [
-            $payroll->id,
-            $employee->employee_id ?? '',
-            $employee->full_name ?? '',
-            $employee->department->name ?? 'N/A',
-            $payroll->pay_period_start,
-            $payroll->pay_period_end,
-            number_format($payroll->monthly_rate ?? 0, 2),
-            number_format($payroll->semi_monthly_rate ?? 0, 2),
-            number_format($payroll->daily_rate ?? 0, 2),
-            number_format($payroll->hourly_rate ?? 0, 2),
-            number_format($payroll->basic_salary, 2),
-            number_format($payroll->overtime_hours ?? 0, 2),
-            number_format($payroll->overtime_rate ?? 0, 2),
-            number_format($payroll->overtime_pay ?? 0, 2),
-            number_format($payroll->night_differential_hours ?? 0, 2),
-            number_format($payroll->night_differential_rate ?? 0, 2),
-            number_format($payroll->night_differential_pay ?? 0, 2),
-            number_format($payroll->rest_day_premium_pay ?? 0, 2),
-            number_format($payroll->allowances ?? 0, 2),
-            number_format($payroll->bonuses ?? 0, 2),
-            number_format($payroll->deductions ?? 0, 2),
-            number_format($payroll->sss ?? 0, 2),
-            number_format($payroll->phic ?? 0, 2),
-            number_format($payroll->hdmf ?? 0, 2),
-            number_format($payroll->tax_amount ?? 0, 2),
-            number_format($payroll->gross_pay, 2),
-            number_format($payroll->net_pay, 2),
-            ucfirst($payroll->status)
+        $appliedSss = $applyDeduction((float) $statutoryDeductions['sss']);
+        $appliedPhic = $applyDeduction((float) $statutoryDeductions['phic']);
+        $appliedHdmf = $applyDeduction((float) $statutoryDeductions['hdmf']);
+        $appliedOtherDeductions = $applyDeduction($otherDeductions + $payrollAdjustments['deductions']);
+        $loanDeduction = $applyDeduction($scheduledLoanDeduction);
+
+        $totalDeductions = round(
+            $appliedAttendanceDeductions
+            + $appliedSss
+            + $appliedPhic
+            + $appliedHdmf
+            + $appliedOtherDeductions
+            + $loanDeduction,
+            2
+        );
+        $netPay = round(max(0, $remainingPay), 2);
+
+        return [
+            'monthly_rate' => $monthlyRate,
+            'semi_monthly_rate' => $semiMonthlyRate,
+            'daily_rate' => $dailyRate,
+            'hourly_rate' => $hourlyRate,
+            'basic_salary' => $basicSalary,
+            'days_worked' => $daysWorked,
+            'overtime_hours' => $overtimeData['total_hours'],
+            'overtime_rate' => $overtimeData['effective_rate'],
+            'overtime_pay' => $overtimeData['total_pay'],
+            'night_differential_hours' => $nightDiffData['total_hours'],
+            'night_differential_rate' => $hourlyRate * 0.10, // Excel: 10% of hourly rate
+            'night_differential_pay' => $nightDiffData['total_pay'],
+            'rest_day_premium_pay' => $restDayData['total_pay'],
+            'allowances' => $allowances['total'] + $payrollAdjustments['allowances'],
+            'bonuses' => $payrollAdjustments['bonuses'],
+            'other_earnings' => $payrollAdjustments['other_earnings'],
+            'paid_leave_days' => $leaveData['paid_leave_days'] ?? 0,
+            'paid_leave_pay' => $leaveData['paid_leave_pay'] ?? 0,
+            'sick_leave_days' => $leaveData['sick_leave_days'] ?? 0,
+            'sick_leave_pay' => $leaveData['sick_leave_pay'] ?? 0,
+            'unpaid_leave_days' => $leaveData['unpaid_leave_days'] ?? 0,
+            'unpaid_leave_deduction' => $appliedUnpaidLeaveDeduction,
+            'total_deductions' => $totalDeductions,
+            'late_minutes' => $timeDeductions['late_minutes'],
+            'undertime_minutes' => $timeDeductions['undertime_minutes'],
+            'late_deductions' => $appliedLateDeduction,
+            'undertime_deductions' => $appliedUndertimeDeduction,
+            'absent_deductions' => $appliedAbsenceDeduction,
+            'other_deductions' => $appliedOtherDeductions,
+            'loan_deduction' => $loanDeduction,
+            'sss' => $appliedSss,
+            'phic' => $appliedPhic,
+            'hdmf' => $appliedHdmf,
+            'tax_amount' => $taxAmount,
+            'taxable_pay' => $taxablePay,
+            'scheduled_deductions' => round(
+                $scheduledAttendanceDeductions
+                + array_sum($statutoryDeductions)
+                + $otherDeductions
+                + $payrollAdjustments['deductions']
+                + $scheduledLoanDeduction,
+                2
+            ),
+            'deferred_deductions' => round(
+                max(0, $scheduledAttendanceDeductions - $appliedAttendanceDeductions)
+                + max(0, $statutoryDeductions['sss'] - $appliedSss)
+                + max(0, $statutoryDeductions['phic'] - $appliedPhic)
+                + max(0, $statutoryDeductions['hdmf'] - $appliedHdmf)
+                + max(0, ($otherDeductions + $payrollAdjustments['deductions']) - $appliedOtherDeductions)
+                + max(0, $scheduledLoanDeduction - $loanDeduction),
+                2
+            ),
+            'gross_pay' => $grossPay,
+            'net_pay' => $netPay,
+            // Holiday data for reference
+            'holiday_basic_pay' => $holidayData['basic_pay'] ?? 0,
+            'holiday_premium' => $holidayData['premium_pay'] ?? 0,
+            'special_holiday_premium' => $holidayData['special_premium'] ?? 0,
+            'holiday_pay' => $holidayData['total_pay'] ?? 0,
+            'regular_holiday_days' => $holidayData['regular_holiday_days'] ?? 0,
+            'special_holiday_days' => $holidayData['special_holiday_days'] ?? 0,
+            'scheduled_hours' => $this->sumScheduledHours($employeeRecords),
         ];
-        
-        fputcsv($handle, $row);
-    }
-    
-    fclose($handle);
-    
-    return 'exports/' . $filename;
-}
-
-/**
- * Helper method to calculate days worked
- */
-private function calculateDaysWorked($payroll)
-{
-    // You need to implement this based on your attendance data
-    // For now, return a default value
-    return 13; // Default 13 working days in a half-month
-}
-
-/**
- * Export detailed data to XLSX (FIXED)
- */
-private function exportDetailedToXLSX($payrolls, $filename)
-{
-    // Check if PhpSpreadsheet is available
-    if (!class_exists('\PhpOffice\PhpSpreadsheet\Spreadsheet')) {
-        throw new \Exception('PhpSpreadsheet not installed. Please install via composer: composer require phpoffice/phpspreadsheet');
     }
 
-    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-    $sheet = $spreadsheet->getActiveSheet();
-    
-    // Set document properties
-    $spreadsheet->getProperties()
-        ->setCreator('Aeternitas Payroll System')
-        ->setLastModifiedBy('Aeternitas Payroll System')
-        ->setTitle('Payroll Report')
-        ->setSubject('Payroll Data')
-        ->setDescription('Detailed payroll report with calculations');
-    
-    // Headers
-    $headers = [
-        'Payroll ID',
-        'Employee ID',
-        'Employee Name',
-        'Department',
-        'Period Start',
-        'Period End',
-        'Monthly Rate',
-        'Semi-Monthly Rate',
-        'Daily Rate',
-        'Hourly Rate',
-        'Basic Salary',
-        'Overtime Hours',
-        'Overtime Rate',
-        'Overtime Pay',
-        'Night Differential Hours',
-        'Night Differential Rate',
-        'Night Differential Pay',
-        'Rest Day Premium Pay',
-        'Allowances',
-        'Bonuses',
-        'Deductions',
-        'SSS',
-        'PHIC',
-        'HDMF',
-        'Tax Amount',
-        'Gross Pay',
-        'Net Pay',
-        'Status'
-    ];
-    
-    // Set headers
-    foreach ($headers as $colIndex => $header) {
-        $column = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex + 1);
-        $sheet->setCellValue($column . '1', $header);
-        $sheet->getStyle($column . '1')->getFont()->setBold(true);
-    }
-    
-    // Data rows
-    $row = 2;
-    foreach ($payrolls as $payroll) {
-        $employee = $payroll->employee;
-        
-        if (!$employee) {
-            continue;
+    /**
+     * Calculate days worked from attendance records
+     */
+    private function calculateDaysWorkedFromRecords($employeeRecords): float
+    {
+        $totalHours = 0;
+
+        foreach ($employeeRecords as $record) {
+            if (($record['schedule_status'] ?? null) !== 'Working') {
+                continue;
+            }
+
+            $status = $record['attendance_status'] ?? null;
+
+            if ($status === 'Official Business') {
+                $obHours = $record['worked_hours'] ?? null;
+                $totalHours += is_numeric($obHours)
+                    ? $this->hoursToDecimal($obHours)
+                    : $this->hoursToDecimal($record['scheduled_hours'] ?? 0);
+                continue;
+            }
+
+            if (in_array($status, ['Present', 'Late', 'Half Day'], true)) {
+                $totalHours += $this->hoursToDecimal($record['worked_hours'] ?? 0);
+            }
         }
-        
-        // Ensure we have calculated values
-        $this->recalculatePayrollForExport($payroll);
-        $payroll->refresh(); // Get updated values
-        
-        $rowData = [
-            $payroll->id,
-            $employee->employee_id ?? '',
-            $employee->full_name ?? '',
-            $employee->department->name ?? 'N/A',
-            $payroll->pay_period_start,
-            $payroll->pay_period_end,
-            $payroll->monthly_rate ?? 0,
-            $payroll->semi_monthly_rate ?? 0,
-            $payroll->daily_rate ?? 0,
-            $payroll->hourly_rate ?? 0,
-            $payroll->basic_salary,
-            $payroll->overtime_hours ?? 0,
-            $payroll->overtime_rate ?? 0,
-            $payroll->overtime_pay ?? 0,
-            $payroll->night_differential_hours ?? 0,
-            $payroll->night_differential_rate ?? 0,
-            $payroll->night_differential_pay ?? 0,
-            $payroll->rest_day_premium_pay ?? 0,
-            $payroll->allowances ?? 0,
-            $payroll->bonuses ?? 0,
-            $payroll->deductions ?? 0,
-            $payroll->sss ?? 0,
-            $payroll->phic ?? 0,
-            $payroll->hdmf ?? 0,
-            $payroll->tax_amount ?? 0,
-            $payroll->gross_pay,
-            $payroll->net_pay,
-            ucfirst($payroll->status)
+
+        // Convert hours to days (assuming 8 hours per day)
+        return $totalHours / 8;
+    }
+
+    /**
+     * Sum the authoritative employee schedule hours for the cutoff. Absence
+     * does not erase the scheduled requirement; day offs and missing schedules
+     * contribute zero because their records do not contain payable hours.
+     */
+    private function sumScheduledHours($employeeRecords): float
+    {
+        return round((float) collect($employeeRecords)->sum(function ($record) {
+            if (($record['schedule_status'] ?? null) !== 'Working') {
+                return 0;
+            }
+
+            return $this->hoursToDecimal($record['scheduled_hours'] ?? 0);
+        }), 2);
+    }
+
+    private function sumWorkedHours($employeeRecords): float
+    {
+        return round((float) collect($employeeRecords)->sum(function ($record) {
+            return $this->hoursToDecimal($record['worked_hours'] ?? 0);
+        }), 2);
+    }
+
+    private function hoursToDecimal($value): float
+    {
+        if (is_numeric($value)) {
+            return max(0, (float) $value);
+        }
+
+        return max(0, (float) $this->parseFormattedHours((string) $value));
+    }
+
+    /**
+     * Calculate approved overtime using each request's configured multiplier.
+     *
+     * The controller passes `overtime_entries` containing the hours and
+     * rate_multiplier from approved OvertimeRequest rows. The legacy
+     * `overtime` value remains as a backward-compatible 1.25 fallback.
+     */
+    private function calculateOvertimeWithExcelRates($employeeRecords, $hourlyRate): array
+    {
+        $totalHours = 0.0;
+        $totalPay = 0.0;
+        $weightedMultiplierTotal = 0.0;
+
+         foreach ($employeeRecords as $record) {
+            // Rest-day duty is paid once through the dedicated 130% rest-day
+            // component, never again as ordinary overtime.
+            if (in_array($record['schedule_status'] ?? null, ['Day Off', 'Rest Day'], true)) {
+                continue;
+            }
+
+            // Overtime requires an actual attendance record for that date.
+            // A day marked Absent (no time_in/time_out) cannot also earn OT pay.
+            if (($record['attendance_status'] ?? null) === 'Absent') {
+                continue;
+            }
+
+            $requiredHours = $this->hoursToDecimal($record['scheduled_hours'] ?? 0);
+            $workedHours = $this->hoursToDecimal($record['worked_hours'] ?? 0);
+
+            // Regular OT is payable only after the employee completes the
+            // scheduled eight-hour duty (or the shorter configured shift).
+            if ($requiredHours > 0 && $workedHours < $requiredHours) {
+                continue;
+            }
+            $entries = $record['overtime_entries'] ?? [];
+
+            if (!empty($entries)) {
+                foreach ($entries as $entry) {
+                    $hours = max(0, (float) ($entry['hours'] ?? 0));
+                    $multiplier = max(0, (float) ($entry['rate_multiplier'] ?? 1.25));
+
+                    $totalHours += $hours;
+                    $totalPay += $hours * $hourlyRate * $multiplier;
+                    $weightedMultiplierTotal += $hours * $multiplier;
+                }
+            } else {
+                // Backward compatibility for existing comprehensive records.
+                $hours = max(0, (float) ($record['overtime'] ?? 0));
+
+                if ($hours > 0) {
+                    $totalHours += $hours;
+                    $totalPay += $hours * $hourlyRate * 1.25;
+                    $weightedMultiplierTotal += $hours * 1.25;
+                }
+            }
+
+            // Existing holiday-specific fields remain supported.
+            if (!empty($record['lh_overtime'])) {
+                $hours = (float) $record['lh_overtime'];
+                $multiplier = 2.0 * 1.3;
+
+                $totalHours += $hours;
+                $totalPay += $hours * $hourlyRate * $multiplier;
+                $weightedMultiplierTotal += $hours * $multiplier;
+            }
+
+            if (!empty($record['sh_overtime'])) {
+                $hours = (float) $record['sh_overtime'];
+                $multiplier = 1.3;
+
+                $totalHours += $hours;
+                $totalPay += $hours * $hourlyRate * $multiplier;
+                $weightedMultiplierTotal += $hours * $multiplier;
+            }
+        }
+
+        $effectiveMultiplier = $totalHours > 0
+            ? $weightedMultiplierTotal / $totalHours
+            : 1.25;
+
+        return [
+            'total_hours' => round($totalHours, 2),
+            'effective_multiplier' => round($effectiveMultiplier, 4),
+            'effective_rate' => round($hourlyRate * $effectiveMultiplier, 2),
+            'total_pay' => round($totalPay, 2),
         ];
-        
-        // Set data for each column
-        foreach ($rowData as $colIndex => $value) {
-            $column = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex + 1);
-            $sheet->setCellValue($column . $row, $value);
-        }
-        
-        $row++;
     }
-    
-    // Auto-size columns
-    for ($col = 1; $col <= count($headers); $col++) {
-        $column = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col);
-        $sheet->getColumnDimension($column)->setAutoSize(true);
-    }
-    
-    // Format currency columns
-    $currencyColumns = ['G', 'H', 'I', 'J', 'K', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
-    foreach ($currencyColumns as $col) {
-        $lastRow = $row - 1;
-        if ($lastRow >= 2) {
-            $range = $col . '2:' . $col . $lastRow;
-            $sheet->getStyle($range)
-                  ->getNumberFormat()
-                  ->setFormatCode('#,##0.00');
-        }
-    }
-    
-    // Add border to all cells
-    $styleArray = [
-        'borders' => [
-            'allBorders' => [
-                'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
-                'color' => ['argb' => 'FF000000'],
-            ],
-        ],
-    ];
-    
-    $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
-    $sheet->getStyle('A1:' . $lastColumn . ($row - 1))->applyFromArray($styleArray);
-    
-    // Save file
-    $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-    $filepath = storage_path('app/exports/' . $filename);
-    $writer->save($filepath);
-    
-    return 'exports/' . $filename;
-}
 
-/**
- * Calculate payroll details for export
- */
-private function calculatePayrollDetailsForExport($payroll)
-{
-    $employee = $payroll->employee;
-    
-    // If employee doesn't exist, use default calculations
-    if (!$employee) {
-        // Default daily rate calculation: (Basic Salary * 12) / 313 (working days in a year)
-        $dailyRate = ($payroll->basic_salary * 12) / 313;
+    /**
+     * Calculate night differential with Excel formula (10% of hourly rate)
+     */
+    private function calculateNightDifferentialWithExcelRates($employeeRecords, $hourlyRate): array
+    {
+        $totalHours = 0;
+
+        foreach ($employeeRecords as $record) {
+            if (isset($record['night_differential_hours']) && $record['night_differential_hours'] > 0) {
+                $totalHours += $record['night_differential_hours'];
+            }
+        }
+
+        // Excel formula: =H14*0.1*X14 (hours × 10% × hourly rate)
+        $totalPay = $totalHours * $hourlyRate * 0.10;
+
+        return [
+            'total_hours' => $totalHours,
+            'total_pay' => round($totalPay, 2)
+        ];
+    }
+
+    /**
+     * Calculate holiday pay with Excel multipliers
+     */
+    private function calculateHolidayPayWithExcelRates(Employee $employee, $employeeRecords, $dailyRate, $hourlyRate): array
+    {
+        $regularHolidayDays = 0;
+        $specialHolidayDays = 0;
+        $totalPay = 0;
+
+        foreach ($employeeRecords as $record) {
+            if ($record['schedule_status'] === 'Regular Holiday') {
+                $regularHolidayDays++;
+                // Excel: =G14*R14*0.3 (daily rate × 1 × 30%)
+                $totalPay += $dailyRate * 1 * 0.30;
+            } elseif ($record['schedule_status'] === 'Special Holiday') {
+                $specialHolidayDays++;
+                // Excel: =G14*R14*0.3 (daily rate × 1 × 30%)
+                $totalPay += $dailyRate * 1 * 0.30;
+            }
+        }
+
+        return [
+            'regular_holiday_days' => $regularHolidayDays,
+            'special_holiday_days' => $specialHolidayDays,
+            'total_pay' => round($totalPay, 2)
+        ];
+    }
+
+    /**
+     * Calculate rest day premium with Excel rates
+     */
+    private function calculateRestDayPremiumWithExcelRates(Employee $employee, $employeeRecords, $dailyRate): array
+    {
+        $totalPay = 0;
         $hourlyRate = $dailyRate / 8;
-        $overtimeRate = $hourlyRate * 1.25;
-        $nightDiffRate = $hourlyRate * 1.1;
-    } else {
-        // Use employee's rates if available, otherwise calculate
-        $dailyRate = $employee->daily_rate ?? (($employee->salary ?? $payroll->basic_salary) * 12 / 313);
-        $hourlyRate = $employee->hourly_rate ?? ($dailyRate / 8);
-        $overtimeRate = $employee->overtime_rate ?? ($hourlyRate * 1.25);
-        $nightDiffRate = $employee->night_differential_rate ?? ($hourlyRate * 1.1);
+
+        // Rest-day duty pays every actual worked hour at 130%. This handles
+        // partial and full rest-day shifts without assuming exactly 8 hours.
+        foreach ($employeeRecords as $record) {
+            if (
+                in_array($record['schedule_status'] ?? null, ['Day Off', 'Rest Day'], true)
+                && ($record['attendance_status'] ?? null) === 'Rest Day Duty'
+            ) {
+                $totalPay += $this->hoursToDecimal($record['worked_hours'] ?? 0)
+                    * $hourlyRate
+                    * 1.3;
+            }
+        }
+
+        return [
+            'total_pay' => round($totalPay, 2)
+        ];
     }
-    
-    // Calculate actual values
-    $overtimePay = $payroll->overtime_pay ?? ($payroll->overtime_hours * $overtimeRate);
-    $nightDiffPay = $payroll->night_differential_pay ?? ($payroll->night_differential_hours * $nightDiffRate);
-    $restDayPremiumPay = $payroll->rest_day_premium_pay ?? 0;
-    
-    // Calculate gross pay
-    $grossPay = $payroll->gross_pay ?? (
-        $payroll->basic_salary 
-        + $overtimePay
-        + $nightDiffPay
-        + $restDayPremiumPay
-        + ($payroll->allowances ?? 0)
-        + ($payroll->bonuses ?? 0)
-    );
-    
-    // Calculate net pay
-    $netPay = $payroll->net_pay ?? (
-        $grossPay 
-        - ($payroll->deductions ?? 0)
-        - ($payroll->tax_amount ?? 0)
-    );
-    
-    return [
-        'daily_rate' => $dailyRate,
-        'hourly_rate' => $hourlyRate,
-        'overtime_rate' => $overtimeRate,
-        'night_diff_rate' => $nightDiffRate,
-        'overtime_pay' => $overtimePay,
-        'night_diff_pay' => $nightDiffPay,
-        'rest_day_premium_pay' => $restDayPremiumPay,
-        'gross_pay' => $grossPay,
-        'net_pay' => $netPay
-    ];
-}
-    
-private function generateFallbackPayslipHTML(Payroll $payroll, Employee $employee): string
-{
-    return '<!DOCTYPE html>
+
+    /**
+     * Calculate late and undertime deductions from actual minutes.
+     *
+     * Formula:
+     * hourly rate ÷ 60 × minutes
+     */
+    private function calculateLateUndertimeDeductions($employeeRecords, $hourlyRate): array
+    {
+        $lateMinutes = 0;
+        $undertimeMinutes = 0;
+
+        foreach ($employeeRecords as $record) {
+            $lateMinutes += max(0, (int) ($record['late_minutes'] ?? 0));
+            $undertimeMinutes += max(0, (int) ($record['undertime_minutes'] ?? 0));
+        }
+
+        $minuteRate = $hourlyRate / 60;
+
+        $lateDeduction = round($minuteRate * $lateMinutes, 2);
+        $undertimeDeduction = round($minuteRate * $undertimeMinutes, 2);
+
+        return [
+            'late_minutes' => $lateMinutes,
+            'undertime_minutes' => $undertimeMinutes,
+            'late' => $lateDeduction,
+            'undertime' => $undertimeDeduction,
+            'total' => round($lateDeduction + $undertimeDeduction, 2),
+        ];
+    }
+
+    /**
+     * Calculate absence deductions
+     */
+    private function calculateAbsenceDeductions($employeeRecords, $dailyRate): float
+    {
+        $absentDays = 0;
+
+        foreach ($employeeRecords as $record) {
+            if (
+                $record['attendance_status'] === 'Absent' &&
+                $record['schedule_status'] === 'Working'
+            ) {
+                $absentDays++;
+            }
+
+        }
+
+        // total deduction = daily rate * absent days
+        return round($absentDays * $dailyRate, 2);
+    }
+
+
+    /**
+     * Resolve active one-time and recurring adjustments for a payroll cutoff.
+     * One-time entries apply only to the cutoff containing effective_from.
+     */
+    private function calculatePayrollAdjustments(Employee $employee, array $periodData): array
+    {
+        $start = Carbon::parse($periodData['start_date'])->toDateString();
+        $end = Carbon::parse($periodData['end_date'])->toDateString();
+
+        $items = PayrollAdjustment::query()
+            ->where('employee_id', $employee->id)
+            ->when($employee->company_id, fn ($q) => $q->where('company_id', $employee->company_id))
+            ->applicableToPeriod($start, $end)
+            ->get();
+
+        return [
+            'bonuses' => round((float) $items->where('category', 'bonus')->where('direction', 'earning')->sum('amount'), 2),
+            'allowances' => round((float) $items->where('category', 'allowance')->where('direction', 'earning')->sum('amount'), 2),
+            'other_earnings' => round((float) $items->where('category', 'manual')->where('direction', 'earning')->sum('amount'), 2),
+            'deductions' => round((float) $items->where('direction', 'deduction')->sum('amount'), 2),
+            'non_taxable_earnings' => round((float) $items->where('direction', 'earning')->where('is_taxable', false)->sum('amount'), 2),
+        ];
+    }
+
+    /**
+     * Calculate allowances (incentive leave)
+     */
+    private function calculateAllowances(Employee $employee, $dailyRate, array $leaveData = []): array
+    {
+        // The old implementation granted five incentive-leave days on every
+        // payroll run. That repeatedly paid an annual benefit and inflated all
+        // employees' gross pay even when no leave was approved.
+        $incentiveLeaveDays = 0;
+        $incentiveLeavePay = 0;
+        $paidLeavePay = (float) ($leaveData['paid_leave_pay'] ?? 0);
+
+        // Preserve paid leave as an explicit payroll earning so approved paid
+        // days remain visible in the preview and gross-pay calculation.
+        $totalAllowance = $incentiveLeavePay + $paidLeavePay;
+
+        return [
+            'incentive_leave_days' => $incentiveLeaveDays,
+            'paid_leave_days' => $leaveData['paid_leave_days'] ?? 0,
+            'paid_leave_pay' => $paidLeavePay,
+            'incentive_leave_pay' => round($incentiveLeavePay, 2),
+            'total' => round($totalAllowance, 2)
+        ];
+    }
+
+    /**
+     * Per-loan cutoff amounts for an employee's active loans (Loan Management
+     * module), each capped to that loan's own remaining_balance. Used both to
+     * total up the scheduled deduction during payroll generation, and later to
+     * proportionally allocate the actually-applied amount into LoanPayment
+     * rows once the payroll is paid (see recordLoanPayments()).
+     *
+     * Returns an empty array if the employee has no active loans in the new
+     * `loans` table - callers should fall back to the legacy
+     * Employee::loan_monthly_amortization mechanism in that case.
+     */
+    private function loanDeductionBreakdown(Employee $employee, array $periodData): array
+    {
+        if (!$employee->exists) {
+            return [];
+        }
+
+        $loans = $employee->loans()->deductible()->orderBy('created_at')->get();
+        if ($loans->isEmpty()) {
+            return [];
+        }
+
+        $periodStart = Carbon::parse($periodData['start_date'])->startOfDay();
+        $periodEnd = Carbon::parse($periodData['end_date'])->endOfDay();
+        $daysInPeriod = $periodData['days_in_period']
+            ?? $periodStart->diffInDays($periodEnd) + 1;
+        // Standard cutoffs are semi-monthly, so a monthly amortization figure
+        // is split in half; periods spanning at least 25 days get the full
+        // monthly amount, matching how statutory deductions are prorated above.
+        $divisor = $daysInPeriod >= 25 ? 1 : 2;
+
+        $breakdown = [];
+        foreach ($loans as $loan) {
+            if ($loan->start_date && Carbon::parse($loan->start_date)->gt($periodEnd)) {
+                continue;
+            }
+
+            $cutoffAmount = round(((float) $loan->amortization_amount) / $divisor, 2);
+            $cutoffAmount = min($cutoffAmount, max(0, (float) $loan->remaining_balance));
+
+            if ($cutoffAmount > 0) {
+                $breakdown[] = ['loan' => $loan, 'amount' => $cutoffAmount];
+            }
+        }
+
+        return $breakdown;
+    }
+
+    /**
+     * Total scheduled loan deduction for the cutoff. Sources from the Loan
+     * Management module (active approved loans) when available, falling back
+     * to the legacy Employee::loan_monthly_amortization columns for employees
+     * who only have that older, single-loan data and no rows in `loans` yet.
+     */
+    private function calculateLoanDeduction(Employee $employee, array $periodData): float
+    {
+        $breakdown = $this->loanDeductionBreakdown($employee, $periodData);
+
+        if (!empty($breakdown)) {
+            return round(array_sum(array_column($breakdown, 'amount')), 2);
+        }
+
+        return $this->calculateLegacyLoanDeduction($employee, $periodData);
+    }
+
+    /**
+     * Original pre-Loan-Management calculation, kept for employees who still
+     * only have data in Employee::loan_start_date/loan_end_date/
+     * loan_total_amount/loan_monthly_amortization and no row in `loans` yet.
+     */
+    private function calculateLegacyLoanDeduction(Employee $employee, array $periodData): float
+    {
+        $employeeAttributes = $employee->getAttributes();
+        $monthlyAmortization = max(0, (float) ($employeeAttributes['loan_monthly_amortization'] ?? 0));
+
+        if ($monthlyAmortization <= 0) {
+            return 0.0;
+        }
+
+        $periodStart = Carbon::parse($periodData['start_date'])->startOfDay();
+        $periodEnd = Carbon::parse($periodData['end_date'])->endOfDay();
+
+        $loanStart = $employeeAttributes['loan_start_date'] ?? null;
+        $loanEnd = $employeeAttributes['loan_end_date'] ?? null;
+
+        if ($loanStart && Carbon::parse($loanStart)->gt($periodEnd)) {
+            return 0.0;
+        }
+
+        if ($loanEnd && Carbon::parse($loanEnd)->lt($periodStart)) {
+            return 0.0;
+        }
+
+        $daysInPeriod = $periodData['days_in_period']
+            ?? $periodStart->diffInDays($periodEnd) + 1;
+
+        $scheduledDeduction = round($daysInPeriod >= 25
+            ? $monthlyAmortization
+            : $monthlyAmortization / 2, 2);
+
+        $loanTotal = max(0, (float) ($employeeAttributes['loan_total_amount'] ?? 0));
+        if ($loanTotal <= 0 || Employee::getConnectionResolver() === null || !$employee->exists) {
+            return $scheduledDeduction;
+        }
+
+        $previouslyDeducted = (float) Payroll::query()
+            ->where('employee_id', $employee->id)
+            ->whereDate('pay_period_end', '<', $periodStart->toDateString())
+            ->sum('loan_deduction');
+
+        return round(min($scheduledDeduction, max(0, $loanTotal - $previouslyDeducted)), 2);
+    }
+
+    /**
+     * Decrements each active loan's remaining_balance and writes a
+     * LoanPayment row for the amount actually deducted on this now-paid
+     * payroll. Runs once, only when a payroll transitions to 'paid' - never
+     * during generation/regeneration, since Loan::remaining_balance is a
+     * mutable running total, unlike the other deduction fields which are
+     * recalculated fresh from attendance data on every generation.
+     *
+     * If loan_deduction ended up capped below the scheduled amount (net pay
+     * ran out before reaching the loan line), each loan's share is scaled
+     * down proportionally so recorded payments sum to exactly what was paid.
+     */
+    private function recordLoanPayments(Payroll $payroll): void
+    {
+        if ((float) ($payroll->loan_deduction ?? 0) <= 0) {
+            return;
+        }
+
+        // Guard against double-recording - e.g. a retry after a partial
+        // batch failure re-processing an already-paid payroll.
+        if (\App\Models\LoanPayment::where('payroll_id', $payroll->id)->exists()) {
+            return;
+        }
+
+        $employee = Employee::find($payroll->employee_id);
+        if (!$employee) {
+            return;
+        }
+
+        $periodData = [
+            'start_date' => Carbon::parse($payroll->pay_period_start)->format('Y-m-d'),
+            'end_date' => Carbon::parse($payroll->pay_period_end)->format('Y-m-d'),
+        ];
+
+        $breakdown = $this->loanDeductionBreakdown($employee, $periodData);
+        if (empty($breakdown)) {
+            // No rows in the new `loans` table for this employee - the
+            // deduction came from the legacy Employee loan columns instead,
+            // which have no persistent balance to decrement here.
+            return;
+        }
+
+        $scheduledTotal = array_sum(array_column($breakdown, 'amount'));
+        $appliedTotal = (float) $payroll->loan_deduction;
+        $scaleFactor = $scheduledTotal > 0 ? min(1, $appliedTotal / $scheduledTotal) : 0;
+
+        foreach ($breakdown as $entry) {
+            $amount = round($entry['amount'] * $scaleFactor, 2);
+            if ($amount > 0) {
+                $entry['loan']->recordPayment($amount, $payroll->id, $payroll->paid_by ?? null);
+            }
+        }
+    }
+
+    /**
+     * Calculate approved sick leave pay for the payroll period.
+     */
+    private function calculateApprovedLeaveData(Employee $employee, array $periodData, $employeeRecords = null): array
+    {
+        // Paid leave types are compensated for these days. Everything else
+        // (LeaveRequest::UNCAPPED_LEAVE_TYPES) is unpaid and deducted from
+        // gross pay. Derived from the canonical lists on LeaveRequest so
+        // this can't drift out of sync when leave types change.
+        $paidLeaveTypes = array_diff(
+            ['vacation', 'sick', 'sil', ...\App\Models\LeaveRequest::UNCAPPED_LEAVE_TYPES],
+            \App\Models\LeaveRequest::UNCAPPED_LEAVE_TYPES
+        );
+        $unpaidLeaveTypes = \App\Models\LeaveRequest::UNCAPPED_LEAVE_TYPES;
+
+        $startDate = Carbon::parse($periodData['start_date'])->startOfDay();
+        $endDate   = Carbon::parse($periodData['end_date'])->endOfDay();
+
+        $leaveRequests = LeaveRequest::where('employee_id', $employee->id)
+            ->where('status', 'approved')
+            ->where(function ($query) use ($startDate, $endDate) {
+                $query->whereBetween('start_date', [$startDate->toDateString(), $endDate->toDateString()])
+                    ->orWhereBetween('end_date', [$startDate->toDateString(), $endDate->toDateString()])
+                    ->orWhere(function ($subQuery) use ($startDate, $endDate) {
+                        $subQuery->where('start_date', '<=', $startDate->toDateString())
+                            ->where('end_date', '>=', $endDate->toDateString());
+                    });
+            })
+            ->get();
+
+        $dailyRate          = $employee->daily_rate ?? 0;
+        $paidLeaveDays      = 0;
+        $unpaidLeaveDays    = 0;
+        $paidLeaveDaysByType = [];
+
+        $recordsByDate = collect($employeeRecords ?? [])->keyBy('date');
+
+        foreach ($leaveRequests as $leaveRequest) {
+            $overlapStart = max(Carbon::parse($leaveRequest->start_date), $startDate);
+            $overlapEnd   = min(Carbon::parse($leaveRequest->end_date), $endDate);
+
+            if ($overlapStart->gt($overlapEnd)) {
+                continue;
+            }
+
+            // Count working days (excluding Sundays) within the overlap window.
+            $days    = 0;
+            $current = $overlapStart->copy()->startOfDay();
+            while ($current->lte($overlapEnd)) {
+                $record = $recordsByDate->get($current->toDateString());
+                $isScheduledWorkday = $record
+                    ? (($record['schedule_status'] ?? null) === 'Working')
+                    : $current->dayOfWeek !== Carbon::SUNDAY;
+                $isLeaveOnly = !$record || (
+                    in_array($record['attendance_status'] ?? null, ['Paid Leave', 'Unpaid Leave'], true)
+                    && $this->hoursToDecimal($record['worked_hours'] ?? 0) <= 0
+                    && (float) ($record['overtime'] ?? 0) <= 0
+                );
+
+                // Never pay leave on a rest day or on a date already credited
+                // as attendance, Official Business, or overtime.
+                if ($isScheduledWorkday && $isLeaveOnly) {
+                    $days++;
+                }
+                $current->addDay();
+            }
+
+            if (in_array($leaveRequest->leave_type, $paidLeaveTypes, true)) {
+                $paidLeaveDays += $days;
+                $paidLeaveDaysByType[$leaveRequest->leave_type] =
+                    ($paidLeaveDaysByType[$leaveRequest->leave_type] ?? 0) + $days;
+            } elseif (in_array($leaveRequest->leave_type, $unpaidLeaveTypes, true)) {
+                $unpaidLeaveDays += $days;
+            }
+        }
+
+        return [
+            'paid_leave_days'       => $paidLeaveDays,
+            'paid_leave_pay'        => round($paidLeaveDays * $dailyRate, 2),
+            'sick_leave_days'       => $paidLeaveDaysByType['sick'] ?? 0,
+            'sick_leave_pay'        => round(($paidLeaveDaysByType['sick'] ?? 0) * $dailyRate, 2),
+            'unpaid_leave_days'     => $unpaidLeaveDays,
+            'unpaid_leave_deduction'=> round($unpaidLeaveDays * $dailyRate, 2),
+        ];
+    }
+
+    /**
+     * Calculate statutory deductions based on Excel values
+     */
+    private function calculateStatutoryDeductions(
+        $monthlyRate,
+        int $deductionDivisor = 1,
+        array $monthlyOverrides = []
+    ): array {
+        $deductionDivisor = max(1, $deductionDivisor);
+
+        $monthlyAmounts = [
+            'sss' => $monthlyOverrides['sss']
+                ?? $this->calculateSssContribution($monthlyRate),
+            'phic' => $monthlyOverrides['phic']
+                ?? $this->calculatePhilHealthContribution($monthlyRate),
+            'hdmf' => $monthlyOverrides['hdmf']
+                ?? $this->calculateHdmfContribution($monthlyRate),
+        ];
+
+        return [
+            'sss' => round((float) $monthlyAmounts['sss'] / $deductionDivisor, 2),
+            'phic' => round((float) $monthlyAmounts['phic'] / $deductionDivisor, 2),
+            'hdmf' => round((float) $monthlyAmounts['hdmf'] / $deductionDivisor, 2),
+        ];
+    }
+
+    /**
+     * Employee share of SSS contribution (2026 table).
+     * Rate: 15% total, employee pays 5%.
+     * Monthly Salary Credit (MSC): floor ₱5,000, ceiling ₱35,000, in ₱500 brackets.
+     */
+    private function calculateSssContribution($monthlySalary): float
+    {
+        $monthlySalary = max(0, (float) $monthlySalary);
+
+        // Snap to nearest ₱500 MSC bracket, clamped to floor/ceiling
+        $msc = round($monthlySalary / 500) * 500;
+        $msc = max(5000, min(35000, $msc));
+
+        return round($msc * 0.05, 2);
+    }
+
+    /**
+     * Employee share of PhilHealth contribution (2026 table).
+     * Rate: 5% of monthly basic salary, split 2.5% employee / 2.5% employer.
+     * Floor ₱10,000, ceiling ₱100,000.
+     */
+    private function calculatePhilHealthContribution($monthlySalary): float
+    {
+        $monthlySalary = max(0, (float) $monthlySalary);
+        $base = max(10000, min(100000, $monthlySalary));
+
+        return round($base * 0.025, 2);
+    }
+
+    /**
+     * Employee share of Pag-IBIG (HDMF) contribution (2026 table, HDMF Circular No. 460).
+     * Rate: 1% if salary ≤ ₱1,500, else 2%. Computed on Maximum Fund Salary capped at ₱10,000.
+     */
+    private function calculateHdmfContribution($monthlySalary): float
+    {
+        $monthlySalary = max(0, (float) $monthlySalary);
+        $base = min($monthlySalary, 10000);
+        $rate = $monthlySalary <= 1500 ? 0.01 : 0.02;
+
+        return round($base * $rate, 2);
+    }
+
+    /**
+     * Calculate gross pay using Excel formula pattern
+     */
+    private function calculateGrossPayWithExcelFormula(
+        $basicSalary,
+        $overtimePay,
+        $nightDiffPay,
+        $holidayPay,
+        $restDayPay,
+        $allowances,
+        $bonuses
+    ): float {
+        // Excel formula pattern from your file:
+        // =G14*K14+I14+J14+M14+O14+Q14+S14+U14+W14+Y14-AC14
+
+        // Where:
+        // G14*K14 = Basic salary
+        // I14 = Incentive leave
+        // J14, M14, O14, Q14, S14, U14, W14, Y14 = Various premiums and allowances
+        
+        // Note: AC14 (Late/Absences) are now handled globally in Total Deductions
+        // so Gross Pay strictly represents Total Earnings before any penalties.
+
+        $allowancesTotal = is_array($allowances) ? ($allowances['total'] ?? 0) : $allowances;
+
+        $grossPay = $basicSalary
+            + $allowancesTotal  // Incentive leave
+            + $overtimePay
+            + $nightDiffPay
+            + $holidayPay
+            + $restDayPay
+            + $bonuses;
+
+        return round($grossPay, 2);
+    }
+
+    /**
+     * Export to Excel with comprehensive calculations
+     */
+    public function exportPayrollWithCalculations($payrolls, $format = 'xlsx')
+    {
+        // Ensure payrolls have employee relationships loaded
+        $payrolls->load(['employee', 'employee.department']);
+
+        $filename = 'payroll_export_detailed_' . date('Ymd_His') . '.' . $format;
+
+        // Ensure directory exists
+        $directory = storage_path('app/exports');
+        if (!is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        if ($format === 'csv') {
+            return $this->exportDetailedToCSV($payrolls, $filename);
+        } elseif ($format === 'xlsx') {
+            return $this->exportDetailedToXLSX($payrolls, $filename);
+        } else {
+            throw new \Exception('Unsupported format: ' . $format);
+        }
+    }
+
+    /**
+     * Export detailed data to CSV (FIXED)
+     */
+    private function exportDetailedToCSV($payrolls, $filename)
+    {
+        $filepath = storage_path('app/exports/' . $filename);
+
+        // Ensure directory exists
+        $directory = storage_path('app/exports');
+        if (!is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        $handle = fopen($filepath, 'w');
+
+        if (!$handle) {
+            throw new \Exception('Unable to create CSV file: ' . $filepath);
+        }
+
+        // Add BOM for Excel UTF-8 support
+        fwrite($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+        // Comprehensive headers
+        $headers = [
+            'Payroll ID',
+            'Employee ID',
+            'Employee Name',
+            'Department',
+            'Period Start',
+            'Period End',
+            'Monthly Rate',
+            'Semi-Monthly Rate',
+            'Daily Rate',
+            'Hourly Rate',
+            'Basic Salary',
+            'Overtime Hours',
+            'Overtime Rate',
+            'Overtime Pay',
+            'Night Differential Hours',
+            'Night Differential Rate',
+            'Night Differential Pay',
+            'Rest Day Premium Pay',
+            'Allowances',
+            'Bonuses',
+            'Deductions',
+            'SSS',
+            'PHIC',
+            'HDMF',
+            'Tax Amount',
+            'Gross Pay',
+            'Net Pay',
+            'Status'
+        ];
+        fputcsv($handle, $headers);
+
+        foreach ($payrolls as $payroll) {
+            $employee = $payroll->employee;
+
+            if (!$employee) {
+                continue;
+            }
+
+            // Ensure we have calculated values
+            $this->recalculatePayrollForExport($payroll);
+            $payroll->refresh(); // Get updated values
+
+            $row = [
+                $payroll->id,
+                $employee->employee_id ?? '',
+                $employee->full_name ?? '',
+                $employee->department->name ?? 'N/A',
+                $payroll->pay_period_start,
+                $payroll->pay_period_end,
+                number_format($payroll->monthly_rate ?? 0, 2),
+                number_format($payroll->semi_monthly_rate ?? 0, 2),
+                number_format($payroll->daily_rate ?? 0, 2),
+                number_format($payroll->hourly_rate ?? 0, 2),
+                number_format($payroll->basic_salary, 2),
+                number_format($payroll->overtime_hours ?? 0, 2),
+                number_format($payroll->overtime_rate ?? 0, 2),
+                number_format($payroll->overtime_pay ?? 0, 2),
+                number_format($payroll->night_differential_hours ?? 0, 2),
+                number_format($payroll->night_differential_rate ?? 0, 2),
+                number_format($payroll->night_differential_pay ?? 0, 2),
+                number_format($payroll->rest_day_premium_pay ?? 0, 2),
+                number_format($payroll->allowances ?? 0, 2),
+                number_format($payroll->bonuses ?? 0, 2),
+                number_format($payroll->deductions ?? 0, 2),
+                number_format($payroll->sss ?? 0, 2),
+                number_format($payroll->phic ?? 0, 2),
+                number_format($payroll->hdmf ?? 0, 2),
+                number_format($payroll->tax_amount ?? 0, 2),
+                number_format($payroll->gross_pay, 2),
+                number_format($payroll->net_pay, 2),
+                ucfirst($payroll->status)
+            ];
+
+            fputcsv($handle, $row);
+        }
+
+        fclose($handle);
+
+        return 'exports/' . $filename;
+    }
+
+    /**
+     * Helper method to calculate days worked
+     */
+    private function calculateDaysWorked($payroll)
+    {
+        // You need to implement this based on your attendance data
+        // For now, return a default value
+        return 13; // Default 13 working days in a half-month
+    }
+
+    /**
+     * Export detailed data to XLSX (FIXED)
+     */
+    private function exportDetailedToXLSX($payrolls, $filename)
+    {
+        // Check if PhpSpreadsheet is available
+        if (!class_exists('\PhpOffice\PhpSpreadsheet\Spreadsheet')) {
+            throw new \Exception('PhpSpreadsheet not installed. Please install via composer: composer require phpoffice/phpspreadsheet');
+        }
+
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Set document properties
+        $spreadsheet->getProperties()
+            ->setCreator('GR8 TECH ENTERPRISE Payroll System')
+            ->setLastModifiedBy('GR8 TECH ENTERPRISE Payroll System')
+            ->setTitle('Payroll Report')
+            ->setSubject('Payroll Data')
+            ->setDescription('Detailed payroll report with calculations');
+
+        // Headers
+        $headers = [
+            'Payroll ID',
+            'Employee ID',
+            'Employee Name',
+            'Department',
+            'Period Start',
+            'Period End',
+            'Monthly Rate',
+            'Semi-Monthly Rate',
+            'Daily Rate',
+            'Hourly Rate',
+            'Basic Salary',
+            'Overtime Hours',
+            'Overtime Rate',
+            'Overtime Pay',
+            'Night Differential Hours',
+            'Night Differential Rate',
+            'Night Differential Pay',
+            'Rest Day Premium Pay',
+            'Allowances',
+            'Bonuses',
+            'Deductions',
+            'SSS',
+            'PHIC',
+            'HDMF',
+            'Tax Amount',
+            'Gross Pay',
+            'Net Pay',
+            'Status'
+        ];
+
+        // Set headers
+        foreach ($headers as $colIndex => $header) {
+            $column = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex + 1);
+            $sheet->setCellValue($column . '1', $header);
+            $sheet->getStyle($column . '1')->getFont()->setBold(true);
+        }
+
+        // Data rows
+        $row = 2;
+        foreach ($payrolls as $payroll) {
+            $employee = $payroll->employee;
+
+            if (!$employee) {
+                continue;
+            }
+
+            // Ensure we have calculated values
+            $this->recalculatePayrollForExport($payroll);
+            $payroll->refresh(); // Get updated values
+
+            $rowData = [
+                $payroll->id,
+                $employee->employee_id ?? '',
+                $employee->full_name ?? '',
+                $employee->department->name ?? 'N/A',
+                $payroll->pay_period_start,
+                $payroll->pay_period_end,
+                $payroll->monthly_rate ?? 0,
+                $payroll->semi_monthly_rate ?? 0,
+                $payroll->daily_rate ?? 0,
+                $payroll->hourly_rate ?? 0,
+                $payroll->basic_salary,
+                $payroll->overtime_hours ?? 0,
+                $payroll->overtime_rate ?? 0,
+                $payroll->overtime_pay ?? 0,
+                $payroll->night_differential_hours ?? 0,
+                $payroll->night_differential_rate ?? 0,
+                $payroll->night_differential_pay ?? 0,
+                $payroll->rest_day_premium_pay ?? 0,
+                $payroll->allowances ?? 0,
+                $payroll->bonuses ?? 0,
+                $payroll->deductions ?? 0,
+                $payroll->sss ?? 0,
+                $payroll->phic ?? 0,
+                $payroll->hdmf ?? 0,
+                $payroll->tax_amount ?? 0,
+                $payroll->gross_pay,
+                $payroll->net_pay,
+                ucfirst($payroll->status)
+            ];
+
+            // Set data for each column
+            foreach ($rowData as $colIndex => $value) {
+                $column = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex + 1);
+                $sheet->setCellValue($column . $row, $value);
+            }
+
+            $row++;
+        }
+
+        // Auto-size columns
+        for ($col = 1; $col <= count($headers); $col++) {
+            $column = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col);
+            $sheet->getColumnDimension($column)->setAutoSize(true);
+        }
+
+        // Format currency columns
+        $currencyColumns = ['G', 'H', 'I', 'J', 'K', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+        foreach ($currencyColumns as $col) {
+            $lastRow = $row - 1;
+            if ($lastRow >= 2) {
+                $range = $col . '2:' . $col . $lastRow;
+                $sheet->getStyle($range)
+                    ->getNumberFormat()
+                    ->setFormatCode('#,##0.00');
+            }
+        }
+
+        // Add border to all cells
+        $styleArray = [
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                    'color' => ['argb' => 'FF000000'],
+                ],
+            ],
+        ];
+
+        $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
+        $sheet->getStyle('A1:' . $lastColumn . ($row - 1))->applyFromArray($styleArray);
+
+        // Save file
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        $filepath = storage_path('app/exports/' . $filename);
+        $writer->save($filepath);
+
+        return 'exports/' . $filename;
+    }
+
+    /**
+     * Calculate payroll details for export
+     */
+    private function calculatePayrollDetailsForExport($payroll)
+    {
+        $employee = $payroll->employee;
+
+        // If employee doesn't exist, use default calculations
+        if (!$employee) {
+            // Default daily rate calculation: (Basic Salary * 12) / 313 (working days in a year)
+            $dailyRate = ($payroll->basic_salary * 12) / 313;
+            $hourlyRate = $dailyRate / 8;
+            $overtimeRate = $hourlyRate * 1.25;
+            $nightDiffRate = $hourlyRate * 1.1;
+        } else {
+            // Use employee's rates if available, otherwise calculate
+            $dailyRate = $employee->daily_rate ?? (($employee->salary ?? $payroll->basic_salary) * 12 / 313);
+            $hourlyRate = $employee->hourly_rate ?? ($dailyRate / 8);
+            $overtimeRate = $employee->overtime_rate ?? ($hourlyRate * 1.25);
+            $nightDiffRate = $employee->night_differential_rate ?? ($hourlyRate * 1.1);
+        }
+
+        // Calculate actual values
+        $overtimePay = $payroll->overtime_pay ?? ($payroll->overtime_hours * $overtimeRate);
+        $nightDiffPay = $payroll->night_differential_pay ?? ($payroll->night_differential_hours * $nightDiffRate);
+        $restDayPremiumPay = $payroll->rest_day_premium_pay ?? 0;
+
+        // Calculate gross pay
+        $grossPay = $payroll->gross_pay ?? (
+            $payroll->basic_salary
+            + $overtimePay
+            + $nightDiffPay
+            + $restDayPremiumPay
+            + ($payroll->allowances ?? 0)
+            + ($payroll->bonuses ?? 0)
+        );
+
+        // Calculate net pay
+        $netPay = $payroll->net_pay ?? (
+            $grossPay
+            - ($payroll->deductions ?? 0)
+            - ($payroll->tax_amount ?? 0)
+        );
+
+        return [
+            'daily_rate' => $dailyRate,
+            'hourly_rate' => $hourlyRate,
+            'overtime_rate' => $overtimeRate,
+            'night_diff_rate' => $nightDiffRate,
+            'overtime_pay' => $overtimePay,
+            'night_diff_pay' => $nightDiffPay,
+            'rest_day_premium_pay' => $restDayPremiumPay,
+            'gross_pay' => $grossPay,
+            'net_pay' => $netPay
+        ];
+    }
+
+    private function generateFallbackPayslipHTML(Payroll $payroll, Employee $employee): string
+    {
+        return '<!DOCTYPE html>
     <html>
     <head>
         <meta charset="utf-8">
@@ -1842,7 +2454,7 @@ private function generateFallbackPayslipHTML(Payroll $payroll, Employee $employe
         <p><strong>Net Pay:</strong> ₱' . number_format($payroll->net_pay, 2) . '</p>
     </body>
     </html>';
-}
+    }
     /**
      * Export payroll for a period (CSV) - Legacy method
      *
@@ -1873,12 +2485,28 @@ private function generateFallbackPayslipHTML(Payroll $payroll, Employee $employe
 
         $rows = [];
         $headers = [
-            'payroll_id', 'employee_id', 'employee_name', 'period_start', 'period_end',
-            'basic_salary', 'holiday_basic_pay', 'holiday_premium', 'special_holiday_premium',
-            'overtime_hours', 'overtime_rate', 'overtime_pay',
-            'night_differential_pay', 'rest_day_premium_pay',
-            'bonuses', 'deductions', 'tax_amount', 'gross_pay', 'net_pay',
-            'status', 'approved_at', 'paid_at'
+            'payroll_id',
+            'employee_id',
+            'employee_name',
+            'period_start',
+            'period_end',
+            'basic_salary',
+            'holiday_basic_pay',
+            'holiday_premium',
+            'special_holiday_premium',
+            'overtime_hours',
+            'overtime_rate',
+            'overtime_pay',
+            'night_differential_pay',
+            'rest_day_premium_pay',
+            'bonuses',
+            'deductions',
+            'tax_amount',
+            'gross_pay',
+            'net_pay',
+            'status',
+            'approved_at',
+            'paid_at'
         ];
         $rows[] = $headers;
 
@@ -1938,44 +2566,108 @@ private function generateFallbackPayslipHTML(Payroll $payroll, Employee $employe
      * @param array $periodData
      * @return array|null
      */
-  private function calculatePayrollPreviewFromRecords(Employee $employee, $employeeRecords, array $periodData): ?array
-{
-    $startDate = Carbon::parse($periodData['start_date']);
-    $endDate = Carbon::parse($periodData['end_date']);
+    private function calculatePayrollPreviewFromRecords(Employee $employee, $employeeRecords, array $periodData, ?string $payrollTemplateId = null): ?array
+    {
+        $startDate = Carbon::parse($periodData['start_date']);
+        $endDate = Carbon::parse($periodData['end_date']);
 
-    // Calculate all payroll components with Excel formulas
-    $components = $this->calculateAllPayrollComponents($employee, $employeeRecords, $periodData);
+        // Calculate all payroll components with Excel formulas
+        $components = $this->calculateAllPayrollComponents($employee, $employeeRecords, $periodData, $payrollTemplateId);
 
-    // Return preview data array (not saved to database)
-    return [
-        'employee_id' => $employee->id,
-        'employee_name' => $employee->full_name,
-        'pay_period_start' => $startDate->format('Y-m-d'),
-        'pay_period_end' => $endDate->format('Y-m-d'),
-        'monthly_rate' => $components['monthly_rate'],
-        'semi_monthly_rate' => $components['semi_monthly_rate'],
-        'daily_rate' => $components['daily_rate'],
-        'hourly_rate' => $components['hourly_rate'],
-        'basic_salary' => $components['basic_salary'],
-        'overtime_hours' => $components['overtime_hours'],
-        'overtime_rate' => $components['overtime_rate'],
-        'overtime_pay' => $components['overtime_pay'],
-        'night_differential_hours' => $components['night_differential_hours'],
-        'night_differential_rate' => $components['night_differential_rate'],
-        'night_differential_pay' => $components['night_differential_pay'],
-        'rest_day_premium_pay' => $components['rest_day_premium_pay'],
-        'allowances' => $components['allowances'],
-        'bonuses' => $components['bonuses'],
-        'deductions' => $components['late_deductions'] + $components['absent_deductions'],
-        'tax_amount' => $components['tax_amount'],
-        'gross_pay' => $components['gross_pay'],
-        'net_pay' => $components['net_pay'],
-        'sss' => $components['sss'],
-        'phic' => $components['phic'],
-        'hdmf' => $components['hdmf'],
-        'status' => 'preview',
-    ];
-}
+        // Keep preview identity/details aligned with the generated payroll views.
+        $employee->loadMissing(['department', 'position']);
+
+        $workedHours = $this->sumWorkedHours($employeeRecords);
+
+        // Return preview data array (not saved to database)
+        return [
+            'employee_id' => $employee->id,
+            'employee_code' => $employee->employee_id ?? $employee->id,
+            'employee_name' => $employee->full_name,
+            'department_name' => $employee->department?->name ?? 'N/A',
+            'position_name' => $employee->position?->name ?? 'N/A',
+            'pay_period_start' => $startDate->format('Y-m-d'),
+            'pay_period_end' => $endDate->format('Y-m-d'),
+            'monthly_rate' => $components['monthly_rate'],
+            'semi_monthly_rate' => $components['semi_monthly_rate'],
+            'daily_rate' => $components['daily_rate'],
+            'hourly_rate' => $components['hourly_rate'],
+            'basic_salary' => $components['basic_salary'],
+            'worked_hours' => $workedHours,
+            'scheduled_hours' => $components['scheduled_hours'] ?? 0,
+            'days_worked' => $components['days_worked'] ?? 0,
+            'overtime_hours' => $components['overtime_hours'],
+            'overtime_rate' => $components['overtime_rate'],
+            'overtime_pay' => $components['overtime_pay'],
+            'night_differential_hours' => $components['night_differential_hours'],
+            'night_differential_rate' => $components['night_differential_rate'],
+            'night_differential_pay' => $components['night_differential_pay'],
+            'rest_day_premium_pay' => $components['rest_day_premium_pay'],
+            'allowances' => $components['allowances'],
+            'bonuses' => $components['bonuses'],
+            'other_earnings' => $components['other_earnings'] ?? 0,
+            'paid_leave_days' => $components['paid_leave_days'],
+            'paid_leave_pay' => $components['paid_leave_pay'],
+            'sick_leave_days' => $components['sick_leave_days'] ?? 0,
+            'sick_leave_pay' => $components['sick_leave_pay'] ?? 0,
+            'unpaid_leave_days' => $components['unpaid_leave_days'] ?? 0,
+            'unpaid_leave_deduction' => $components['unpaid_leave_deduction'] ?? 0,
+            'late_minutes' => $components['late_minutes'] ?? 0,
+            'undertime_minutes' => $components['undertime_minutes'] ?? 0,
+            'late_deduction' => $components['late_deductions'] ?? 0,
+            'undertime_deduction' => $components['undertime_deductions'] ?? 0,
+            'absence_deduction' => $components['absent_deductions'] ?? 0,
+            'other_deductions' => $components['other_deductions'] ?? 0,
+            'loan_deduction' => $components['loan_deduction'] ?? 0,
+            'holiday_basic_pay' => $components['holiday_basic_pay'] ?? 0,
+            'holiday_premium' => $components['holiday_premium'] ?? 0,
+            'special_holiday_premium' => $components['special_holiday_premium'] ?? 0,
+            'holiday_pay' => $components['holiday_pay'] ?? 0,
+            'regular_holiday_days' => $components['regular_holiday_days'] ?? 0,
+            'special_holiday_days' => $components['special_holiday_days'] ?? 0,
+            'deductions' => $components['total_deductions'],
+            'scheduled_deductions' => $components['scheduled_deductions'] ?? $components['total_deductions'],
+            'deferred_deductions' => $components['deferred_deductions'] ?? 0,
+            'tax_amount' => $components['tax_amount'],
+            'taxable_pay' => $components['taxable_pay'] ?? $components['gross_pay'],
+            'gross_pay' => $components['gross_pay'],
+            'net_pay' => $components['net_pay'],
+            'sss' => $components['sss'],
+            'phic' => $components['phic'],
+            'hdmf' => $components['hdmf'],
+            'deductions_details' => [
+                'total_late_minutes' => $components['late_minutes'] ?? 0,
+                'undertime_minutes' => $components['undertime_minutes'] ?? 0,
+                'late_days_count' => collect($employeeRecords)
+                    ->filter(fn ($record) => (int) ($record['late_minutes'] ?? 0) > 0)
+                    ->count(),
+                'total_late_deduction' => $components['late_deductions'] ?? 0,
+                'undertime' => $components['undertime_deductions'] ?? 0,
+                'absence' => $components['absent_deductions'] ?? 0,
+                'unpaid_leave' => $components['unpaid_leave_deduction'] ?? 0,
+                'sss' => $components['sss'] ?? 0,
+                'philhealth' => $components['phic'] ?? 0,
+                'pagibig' => $components['hdmf'] ?? 0,
+                'other' => $components['other_deductions'] ?? 0,
+                'loan' => $components['loan_deduction'] ?? 0,
+                'scheduled' => $components['scheduled_deductions'] ?? $components['total_deductions'],
+                'deferred' => $components['deferred_deductions'] ?? 0,
+            ],
+           'earnings_details' => [
+                'basic_salary' => $components['basic_salary'] ?? 0,
+                'allowances' => max(0, ($components['allowances'] ?? 0) - ($components['paid_leave_pay'] ?? 0)),
+                'paid_leave' => $components['paid_leave_pay'] ?? 0,
+                'overtime' => $components['overtime_pay'] ?? 0,
+                'overtime_hours' => $components['overtime_hours'] ?? 0,
+                'night_differential' => $components['night_differential_pay'] ?? 0,
+                'holiday_pay' => $components['holiday_pay'] ?? 0,
+                'rest_day_premium' => $components['rest_day_premium_pay'] ?? 0,
+                'bonuses' => $components['bonuses'] ?? 0,
+                'other' => $components['other_earnings'] ?? 0,
+            ],
+            'status' => 'preview',
+        ];
+    }
 
     /**
      * Calculate payroll from comprehensive attendance records and persist
@@ -1985,85 +2677,139 @@ private function generateFallbackPayslipHTML(Payroll $payroll, Employee $employe
      * @param array $periodData
      * @return Payroll|null
      */
-private function calculatePayrollFromRecords(Employee $employee, $employeeRecords, array $periodData): ?Payroll
-{
-    $startDate = Carbon::parse($periodData['start_date']);
-    $endDate = Carbon::parse($periodData['end_date']);
+    private function calculatePayrollFromRecords(Employee $employee, $employeeRecords, array $periodData, ?string $payrollTemplateId = null): ?Payroll
+    {
+        $startDate = Carbon::parse($periodData['start_date']);
+        $endDate = Carbon::parse($periodData['end_date']);
 
-    // Check if payroll already exists
-    $existingPayroll = Payroll::where('employee_id', $employee->id)
-        ->where('pay_period_start', $startDate->format('Y-m-d'))
-        ->where('pay_period_end', $endDate->format('Y-m-d'))
-        ->first();
+        // Check if payroll already exists and is locked
+        $existingPayrollQuery = Payroll::where('employee_id', $employee->id);
 
-    if ($existingPayroll) {
-        Log::info("Payroll already exists for employee {$employee->id}");
-        return null;
-    }
+        if (! empty($periodData['id'])) {
+            $existingPayrollQuery->where('period_id', $periodData['id']);
+        } else {
+            $existingPayrollQuery
+                ->where('pay_period_start', $startDate->format('Y-m-d'))
+                ->where('pay_period_end', $endDate->format('Y-m-d'));
+        }
 
-    // Calculate all payroll components with Excel formulas
-    $components = $this->calculateAllPayrollComponents($employee, $employeeRecords, $periodData);
-    
-    Log::info('calculateAllPayrollComponents called', [
-        'employee_id' => $employee->id,
-        'records_count' => $employeeRecords->count(),
-        'sample_record' => $employeeRecords->first(),
-    ]);
+        $existingPayroll = $existingPayrollQuery->first();
 
-    // Debug log
-    Log::info("Payroll calculation for {$employee->full_name}", [
-        'basic_salary' => $components['basic_salary'],
-        'overtime_pay' => $components['overtime_pay'],
-        'night_diff_pay' => $components['night_differential_pay'],
-        'rest_day_premium' => $components['rest_day_premium_pay'],
-        'gross_pay' => $components['gross_pay'],
-        'net_pay' => $components['net_pay']
-    ]);
+        if ($existingPayroll && in_array($existingPayroll->status, ['approved', 'paid'])) {
+            Log::info("SKIPPED (locked payroll) - employee {$employee->id} ({$employee->full_name}) - existing status: {$existingPayroll->status}, period {$startDate->format('Y-m-d')} to {$endDate->format('Y-m-d')}");
+            return null;
+        }
 
-    // Create payroll record with ALL required fields
-    try {
-        $payroll = Payroll::create([
+        // Calculate all payroll components with Excel formulas
+        $components = $this->calculateAllPayrollComponents($employee, $employeeRecords, $periodData, $payrollTemplateId);
+
+        Log::info('calculateAllPayrollComponents called', [
             'employee_id' => $employee->id,
-            'pay_period_start' => $startDate->format('Y-m-d'),
-            'pay_period_end' => $endDate->format('Y-m-d'),
-            'basic_salary' => $components['basic_salary'],
-            'monthly_rate' => $components['monthly_rate'],
-            'semi_monthly_rate' => $components['semi_monthly_rate'],
-            'daily_rate' => $components['daily_rate'],
-            'hourly_rate' => $components['hourly_rate'],
-            'holiday_basic_pay' => $components['holiday_basic_pay'] ?? 0,
-            'holiday_premium' => $components['holiday_premium'] ?? 0,
-            'special_holiday_premium' => $components['special_holiday_premium'] ?? 0,
-            'regular_holiday_days' => $components['regular_holiday_days'] ?? 0,
-            'special_holiday_days' => $components['special_holiday_days'] ?? 0,
-            'overtime_hours' => $components['overtime_hours'],
-            'overtime_rate' => $components['overtime_rate'],
-            'overtime_pay' => $components['overtime_pay'],
-            'scheduled_hours' => $components['scheduled_hours'] ?? 0,
-            'night_differential_hours' => $components['night_differential_hours'],
-            'night_differential_rate' => $components['night_differential_rate'],
-            'night_differential_pay' => $components['night_differential_pay'],
-            'rest_day_premium_pay' => $components['rest_day_premium_pay'],
-            'allowances' => $components['allowances'],
-            'bonuses' => $components['bonuses'],
-            'deductions' => $components['total_deductions'],
-            'sss' => $components['sss'],
-            'phic' => $components['phic'],
-            'hdmf' => $components['hdmf'],
-            'tax_amount' => $components['tax_amount'],
-            'gross_pay' => $components['gross_pay'],
-            'net_pay' => $components['net_pay'],
-            'status' => 'pending',
+            'records_count' => $employeeRecords->count(),
+            'sample_record' => $employeeRecords->first(),
         ]);
 
-        Log::info("Generated payroll for employee {$employee->id}: Net Pay: {$components['net_pay']}");
+        // Debug log
+        Log::info("Payroll calculation for {$employee->full_name}", [
+            'basic_salary' => $components['basic_salary'],
+            'overtime_pay' => $components['overtime_pay'],
+            'night_diff_pay' => $components['night_differential_pay'],
+            'rest_day_premium' => $components['rest_day_premium_pay'],
+            'gross_pay' => $components['gross_pay'],
+            'net_pay' => $components['net_pay']
+        ]);
 
-        return $payroll;
-    } catch (\Exception $e) {
-        Log::error("Failed to create payroll for employee {$employee->id}: " . $e->getMessage());
-        return null;
+        // Create or update payroll record with ALL required fields
+        try {
+            $attributes = [
+                'employee_id' => $employee->id,
+                'pay_period_start' => $startDate->format('Y-m-d'),
+                'pay_period_end' => $endDate->format('Y-m-d'),
+            ];
+
+            if (! empty($periodData['id'])) {
+                $attributes['period_id'] = $periodData['id'];
+            }
+
+            $values = [
+                'company_id' => $employee->company_id,
+                'basic_salary' => $components['basic_salary'],
+                'holiday_basic_pay' => $components['holiday_basic_pay'] ?? 0,
+                'holiday_premium' => $components['holiday_premium'] ?? 0,
+                'special_holiday_premium' => $components['special_holiday_premium'] ?? 0,
+                'regular_holiday_days' => $components['regular_holiday_days'] ?? 0,
+                'special_holiday_days' => $components['special_holiday_days'] ?? 0,
+                'overtime_hours' => $components['overtime_hours'],
+                'overtime_rate' => $components['overtime_rate'],
+                'overtime_pay' => $components['overtime_pay'],
+                'scheduled_hours' => $components['scheduled_hours'] ?? 0,
+                'worked_hours' => $this->sumWorkedHours($employeeRecords),
+                'late_minutes' => $components['late_minutes'] ?? 0,
+                'undertime_minutes' => $components['undertime_minutes'] ?? 0,
+                'late_deduction' => $components['late_deductions'] ?? 0,
+                'undertime_deduction' => $components['undertime_deductions'] ?? 0,
+                'absence_deduction' => $components['absent_deductions'] ?? 0,
+                'night_differential_hours' => $components['night_differential_hours'],
+                'night_differential_rate' => $components['night_differential_rate'],
+                'night_differential_pay' => $components['night_differential_pay'],
+                'rest_day_premium_pay' => $components['rest_day_premium_pay'],
+                'allowances' => $components['allowances'],
+                'bonuses' => $components['bonuses'],
+                'other_earnings' => $components['other_earnings'] ?? 0,
+                'paid_leave_days' => $components['paid_leave_days'] ?? 0,
+                'paid_leave_pay' => $components['paid_leave_pay'] ?? 0,
+                'unpaid_leave_days' => $components['unpaid_leave_days'] ?? 0,
+                'unpaid_leave_deduction' => $components['unpaid_leave_deduction'] ?? 0,
+                'deductions' => $components['total_deductions'],
+                'other_deductions' => $components['other_deductions'] ?? 0,
+                'loan_deduction' => $components['loan_deduction'] ?? 0,
+                'sss' => $components['sss'],
+                'phic' => $components['phic'],
+                'hdmf' => $components['hdmf'],
+                'tax_amount' => $components['tax_amount'],
+                'gross_pay' => $components['gross_pay'],
+                'net_pay' => $components['net_pay'],
+                'status' => $existingPayroll ? $existingPayroll->status : 'pending',
+            ];
+
+            try {
+                $payroll = Payroll::updateOrCreate($attributes, $values);
+            } catch (\Illuminate\Database\QueryException $e) {
+                // Unique constraint on (employee_id, pay_period_start, pay_period_end):
+                // two concurrent "Generate Payroll" requests both missed the initial
+                // SELECT and both tried to INSERT for the same employee/period. The
+                // loser of that race lands here — fall back to updating the row the
+                // winner just created instead of failing the whole generation run.
+                $isDuplicateKey = str_contains($e->getMessage(), 'payrolls_employee_period_unique')
+                    || (int) ($e->errorInfo[1] ?? 0) === 1062; // MySQL duplicate-entry code
+
+                if (! $isDuplicateKey) {
+                    throw $e;
+                }
+
+                Log::warning('Concurrent payroll generation detected; updating existing row instead of inserting duplicate', [
+                    'employee_id' => $employee->id,
+                    'pay_period_start' => $attributes['pay_period_start'],
+                    'pay_period_end' => $attributes['pay_period_end'],
+                ]);
+
+                $payroll = Payroll::where($attributes)->first();
+                if ($payroll) {
+                    $payroll->update($values);
+                } else {
+                    // Shouldn't happen, but re-throw if the row still isn't there.
+                    throw $e;
+                }
+            }
+
+            Log::info("Generated payroll for employee {$employee->id}: Net Pay: {$components['net_pay']}");
+
+            return $payroll;
+        } catch (\Exception $e) {
+            Log::error("Failed to create payroll for employee {$employee->id}: " . $e->getMessage());
+            return null;
+        }
     }
-}
 
     /**
      * Calculate basic salary from comprehensive records based on actual scheduled hours worked
@@ -2072,39 +2818,40 @@ private function calculatePayrollFromRecords(Employee $employee, $employeeRecord
     {
         $totalScheduledHours = 0;
         $scheduledHoursDetails = [];
-        
+
         // Calculate total scheduled hours for records where employee actually worked
         // Include all work (regular days + holidays) for basic salary calculation
         // Note: Leave days with attendance are treated as rest day work (1.2x premium) and excluded from basic salary
         // Leave days without attendance are not paid
-        $workingRecords = $employeeRecords->filter(function($record) {
+        $workingRecords = $employeeRecords->filter(function ($record) {
             // Exclude Leave days - rest day work (Leave with attendance) gets premium pay separately (1.2x)
             // Leave without attendance is not paid
             if ($record['schedule_status'] === 'Leave') {
                 return false;
             }
-            
+
             // Include if it's a working day with present attendance
             if ($record['schedule_status'] === 'Working' && $record['attendance_status'] === 'Present') {
                 return true;
             }
-            
+
             // Include holidays with actual scheduled hours worked
-            if (($record['schedule_status'] === 'Regular Holiday' || $record['schedule_status'] === 'Special Holiday') && 
-                $this->parseFormattedHours($record['scheduled_hours']) > 0) {
+            if (($record['schedule_status'] === 'Regular Holiday' || $record['schedule_status'] === 'Special Holiday') &&
+                $this->parseFormattedHours($record['scheduled_hours']) > 0
+            ) {
                 return true;
             }
-            
+
             // Also include if there are actual scheduled hours worked (for other statuses)
             $scheduledHours = $this->parseFormattedHours($record['scheduled_hours']);
             return $scheduledHours > 0;
         });
-        
+
         foreach ($workingRecords as $record) {
             // Parse scheduled hours from the formatted string (e.g., "7 hrs 1 min" -> 7.017 hours)
             $scheduledHours = $this->parseFormattedHours($record['scheduled_hours']);
             $totalScheduledHours += $scheduledHours;
-            
+
             // Store details for display
             $scheduledHoursDetails[] = [
                 'date' => $record['date_formatted'],
@@ -2112,15 +2859,15 @@ private function calculatePayrollFromRecords(Employee $employee, $employeeRecord
                 'decimal_hours' => $scheduledHours
             ];
         }
-        
+
         // Calculate basic salary based on daily rate and scheduled hours
         // Formula: Basic Salary = Daily Rate × (Scheduled Hours / 8)
         $dailyRate = $employee->daily_rate;
         $basicSalary = $dailyRate * ($totalScheduledHours / 8);
-        
+
         // Calculate hourly rate for reference
         $hourlyRate = $dailyRate / 8;
-        
+
         return [
             'amount' => round($basicSalary, 2),
             'total_scheduled_hours' => $totalScheduledHours,
@@ -2167,20 +2914,20 @@ private function calculatePayrollFromRecords(Employee $employee, $employeeRecord
     {
         $regularHolidayDays = $employeeRecords->where('schedule_status', 'Regular Holiday')->count();
         $specialHolidayDays = $employeeRecords->where('schedule_status', 'Special Holiday')->count();
-        
+
         // Calculate holiday premium based on full days (8 hours per day)
         // Regular holiday: 100% premium on full days (8 hours per day)
         $regularHolidayPremium = $regularHolidayDays * $employee->daily_rate; // 100% holiday premium per day
-        
+
         // Special holiday: 30% premium on full days (8 hours per day)
         $specialHolidayPremium = $specialHolidayDays * $employee->daily_rate * 0.3; // 30% holiday premium per day
-        
+
         // Basic pay for holidays (will be added to basic salary column)
         $holidayBasicPay = ($regularHolidayDays + $specialHolidayDays) * $employee->daily_rate;
-        
+
         // Total holiday pay = basic pay + premium (for display purposes)
         $totalHolidayPay = $holidayBasicPay + $regularHolidayPremium + $specialHolidayPremium;
-        
+
 
         return [
             'regular_holiday_days' => $regularHolidayDays,
@@ -2206,17 +2953,17 @@ private function calculatePayrollFromRecords(Employee $employee, $employeeRecord
     {
         // Find Leave days where employee has attendance (worked on rest day)
         // Only count complete days worked (has both time_in and time_out)
-        $restDayWorkRecords = $employeeRecords->filter(function($record) {
+        $restDayWorkRecords = $employeeRecords->filter(function ($record) {
             // Must be Leave status with Present attendance (worked on rest day)
             return $record['schedule_status'] === 'Leave' && $record['attendance_status'] === 'Present';
         });
-        
+
         $restDayDays = $restDayWorkRecords->count();
-        
+
         // Calculate rest day premium: daily_rate × 1.2 for each complete day
         // For complete daily days worked on rest day, pay 1.2x daily rate
         $restDayPremiumPay = $restDayDays * $employee->daily_rate * 1.2;
-        
+
         return [
             'rest_day_days' => $restDayDays,
             'rest_day_premium_pay' => round($restDayPremiumPay, 2),
@@ -2230,21 +2977,21 @@ private function calculatePayrollFromRecords(Employee $employee, $employeeRecord
     private function calculateBonusesFromRecords(Employee $employee, $employeeRecords): float
     {
         $bonuses = 0;
-        
+
         // Perfect attendance bonus
         $totalWorkingDays = $employeeRecords->where('schedule_status', 'Working')->count();
         $presentDays = $employeeRecords->where('attendance_status', 'Present')->count();
-        
+
         if ($totalWorkingDays > 0 && $presentDays == $totalWorkingDays) {
             $bonuses += 500; // Perfect attendance bonus
         }
-        
+
         // Performance bonus (example: based on overtime hours)
         $totalOvertimeHours = $employeeRecords->sum('overtime');
         if ($totalOvertimeHours > 20) {
             $bonuses += 300; // Overtime performance bonus
         }
-        
+
         return $bonuses;
     }
 
@@ -2254,7 +3001,7 @@ private function calculatePayrollFromRecords(Employee $employee, $employeeRecord
     private function calculateDeductionsFromRecords(Employee $employee, $employeeRecords): float
     {
         $deductions = 0;
-        
+
         // Late deductions - based on basic salary per minute
         $totalLateMinutes = $employeeRecords->sum('late_minutes');
         if ($totalLateMinutes > 0) {
@@ -2263,11 +3010,11 @@ private function calculatePayrollFromRecords(Employee $employee, $employeeRecord
             $ratePerMinute = $employee->daily_rate / $minutesPerDay;
             $deductions += $totalLateMinutes * $ratePerMinute;
         }
-        
+
         // Error deductions (incomplete time records)
         $errorDays = $employeeRecords->where('attendance_status', 'Error')->count();
         $deductions += $errorDays * $employee->daily_rate; // Full day deduction for error
-        
+
         return $deductions;
     }
 
@@ -2278,20 +3025,20 @@ private function calculatePayrollFromRecords(Employee $employee, $employeeRecord
     {
         $totalLateMinutes = $employeeRecords->sum('late_minutes');
         $lateDays = $employeeRecords->where('late_minutes', '>', 0);
-        
+
         $lateDetails = [];
         $totalLateDeduction = 0;
-        
+
         if ($totalLateMinutes > 0) {
             // Calculate rate per minute: Daily rate / (8 hours * 60 minutes)
             $minutesPerDay = 8 * 60; // 480 minutes per day
             $ratePerMinute = $employee->daily_rate / $minutesPerDay;
-            
+
             foreach ($lateDays as $record) {
                 if ($record['late_minutes'] > 0) {
                     $lateDeduction = $record['late_minutes'] * $ratePerMinute;
                     $totalLateDeduction += $lateDeduction;
-                    
+
                     $lateDetails[] = [
                         'date' => $record['date_formatted'],
                         'late_minutes' => $record['late_minutes'],
@@ -2301,7 +3048,7 @@ private function calculatePayrollFromRecords(Employee $employee, $employeeRecord
                 }
             }
         }
-        
+
         return [
             'total_late_minutes' => $totalLateMinutes,
             'total_late_deduction' => round($totalLateDeduction, 2),
@@ -2323,24 +3070,24 @@ private function calculatePayrollFromRecords(Employee $employee, $employeeRecord
         if ($formattedHours === '—' || $formattedHours === 'Regular Holiday' || $formattedHours === 'Special Holiday' || $formattedHours === 'Leave' || $formattedHours === 'Day Off') {
             return 0;
         }
-        
+
         // Parse "X hrs Y mins" format
         if (preg_match('/(\d+)\s*hrs?\s*(\d+)\s*mins?/', $formattedHours, $matches)) {
             $hours = (int)$matches[1];
             $minutes = (int)$matches[2];
             return $hours + ($minutes / 60);
         }
-        
+
         // Parse "X hrs" format (no minutes)
         if (preg_match('/(\d+)\s*hrs?/', $formattedHours, $matches)) {
             return (int)$matches[1];
         }
-        
+
         // Parse "X mins" format (no hours)
         if (preg_match('/(\d+)\s*mins?/', $formattedHours, $matches)) {
             return (int)$matches[1] / 60;
         }
-        
+
         return 0;
     }
 
