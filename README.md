@@ -98,6 +98,38 @@ DB_PASSWORD=
 php artisan migrate
 ```
 
+For a new local development or turnover-demo database, run the migrations with the idempotent demo seeders:
+
+```bash
+php artisan migrate --seed
+```
+
+The demo seed creates two companies to exercise company isolation, company-scoped departments and positions, a small employee directory with department managers, Employee/Manager/HR/Admin accounts, and Philippine tax brackets. It intentionally does not create transactional attendance, requests, payrolls, payments, loans, or documents.
+
+### Development Demo Accounts
+
+| Role | Email |
+| --- | --- |
+| Admin | `admin@gr8tech.example` |
+| HR | `hr@gr8tech.example` |
+| Manager | `manager@gr8tech.example` |
+| Employee | `employee@gr8tech.example` |
+| Other-company employee | `employee@northstar.example` |
+
+The development-only password for these accounts is `Password123!`. Change or remove all seeded credentials before deployment. Running `php artisan db:seed` again updates the same demo records instead of intentionally creating duplicates.
+
+### SQL Demo Dump Alternative
+
+The tracked `database_dump.sql` contains the current migrated schema and the same sanitized development seed data. Import it only into an empty local/demo database, and use either this import or `php artisan migrate --seed`—not both.
+
+For PowerShell with XAMPP and an empty `payrolllaravel` database:
+
+```powershell
+Get-Content database_dump.sql | C:\xampp\mysql\bin\mysql.exe -u root payrolllaravel
+```
+
+Do not treat this dump as a production backup. It contains development accounts and should be regenerated whenever migrations or the canonical demo seed change.
+
 ### 7. Build Assets
 
 ```bash
