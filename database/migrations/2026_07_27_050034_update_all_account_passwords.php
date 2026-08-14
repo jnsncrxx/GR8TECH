@@ -1,10 +1,6 @@
 <?php
 
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -13,9 +9,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        DB::table('accounts')->update([
-        'password' => Hash::make('password')
-    ]);
+        // Intentionally left blank. This migration previously replaced every
+        // account password with one shared development password. Credential
+        // changes must not run as part of production schema migrations; use a
+        // local seeder or the password-reset workflow for demo accounts.
     }
 
     /**
@@ -23,6 +20,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // no automatic rollback – you’d need to restore original hashes manually
+        // No schema or data changes to reverse.
     }
 };
