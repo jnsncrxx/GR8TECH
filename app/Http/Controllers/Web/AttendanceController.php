@@ -264,43 +264,59 @@ class AttendanceController extends Controller
             return redirect()->route('attendance.my');
         }
 
-        $isHrOrAdmin = in_array($userRole, ['admin', 'hr']);
+        $isHrOrAdmin = in_array($userRole, ['admin', 'hr'], true);
         $isManager = $userRole === 'manager';
         $companyId = CompanyHelper::getCurrentCompanyId() ?? $user->employee?->company_id;
 
-        // Default to last 30 days
-        $dateFrom = $request->query('date_from') ? Carbon::parse($request->query('date_from')) : Carbon::now()->subDays(30);
-        $dateTo = $request->query('date_to') ? Carbon::parse($request->query('date_to')) : Carbon::now();
+        // Default to last 30 days.
+        $dateFrom = $request->query('date_from')
+            ? Carbon::parse($request->query('date_from'))
+            : Carbon::now()->subDays(30);
+        $dateTo = $request->query('date_to')
+            ? Carbon::parse($request->query('date_to'))
+            : Carbon::now();
 
-        $baseQuery = AttendanceRecord::whereDate('date', '>=', $dateFrom->toDateString())
-            ->whereDate('date', '<=', $dateTo->toDateString())
-            ->whereHas('employee', fn ($query) => $query->forCompany($companyId));
-
-        if ($isManager && $user->employee_id) {
-            // Manager sees their own department/team only
-            $baseQuery->whereHas('employee', function ($query) use ($user) {
-                $query->managedBy($user->employee_id);
-            });
-        } elseif (!$isHrOrAdmin) {
-            // Employee: filter by their own employee_id
+        /*
+         * Timekeeping must work from the same employee/date universe used by
+         * Daily Attendance and payroll validation. A missing AttendanceRecord
+         * is not the same as "no employee exists" — a scheduled employee who
+         * never clocked in still needs to appear as Absent.
+         */
+        if ($isHrOrAdmin) {
+            $employees = Employee::with('department')
+                ->forCompany($companyId)
+                ->orderBy('first_name')
+                ->get();
+        } elseif ($isManager && $user->employee_id) {
+            $employees = Employee::with('department')
+                ->forCompany($companyId)
+                ->managedBy($user->employee_id)
+                ->orderBy('first_name')
+                ->get();
+        } else {
             $employee = Employee::find($user->employee_id);
-            if ($employee) {
-                $baseQuery->where('employee_id', $employee->id);
-            }
+            $employees = $employee ? collect([$employee]) : collect();
         }
 
         if ($request->filled('employee_id') && ($isHrOrAdmin || $isManager)) {
-            $baseQuery->where('employee_id', $request->employee_id);
+            $employees = $employees
+                ->where('id', $request->integer('employee_id'))
+                ->values();
         }
 
         if ($request->filled('department_id') && $isHrOrAdmin) {
-            $departmentId = $request->department_id;
-            $baseQuery->whereHas('employee', function ($query) use ($departmentId) {
-                $query->where('department_id', $departmentId);
-            });
+            $employees = $employees
+                ->where('department_id', $request->integer('department_id'))
+                ->values();
         }
 
-        $allAttendanceRecords = (clone $baseQuery)
+        $employeeIds = $employees->pluck('id')->values();
+        $employeeMap = $employees->keyBy('id');
+
+        $allAttendanceRecords = AttendanceRecord::query()
+            ->whereIn('employee_id', $employeeIds)
+            ->whereDate('date', '>=', $dateFrom->toDateString())
+            ->whereDate('date', '<=', $dateTo->toDateString())
             ->with([
                 'employee.department',
                 'breaks',
@@ -312,13 +328,13 @@ class AttendanceController extends Controller
             ->get();
 
         $scheduleMap = EmployeeSchedule::query()
-            ->whereIn('employee_id', $allAttendanceRecords->pluck('employee_id')->unique())
+            ->whereIn('employee_id', $employeeIds)
             ->whereBetween('date', [$dateFrom->toDateString(), $dateTo->toDateString()])
             ->get()
-            ->keyBy(fn (EmployeeSchedule $schedule) => $schedule->employee_id . '|' . $schedule->date->format('Y-m-d'));
+            ->keyBy(fn (EmployeeSchedule $schedule) => $schedule->employee_id . '|' . Carbon::parse($schedule->date)->format('Y-m-d'));
 
         $approvedLeaves = LeaveRequest::query()
-            ->whereIn('employee_id', $allAttendanceRecords->pluck('employee_id')->unique())
+            ->whereIn('employee_id', $employeeIds)
             ->where('status', LeaveRequest::APPROVED)
             ->whereDate('start_date', '<=', $dateTo->toDateString())
             ->whereDate('end_date', '>=', $dateFrom->toDateString())
@@ -326,21 +342,35 @@ class AttendanceController extends Controller
             ->groupBy('employee_id');
 
         $approvedOfficialBusiness = OfficialBusinessRequest::query()
-            ->whereIn('employee_id', $allAttendanceRecords->pluck('employee_id')->unique())
+            ->whereIn('employee_id', $employeeIds)
             ->where('status', OfficialBusinessRequest::APPROVED)
             ->whereBetween('date', [$dateFrom->toDateString(), $dateTo->toDateString()])
             ->get()
-            ->keyBy(fn (OfficialBusinessRequest $request) => $request->employee_id . '|' . $request->date->format('Y-m-d'));
+            ->keyBy(fn (OfficialBusinessRequest $request) => $request->employee_id . '|' . Carbon::parse($request->date)->format('Y-m-d'));
 
         $approvedOvertime = OvertimeRequest::query()
-            ->whereIn('employee_id', $allAttendanceRecords->pluck('employee_id')->unique())
+            ->whereIn('employee_id', $employeeIds)
             ->where('status', 'approved')
             ->whereBetween('date', [$dateFrom->toDateString(), $dateTo->toDateString()])
             ->get()
-            ->groupBy(fn (OvertimeRequest $request) => $request->employee_id . '|' . $request->date->format('Y-m-d'));
+            ->groupBy(fn (OvertimeRequest $request) => $request->employee_id . '|' . Carbon::parse($request->date)->format('Y-m-d'));
 
         $exceptionService = app(AttendanceExceptionService::class);
-        $allAttendanceRecords->each(function (AttendanceRecord $record) use ($scheduleMap, $approvedLeaves, $approvedOfficialBusiness, $approvedOvertime, $exceptionService) {
+
+        // Index real records first. Virtual absences are added only for dates
+        // that are already today/past, have a Working schedule, and have no
+        // approved Leave/OB. Future scheduled days remain Scheduled, not Absent.
+        $recordMap = $allAttendanceRecords->keyBy(
+            fn (AttendanceRecord $record) => $record->employee_id . '|' . Carbon::parse($record->date)->format('Y-m-d')
+        );
+
+        $allAttendanceRecords->each(function (AttendanceRecord $record) use (
+            $scheduleMap,
+            $approvedLeaves,
+            $approvedOfficialBusiness,
+            $approvedOvertime,
+            $exceptionService
+        ) {
             $dateString = Carbon::parse($record->date)->format('Y-m-d');
             $recordKey = $record->employee_id . '|' . $dateString;
             $schedule = $scheduleMap->get($recordKey);
@@ -359,7 +389,14 @@ class AttendanceController extends Controller
                 $hasApprovedOfficialBusiness,
                 $approvedOvertimeHours
             );
-            $exception = $exceptionService->primary($issues, $hasApprovedLeave, $hasApprovedOfficialBusiness, $record, $schedule, $workedHours);
+            $exception = $exceptionService->primary(
+                $issues,
+                $hasApprovedLeave,
+                $hasApprovedOfficialBusiness,
+                $record,
+                $schedule,
+                $workedHours
+            );
 
             $record->setRelation('assignedSchedule', $schedule);
             $record->setAttribute('display_worked_hours', $workedHours);
@@ -370,7 +407,78 @@ class AttendanceController extends Controller
             $record->setAttribute('exception_code', $exception['code']);
             $record->setAttribute('exception_label', $exception['label']);
             $record->setAttribute('exception_severity', $exception['severity']);
+            $record->setAttribute('is_virtual_absence', false);
         });
+
+        $today = Carbon::today(config('app.timezone', 'Asia/Manila'));
+
+        foreach ($scheduleMap as $recordKey => $schedule) {
+            if ($schedule->status !== 'Working') {
+                continue;
+            }
+
+            $scheduleDate = Carbon::parse($schedule->date)->startOfDay();
+
+            if ($scheduleDate->gt($today)) {
+                continue;
+            }
+
+            if ($recordMap->has($recordKey)) {
+                continue;
+            }
+
+            $employeeId = $schedule->employee_id;
+            $employee = $employeeMap->get($employeeId);
+
+            if (!$employee) {
+                continue;
+            }
+
+            $hasApprovedLeave = $approvedLeaves
+                ->get($employeeId, collect())
+                ->contains(fn (LeaveRequest $leave) => $leave->start_date->toDateString() <= $scheduleDate->toDateString()
+                    && $leave->end_date->toDateString() >= $scheduleDate->toDateString());
+
+            $hasApprovedOfficialBusiness = $approvedOfficialBusiness->has($recordKey);
+
+            if ($hasApprovedLeave || $hasApprovedOfficialBusiness) {
+                continue;
+            }
+
+            // Unsaved model: this is a display-only snapshot, not a database
+            // record. It prevents Timekeeping from hiding genuine no-shows while
+            // avoiding the creation of fake biometric rows in attendance_records.
+            $virtualAbsence = new AttendanceRecord([
+                'employee_id' => $employeeId,
+                'date' => $scheduleDate->toDateString(),
+                'status' => AttendanceRecord::ABSENT,
+                'time_in' => null,
+                'time_out' => null,
+                'total_hours' => 0,
+                'regular_hours' => 0,
+                'overtime_hours' => 0,
+            ]);
+
+            $virtualAbsence->setRelation('employee', $employee);
+            $virtualAbsence->setRelation('assignedSchedule', $schedule);
+            $virtualAbsence->setAttribute('display_worked_hours', 0);
+            $virtualAbsence->setAttribute('has_approved_leave', false);
+            $virtualAbsence->setAttribute('has_approved_official_business', false);
+            $virtualAbsence->setAttribute('approved_overtime_hours', (float) $approvedOvertime->get($recordKey, collect())->sum('hours'));
+            $virtualAbsence->setAttribute('exception_issues', []);
+            $virtualAbsence->setAttribute('exception_code', 'absent');
+            $virtualAbsence->setAttribute('exception_label', 'Absent — No attendance record');
+            $virtualAbsence->setAttribute('exception_severity', 'clear');
+            $virtualAbsence->setAttribute('is_virtual_absence', true);
+
+            $allAttendanceRecords->push($virtualAbsence);
+        }
+
+        // Keep the latest dates first. For the same date, real records stay
+        // naturally grouped with virtual absences.
+        $allAttendanceRecords = $allAttendanceRecords
+            ->sortByDesc(fn (AttendanceRecord $record) => Carbon::parse($record->date)->timestamp)
+            ->values();
 
         $exceptionFilter = $request->query('exception');
         $filteredRecords = match ($exceptionFilter) {
@@ -385,7 +493,18 @@ class AttendanceController extends Controller
                 ->values(),
             null, '' => $allAttendanceRecords,
             default => $allAttendanceRecords
-                ->where('exception_code', $exceptionFilter)
+                ->filter(function (AttendanceRecord $record) use ($exceptionFilter) {
+                    // A record can have more than one exception (for example,
+                    // a missing schedule AND an incomplete punch). The primary
+                    // exception is only for display priority; filters must be
+                    // able to find every underlying issue.
+                    if ($record->getAttribute('exception_code') === $exceptionFilter) {
+                        return true;
+                    }
+
+                    return collect($record->getAttribute('exception_issues', []))
+                        ->contains(fn (array $issue) => ($issue['code'] ?? null) === $exceptionFilter);
+                })
                 ->values(),
         };
 
@@ -399,28 +518,16 @@ class AttendanceController extends Controller
             ['path' => $request->url(), 'query' => $request->query()]
         );
 
-        // Get employees for filter (HR/Admin sees everyone, manager sees own team)
-        if ($isHrOrAdmin) {
-            $employees = Employee::with('department')
-                ->forCompany($companyId)
-                ->orderBy('first_name')
-                ->get();
-        } elseif ($isManager && $user->employee_id) {
-            $employees = Employee::with('department')
-                ->forCompany($companyId)
-                ->managedBy($user->employee_id)
-                ->orderBy('first_name')
-                ->get();
-        } else {
-            $employee = Employee::find($user->employee_id);
-            $employees = $employee ? collect([$employee]) : collect();
-        }
-
         $departments = $isManager && $user->employee_id
-            ? \App\Models\Department::where('company_id', $companyId)->where('manager_id', $user->employee_id)->orderBy('name')->get()
-            : \App\Models\Department::where('company_id', $companyId)->orderBy('name')->get();
+            ? \App\Models\Department::where('company_id', $companyId)
+                ->where('manager_id', $user->employee_id)
+                ->orderBy('name')
+                ->get()
+            : \App\Models\Department::where('company_id', $companyId)
+                ->orderBy('name')
+                ->get();
 
-        // Calculate summary statistics
+        // Calculate summary statistics.
         $summary = [
             'total_hours' => 0,
             'regular_hours' => 0,
@@ -453,13 +560,23 @@ class AttendanceController extends Controller
 
         return view('attendance.timekeeping', [
             'user' => $user,
-            'employees' => $employees ?? collect(),
+            'employees' => $employees,
             'departments' => $departments,
             'attendanceRecords' => $attendanceRecords,
             'dateFrom' => $dateFrom,
             'dateTo' => $dateTo,
             'summary' => $summary,
-            'exceptionCounts' => $allAttendanceRecords->groupBy('exception_code')->map->count(),
+            'exceptionCounts' => $allAttendanceRecords
+                ->flatMap(function (AttendanceRecord $record) {
+                    $issues = collect($record->getAttribute('exception_issues', []))
+                        ->pluck('code')
+                        ->filter();
+
+                    return $issues->isNotEmpty()
+                        ? $issues
+                        : collect([$record->getAttribute('exception_code')]);
+                })
+                ->countBy(),
         ]);
     }
 

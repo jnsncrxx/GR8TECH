@@ -311,28 +311,34 @@
                                 </span>
 
                                 @if(in_array($user->role, ['admin', 'hr']))
-                                    <div class="mt-2 flex items-center gap-2">
-                                        <a href="{{ route('attendance.edit-record', $record->id) }}"
-                                           class="ui-icon-action ui-action-edit"
-                                           title="Edit attendance record"
-                                           aria-label="Edit attendance record">
-                                            <i class="fas fa-pen" aria-hidden="true"></i>
-                                        </a>
+                                    @if($record->exists)
+                                        <div class="mt-2 flex items-center gap-2">
+                                            <a href="{{ route('attendance.edit-record', $record->id) }}"
+                                               class="ui-icon-action ui-action-edit"
+                                               title="Edit attendance record"
+                                               aria-label="Edit attendance record">
+                                                <i class="fas fa-pen" aria-hidden="true"></i>
+                                            </a>
 
-                                        <form action="{{ route('attendance.delete-record', $record->id) }}"
-                                              method="POST"
-                                              class="inline-flex"
-                                              onsubmit="return confirm('Are you sure you want to delete this attendance record?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit"
-                                                    class="ui-icon-action ui-action-delete"
-                                                    title="Delete attendance record"
-                                                    aria-label="Delete attendance record">
-                                                <i class="fas fa-trash" aria-hidden="true"></i>
-                                            </button>
-                                        </form>
-                                    </div>
+                                            <form action="{{ route('attendance.delete-record', $record->id) }}"
+                                                  method="POST"
+                                                  class="inline-flex"
+                                                  onsubmit="return confirm('Are you sure you want to delete this attendance record?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit"
+                                                        class="ui-icon-action ui-action-delete"
+                                                        title="Delete attendance record"
+                                                        aria-label="Delete attendance record">
+                                                    <i class="fas fa-trash" aria-hidden="true"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    @elseif($record->is_virtual_absence)
+                                        <div class="mt-2 text-xs text-gray-500">
+                                            Automatic absence (no attendance row)
+                                        </div>
+                                    @endif
                                 @endif
                             </td>
 

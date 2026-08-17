@@ -436,18 +436,12 @@ class PeriodManagementController extends Controller
             ->map(function (array $record) {
                 $issues = $record['validation_issues'] ?? [];
 
-                // A scheduled workday with no biometric log, approved Leave,
-                // or approved OB is an unresolved attendance item. Keep it
-                // visible in the exceptions table until HR confirms the
-                // absence or corrects the source record.
-                $isUnresolvedAbsence = ($record['schedule_status'] ?? null) === 'Working'
-                    && ($record['attendance_status'] ?? null) === 'Absent'
-                    && empty($record['has_attendance_record']);
-
-                if ($isUnresolvedAbsence && !in_array('No Bio / Unresolved Absence', $issues, true)) {
-                    $issues[] = 'No Bio / Unresolved Absence';
-                }
-
+                // A scheduled workday with no biometric log is treated as
+                // an automatic Absent status by the authoritative attendance
+                // snapshot. It is informational/review only and must NOT block
+                // payroll validation. Actual attendance data problems (for
+                // example incomplete punches or invalid durations) remain
+                // blocking through AttendanceExceptionService.
                 $record['validation_issues'] = array_values(array_unique($issues));
 
                 return $record;
@@ -894,8 +888,11 @@ class PeriodManagementController extends Controller
                 if ($isUnresolvedAbsence) {
                     $items->push([
                         'code' => 'unresolved_absence',
-                        'label' => 'No Bio / Unresolved Absence',
-                        'severity' => 'blocking',
+                        'label' => 'Absent — No attendance record',
+                        // A missing biometric row is a normal no-show outcome,
+                        // not a payroll validation blocker. Keep it visible as
+                        // a review item for reporting/audit purposes.
+                        'severity' => 'review',
                     ]);
                 }
 
@@ -923,12 +920,22 @@ class PeriodManagementController extends Controller
                 ->where('severity', 'review')
                 ->countBy('label');
 
+            $automaticAbsenceCount = $attendanceRecords->filter(function (array $record) {
+                return ($record['schedule_status'] ?? null) === 'Working'
+                    && ($record['attendance_status'] ?? null) === 'Absent'
+                    && empty($record['has_attendance_record']);
+            })->count();
+
             foreach ($blockingCounts as $label => $count) {
                 $errors[] = "$count attendance exception(s): $label. Resolve these records before validating attendance.";
             }
 
             foreach ($reviewCounts as $label => $count) {
                 $warnings[] = "$count manager-review record(s): $label. Review these records before finalizing payroll.";
+            }
+
+            if ($automaticAbsenceCount > 0) {
+                $warnings[] = "$automaticAbsenceCount scheduled workday(s) have no attendance record and are automatically treated as Absent. This does not block attendance validation.";
             }
 
             $invalidRestDayHours = EmployeeSchedule::query()

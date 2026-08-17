@@ -22,6 +22,11 @@ class AttendanceExceptionService
         $issues = [];
 
         if (!$schedule) {
+            // A missing schedule is always a payroll blocker, even when the
+            // employee has punches. Punches cannot be used to infer a shift.
+            // Conversely, a scheduled workday with no AttendanceRecord is a
+            // normal no-show/Absent outcome and is intentionally NOT added as
+            // a blocking exception here.
             $issues[] = $this->issue('missing_schedule', 'Missing schedule', 'blocking');
         }
 
