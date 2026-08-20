@@ -77,10 +77,81 @@ class DocumentController extends Controller
 
     public function export(Request $request)
     {
-        $employees = Employee::with(['department', 'position'])
-            ->forCompany(CompanyHelper::getCurrentCompanyId())
-            ->get();
-        $filename = "employees_export_" . date('Y-m-d_H-i-s') . ".csv";
+        $type = strtolower($request->input('type', $request->input('format', 'csv')));
+        $scope = $request->input('scope', 'filtered');
+        $currentCompany = CompanyHelper::getCurrentCompany();
+        $currentCompanyId = $currentCompany?->id;
+
+        $query = Employee::query()
+            ->with(['department', 'position'])
+            ->when($currentCompanyId, fn ($q) => $q->forCompany($currentCompanyId));
+
+        if ($scope === 'filtered') {
+            if ($request->filled('department_id')) {
+                $query->whereHas('department', function ($departmentQuery) use ($request, $currentCompanyId) {
+                    $departmentQuery->whereKey($request->input('department_id'))
+                        ->when($currentCompanyId, fn ($scopedQuery) => $scopedQuery->forCompany($currentCompanyId));
+                });
+            }
+            if ($request->filled('status')) {
+                $query->where('employee_status', str_replace('-', '_', $request->string('status')->toString()));
+            }
+            if ($request->filled('search')) {
+                $search = trim($request->string('search')->toString());
+                $query->where(function ($searchQuery) use ($search) {
+                    $searchQuery->where('employee_id', 'like', "%{$search}%")
+                        ->orWhere('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%");
+                });
+            }
+        }
+
+        $employees = $query->orderBy('last_name')->orderBy('first_name')->get();
+
+        if ($type === 'pdf') {
+            $departmentName = 'All Departments';
+            if ($request->filled('department_id')) {
+                $dept = Department::find($request->input('department_id'));
+                if ($dept) {
+                    $departmentName = $dept->name;
+                }
+            }
+
+            $filters = [
+                'export_date' => date('F d, Y H:i'),
+                'total_employees' => $employees->count(),
+                'department' => $scope === 'filtered' ? $departmentName : 'All Departments',
+                'status' => $scope === 'filtered' && $request->filled('status') ? ucfirst($request->input('status')) : 'All Statuses',
+                'search' => $scope === 'filtered' && $request->filled('search') ? $request->input('search') : 'None',
+            ];
+
+            $pdfData = $employees->map(function ($emp) {
+                return [
+                    'employee_id' => $emp->employee_id,
+                    'full_name' => $emp->first_name . ' ' . $emp->last_name,
+                    'department' => $emp->department ? $emp->department->name : 'N/A',
+                    'position' => $emp->position ? $emp->position->name : 'N/A',
+                    'status' => ucfirst(str_replace('_', ' ', $emp->employee_status ?? 'Active')),
+                    'email' => $emp->account ? $emp->account->email : ($emp->email ?? 'N/A'),
+                    'phone' => $emp->mobile_number ?? $emp->phone ?? 'N/A',
+                    'salary' => number_format($emp->salary, 2),
+                    'hire_date' => $emp->hire_date ? date('M d, Y', strtotime($emp->hire_date)) : 'N/A',
+                ];
+            });
+
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('documents.exports.pdf', [
+                'employees' => $pdfData,
+                'filters' => $filters,
+            ]);
+
+            $scopeSuffix = $scope === 'all' ? 'all' : 'filtered';
+            $pdfFilename = "employee_documents_{$scopeSuffix}_" . date('Y-m-d_H-i-s') . ".pdf";
+
+            return $pdf->download($pdfFilename);
+        }
+
+        $scopeSuffix = $scope === 'all' ? 'all' : 'filtered';
+        $filename = "employees_export_{$scopeSuffix}_" . date('Y-m-d_H-i-s') . ".csv";
 
         $headers = [
             "Content-type"        => "text/csv",
