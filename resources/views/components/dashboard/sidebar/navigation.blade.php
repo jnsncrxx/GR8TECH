@@ -833,5 +833,39 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+    // ----------------------------------------------------------------
+    // Sidebar scroll-position persistence
+    // When the user navigates to a sub-page the browser performs a full
+    // page reload and the sidebar's scroll container resets to the top.
+    // We save the scroll position to sessionStorage on every scroll event
+    // and restore it as soon as the DOM is ready, so the sidebar appears
+    // to stay exactly where it was left.
+    // ----------------------------------------------------------------
+    const sidebarScroll = document.getElementById('sidebar-scroll-container');
+
+    if (sidebarScroll) {
+        const STORAGE_KEY = 'sidebarScrollTop';
+
+        // Restore scroll position immediately (before paint)
+        const savedScroll = sessionStorage.getItem(STORAGE_KEY);
+        if (savedScroll !== null) {
+            sidebarScroll.scrollTop = parseInt(savedScroll, 10);
+        }
+
+        // Save scroll position on every scroll event (debounced)
+        let saveScrollTimer = null;
+        sidebarScroll.addEventListener('scroll', function() {
+            clearTimeout(saveScrollTimer);
+            saveScrollTimer = setTimeout(function() {
+                sessionStorage.setItem(STORAGE_KEY, sidebarScroll.scrollTop);
+            }, 100);
+        }, { passive: true });
+
+        // Also save immediately before the page unloads (navigation click)
+        window.addEventListener('beforeunload', function() {
+            sessionStorage.setItem(STORAGE_KEY, sidebarScroll.scrollTop);
+        });
+    }
 });
 </script>
