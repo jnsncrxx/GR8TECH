@@ -1411,7 +1411,7 @@ class PayrollController extends Controller
     }
 
 
-    /**
+/**
      * Download single payslip PDF 
      */
     public function downloadViewPayslip($payrollId)
@@ -1449,7 +1449,9 @@ class PayrollController extends Controller
 
             // Generate PDF with UTF-8 support
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html);
-            $pdf->setPaper('A4', 'portrait');
+
+            // Landscape half-letter fits the 4-column grid on one page (8.5in x 5.5in, in points)
+            $pdf->setPaper([0, 0, 612, 396], 'landscape');
 
             // CRITICAL: Add these options for UTF-8 support
             $pdf->setOption('defaultFont', 'dejavusans');
@@ -1477,8 +1479,22 @@ class PayrollController extends Controller
         }
     }
 
+
     /**
-     * Generate HTML for payslip - FIXED VERSION with correct status and currency
+     * Generate HTML for payslip - 4-column "Pay Advice Slip" design (approved layout).
+     *
+     * NOTE: Several fields below are placeholders (marked TODO) because the
+     * corresponding columns/relations were not confirmed yet:
+     *   - LEG / LEG REST (legal holiday hours + rest day combo)
+     *   - SPL / SPL REST (special holiday hours + rest day combo)
+     *   - ND / ND REST (night differential hours, separate from amount)
+     *   - LATE / UT / ABS (attendance-based deductions, in hours/days + amount)
+     *   - SL/VL/EL (sick/vacation/emergency leave hours + amount)
+     *   - Loan details (type, balance) — currently expects $payroll->loans (collection)
+     *   - 13th month pay, leave pay, allowance summary (NTX/taxable)
+     *   - Adjustment summary
+     * Once you confirm the real column/relation names, swap the ?? 0 fallbacks
+     * and TODO comments below with the actual $payroll-> / $employee-> fields.
      */
     private function generatePayslipHtml($payroll, $company)
     {
@@ -1490,179 +1506,401 @@ class PayrollController extends Controller
         }
 
         $employee = $payroll->employee;
-        $today = now()->format('F j, Y');
 
         // Calculate total deductions
         $totalDeductions = $payroll->deductions + $payroll->tax_amount +
             ($payroll->sss ?? 0) + ($payroll->phic ?? 0) + ($payroll->hdmf ?? 0);
 
-        // Get the ACTUAL status from the payroll record
-        $status = $payroll->status;
+        // --- TODO: replace these placeholders once real fields are confirmed ---
+        $regDaysHrs = $payroll->reg_days_hours ?? 0;
+        $regOtHrs = $payroll->reg_ot_hours ?? 0;
+        $restDayHrs = $payroll->rest_day_hours ?? 0;
+        $restDayOt = $payroll->rest_day_ot_hours ?? 0;
 
-        // Status color mapping
-        $statusColors = [
-            'pending' => '#e53e3e',     // Red
-            'approved' => '#38a169',    // Green
-            'paid' => '#3182ce',        // Blue
-            'canceled' => '#718096',    // Gray
-            'cancelled' => '#718096',   // Gray
-            'rejected' => '#e53e3e'     // Red
-        ];
+        $legHrs = $payroll->leg_hours ?? 0;
+        $legOt = $payroll->leg_ot_hours ?? 0;
+        $legAmt = $payroll->leg_amount ?? 0;
+        $legRestHrs = $payroll->leg_rest_hours ?? 0;
+        $legRestOt = $payroll->leg_rest_ot_hours ?? 0;
+        $legRestAmt = $payroll->leg_rest_amount ?? 0;
 
-        $statusColor = $statusColors[$status] ?? '#718096';
+        $splHrs = $payroll->spl_hours ?? 0;
+        $splOt = $payroll->spl_ot_hours ?? 0;
+        $splAmt = $payroll->spl_amount ?? 0;
+        $splRestHrs = $payroll->spl_rest_hours ?? 0;
+        $splRestOt = $payroll->spl_rest_ot_hours ?? 0;
+        $splRestAmt = $payroll->spl_rest_amount ?? 0;
 
-        // IMPORTANT: Add this for currency symbol support
-        $currencySymbol = '₱'; // Unicode for Peso sign
+        $ndifHrs = $payroll->nd_hours ?? 0;
+        $ndifOt = $payroll->nd_ot_hours ?? 0;
+        $ndifAmt = $payroll->night_differential_pay ?? 0;
 
-        // Start building HTML
+        $slVlElHrs = $payroll->sl_vl_el_hours ?? 0;
+        $slVlElAmt = $payroll->sl_vl_el_amount ?? 0;
+
+        $lateHrs = $payroll->late_hours ?? 0;
+        $lateAmt = $payroll->late_amount ?? 0;
+        $utHrs = $payroll->undertime_hours ?? 0;
+        $utAmt = $payroll->undertime_amount ?? 0;
+        $absDays = $payroll->absent_days ?? 0;
+        $absAmt = $payroll->absent_amount ?? 0;
+
+        $loanSummary = $payroll->loan_summary_total ?? 0;
+        $deductionSummary = $payroll->deduction_summary_total ?? 0;
+        $loans = $payroll->loans ?? collect(); // expects [{name, balance}]
+
+        $adjustmentSummary = $payroll->adjustment_summary ?? 0;
+        $thirteenthMonthPay = $payroll->thirteenth_month_pay ?? 0;
+        $leavePay = $payroll->leave_pay ?? 0;
+        $allowanceNtx = $payroll->allowance_summary_ntx ?? 0;
+        $allowanceTax = $payroll->allowance_summary_tax ?? 0;
+        // --- end TODO placeholders ---
+
         $html = '<!DOCTYPE html>
     <html>
     <head>
         <meta charset="utf-8">
         <title>Payslip - ' . htmlspecialchars($employee->full_name) . '</title>
         <style>
+            @page { margin: 8px; }
             @font-face {
                 font-family: "DejaVu Sans";
                 src: url("' . public_path('fonts/dejavu-sans/DejaVuSans.ttf') . '") format("truetype");
             }
-            body { font-family: "DejaVu Sans", "Arial Unicode MS", Arial, sans-serif; margin: 0; padding: 20px; color: #333; }
-            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #4a5568; padding-bottom: 20px; }
-            .company-name { font-size: 24px; font-weight: bold; color: #2d3748; margin-bottom: 5px; }
-            .payslip-title { font-size: 20px; color: #4a5568; margin-bottom: 10px; }
-            .employee-info { background-color: #f7fafc; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
-            .info-row { margin-bottom: 8px; }
-            .info-label { font-weight: bold; display: inline-block; width: 150px; }
-            .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-            .table th, .table td { padding: 12px; border: 1px solid #e2e8f0; text-align: left; }
-            .table th { background-color: #4a5568; color: white; font-weight: bold; }
-            .amount { text-align: right; font-family: "DejaVu Sans", "Courier New", monospace; }
-            .total-row { font-weight: bold; background-color: #edf2f7; }
-            .net-pay { text-align: center; padding: 25px; border: 3px solid #2d3748; margin: 30px 0; background-color: #f0fff4; }
-            .net-pay-amount { font-size: 28px; font-weight: bold; color: #2f855a; margin-top: 10px; }
-            .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #718096; }
-            .currency { font-family: "DejaVu Sans", "Courier New", monospace; }
-            .status-badge { 
-                display: inline-block; 
-                padding: 4px 12px; 
-                border-radius: 4px; 
-                font-weight: bold; 
-                font-size: 12px;
-                color: white;
+            * { box-sizing: border-box; }
+            body {
+                font-family: "DejaVu Sans", "Courier New", monospace, sans-serif;
+                font-size: 7px;
+                line-height: 1.15;
+                margin: 0;
+                padding: 0;
+                color: #000;
+            }
+
+            table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+            td, th { vertical-align: top; padding: 1px 2px; }
+
+            .slip-box {
+                border: 1px solid #000;
+                padding: 4px;
+            }
+
+            .header-table td { border: none; padding: 1px 2px; }
+            .company-title { font-weight: bold; font-size: 8.5px; text-transform: uppercase; }
+            .emp-info { font-weight: bold; font-size: 7.5px; text-transform: uppercase; }
+            .slip-title { font-weight: bold; font-size: 8px; text-align: right; }
+            .dates { font-size: 7.5px; text-align: right; font-weight: bold; }
+
+            .main-grid { border: 1px solid #000; margin-top: 3px; }
+            .main-grid > tbody > tr > td {
+                border-right: 1px solid #000;
+                padding: 2px 3px;
+            }
+            .main-grid > tbody > tr > td:last-child { border-right: none; }
+
+            .inner-table { width: 100%; border-collapse: collapse; }
+            .inner-table th {
+                font-size: 5.5px;
+                font-weight: bold;
+                text-transform: uppercase;
+                border-bottom: 1px solid #000;
+                text-align: left;
+                padding-bottom: 2px;
+                word-wrap: break-word;
+                overflow: hidden;
+            }
+            .inner-table td { font-size: 6.5px; }
+
+            .amt { text-align: right; white-space: nowrap; }
+            .center { text-align: center; }
+            .bold { font-weight: bold; }
+
+            .net-pay-wrapper {
+                border: 1px solid #000;
+                margin-top: 6px;
+                padding: 2px 4px;
+                display: table;
+                width: 100%;
+            }
+            .net-pay-label { font-weight: bold; font-size: 7.5px; display: table-cell; vertical-align: middle; }
+            .net-pay-value { font-weight: bold; font-size: 8.5px; text-align: right; display: table-cell; vertical-align: middle; }
+
+            .signature-container {
+                margin-top: 18px;
+                text-align: center;
+                border-top: 1px solid #000;
+                font-size: 6.5px;
+                font-weight: bold;
+                padding-top: 1px;
+                width: 70%;
+                margin-left: auto;
+                margin-right: auto;
+            }
+
+            .min-box { min-height: 90px; }
+
+            .status-badge {
+                display: inline-block;
+                padding: 1px 5px;
+                border-radius: 2px;
+                font-weight: bold;
+                font-size: 6px;
+                color: #fff;
+                margin-top: 2px;
             }
         </style>
     </head>
     <body>
-        <div class="header">
-            <div class="company-name">' . htmlspecialchars($company->name) . '</div>
-            <div class="payslip-title">EMPLOYEE PAYSLIP</div>
-            <div style="color: #718096;">
-                Period: ' . $payroll->pay_period_start . ' to ' . $payroll->pay_period_end . '
-            </div>
-            <div style="color: #718096; font-size: 14px;">Generated: ' . $today . '</div>
-        </div>
-        
-        <div class="employee-info">
-            <div class="info-row">
-                <span class="info-label">Employee Name:</span>
-                <span>' . htmlspecialchars($employee->full_name) . '</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Employee ID:</span>
-                <span>' . htmlspecialchars($employee->employee_id) . '</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Department:</span>
-                <span>' . htmlspecialchars($employee->department->name ?? 'N/A') . '</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Payroll Status:</span>
-                <span class="status-badge" style="background-color: ' . $statusColor . ';">' . strtoupper($status) . '</span>
-            </div>
-        </div>
-        
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>EARNINGS</th>
-                    <th class="amount">AMOUNT</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>Basic Salary</td>
-                    <td class="amount currency">' . $currencySymbol . number_format($payroll->basic_salary, 2) . '</td>
-                </tr>';
 
-        // Add optional earnings
-        if ($payroll->overtime_pay > 0) {
-            $html .= '<tr><td>Overtime Pay</td><td class="amount currency">' . $currencySymbol . number_format($payroll->overtime_pay, 2) . '</td></tr>';
-        }
-        if ($payroll->allowances > 0) {
-            $html .= '<tr><td>Allowances</td><td class="amount currency">' . $currencySymbol . number_format($payroll->allowances, 2) . '</td></tr>';
-        }
-        if ($payroll->bonuses > 0) {
-            $html .= '<tr><td>Bonuses</td><td class="amount currency">' . $currencySymbol . number_format($payroll->bonuses, 2) . '</td></tr>';
-        }
-
-        $html .= '<tr class="total-row">
-                    <td><strong>TOTAL EARNINGS</strong></td>
-                    <td class="amount currency"><strong>' . $currencySymbol . number_format($payroll->gross_pay, 2) . '</strong></td>
-                </tr>
-            </tbody>
+    <div class="slip-box">
+        <table class="header-table">
+            <tr>
+                <td style="width: 55%;">
+                    <div class="company-title">' . htmlspecialchars($company->name) . '</div>
+                    <div class="emp-info">' . htmlspecialchars($employee->employee_id) . ' &nbsp;&nbsp;&nbsp;&nbsp; ' . htmlspecialchars($employee->full_name) . '</div>
+                    <div class="bold" style="margin-top: 2px;">RATE : &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ' . number_format($employee->rate ?? 0, 2) . '</div>
+                </td>
+                <td style="width: 45%;">
+                    <div class="slip-title">PAY ADVICE SLIP</div>
+                    <div class="dates">' . $payroll->pay_period_start . ' &nbsp;&nbsp;&nbsp;&nbsp; ' . $payroll->pay_period_end . '</div>
+                </td>
+            </tr>
         </table>
-        
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>DEDUCTIONS</th>
-                    <th class="amount">AMOUNT</th>
-                </tr>
-            </thead>
-            <tbody>';
 
-        // Add deductions
-        if ($payroll->deductions > 0) {
-            $html .= '<tr><td>Deductions</td><td class="amount currency">' . $currencySymbol . number_format($payroll->deductions, 2) . '</td></tr>';
-        }
-        if ($payroll->tax_amount > 0) {
-            $html .= '<tr><td>Tax Withholding</td><td class="amount currency">' . $currencySymbol . number_format($payroll->tax_amount, 2) . '</td></tr>';
-        }
-        if ($payroll->sss > 0) {
-            $html .= '<tr><td>SSS Contribution</td><td class="amount currency">' . $currencySymbol . number_format($payroll->sss, 2) . '</td></tr>';
-        }
-        if ($payroll->phic > 0) {
-            $html .= '<tr><td>PhilHealth</td><td class="amount currency">' . $currencySymbol . number_format($payroll->phic, 2) . '</td></tr>';
-        }
-        if ($payroll->hdmf > 0) {
-            $html .= '<tr><td>Pag-IBIG</td><td class="amount currency">' . $currencySymbol . number_format($payroll->hdmf, 2) . '</td></tr>';
+        <table class="main-grid">
+            <tr>
+                <!-- COL 1: Hours/Days worked + Adjustment Summary -->
+                <td style="width: 28%;">
+                    <table class="inner-table">
+                        <colgroup>
+                            <col style="width: 32%;">
+                            <col style="width: 25%;">
+                            <col style="width: 18%;">
+                            <col style="width: 25%;">
+                        </colgroup>
+                        <tr>
+                            <th></th>
+                            <th class="amt">HRS/DAYS</th>
+                            <th class="amt">OT</th>
+                            <th class="amt">AMT.</th>
+                        </tr>
+                        <tr>
+                            <td class="bold">REG DAYS</td>
+                            <td class="amt">' . number_format($regDaysHrs, 2) . '</td>
+                            <td class="amt"></td>
+                            <td class="amt">' . number_format($payroll->basic_salary, 2) . '</td>
+                        </tr>
+                        <tr>
+                            <td class="bold">REG OT</td>
+                            <td class="amt"></td>
+                            <td class="amt">' . number_format($regOtHrs, 2) . '</td>
+                            <td class="amt">' . number_format($payroll->overtime_pay, 2) . '</td>
+                        </tr>
+                        <tr>
+                            <td class="bold">REST DAY</td>
+                            <td class="amt">' . number_format($restDayHrs, 2) . '</td>
+                            <td class="amt">' . number_format($restDayOt, 2) . '</td>
+                            <td class="amt">' . number_format($payroll->rest_day_premium_pay ?? 0, 2) . '</td>
+                        </tr>
+                        <tr>
+                            <td class="bold">LEG</td>
+                            <td class="amt">' . number_format($legHrs, 2) . '</td>
+                            <td class="amt">' . number_format($legOt, 2) . '</td>
+                            <td class="amt">' . number_format($legAmt, 2) . '</td>
+                        </tr>
+                        <tr>
+                            <td class="bold">LEG/REST</td>
+                            <td class="amt">' . number_format($legRestHrs, 2) . '</td>
+                            <td class="amt">' . number_format($legRestOt, 2) . '</td>
+                            <td class="amt">' . number_format($legRestAmt, 2) . '</td>
+                        </tr>
+                        <tr>
+                            <td class="bold">SPL</td>
+                            <td class="amt">' . number_format($splHrs, 2) . '</td>
+                            <td class="amt">' . number_format($splOt, 2) . '</td>
+                            <td class="amt">' . number_format($splAmt, 2) . '</td>
+                        </tr>
+                        <tr>
+                            <td class="bold">SPL/REST</td>
+                            <td class="amt">' . number_format($splRestHrs, 2) . '</td>
+                            <td class="amt">' . number_format($splRestOt, 2) . '</td>
+                            <td class="amt">' . number_format($splRestAmt, 2) . '</td>
+                        </tr>
+                        <tr>
+                            <td class="bold">NDIF</td>
+                            <td class="amt">' . number_format($ndifHrs, 2) . '</td>
+                            <td class="amt">' . number_format($ndifOt, 2) . '</td>
+                            <td class="amt">' . number_format($ndifAmt, 2) . '</td>
+                        </tr>
+                        <tr>
+                            <td class="bold">SL/VL/EL</td>
+                            <td class="amt">' . number_format($slVlElHrs, 2) . '</td>
+                            <td class="amt"></td>
+                            <td class="amt">' . number_format($slVlElAmt, 2) . '</td>
+                        </tr>
+                    </table>
+
+                    <div style="margin-top: 35px;">
+                        <table class="inner-table">
+                            <tr>
+                                <td class="bold">ADJUSTMENT SUMMARY</td>
+                                <td class="amt">' . number_format($adjustmentSummary, 2) . '</td>
+                            </tr>
+                            <tr>
+                                <td class="bold">13TH-M PAY</td>
+                                <td class="amt">' . number_format($thirteenthMonthPay, 2) . '</td>
+                            </tr>
+                            <tr>
+                                <td class="bold">LEAVE PAY</td>
+                                <td class="amt">' . number_format($leavePay, 2) . '</td>
+                            </tr>
+                            <tr><td colspan="2" style="height:4px;"></td></tr>
+                            <tr>
+                                <td class="bold">ALLOWANCE SUMMARY NTX</td>
+                                <td class="amt">' . number_format($allowanceNtx, 2) . '</td>
+                            </tr>
+                            <tr>
+                                <td class="bold">ALLOWANCE SUMMARY TAX</td>
+                                <td class="amt">' . number_format($allowanceTax, 2) . '</td>
+                            </tr>
+                        </table>
+                    </div>
+                </td>
+
+                <!-- COL 2: Less / Gross / Deductions / Net Pay / Signature -->
+                <td style="width: 25%;">
+                    <table class="inner-table">
+                        <colgroup>
+                            <col style="width: 34%;">
+                            <col style="width: 33%;">
+                            <col style="width: 33%;">
+                        </colgroup>
+                        <tr>
+                            <th class="bold">LESS:</th>
+                            <th class="amt">HRS/DAYS</th>
+                            <th class="amt">AMT.</th>
+                        </tr>
+                        <tr>
+                            <td class="bold">LATE</td>
+                            <td class="amt">' . number_format($lateHrs, 2) . '</td>
+                            <td class="amt">' . number_format($lateAmt, 2) . '</td>
+                        </tr>
+                        <tr>
+                            <td class="bold">UT</td>
+                            <td class="amt">' . number_format($utHrs, 2) . '</td>
+                            <td class="amt">' . number_format($utAmt, 2) . '</td>
+                        </tr>
+                        <tr>
+                            <td class="bold">ABS</td>
+                            <td class="amt">' . number_format($absDays, 2) . '</td>
+                            <td class="amt">' . number_format($absAmt, 2) . '</td>
+                        </tr>
+                    </table>
+
+                    <div style="margin-top: 25px;">
+                        <table class="inner-table">
+                            <tr>
+                                <td class="bold">GROSS EARNINGS</td>
+                                <td class="amt bold">' . number_format($payroll->gross_pay, 2) . '</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div style="margin-top: 6px;">
+                        <div class="bold" style="font-size:6.5px; margin-bottom: 2px;">DEDUCTIONS</div>
+                        <table class="inner-table">
+                            <tr>
+                                <td style="padding-left: 10px;" class="bold">TAX</td>
+                                <td class="amt">' . number_format($payroll->tax_amount, 2) . '</td>
+                            </tr>
+                            <tr>
+                                <td style="padding-left: 10px;" class="bold">SSS</td>
+                                <td class="amt">' . number_format($payroll->sss ?? 0, 2) . '</td>
+                            </tr>
+                            <tr>
+                                <td style="padding-left: 10px;" class="bold">PHIL</td>
+                                <td class="amt">' . number_format($payroll->phic ?? 0, 2) . '</td>
+                            </tr>
+                            <tr>
+                                <td style="padding-left: 10px;" class="bold">HDMF</td>
+                                <td class="amt">' . number_format($payroll->hdmf ?? 0, 2) . '</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div style="margin-top: 15px;">
+                        <table class="inner-table">
+                            <tr>
+                                <td class="bold">LOAN SUMMARY</td>
+                                <td class="amt">' . number_format($loanSummary, 2) . '</td>
+                            </tr>
+                            <tr>
+                                <td class="bold">DEDUCTION SUMMARY</td>
+                                <td class="amt">' . number_format($deductionSummary, 2) . '</td>
+                            </tr>
+                            <tr>
+                                <td class="bold">TOTAL DEDUCTIONS</td>
+                                <td class="amt bold">' . number_format($totalDeductions, 2) . '</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div class="net-pay-wrapper">
+                        <div class="net-pay-label">NET PAY</div>
+                        <div class="net-pay-value">' . number_format($payroll->net_pay, 2) . '</div>
+                    </div>
+
+                    <div class="signature-container">
+                        SIGNATURE
+                    </div>
+                </td>
+
+                <!-- COL 3: Allow & Adj Details / Deduction Details -->
+                <td style="width: 22%;">
+                    <div class="bold center" style="font-size: 6.5px; border-bottom: 1px solid #000; padding-bottom:2px;">ALLOW &amp; ADJ DETAILS</div>
+                    <div class="min-box"></div>
+
+                    <div class="bold center" style="font-size: 6.5px; border-bottom: 1px solid #000; padding-bottom:2px; margin-top: 40px;">DEDUCTION DETAILS</div>
+                    <div class="min-box"></div>
+                </td>
+
+                <!-- COL 4: Loan Details -->
+                <td style="width: 25%;">
+                    <table class="inner-table">
+                        <tr>
+                            <th class="center" style="width: 50%;">LOAN DETAILS</th>
+                            <th class="amt" style="width: 50%;">BALANCE</th>
+                        </tr>';
+
+        if (count($loans)) {
+            foreach ($loans as $loan) {
+                $loanName = $loan->name ?? ($loan['name'] ?? '');
+                $loanRate = $loan->rate ?? ($loan['rate'] ?? null);
+                $loanBalance = $loan->balance ?? ($loan['balance'] ?? null);
+
+                $html .= '<tr>
+                            <td>
+                                <span class="bold">' . htmlspecialchars($loanName) . '</span>' .
+                                ($loanRate !== null ? '<span class="amt" style="float:right;">' . number_format($loanRate, 2) . '</span>' : '') . '
+                            </td>
+                            <td class="amt">' . ($loanBalance !== null ? number_format($loanBalance, 2) : '') . '</td>
+                        </tr>';
+            }
+        } else {
+            $html .= '<tr><td colspan="2" style="color:#999;">No active loans</td></tr>';
         }
 
-        $html .= '<tr class="total-row">
-                    <td><strong>TOTAL DEDUCTIONS</strong></td>
-                    <td class="amount currency"><strong>' . $currencySymbol . number_format($totalDeductions, 2) . '</strong></td>
-                </tr>
-            </tbody>
+        $html .= '</table>
+                </td>
+            </tr>
         </table>
-        
-        <div class="net-pay">
-            <div style="font-size: 18px; font-weight: bold; color: #2d3748;">NET PAY</div>
-            <div class="net-pay-amount currency">' . $currencySymbol . number_format($payroll->net_pay, 2) . '</div>
-            <div style="color: #718096; margin-top: 10px;">
-                ' . number_format($payroll->net_pay, 2) . ' Philippine Pesos
-            </div>
-        </div>
-        
-        <div class="footer">
-            <p>Generated by GR8 TECH ENTERPRISE Payroll System</p>
-            <p>This is an official document. Unauthorized distribution is prohibited.</p>
-            <p>Document ID: PAYSLIP-' . strtoupper(substr(md5($payroll->id . $payroll->pay_period_start), 0, 12)) . '</p>
-        </div>
+    </div>
+
     </body>
     </html>';
 
         return $html;
     }
-
     /**
      * Download existing file
      */

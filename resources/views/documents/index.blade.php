@@ -323,7 +323,7 @@
             const scope = document.querySelector('input[name="exportScope"]:checked').value;
             const params = exportModal.exportParams;
             
-            let url = '{{ route("documents.export") }}?type=' + format;
+            let url = '{{ route("documents.export") }}?type=' + encodeURIComponent(format) + '&scope=' + encodeURIComponent(scope);
             
             // Only include filters if exporting filtered results
             if (scope === 'filtered') {
