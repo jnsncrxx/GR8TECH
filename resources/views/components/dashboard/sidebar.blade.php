@@ -5,7 +5,7 @@
     <x-dashboard.sidebar.header :user="$user" />
 
     <!-- Navigation -->
-    <div class="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-400 scroll-smooth min-h-0">
+    <div id="sidebar-scroll-container" class="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-400 scroll-smooth min-h-0">
         <!-- Navigation content -->
         <div class="pt-2 pb-8">
             <x-dashboard.sidebar.navigation :user="$user" :activeRoute="$activeRoute" />
