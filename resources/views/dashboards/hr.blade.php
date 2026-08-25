@@ -44,6 +44,35 @@
                 />
             </div>
 
+            @if(auth()->user()->employee)
+                @php
+                    $hrTodayAttendance = auth()->user()->employee->getTodayAttendance();
+                    $hrIsClockedIn = $hrTodayAttendance && $hrTodayAttendance->hasActiveTimeEntry();
+                @endphp
+                <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-4 sm:p-6 mb-6 sm:mb-8">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Time In / Time Out</h3>
+                    </div>
+                    @if($hrIsClockedIn)
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <div class="flex flex-1 items-center justify-center px-4 py-3 bg-green-50 text-green-700 rounded-lg font-medium">
+                                <span class="w-2.5 h-2.5 rounded-full bg-green-500 mr-2"></span>
+                                You're Clocked In
+                            </div>
+                            <button onclick="sidebarConfirmTimeOut()" class="flex-1 flex items-center justify-center px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                                <i class="fas fa-sign-out-alt mr-2"></i>
+                                Time Out
+                            </button>
+                        </div>
+                    @else
+                        <button onclick="sidebarConfirmTimeIn()" class="w-full flex items-center justify-center px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                            <i class="fas fa-sign-in-alt mr-2"></i>
+                            Time In
+                        </button>
+                    @endif
+                </div>
+            @endif
+
             <!-- Payroll Overview Section -->
 <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-4 sm:p-6 mb-6 sm:mb-8">
     <div class="flex items-center justify-between mb-4 sm:mb-6">
