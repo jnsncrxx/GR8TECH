@@ -629,89 +629,13 @@
         </div>
         @endif
 
-        {{-- ============ QUICK ACTIONS ============ --}}
+        {{-- ============ SUPPORT & HELP ============ --}}
         <div class="my-6 border-t border-gray-200"></div>
         <div class="px-4 mb-2">
-            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Quick Actions</h3>
+            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Support & Help</h3>
         </div>
 
-        @if($user->role === 'admin' || $user->role === 'hr')
-        <a href="{{ route('employees.create') }}" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-lg transition-all duration-200 group">
-            <i class="fas fa-user-plus mr-3 text-lg text-gray-400 group-hover:text-blue-600"></i>
-            <span>Add Employee</span>
-        </a>
-        <a href="{{ route('documents.export') }}" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-lg transition-all duration-200 group">
-            <i class="fas fa-file-export mr-3 text-lg text-gray-400 group-hover:text-blue-600"></i>
-            <span>Export Data</span>
-        </a>
-        <a href="{{ route('notifications.index') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ $activeRoute === 'notifications.index' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
-            <i class="fas fa-bell mr-3 text-lg {{ $activeRoute === 'notifications.index' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
-            <span>Notifications</span>
-        </a>
-        <a href="{{ route('hr.contacts.admin') }}" class="flex items-center px-4 py-3 text-sm font-medium {{ $activeRoute === 'hr.contacts.admin' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
-            <i class="fas fa-inbox mr-3 text-lg {{ $activeRoute === 'hr.contacts.admin' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
-            <span>Inbox</span>
-        </a>
-        @endif
-
-        {{-- Clock In/Out - Show for ALL users with employee record --}}
         @if($user->employee)
-            @if($todayAttendance && $todayAttendance->time_in && !$todayAttendance->time_out)
-                <div class="flex items-center px-4 py-3 text-sm font-medium text-green-700 bg-green-50 rounded-lg">
-                    <span class="w-2 h-2 rounded-full bg-green-500 mr-3 animate-pulse"></span>
-                    <span>You're Clocked In</span>
-                </div>
-                
-                <button onclick="sidebarConfirmTimeOut()" class="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-red-600 rounded-lg transition-all duration-200 group">
-                    <i class="fas fa-sign-out-alt mr-3 text-lg text-gray-400 group-hover:text-red-600"></i>
-                    <span>Time Out</span>
-                </button>
-            @elseif($todayAttendance && $todayAttendance->time_out)
-                <div class="flex items-center px-4 py-3 text-sm font-medium text-gray-400 rounded-lg cursor-not-allowed">
-                    <i class="fas fa-check mr-3 text-lg text-gray-400"></i>
-                    <span>Already Clocked Out</span>
-                </div>
-            @else
-                <button onclick="sidebarConfirmTimeIn()" class="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-green-600 rounded-lg transition-all duration-200 group">
-                    <i class="fas fa-sign-in-alt mr-3 text-lg text-gray-400 group-hover:text-green-600"></i>
-                    <span>Time In</span>
-                </button>
-                
-                <div class="flex items-center px-4 py-3 text-sm font-medium text-gray-400 rounded-lg cursor-not-allowed">
-                    <i class="fas fa-sign-out-alt mr-3 text-lg text-gray-400"></i>
-                    <span>Time Out (Clock In First)</span>
-                </div>
-            @endif
-
-            @php
-                $latestPayroll = null;
-                try {
-                    if (isset($user->employee) && $user->employee) {
-                        $latestPayroll = \App\Models\Payroll::where('employee_id', $user->employee->id)
-                            ->whereIn('status', ['approved', 'paid'])
-                            ->latest()
-                            ->first();
-                    }
-                } catch (\Exception $e) {
-                    $latestPayroll = null;
-                }
-            @endphp
-            @if($latestPayroll)
-                <button onclick="downloadEmployeePayslip('{{ $latestPayroll->id }}')" class="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-lg transition-all duration-200 group">
-                    <i class="fas fa-download mr-3 text-lg text-gray-400 group-hover:text-blue-600"></i>
-                    <span>Download Payslip</span>
-                </button>
-            @else
-                <div class="flex items-center px-4 py-3 text-sm font-medium text-gray-400 rounded-lg cursor-not-allowed">
-                    <i class="fas fa-download mr-3 text-lg text-gray-400"></i>
-                    <span>No Payslip Available</span>
-                </div>
-            @endif
-
-            <a href="{{ route('attendance.leave-management', ['scope' => 'mine']) }}" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-lg transition-all duration-200 group">
-                <i class="fas fa-calendar-times mr-3 text-lg text-gray-400 group-hover:text-blue-600"></i>
-                <span>Apply Leave</span>
-            </a>
             <a href="{{ route('hr.contact.index') }}" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-lg transition-all duration-200 group">
                 <i class="fas fa-question-circle mr-3 text-lg text-gray-400 group-hover:text-blue-600"></i>
                 <span>Contact HR</span>
