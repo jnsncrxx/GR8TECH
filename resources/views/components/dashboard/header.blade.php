@@ -687,6 +687,99 @@
             </div>
             @endif
             
+            <!-- Quick Action Dropdown -->
+            <div class="relative" x-data="{ open: false }">
+                <button @click="open = !open"
+                        :class="{'bg-gray-100 dark:bg-slate-700': open}"
+                        title="Quick Actions"
+                        class="relative p-1.5 sm:p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-slate-700 flex items-center gap-1">
+                    <i class="fas fa-bolt text-lg sm:text-xl text-amber-500"></i>
+                    <i class="fas fa-chevron-down text-xs text-gray-400 dark:text-gray-500" :class="{ 'rotate-180': open }"></i>
+                </button>
+
+                <!-- Dropdown Menu -->
+                <div x-show="open"
+                     x-cloak
+                     @click.away="open = false"
+                     x-transition:enter="transition ease-out duration-100"
+                     x-transition:enter-start="transform opacity-0 scale-95"
+                     x-transition:enter-end="transform opacity-100 scale-100"
+                     x-transition:leave="transition ease-in duration-75"
+                     x-transition:leave-start="transform opacity-100 scale-100"
+                     x-transition:leave-end="transform opacity-0 scale-95"
+                     class="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50 dark:bg-slate-900 dark:border-slate-700">
+                    
+                    <div class="px-4 py-2 border-b border-gray-100 dark:border-slate-700">
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide dark:text-gray-400">Quick Actions</p>
+                    </div>
+
+                    <div class="py-1">
+                        {{-- 1. Time In --}}
+                        @if($user->employee && !$isCurrentlyTimedIn)
+                            <button onclick="sidebarConfirmTimeIn()" class="w-full text-left flex items-center px-4 py-2.5 text-sm text-green-700 hover:bg-green-50 transition-colors dark:text-green-400 dark:hover:bg-slate-800">
+                                <i class="fas fa-sign-in-alt w-5 text-green-600 mr-2"></i>
+                                Time In
+                            </button>
+                        @elseif($user->employee && $isCurrentlyTimedIn)
+                            <div class="px-4 py-2 text-xs font-medium text-green-600 bg-green-50 dark:bg-green-950/30 flex items-center">
+                                <span class="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></span>
+                                You're Clocked In
+                            </div>
+                        @endif
+
+                        {{-- 2. Time Out --}}
+                        @if($user->employee && $isCurrentlyTimedIn)
+                            <button onclick="sidebarConfirmTimeOut()" class="w-full text-left flex items-center px-4 py-2.5 text-sm text-red-700 hover:bg-red-50 transition-colors dark:text-red-400 dark:hover:bg-slate-800">
+                                <i class="fas fa-sign-out-alt w-5 text-red-600 mr-2"></i>
+                                Time Out
+                            </button>
+                        @endif
+
+                        {{-- 3. Add Employees (HR & Admin only) --}}
+                        @if(in_array($user->role, ['admin', 'hr']))
+                            <a href="{{ route('employees.create') }}" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800">
+                                <i class="fas fa-user-plus w-5 text-blue-600 mr-2"></i>
+                                Add Employee
+                            </a>
+                        @endif
+
+                        {{-- 4. Apply Leave --}}
+                        @if($user->employee)
+                            <a href="{{ route('attendance.leave-management', ['scope' => 'mine']) }}" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800">
+                                <i class="fas fa-calendar-times w-5 text-purple-600 mr-2"></i>
+                                Apply Leave
+                            </a>
+                        @endif
+
+                        {{-- 5. Download Payslip --}}
+                        @php
+                            $hdrLatestPayroll = null;
+                            try {
+                                if ($user->employee) {
+                                    $hdrLatestPayroll = \App\Models\Payroll::where('employee_id', $user->employee->id)
+                                        ->whereIn('status', ['approved', 'paid'])
+                                        ->latest()
+                                        ->first();
+                                }
+                            } catch (\Exception $e) {
+                                $hdrLatestPayroll = null;
+                            }
+                        @endphp
+                        @if($hdrLatestPayroll)
+                            <button onclick="downloadEmployeePayslip('{{ $hdrLatestPayroll->id }}')" class="w-full text-left flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800">
+                                <i class="fas fa-download w-5 text-blue-600 mr-2"></i>
+                                Download Payslip
+                            </button>
+                        @else
+                            <a href="{{ route('employee.payroll.history') }}" class="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800">
+                                <i class="fas fa-receipt w-5 text-blue-600 mr-2"></i>
+                                Payslips
+                            </a>
+                        @endif
+                    </div>
+                </div>
+            </div>
+
             <!-- User Menu Dropdown -->
             <div class="relative" x-data="{ open: false }">
                 <button @click="open = !open" class="flex items-center space-x-1 sm:space-x-2 p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 transition-colors dark:hover:bg-slate-700">
