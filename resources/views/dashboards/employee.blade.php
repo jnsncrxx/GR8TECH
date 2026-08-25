@@ -445,29 +445,12 @@
             </div>
         </div>
 
-        <!-- Quick Actions -->
+        <!-- Others -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div class="flex items-center justify-between mb-6">
-                <h3 class="text-lg font-semibold text-gray-900">Quick Actions</h3>
+            <h3 class="text-lg font-semibold text-gray-900">OTHERS</h3>
             </div>
             <div class="space-y-4">
-                <!-- Clock Status / Time In / Time Out -->
-                @if(!$todayAttendance || !$todayAttendance->hasActiveTimeEntry())
-                <button id="quick-time-in-btn" onclick="confirmTimeIn()" class="w-full flex items-center justify-center px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
-                    <i class="fas fa-sign-in-alt mr-2"></i>
-                    Time In
-                </button>
-                @else
-                <div class="w-full flex items-center justify-center px-4 py-3 bg-green-50 text-green-700 rounded-lg font-medium">
-                    <span class="w-2.5 h-2.5 rounded-full bg-green-500 mr-2"></span>
-                    You're Clocked In
-                </div>
-                <button id="quick-time-out-btn" onclick="confirmTimeOut()" class="w-full flex items-center justify-center px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
-                    <i class="fas fa-sign-out-alt mr-2"></i>
-                    Time Out
-                </button>
-                @endif
-
                 <!-- Apply Leave -->
                 <a href="{{ route('attendance.leave-management', ['scope' => 'mine']) }}" class="w-full flex items-center justify-center px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
                     <i class="fas fa-calendar-times mr-2"></i>
@@ -755,8 +738,6 @@ function updateWorkingTime() {
 function updateAttendanceUI() {
     const timeInBtn = document.getElementById('time-in-btn');
     const timeOutBtn = document.getElementById('time-out-btn');
-    const quickTimeInBtn = document.getElementById('quick-time-in-btn');
-    const quickTimeOutBtn = document.getElementById('quick-time-out-btn');
 
     // We rely on the PHP-rendered state since we reload the page after each action
     // but this function handles the immediate state change if needed.

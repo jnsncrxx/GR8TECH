@@ -115,13 +115,6 @@
             </button>
             <div x-show="open" x-transition class="ml-8 mt-2 space-y-1 rounded-lg border border-gray-200 bg-gray-50 p-2">
                 
-                {{-- ===== TIME IN / OUT - SHOW FOR ALL USERS ===== --}}
-                <a href="{{ route('attendance.time-in-out') }}" class="flex items-center rounded-md px-3 py-2 text-sm transition-colors hover:bg-gray-50 hover:text-blue-600 {{ $activeRoute === 'attendance.time-in-out' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : 'text-gray-700' }}">
-                    <i class="fas fa-sign-in-alt mr-3 text-sm {{ $activeRoute === 'attendance.time-in-out' ? 'text-blue-600' : 'text-gray-400' }}"></i>
-                    <span>Time In / Out</span>
-                    <span class="ml-auto bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded-full">Live</span>
-                </a>
-
                 {{-- ===== MY ATTENDANCE ===== --}}
                 <a href="{{ route('attendance.my') }}" class="flex items-center rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 hover:text-blue-600 {{ $activeRoute === 'attendance.my' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : '' }}">
                     <i class="fas fa-calendar-check mr-3 text-sm {{ $activeRoute === 'attendance.my' ? 'text-blue-600' : 'text-gray-400' }}"></i><span>My Attendance</span>
@@ -654,35 +647,7 @@
         </a>
         @endif
 
-        {{-- Clock In/Out - Show for ALL users with employee record --}}
         @if($user->employee)
-            @if($todayAttendance && $todayAttendance->time_in && !$todayAttendance->time_out)
-                <div class="flex items-center px-4 py-3 text-sm font-medium text-green-700 bg-green-50 rounded-lg">
-                    <span class="w-2 h-2 rounded-full bg-green-500 mr-3 animate-pulse"></span>
-                    <span>You're Clocked In</span>
-                </div>
-                
-                <button onclick="sidebarConfirmTimeOut()" class="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-red-600 rounded-lg transition-all duration-200 group">
-                    <i class="fas fa-sign-out-alt mr-3 text-lg text-gray-400 group-hover:text-red-600"></i>
-                    <span>Time Out</span>
-                </button>
-            @elseif($todayAttendance && $todayAttendance->time_out)
-                <div class="flex items-center px-4 py-3 text-sm font-medium text-gray-400 rounded-lg cursor-not-allowed">
-                    <i class="fas fa-check mr-3 text-lg text-gray-400"></i>
-                    <span>Already Clocked Out</span>
-                </div>
-            @else
-                <button onclick="sidebarConfirmTimeIn()" class="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-green-600 rounded-lg transition-all duration-200 group">
-                    <i class="fas fa-sign-in-alt mr-3 text-lg text-gray-400 group-hover:text-green-600"></i>
-                    <span>Time In</span>
-                </button>
-                
-                <div class="flex items-center px-4 py-3 text-sm font-medium text-gray-400 rounded-lg cursor-not-allowed">
-                    <i class="fas fa-sign-out-alt mr-3 text-lg text-gray-400"></i>
-                    <span>Time Out (Clock In First)</span>
-                </div>
-            @endif
-
             @php
                 $latestPayroll = null;
                 try {
