@@ -820,6 +820,32 @@
                         <p class="text-xs text-gray-500 dark:text-gray-400">{{ $user->email }}</p>
                     </div>
 
+                    <!-- Profile -->
+                    <a href="{{ route('hr.profile') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800">
+                        <i class="fas fa-user-circle w-4 h-4 mr-3 text-gray-400 dark:text-gray-500"></i>
+                        Profile
+                    </a>
+
+                    <!-- My Information -->
+                    <div x-data="{ infoOpen: {{ request()->routeIs('hr.my-information.*') ? 'true' : 'false' }} }">
+                        <button type="button" @click="infoOpen = !infoOpen" class="flex items-center justify-between w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800">
+                            <span class="flex items-center">
+                                <i class="fas fa-id-badge w-4 h-4 mr-3 text-gray-400 dark:text-gray-500"></i>
+                                My Information
+                            </span>
+                            <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': infoOpen }"></i>
+                        </button>
+                        <div x-show="infoOpen" x-transition class="ml-4 border-l border-gray-200 dark:border-slate-700">
+                            <a href="{{ route('hr.my-information.info') }}" class="flex items-center px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800 {{ request()->routeIs('hr.my-information.info') ? 'bg-blue-50 text-blue-600 dark:bg-slate-800 dark:text-blue-400' : '' }}">Personal Information</a>
+                            <a href="{{ route('hr.my-information.other-info') }}" class="flex items-center px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800 {{ request()->routeIs('hr.my-information.other-info') ? 'bg-blue-50 text-blue-600 dark:bg-slate-800 dark:text-blue-400' : '' }}">Other Info</a>
+                            <a href="{{ route('hr.my-information.education-training-rating') }}" class="flex items-center px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800 {{ request()->routeIs('hr.my-information.education-training-rating') ? 'bg-blue-50 text-blue-600 dark:bg-slate-800 dark:text-blue-400' : '' }}">Educational / Training / Rating</a>
+                            <a href="{{ route('hr.my-information.prev-emp-oth') }}" class="flex items-center px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800 {{ request()->routeIs('hr.my-information.prev-emp-oth') ? 'bg-blue-50 text-blue-600 dark:bg-slate-800 dark:text-blue-400' : '' }}">Previous Employer &amp; Other</a>
+                            <a href="{{ route('hr.my-information.documents') }}" class="flex items-center px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800 {{ request()->routeIs('hr.my-information.documents') ? 'bg-blue-50 text-blue-600 dark:bg-slate-800 dark:text-blue-400' : '' }}">Documents</a>
+                            <a href="{{ route('hr.my-information.ytd-info') }}" class="flex items-center px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800 {{ request()->routeIs('hr.my-information.ytd-info') ? 'bg-blue-50 text-blue-600 dark:bg-slate-800 dark:text-blue-400' : '' }}">YTD - INFO</a>
+                            <a href="{{ route('hr.my-information.bio-zk') }}" class="flex items-center px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800 {{ request()->routeIs('hr.my-information.bio-zk') ? 'bg-blue-50 text-blue-600 dark:bg-slate-800 dark:text-blue-400' : '' }}">Bio ZK</a>
+                        </div>
+                    </div>
+
                     <!-- Settings -->
                     <a href="{{ route('hr.settings') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800">
                         <i class="fas fa-cog w-4 h-4 mr-3 text-gray-400 dark:text-gray-500"></i>
@@ -831,10 +857,15 @@
                         } }}
                     </a>
 
-                    <!-- Profile -->
-                    <a href="{{ route('hr.profile') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800">
-                        <i class="fas fa-user-circle w-4 h-4 mr-3 text-gray-400 dark:text-gray-500"></i>
-                        Profile
+                    <!-- Help and HR Support -->
+                    <a href="{{ route('hr.contact.index') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800">
+                        <i class="fas fa-question-circle w-4 h-4 mr-3 text-blue-500 dark:text-blue-400"></i>
+                        Contact HR
+                    </a>
+
+                    <a href="{{ route('hr.help-support') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800">
+                        <i class="fas fa-life-ring w-4 h-4 mr-3 text-green-500 dark:text-green-400"></i>
+                        Help &amp; Support
                     </a>
 
                     <!-- Divider -->

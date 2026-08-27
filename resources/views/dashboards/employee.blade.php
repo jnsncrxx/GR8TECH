@@ -500,18 +500,6 @@
                 </button>
                 @endif
 
-                <!-- Contact HR -->
-                <a href="{{ route('hr.contact.index') }}" class="w-full flex items-center justify-center px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
-                    <i class="fas fa-question-circle mr-2"></i>
-                    Contact HR
-                </a>
-
-                <!-- Help & Support -->
-                <a href="{{ route('hr.help-support') }}" class="w-full flex items-center justify-center px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
-                    <i class="fas fa-life-ring mr-2"></i>
-                    Help & Support
-                </a>
-
                 <!-- Forgot Time In/Out -->
                 <button type="button" onclick="openForgotTimeModal()" class="w-full flex items-center justify-center px-4 py-3 bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200 transition-colors">
                     <i class="fas fa-clock mr-2"></i>

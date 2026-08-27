@@ -63,22 +63,6 @@
         />
     </div>
 
-    <!-- Help & Support Actions -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-        <div class="flex items-center justify-between mb-6">
-            <h3 class="text-lg font-semibold text-gray-900">Support & Help</h3>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <a href="{{ route('hr.contact.index') }}" class="flex items-center justify-center px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
-                <i class="fas fa-question-circle mr-2"></i> Contact HR
-            </a>
-
-            <a href="{{ route('hr.help-support') }}" class="flex items-center justify-center px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
-                <i class="fas fa-life-ring mr-2"></i> Help & Support
-            </a>
-        </div>
-    </div>
-
     <!-- Charts and Tables Section -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
         <!-- Monthly Payroll Summary -->
