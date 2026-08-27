@@ -47,7 +47,7 @@
 
             <div>
                 <label class="form-label">Position</label>
-                <input type="text" value="{{ $employee->position }}" class="form-control bg-gray-50" readonly>
+                <input type="text" value="{{ $employee->position?->name }}" class="form-control bg-gray-50" readonly>
             </div>
         </div>
         </div>

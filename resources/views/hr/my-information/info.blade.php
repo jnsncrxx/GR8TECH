@@ -399,16 +399,20 @@
             <div class="emp-card-body">
                 <div class="grid-3">
                     <div>
-                        <label for="position" class="form-label">Position</label>
-                        <input type="text" name="position" id="position" value="{{ old('position', $employee->position) }}"
-                            class="form-control @error('position') is-error @enderror">
-                        @error('position')
+                        <label for="position_id" class="form-label">Position</label>
+                        <select name="position_id" id="position_id" class="form-control @error('position_id') is-error @enderror">
+                            <option value="">Select position</option>
+                            @foreach($positions as $pos)
+                                <option value="{{ $pos->id }}" {{ (string) old('position_id', $employee->position_id) === (string) $pos->id ? 'selected' : '' }}>{{ $pos->name }}</option>
+                            @endforeach
+                        </select>
+                        @error('position_id')
                             <p class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</p>
                         @enderror
                     </div>
                     <div>
                         <label for="department_id" class="form-label">Department</label>
-                        <select name="department_id" id="department_id" class="form-control @error('department_id') is-error @enderror">
+                        <select name="department_id" id="department_id" required class="form-control @error('department_id') is-error @enderror">
                             <option value="">Select department</option>
                             @foreach($departments as $dept)
                                 <option value="{{ $dept->id }}" {{ (string) old('department_id', $employee->department_id) === (string) $dept->id ? 'selected' : '' }}>{{ $dept->name }}</option>

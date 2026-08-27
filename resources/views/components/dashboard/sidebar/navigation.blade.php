@@ -309,11 +309,40 @@
                 <a href="{{ route('attendance.reports', ['report_type' => 'employee_list']) }}" class="flex items-center px-3 py-2 text-sm hover:bg-white hover:text-blue-600 rounded-md group {{ $activeReportType === 'employee_list' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : 'text-gray-700' }}"><i class="fas fa-users mr-3 text-sm {{ $activeReportType === 'employee_list' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i><span>Employee Reports</span></a>
                 <a href="{{ route('attendance.reports', ['report_type' => 'leave_balance']) }}" class="flex items-center px-3 py-2 text-sm hover:bg-white hover:text-blue-600 rounded-md group {{ $activeReportType === 'leave_balance' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : 'text-gray-700' }}"><i class="fas fa-calendar-check mr-3 text-sm {{ $activeReportType === 'leave_balance' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i><span>Balance of Leaves</span></a>
                 <a href="{{ route('attendance.reports', ['report_type' => 'filings']) }}" class="flex items-center px-3 py-2 text-sm hover:bg-white hover:text-blue-600 rounded-md group {{ $activeReportType === 'filings' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : 'text-gray-700' }}"><i class="fas fa-file-contract mr-3 text-sm {{ $activeReportType === 'filings' ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i><span>Employee Filings</span></a>
-                @if($user->role === 'admin' || $user->role === 'hr' || $user->role === 'manager')
-                    <a href="{{ route('reports.index') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group {{ $activeRoute === 'reports.index' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : '' }}"><i class="fas fa-file-export mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Financial Reports</span></a>
-                @endif
             </div>
         </div>
+
+        @if($user->role === 'admin' || $user->role === 'hr' || $user->role === 'manager')
+        @php $financialReportRoutes = ['reports.index', 'payrolls.summary']; @endphp
+        <div class="relative" x-data="{ open: {{ in_array($activeRoute, $financialReportRoutes) ? 'true' : 'false' }} }">
+            <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium {{ in_array($activeRoute, $financialReportRoutes) ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600' }} rounded-lg transition-all duration-200 group">
+                <div class="flex items-center">
+                    <i class="fas fa-file-invoice-dollar mr-3 text-lg {{ in_array($activeRoute, $financialReportRoutes) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-600' }}"></i>
+                    <span>Financial Reports</span>
+                </div>
+                <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }"></i>
+            </button>
+            <div x-show="open" x-transition class="ml-8 mt-2 space-y-1 bg-gray-50 rounded-lg p-2 border border-gray-200 max-h-96 overflow-y-auto">
+                <a href="{{ route('reports.index') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group {{ $activeRoute === 'reports.index' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : '' }}"><i class="fas fa-file-export mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Consolidated Reports</span></a>
+                <a href="{{ route('payrolls.summary') }}" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group {{ $activeRoute === 'payrolls.summary' ? 'border-r-4 border-blue-600 bg-blue-50 text-blue-600' : '' }}"><i class="fas fa-calculator mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Payroll Reports</span></a>
+                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-receipt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Payslips</span></a>
+                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-university mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Bank Remittance</span></a>
+                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-coins mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Denominations</span></a>
+                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-list mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Received List</span></a>
+                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-gift mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Allowances</span></a>
+                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-star mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Allowance Special Report</span></a>
+                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-piggy-bank mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Loan Balances</span></a>
+                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-book mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Deduction Register</span></a>
+                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-file-pdf mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>SSS Report</span></a>
+                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-heartbeat mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Philhealth Report &amp; RF-1</span></a>
+                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-percent mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Tax Report</span></a>
+                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-shield-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Pag Ibig Report</span></a>
+                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-book-open mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Account Entries</span></a>
+                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-file-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Text File Reports</span></a>
+                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-white hover:text-blue-600 rounded-md group"><i class="fas fa-print mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Print Undeducted Items</span></a>
+            </div>
+        </div>
+        @endif
 
         {{-- ============ ADMINISTRATION ============ --}}
         @if($user->role === 'admin' || $user->role === 'hr')
@@ -360,6 +389,24 @@
             </div>
         </div>
         @endif
+
+        {{-- ============ SUPPORT & HELP ============ --}}
+        <div class="my-6 border-t border-gray-200"></div>
+        <div class="px-4 mb-2">
+            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Support &amp; Help</h3>
+        </div>
+
+        @if($user->employee)
+            <a href="{{ route('hr.contact.index') }}" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-lg transition-all duration-200 group">
+                <i class="fas fa-question-circle mr-3 text-lg text-gray-400 group-hover:text-blue-600"></i>
+                <span>Contact HR</span>
+            </a>
+        @endif
+
+        <a href="{{ route('hr.help-support') }}" class="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 rounded-lg transition-all duration-200 group">
+            <i class="fas fa-life-ring mr-3 text-lg text-gray-400 group-hover:text-blue-600"></i>
+            <span>Help &amp; Support</span>
+        </a>
     </div>
 </nav>
 

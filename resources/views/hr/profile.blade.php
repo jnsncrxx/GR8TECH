@@ -12,9 +12,9 @@
             <p style="margin:.25rem 0 0;font-size:.875rem;color:#6b7280;">Employee Details</p>
         </div>
         <div style="display:flex;gap:.75rem;flex-wrap:wrap;">
-            <button type="button" onclick="document.getElementById('profile-edit-form')?.scrollIntoView({behavior:'smooth'})" class="btn-cancel">
+            <a href="{{ route('hr.my-information.info') }}" class="btn-cancel">
                 <i class="fas fa-edit"></i> Edit Profile
-            </button>
+            </a>
         </div>
     </div>
 

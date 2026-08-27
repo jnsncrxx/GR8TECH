@@ -857,17 +857,6 @@
                         } }}
                     </a>
 
-                    <!-- Help and HR Support -->
-                    <a href="{{ route('hr.contact.index') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800">
-                        <i class="fas fa-question-circle w-4 h-4 mr-3 text-blue-500 dark:text-blue-400"></i>
-                        Contact HR
-                    </a>
-
-                    <a href="{{ route('hr.help-support') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-slate-800">
-                        <i class="fas fa-life-ring w-4 h-4 mr-3 text-green-500 dark:text-green-400"></i>
-                        Help &amp; Support
-                    </a>
-
                     <!-- Divider -->
                     <div class="border-t border-gray-100 my-1 dark:border-slate-700"></div>
 

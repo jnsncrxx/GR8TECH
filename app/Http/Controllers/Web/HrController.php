@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Department;
+use App\Models\Position;
 use App\Helpers\CompanyHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -61,6 +62,9 @@ class HrController extends Controller
         $departments = Department::forCompany(CompanyHelper::getCurrentCompanyId())
             ->orderBy('name')
             ->get();
+        $positions = Position::where('is_active', true)
+            ->orderBy('name')
+            ->get();
         $photoUrl = null;
 
         if ($employee && $employee->profile_photo) {
@@ -69,7 +73,7 @@ class HrController extends Controller
             $photoUrl = asset('storage/' . $employee->otherInfo->photo_path);
         }
 
-        return compact('user', 'employee', 'departments', 'photoUrl');
+        return compact('user', 'employee', 'departments', 'positions', 'photoUrl');
     }
 
     private function persistProfileUpdate(Request $request)
@@ -118,9 +122,9 @@ class HrController extends Controller
         ];
 
         if ($canEditRestricted) {
-            $rules['position'] = 'nullable|string|max:255';
+            $rules['position_id'] = 'nullable|exists:positions,id';
             $rules['department_id'] = [
-                'nullable',
+                'required',
                 Rule::exists('departments', 'id')->where(
                     fn ($query) => $query->where('company_id', CompanyHelper::getCurrentCompanyId())
                 ),
@@ -175,7 +179,7 @@ class HrController extends Controller
             ];
 
             if ($canEditRestricted) {
-                $employeeData['position'] = $request->position;
+                $employeeData['position_id'] = $request->position_id;
                 $employeeData['department_id'] = $request->department_id;
                 $employeeData['employment_type'] = $request->employment_type;
                 $employeeData['hire_date'] = $request->hire_date;
