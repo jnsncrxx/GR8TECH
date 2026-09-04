@@ -34,9 +34,6 @@ Route::middleware('guest')->group(function () {
     // Microsoft Auth Routes
     Route::get('/auth/microsoft', [\App\Http\Controllers\Web\MicrosoftAuthController::class, 'redirectToMicrosoft'])->name('auth.microsoft');
     Route::get('/auth/microsoft/callback', [\App\Http\Controllers\Web\MicrosoftAuthController::class, 'handleMicrosoftCallback'])->name('auth.microsoft.callback');
-    Route::get('/notifications/login-logs', [App\Http\Controllers\NotificationController::class, 'getLoginLogs'])
-        ->name('notifications.login-logs');
-
     // Password Reset Routes
     Route::get('/forgot-password', [AuthController::class, 'showForgotPassword'])->name('password.request');
     Route::post('/forgot-password', [AuthController::class, 'sendResetLink'])->name('password.email');
@@ -50,6 +47,8 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
     Route::get('/notifications', [App\Http\Controllers\NotificationController::class, 'index'])
         ->name('notifications.index')
         ->middleware('role:admin,hr,manager');
+    Route::get('/notifications/login-logs', [App\Http\Controllers\NotificationController::class, 'getLoginLogs'])
+        ->name('notifications.login-logs');
     // Personal "my requests" status-change notifications — available to every role.
     Route::get('/notifications/mine', [App\Http\Controllers\NotificationController::class, 'myNotifications'])
         ->name('notifications.mine');
@@ -125,6 +124,7 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
     )->name('positions.restore');
 
     // DELETE /positions/{position} now archives the position instead of permanently deleting it.
+    Route::get('/positions/by-department', [App\Http\Controllers\PositionController::class, 'getByDepartment'])->name('positions.by-department');
     Route::resource('positions', App\Http\Controllers\PositionController::class);
 
     // Payroll generation from Period Management
@@ -688,5 +688,12 @@ Route::middleware(['auth', 'role:admin,hr'])->prefix('developer')->name('develop
     Route::middleware('role:admin')->prefix('database-backup')->name('database-backup.')->group(function () {
         Route::get('/', [App\Http\Controllers\Developer\DatabaseBackupController::class, 'index'])->name('index');
         Route::post('/download', [App\Http\Controllers\Developer\DatabaseBackupController::class, 'download'])->name('download');
+    });
+
+    // Admin Payroll Simulation Demo (Admin Exclusive)
+    Route::middleware('role:admin')->prefix('sandbox')->name('sandbox.')->group(function () {
+        Route::get('/', [App\Http\Controllers\Admin\PayrollSandboxController::class, 'index'])->name('index');
+        Route::post('/run', [App\Http\Controllers\Admin\PayrollSandboxController::class, 'runScenario'])->name('run');
+        Route::post('/reset', [App\Http\Controllers\Admin\PayrollSandboxController::class, 'resetData'])->name('reset');
     });
 });
