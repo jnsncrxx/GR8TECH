@@ -150,6 +150,17 @@ class Employee extends Model
     }
 
     /**
+     * Scope to filter active employees (whose linked account is active, or employee_status is Active/regular/contractual)
+     */
+    public function scopeActive($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereNull('employee_status')
+              ->orWhereNotIn('employee_status', ['Terminated', 'Resigned', 'Inactive']);
+        });
+    }
+
+    /**
      * Whether the given manager (by employee id) is this employee's
      * manager for approval-scoping purposes — i.e. this employee's
      * department currently has that manager assigned as its manager.
