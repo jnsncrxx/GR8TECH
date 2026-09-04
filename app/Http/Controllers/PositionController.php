@@ -183,6 +183,29 @@ class PositionController extends Controller
             ->with('success', 'Position restored successfully and is now available for assignment.');
     }
 
+    /**
+     * Get positions filtered by department for AJAX dropdowns.
+     */
+    public function getByDepartment(Request $request)
+    {
+        $companyId = CompanyHelper::getCurrentCompanyId();
+        $departmentId = $request->query('department_id');
+
+        $query = Position::active();
+
+        if ($companyId) {
+            $query->where('company_id', $companyId);
+        }
+
+        if ($departmentId) {
+            $query->where('department_id', $departmentId);
+        }
+
+        $positions = $query->orderBy('name')->get(['id', 'name', 'department_id']);
+
+        return response()->json($positions);
+    }
+
     private function validatePosition(Request $request, ?Position $position = null): array
     {
         $companyId = CompanyHelper::getCurrentCompanyId();
