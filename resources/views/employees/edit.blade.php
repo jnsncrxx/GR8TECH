@@ -945,6 +945,66 @@ document.addEventListener('DOMContentLoaded', function () {
     const accountNoRequired   = document.getElementById('account_no_required');
     const bankRequired        = document.getElementById('bank_required');
 
+    /* ── Block form submit if passwords don't match ── */
+    document.getElementById('addEmpForm').addEventListener('submit', function (e) {
+        if (pwInput && pwConfirm && pwInput.value !== pwConfirm.value) {
+            e.preventDefault();
+            checkPasswordMatch();
+            pwConfirm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    });
+
+    /* ── Dynamic Department -> Position Dependent Dropdown ── */
+    const departmentSelect = document.getElementById('department_id');
+    const positionSelect   = document.getElementById('position_id');
+    const initialPositionVal = "{{ old('position_id', $employee->position_id) }}";
+
+    function updatePositionsForDepartment(selectedDeptId, selectedPosId = null) {
+        positionSelect.innerHTML = '<option value="">— Loading Positions... —</option>';
+        positionSelect.disabled = true;
+
+        let url = "{{ route('positions.by-department') }}";
+        if (selectedDeptId) {
+            url += "?department_id=" + encodeURIComponent(selectedDeptId);
+        }
+
+        fetch(url, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(positions => {
+            positionSelect.innerHTML = '<option value="">— Select Position —</option>';
+            positions.forEach(pos => {
+                const option = document.createElement('option');
+                option.value = pos.id;
+                option.textContent = pos.name;
+                if (selectedPosId && String(pos.id) === String(selectedPosId)) {
+                    option.selected = true;
+                }
+                positionSelect.appendChild(option);
+            });
+            positionSelect.disabled = false;
+        })
+        .catch(err => {
+            console.error('Failed to load positions:', err);
+            positionSelect.innerHTML = '<option value="">— Select Position —</option>';
+            positionSelect.disabled = false;
+        });
+    }
+
+    if (departmentSelect && positionSelect) {
+        departmentSelect.addEventListener('change', function () {
+            updatePositionsForDepartment(this.value);
+        });
+
+        if (departmentSelect.value) {
+            updatePositionsForDepartment(departmentSelect.value, initialPositionVal);
+        }
+    }
+
     if (paymentMethodSelect && accountNoInput && bankInput) {
         function togglePaymentRequiredFields() {
             const isBank = paymentMethodSelect.value === 'Bank';
