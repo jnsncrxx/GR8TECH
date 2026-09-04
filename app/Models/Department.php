@@ -60,6 +60,11 @@ class Department extends Model
         return $this->hasMany(Employee::class);
     }
 
+    public function positions(): HasMany
+    {
+        return $this->hasMany(Position::class);
+    }
+
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
