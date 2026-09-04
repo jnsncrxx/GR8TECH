@@ -10,9 +10,14 @@
 
 @section('content')
     <!-- Welcome Section -->
-    <div class="mb-6 sm:mb-8">
-        <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Welcome back, Admin!</h2>
-        <p class="text-sm sm:text-base text-gray-600">Here's an overview of your entire organization.</p>
+    <div class="mb-6 sm:mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+            <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Welcome back, Admin!</h2>
+            <p class="text-sm sm:text-base text-gray-600">Here's an overview of your entire organization.</p>
+        </div>
+        <a href="{{ route('developer.sandbox.index') }}" class="inline-flex items-center px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl shadow-md font-semibold text-sm transition-all transform hover:-translate-y-0.5">
+            <i class="fas fa-flask mr-2 text-yellow-300"></i> Payroll Simulation Demo
+        </a>
     </div>
 
     <!-- Stats Cards -->
