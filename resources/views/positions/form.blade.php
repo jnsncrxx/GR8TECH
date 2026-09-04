@@ -97,7 +97,7 @@
                         <x-forms.select
                             label="Department"
                             name="department_id"
-                            :value="old('department_id', isset($position) ? $position->department_id : '')"
+                            :value="old('department_id', isset($position) ? $position->department_id : request()->query('department_id', ''))"
                             required
                             :options="isset($departments) && is_iterable($departments)
                                 ? $departments->pluck('name', 'id')->toArray()
