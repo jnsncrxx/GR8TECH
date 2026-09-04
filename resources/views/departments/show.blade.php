@@ -126,6 +126,10 @@
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                     <h3 class="text-lg font-medium text-gray-900 mb-4">Quick Actions</h3>
                     <div class="space-y-3">
+                        <a href="{{ route('positions.create', ['department_id' => $department->id]) }}" class="w-full flex items-center justify-center px-4 py-2 border border-blue-600 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors">
+                            <i class="fas fa-plus mr-2"></i>
+                            Add Position
+                        </a>
                         <a href="{{ route('departments.edit', $department) }}" class="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors">
                             <i class="fas fa-edit mr-2"></i>
                             Edit Department
