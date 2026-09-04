@@ -59,6 +59,353 @@ class PayrollGenerationService
     }
 
     /**
+     * Calculate payroll preview for a single employee and date range (sandbox / ad-hoc).
+     */
+    public function calculateEmployeePayroll(
+        Employee $employee,
+        string $startDate,
+        string $endDate,
+        array $options = []
+    ): array {
+        $start = Carbon::parse($startDate);
+        $end = Carbon::parse($endDate);
+
+        $periodData = [
+            'start_date' => $start->format('Y-m-d'),
+            'end_date' => $end->format('Y-m-d'),
+            'days_in_period' => $start->diffInDays($end) + 1,
+            'sandbox_options' => [
+                'include_loans' => $options['include_loans'] ?? true,
+                'include_adjustments' => $options['include_adjustments'] ?? true,
+                'include_statutory' => $options['include_statutory'] ?? true,
+                'include_withholding_tax' => $options['include_withholding_tax'] ?? true,
+                'daily_rate_divisor' => $options['daily_rate_divisor'] ?? null,
+                'loan_override_amount' => $options['loan_override_amount'] ?? null,
+            ],
+        ];
+
+        $comprehensiveData = $this->getComprehensiveAttendanceDataForEmployees(
+            $start,
+            $end,
+            collect([$employee])
+        );
+
+        $preview = $this->calculatePayrollPreviewFromRecords(
+            $employee,
+            collect($comprehensiveData),
+            $periodData
+        );
+
+        if (! $preview) {
+            throw new \RuntimeException('Unable to calculate payroll for the selected employee and date range.');
+        }
+
+        $summarySteps = $this->buildSandboxSummarySteps($preview, $periodData);
+        $compliance = $this->buildSandboxComplianceMetadata($end, $periodData, $preview);
+
+        return array_merge($preview, [
+            'basic_pay' => $preview['basic_salary'] ?? 0,
+            'gross_salary' => $preview['gross_pay'] ?? 0,
+            'leave_pay' => ($preview['paid_leave_pay'] ?? 0) + ($preview['sick_leave_pay'] ?? 0),
+            'tardiness_deduction' => $preview['late_deduction'] ?? 0,
+            'undertime_deduction' => $preview['undertime_deduction'] ?? 0,
+            'sss_deduction' => $preview['sss'] ?? 0,
+            'philhealth_deduction' => $preview['phic'] ?? 0,
+            'pagibig_deduction' => $preview['hdmf'] ?? 0,
+            'tax_deduction' => $preview['tax_amount'] ?? 0,
+            'withholding_tax' => $preview['tax_amount'] ?? 0,
+            'overtime_effective_multiplier' => $preview['overtime_effective_multiplier'] ?? null,
+            'overtime_rate' => $preview['overtime_rate'] ?? 0,
+            'net_salary' => $preview['net_pay'] ?? 0,
+            'total_deductions' => $preview['deductions'] ?? 0,
+            'absence_deduction' => $preview['absence_deduction'] ?? 0,
+            'loan_deduction' => $preview['loan_deduction'] ?? 0,
+            'adjustment_deductions' => ($preview['deductions_details']['other'] ?? 0),
+            'summary_steps' => $summarySteps,
+            'compliance' => $compliance,
+        ]);
+    }
+
+    /**
+     * Supported PH daily-rate divisors for sandbox / policy selection.
+     */
+    public static function dailyRateDivisors(): array
+    {
+        return [
+            261 => '261 — Mon–Fri office (standard, unpaid rest days/holidays)',
+            313 => '313 — 6-day workweek (paid rest days)',
+            314 => '314 — 6-day + paid regular holidays',
+            365 => '365 — Monthly-paid, every calendar day',
+        ];
+    }
+
+    /**
+     * Compliance labels shown in the sandbox so clients know which tables are active.
+     */
+    private function buildSandboxComplianceMetadata(Carbon $asOf, array $periodData, array $preview): array
+    {
+        $daysInPeriod = (int) ($periodData['days_in_period'] ?? 0);
+        $divisor = $periodData['sandbox_options']['daily_rate_divisor'] ?? null;
+        $divisorApplied = ! empty($divisor);
+        $monthlyRate = (float) ($preview['monthly_rate'] ?? 0);
+        $payFrequency = \App\Services\TaxCalculationService::payFrequencyFromDaysInPeriod($daysInPeriod);
+
+        $taxService = app(TaxCalculationService::class);
+        $taxablePay = (float) ($preview['taxable_pay'] ?? $preview['gross_pay'] ?? 0);
+        $taxBreakdown = $taxService->getTaxBreakdown($taxablePay, $asOf, $payFrequency);
+
+        $dailyRateFormula = $divisorApplied
+            ? sprintf('Monthly × 12 ÷ %d = %s', (int) $divisor, '₱' . number_format(($monthlyRate * 12) / max(1, (int) $divisor), 2))
+            : 'From employee / template record (sandbox divisor not applied)';
+
+        $statutoryEnabled = $periodData['sandbox_options']['include_statutory'] ?? true;
+        $withholdingEnabled = $periodData['sandbox_options']['include_withholding_tax'] ?? true;
+
+        return [
+            'pay_frequency' => $daysInPeriod >= 25 ? 'Monthly cutoff' : 'Semi-monthly cutoff',
+            'pay_frequency_tax_mode' => $payFrequency === TaxCalculationService::PAY_FREQUENCY_SEMI_MONTHLY
+                ? 'Semi-monthly withholding (monthly TRAIN bracket thresholds ÷ 2)'
+                : 'Monthly withholding (TRAIN bracket thresholds as stored)',
+            'daily_rate_divisor' => $divisorApplied ? (int) $divisor : null,
+            'divisor_applied_in_engine' => $divisorApplied,
+            'daily_rate_formula' => $dailyRateFormula,
+            'hourly_rate_formula' => 'Daily Rate ÷ 8',
+            'minute_rate_formula' => 'Hourly Rate ÷ 60',
+            'statutory_enabled' => $statutoryEnabled,
+            'withholding_tax_enabled' => $withholdingEnabled,
+            'non_taxable_earnings_excluded' => (float) ($preview['non_taxable_earnings'] ?? 0),
+            'sss_table' => $statutoryEnabled
+                ? 'SSS 2026 MSC brackets (5% employee share, MSC ₱5,000–₱35,000)'
+                : 'Excluded from this simulation',
+            'philhealth_table' => $statutoryEnabled
+                ? 'PhilHealth 2026 (2.5% employee, salary base ₱10,000–₱100,000)'
+                : 'Excluded from this simulation',
+            'pagibig_table' => $statutoryEnabled
+                ? 'Pag-IBIG HDMF Circular 460 (1–2% employee, cap ₱10,000)'
+                : 'Excluded from this simulation',
+            'tax_table' => $withholdingEnabled
+                ? (($taxBreakdown['bracket_used']['name'] ?? 'TRAIN Law (active TaxBracket records)')
+                    . ' — ' . ($payFrequency === TaxCalculationService::PAY_FREQUENCY_SEMI_MONTHLY
+                        ? 'semi-monthly mode'
+                        : 'monthly mode'))
+                : 'Excluded from this simulation',
+            'tax_bracket_detail' => $withholdingEnabled
+                ? ($taxBreakdown['bracket_used']['description'] ?? null)
+                : null,
+            'late_grace_period' => '10 minutes (company policy — AttendanceRecord grace window)',
+            'thirteenth_month_note' => '13th month pay and the ₱90,000 exemption are computed separately at year-end — not in this per-cutoff simulation.',
+        ];
+    }
+
+    /**
+     * Human-readable step-by-step payroll breakdown for the sandbox UI.
+     */
+    private function buildSandboxSummarySteps(array $preview, array $periodData): array
+    {
+        $fmt = static fn ($n) => '₱' . number_format((float) $n, 2);
+        $daysInPeriod = (int) ($periodData['days_in_period'] ?? 0);
+        $hourlyRate = (float) ($preview['hourly_rate'] ?? 0);
+        $steps = [];
+
+        $basicLabel = $daysInPeriod >= 25
+            ? 'Monthly Basic Salary'
+            : 'Semi-Monthly Basic Salary (Monthly ÷ 2)';
+        $steps[] = [
+            'label' => 'Basic Salary for Cutoff',
+            'detail' => sprintf(
+                '%s Days Worked · %s',
+                number_format((float) ($preview['days_worked'] ?? 0), 1),
+                $basicLabel
+            ),
+            'formula' => $fmt($preview['basic_salary'] ?? 0),
+            'amount' => (float) ($preview['basic_salary'] ?? 0),
+            'type' => 'earning',
+        ];
+
+        $lateMinutes = (int) ($preview['late_minutes'] ?? 0);
+        $lateDeduction = (float) ($preview['late_deduction'] ?? 0);
+        if ($lateMinutes > 0 || $lateDeduction > 0) {
+            $steps[] = [
+                'label' => 'Late Deduction',
+                'detail' => sprintf('%d mins × (%s ÷ 60)', $lateMinutes, $fmt($hourlyRate)),
+                'formula' => '−' . $fmt($lateDeduction),
+                'amount' => -$lateDeduction,
+                'type' => 'deduction',
+            ];
+        }
+
+        $undertimeMinutes = (int) ($preview['undertime_minutes'] ?? 0);
+        $undertimeDeduction = (float) ($preview['undertime_deduction'] ?? 0);
+        if ($undertimeMinutes > 0 || $undertimeDeduction > 0) {
+            $steps[] = [
+                'label' => 'Undertime Deduction',
+                'detail' => sprintf('%d mins × (%s ÷ 60)', $undertimeMinutes, $fmt($hourlyRate)),
+                'formula' => '−' . $fmt($undertimeDeduction),
+                'amount' => -$undertimeDeduction,
+                'type' => 'deduction',
+            ];
+        }
+
+        $otHours = (float) ($preview['overtime_hours'] ?? 0);
+        $otPay = (float) ($preview['overtime_pay'] ?? 0);
+        if ($otHours > 0 || $otPay > 0) {
+            $steps[] = [
+                'label' => 'Regular Overtime Pay',
+                'detail' => sprintf(
+                    '%s hrs × (%s × 1.25)',
+                    number_format($otHours, 2),
+                    $fmt($hourlyRate)
+                ),
+                'formula' => '+' . $fmt($otPay),
+                'amount' => $otPay,
+                'type' => 'earning',
+            ];
+        }
+
+        $leavePay = (float) (($preview['paid_leave_pay'] ?? 0) + ($preview['sick_leave_pay'] ?? 0));
+        if ($leavePay > 0) {
+            $steps[] = [
+                'label' => 'Paid Leave / OB Pay',
+                'detail' => sprintf('%s days credited', number_format((float) ($preview['paid_leave_days'] ?? 0), 1)),
+                'formula' => '+' . $fmt($leavePay),
+                'amount' => $leavePay,
+                'type' => 'earning',
+            ];
+        }
+
+        $nightDiffPay = (float) ($preview['night_differential_pay'] ?? 0);
+        $nightDiffHours = (float) ($preview['night_differential_hours'] ?? 0);
+        if ($nightDiffHours > 0 || $nightDiffPay > 0) {
+            $steps[] = [
+                'label' => 'Night Shift Differential',
+                'detail' => sprintf('%s hrs × (%s × 10%%) · 10 PM–6 AM', number_format($nightDiffHours, 2), $fmt($hourlyRate)),
+                'formula' => '+' . $fmt($nightDiffPay),
+                'amount' => $nightDiffPay,
+                'type' => 'earning',
+            ];
+        }
+
+        $holidayPay = (float) ($preview['holiday_pay'] ?? 0);
+        if ($holidayPay > 0) {
+            $steps[] = [
+                'label' => 'Regular / Special Holiday Premium',
+                'detail' => sprintf('%s regular + %s special holiday day(s)', $preview['regular_holiday_days'] ?? 0, $preview['special_holiday_days'] ?? 0),
+                'formula' => '+' . $fmt($holidayPay),
+                'amount' => $holidayPay,
+                'type' => 'earning',
+            ];
+        }
+
+        $restDayPay = (float) ($preview['rest_day_premium_pay'] ?? 0);
+        if ($restDayPay > 0) {
+            $steps[] = [
+                'label' => 'Rest Day Premium Pay',
+                'detail' => 'Rest day / weekend OT premium',
+                'formula' => '+' . $fmt($restDayPay),
+                'amount' => $restDayPay,
+                'type' => 'earning',
+            ];
+        }
+
+        $absenceDeduction = (float) ($preview['absence_deduction'] ?? 0);
+        if ($absenceDeduction > 0) {
+            $steps[] = [
+                'label' => 'Absence Deduction',
+                'detail' => 'Scheduled workday with no attendance punch',
+                'formula' => '−' . $fmt($absenceDeduction),
+                'amount' => -$absenceDeduction,
+                'type' => 'deduction',
+            ];
+        }
+
+        $grossPay = (float) ($preview['gross_pay'] ?? 0);
+        $steps[] = [
+            'label' => 'Total Gross Pay',
+            'detail' => 'Basic + earnings − attendance penalties',
+            'formula' => $fmt($grossPay),
+            'amount' => $grossPay,
+            'type' => 'total',
+        ];
+
+        $loanDeduction = (float) ($preview['loan_deduction'] ?? 0);
+        if ($loanDeduction > 0) {
+            $steps[] = [
+                'label' => 'Loan Amortization',
+                'detail' => 'From employee Loan Management / legacy loan fields',
+                'formula' => '−' . $fmt($loanDeduction),
+                'amount' => -$loanDeduction,
+                'type' => 'deduction',
+            ];
+        }
+
+        $adjustmentDeductions = (float) ($preview['deductions_details']['other'] ?? 0);
+        if ($adjustmentDeductions > 0) {
+            $steps[] = [
+                'label' => 'Payroll Adjustments (Deductions)',
+                'detail' => 'Active PayrollAdjustment records for this cutoff',
+                'formula' => '−' . $fmt($adjustmentDeductions),
+                'amount' => -$adjustmentDeductions,
+                'type' => 'deduction',
+            ];
+        }
+
+        foreach ([
+            'sss' => 'SSS Premium',
+            'phic' => 'PhilHealth Contribution',
+            'hdmf' => 'Pag-IBIG Contribution',
+        ] as $key => $label) {
+            $amount = (float) ($preview[$key] ?? 0);
+            if ($amount > 0) {
+                $steps[] = [
+                    'label' => $label,
+                    'detail' => 'Statutory deduction',
+                    'formula' => '−' . $fmt($amount),
+                    'amount' => -$amount,
+                    'type' => 'deduction',
+                ];
+            }
+        }
+
+        $tax = (float) ($preview['tax_amount'] ?? 0);
+        if ($tax > 0) {
+            $steps[] = [
+                'label' => 'Withholding Tax',
+                'detail' => 'Based on taxable gross',
+                'formula' => '−' . $fmt($tax),
+                'amount' => -$tax,
+                'type' => 'deduction',
+            ];
+        }
+
+        $steps[] = [
+            'label' => 'Net Take-Home Pay',
+            'detail' => 'Gross pay − all deductions',
+            'formula' => $fmt($preview['net_pay'] ?? 0),
+            'amount' => (float) ($preview['net_pay'] ?? 0),
+            'type' => 'net',
+        ];
+
+        return $steps;
+    }
+
+    /**
+     * Build comprehensive attendance rows via the same logic used in payroll generation.
+     */
+    private function getComprehensiveAttendanceDataForEmployees(Carbon $startDate, Carbon $endDate, $employees): array
+    {
+        $payrollController = app(\App\Http\Controllers\Web\PayrollController::class);
+        $method = new \ReflectionMethod(
+            \App\Http\Controllers\Web\PayrollController::class,
+            'getComprehensiveAttendanceData'
+        );
+        $method->setAccessible(true);
+
+        $result = $method->invoke($payrollController, $startDate, $endDate, $employees);
+
+        return is_array($result) ? $result : collect($result)->values()->all();
+    }
+
+    /**
      * Generate payroll for a specific period using comprehensive attendance data and persist to DB
      *
      * @param array $periodData
@@ -1195,6 +1542,13 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             ? (float) $template->hourly_rate
             : (float) ($employee->hourly_rate ?? ($dailyRate / 8));
 
+        $sandboxOptions = $periodData['sandbox_options'] ?? [];
+        if (! empty($sandboxOptions['daily_rate_divisor'])) {
+            $divisor = max(1, (int) $sandboxOptions['daily_rate_divisor']);
+            $dailyRate = round(($monthlyRate * 12) / $divisor, 2);
+            $hourlyRate = round($dailyRate / 8, 2);
+        }
+
         // Calculate basic working days and hours
         $daysWorked = $this->calculateDaysWorkedFromRecords($employeeRecords);
         
@@ -1234,16 +1588,19 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
         // Resolve monthly statutory amounts first, including template overrides,
         // then allocate them across the payroll frequency. Standard cutoffs are
         // semi-monthly, while periods spanning at least 25 days are monthly.
+        $sandboxOptions = $periodData['sandbox_options'] ?? [];
         $statutoryDeductionDivisor = $daysInPeriod >= 25 ? 1 : 2;
-        $statutoryDeductions = $this->calculateStatutoryDeductions(
-            $monthlyRate,
-            $statutoryDeductionDivisor,
-            [
-                'sss' => $template?->sss,
-                'phic' => $template?->phic,
-                'hdmf' => $template?->hdmf,
-            ]
-        );
+        $statutoryDeductions = ($sandboxOptions['include_statutory'] ?? true)
+            ? $this->calculateStatutoryDeductions(
+                $monthlyRate,
+                $statutoryDeductionDivisor,
+                [
+                    'sss' => $template?->sss,
+                    'phic' => $template?->phic,
+                    'hdmf' => $template?->hdmf,
+                ]
+            )
+            : ['sss' => 0.0, 'phic' => 0.0, 'hdmf' => 0.0];
 
         // Calculate late/undertime deductions
         $timeDeductions = $this->calculateLateUndertimeDeductions($employeeRecords, $hourlyRate);
@@ -1257,8 +1614,19 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
         $otherDeductions = $template && $template->deductions !== null
             ? (float) $template->deductions
             : 0.0;
-        $scheduledLoanDeduction = $this->calculateLoanDeduction($employee, $periodData);
-        $payrollAdjustments = $this->calculatePayrollAdjustments($employee, $periodData);
+
+        $scheduledLoanDeduction = ($sandboxOptions['include_loans'] ?? true)
+            ? $this->calculateLoanDeduction($employee, $periodData)
+            : 0.0;
+        $payrollAdjustments = ($sandboxOptions['include_adjustments'] ?? true)
+            ? $this->calculatePayrollAdjustments($employee, $periodData)
+            : [
+                'bonuses' => 0.0,
+                'allowances' => 0.0,
+                'other_earnings' => 0.0,
+                'deductions' => 0.0,
+                'non_taxable_earnings' => 0.0,
+            ];
 
         // Calculate gross pay using Excel formula pattern
         $grossPay = $this->calculateGrossPayWithExcelFormula(
@@ -1302,8 +1670,9 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
         // late, undertime, and unpaid-leave adjustments—not the unreduced
         // fixed salary. Never withhold more than the employee can receive.
         $taxablePay = max(0, $remainingPay - $payrollAdjustments['non_taxable_earnings']);
-        $scheduledTaxAmount = $this->calculateTax($taxablePay);
-        $taxAmount = min($scheduledTaxAmount, $remainingPay);
+        $includeTax = $sandboxOptions['include_withholding_tax'] ?? true;
+        $scheduledTaxAmount = $includeTax ? $this->calculateTax($taxablePay, $periodData) : 0.0;
+        $taxAmount = $includeTax ? min($scheduledTaxAmount, $remainingPay) : 0.0;
         $remainingPay -= $taxAmount;
 
         // Apply the remaining deductions in a deterministic priority order.
@@ -1342,6 +1711,7 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             'days_worked' => $daysWorked,
             'overtime_hours' => $overtimeData['total_hours'],
             'overtime_rate' => $overtimeData['effective_rate'],
+            'overtime_effective_multiplier' => $overtimeData['effective_multiplier'],
             'overtime_pay' => $overtimeData['total_pay'],
             'night_differential_hours' => $nightDiffData['total_hours'],
             'night_differential_rate' => $hourlyRate * 0.10, // Excel: 10% of hourly rate
@@ -1369,6 +1739,7 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             'hdmf' => $appliedHdmf,
             'tax_amount' => $taxAmount,
             'taxable_pay' => $taxablePay,
+            'non_taxable_earnings' => $payrollAdjustments['non_taxable_earnings'],
             'scheduled_deductions' => round(
                 $scheduledAttendanceDeductions
                 + array_sum($statutoryDeductions)
@@ -1783,6 +2154,17 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
      */
     private function calculateLoanDeduction(Employee $employee, array $periodData): float
     {
+        $sandboxOptions = $periodData['sandbox_options'] ?? [];
+        if (($sandboxOptions['include_loans'] ?? true) === false) {
+            return 0.0;
+        }
+
+        if (array_key_exists('loan_override_amount', $sandboxOptions)
+            && $sandboxOptions['loan_override_amount'] !== null
+            && $sandboxOptions['loan_override_amount'] !== '') {
+            return round(max(0, (float) $sandboxOptions['loan_override_amount']), 2);
+        }
+
         $breakdown = $this->loanDeductionBreakdown($employee, $periodData);
 
         if (!empty($breakdown)) {
@@ -3092,15 +3474,21 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
     }
 
     /**
-     * Calculate tax amount using TaxCalculationService
+     * Calculate tax amount using TaxCalculationService.
      *
-     * @param float $grossPay
-     * @return float
+     * @param  array<string, mixed>  $periodData
      */
-    private function calculateTax(float $grossPay): float
+    private function calculateTax(float $grossPay, array $periodData = []): float
     {
-        $taxService = app(\App\Services\TaxCalculationService::class);
-        return $taxService->calculateTax($grossPay);
+        $daysInPeriod = (int) ($periodData['days_in_period'] ?? 30);
+        $payFrequency = TaxCalculationService::payFrequencyFromDaysInPeriod($daysInPeriod);
+        $asOf = isset($periodData['end_date'])
+            ? Carbon::parse($periodData['end_date'])
+            : now();
+
+        $taxService = app(TaxCalculationService::class);
+
+        return $taxService->calculateTax($grossPay, $asOf, $payFrequency);
     }
 
     /**
