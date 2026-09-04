@@ -904,6 +904,57 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
+    /* ── Dynamic Department -> Position Dependent Dropdown ── */
+    const departmentSelect = document.getElementById('department_id');
+    const positionSelect   = document.getElementById('position_id');
+    const initialPositionVal = "{{ old('position_id') }}";
+
+    function updatePositionsForDepartment(selectedDeptId, selectedPosId = null) {
+        // Clear current positions
+        positionSelect.innerHTML = '<option value="">— Loading Positions... —</option>';
+        positionSelect.disabled = true;
+
+        let url = "{{ route('positions.by-department') }}";
+        if (selectedDeptId) {
+            url += "?department_id=" + encodeURIComponent(selectedDeptId);
+        }
+
+        fetch(url, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(positions => {
+            positionSelect.innerHTML = '<option value="">— Select Position —</option>';
+            positions.forEach(pos => {
+                const option = document.createElement('option');
+                option.value = pos.id;
+                option.textContent = pos.name;
+                if (selectedPosId && String(pos.id) === String(selectedPosId)) {
+                    option.selected = true;
+                }
+                positionSelect.appendChild(option);
+            });
+            positionSelect.disabled = false;
+        })
+        .catch(err => {
+            console.error('Failed to load positions:', err);
+            positionSelect.innerHTML = '<option value="">— Select Position —</option>';
+            positionSelect.disabled = false;
+        });
+    }
+
+    departmentSelect.addEventListener('change', function () {
+        updatePositionsForDepartment(this.value);
+    });
+
+    // If department is already selected on load (e.g. back from validation error)
+    if (departmentSelect.value) {
+        updatePositionsForDepartment(departmentSelect.value, initialPositionVal);
+    }
+
 });
 </script>
 @endsection
