@@ -130,14 +130,21 @@ class PayrollSandboxController extends Controller
         try {
             $this->cleanSandboxData($employee, $startDate, $endDate);
 
-            $this->seedSandboxSchedules($employee, $startDate, $endDate, $scenario['shift_start'], $scenario['shift_end']);
+            $this->seedSandboxSchedules(
+                $employee,
+                $startDate,
+                $endDate,
+                $plan,
+                $scenario['shift_start'],
+                $scenario['shift_end']
+            );
 
             $scenarioSummary = $this->executeScenarioPlan($employee, $plan, array_merge($scenario, [
                 '_start_date' => $startDate->format('Y-m-d'),
                 '_end_date' => $endDate->format('Y-m-d'),
             ]));
 
-            if ($request->boolean('include_adjustments', true)) {
+            if ($request->boolean('include_adjustments', false)) {
                 $this->seedDemoAdjustments(
                     $employee,
                     $companyId,
@@ -148,8 +155,12 @@ class PayrollSandboxController extends Controller
                 );
             }
 
-            $loanOverride = $request->filled('sandbox_loan_amount')
-                ? (float) $validated['sandbox_loan_amount']
+            // Sandbox loan demos use the amount field only — never silent live loan records.
+            $includeLoans = $request->boolean('include_loans', false);
+            $loanOverride = $includeLoans
+                ? ($request->filled('sandbox_loan_amount')
+                    ? (float) $validated['sandbox_loan_amount']
+                    : 0.0)
                 : null;
 
             $calculation = $this->payrollService->calculateEmployeePayroll(
@@ -157,7 +168,7 @@ class PayrollSandboxController extends Controller
                 $startDate->format('Y-m-d'),
                 $endDate->format('Y-m-d'),
                 [
-                    'include_loans' => $request->boolean('include_loans', false),
+                    'include_loans' => $includeLoans,
                     'include_adjustments' => $request->boolean('include_adjustments', false),
                     'include_statutory' => $request->boolean('include_statutory', false),
                     'include_withholding_tax' => $request->boolean('include_withholding_tax', false),
@@ -380,7 +391,7 @@ class PayrollSandboxController extends Controller
                         $this->createNightShiftAttendance($employee, $dateStr);
                         $label = 'Night Shift (10 PM–6 AM) + NSD';
                     } else {
-                        $times = $this->resolveLateOtTimes($scenario);
+                        $times = $this->resolveLateOtTimes($dateStr, $scenario);
                         AttendanceRecord::create([
                             'employee_id' => $employee->id,
                             'date' => $dateStr,
@@ -395,7 +406,7 @@ class PayrollSandboxController extends Controller
                             OvertimeRequest::create([
                                 'employee_id' => $employee->id,
                                 'date' => $dateStr,
-                                'start_time' => $scenario['shift_end'] . ':00',
+                                'start_time' => $this->sandboxDateTime($dateStr, $scenario['shift_end']),
                                 'end_time' => $times['time_out'],
                                 'hours' => $scenario['overtime_hours'],
                                 'rate_multiplier' => $scenario['overtime_multiplier'],
@@ -441,8 +452,8 @@ class PayrollSandboxController extends Controller
                 AttendanceRecord::create([
                     'employee_id' => $employee->id,
                     'date' => $dateStr,
-                    'time_in' => $scenario['shift_start'] . ':00',
-                    'time_out' => $shiftEnd->format('H:i:s'),
+                    'time_in' => $this->sandboxDateTime($dateStr, $scenario['shift_start']),
+                    'time_out' => $this->sandboxDateTime($dateStr, $shiftEnd->format('H:i:s')),
                     'status' => 'present',
                     'regular_hours' => 0,
                     'overtime_hours' => $hours,
@@ -513,8 +524,8 @@ class PayrollSandboxController extends Controller
         AttendanceRecord::create([
             'employee_id' => $employee->id,
             'date' => $dateStr,
-            'time_in' => $shiftStart . ':00',
-            'time_out' => $shiftEnd . ':00',
+            'time_in' => $this->sandboxDateTime($dateStr, $shiftStart),
+            'time_out' => $this->sandboxDateTime($dateStr, $shiftEnd),
             'status' => 'present',
             'regular_hours' => 8.00,
             'overtime_hours' => 0,
@@ -522,10 +533,21 @@ class PayrollSandboxController extends Controller
     }
 
     /**
+     * AttendanceRecord casts time_in/time_out as datetime. Bare "08:00:00" values
+     * anchor to today's date and inflate late/undertime penalties for past DTR days.
+     */
+    private function sandboxDateTime(string $dateStr, string $time): Carbon
+    {
+        $normalized = strlen($time) === 5 ? $time . ':00' : $time;
+
+        return Carbon::parse($dateStr . ' ' . $normalized);
+    }
+
+    /**
      * Derive punch times from late, undertime, and OT inputs.
      * Late uses the same grace-period rules as AttendanceRecord (10 min grace).
      */
-    private function resolveLateOtTimes(array $scenario): array
+    private function resolveLateOtTimes(string $dateStr, array $scenario): array
     {
         $shiftStart = Carbon::createFromFormat('H:i', $scenario['shift_start']);
         $shiftEnd = Carbon::createFromFormat('H:i', $scenario['shift_end']);
@@ -545,8 +567,8 @@ class PayrollSandboxController extends Controller
         }
 
         return [
-            'time_in' => $timeIn->format('H:i:s'),
-            'time_out' => $timeOut->format('H:i:s'),
+            'time_in' => $this->sandboxDateTime($dateStr, $timeIn->format('H:i:s')),
+            'time_out' => $this->sandboxDateTime($dateStr, $timeOut->format('H:i:s')),
         ];
     }
 
@@ -651,29 +673,66 @@ class PayrollSandboxController extends Controller
     }
 
     /**
-     * Seed weekday working schedules so payroll can compute late, undertime, absence, and OT.
+     * Seed schedules only for scenario plan dates (plus weekends for rest-day demos).
+     *
+     * Weekdays outside the plan intentionally receive no schedule so payroll does
+     * not treat them as unexcused absences during a partial-period demo.
      */
     private function seedSandboxSchedules(
         Employee $employee,
         Carbon $startDate,
         Carbon $endDate,
+        array $plan,
         string $shiftStart = '08:00',
         string $shiftEnd = '17:00'
     ): void {
+        $planByDate = collect($plan)->keyBy(fn (array $entry) => $entry['date']->format('Y-m-d'));
+
         $current = $startDate->copy();
 
         while ($current->lte($endDate)) {
+            $dateStr = $current->format('Y-m-d');
             $isWeekend = $current->isWeekend();
+            $planEntry = $planByDate->get($dateStr);
+
+            if ($isWeekend) {
+                if ($current->isSaturday()) {
+                    EmployeeSchedule::create([
+                        'employee_id' => $employee->id,
+                        'department_id' => $employee->department_id,
+                        'date' => $dateStr,
+                        'time_in' => null,
+                        'time_out' => null,
+                        'status' => 'Day Off',
+                        'schedule_type' => 'fixed',
+                        'required_hours' => 0,
+                        'notes' => self::SANDBOX_SCHEDULE_NOTE,
+                        'created_by' => auth()->id(),
+                    ]);
+                }
+
+                $current->addDay();
+                continue;
+            }
+
+            if (! $planEntry) {
+                $current->addDay();
+                continue;
+            }
+
+            $scheduleStatus = $planEntry['type'] === 'regular_holiday'
+                ? 'Regular Holiday'
+                : 'Working';
 
             EmployeeSchedule::create([
                 'employee_id' => $employee->id,
                 'department_id' => $employee->department_id,
-                'date' => $current->format('Y-m-d'),
-                'time_in' => $isWeekend ? null : $shiftStart . ':00',
-                'time_out' => $isWeekend ? null : $shiftEnd . ':00',
-                'status' => $isWeekend ? 'Day Off' : 'Working',
+                'date' => $dateStr,
+                'time_in' => $shiftStart . ':00',
+                'time_out' => $shiftEnd . ':00',
+                'status' => $scheduleStatus,
                 'schedule_type' => 'fixed',
-                'required_hours' => $isWeekend ? 0 : 8,
+                'required_hours' => 8,
                 'notes' => self::SANDBOX_SCHEDULE_NOTE,
                 'created_by' => auth()->id(),
             ]);
