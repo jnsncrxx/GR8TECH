@@ -90,9 +90,13 @@ class PayrollGenerationService
             collect([$employee])
         );
 
+        $employeeRecords = collect($comprehensiveData)
+            ->where('employee_id', $employee->id)
+            ->values();
+
         $preview = $this->calculatePayrollPreviewFromRecords(
             $employee,
-            collect($comprehensiveData),
+            $employeeRecords,
             $periodData
         );
 
@@ -106,7 +110,9 @@ class PayrollGenerationService
         return array_merge($preview, [
             'basic_pay' => $preview['basic_salary'] ?? 0,
             'gross_salary' => $preview['gross_pay'] ?? 0,
-            'leave_pay' => ($preview['paid_leave_pay'] ?? 0) + ($preview['sick_leave_pay'] ?? 0),
+            'gross_after_attendance' => $preview['gross_pay_after_attendance'] ?? null,
+            'leave_pay' => $preview['paid_leave_pay_in_gross'] ?? 0,
+            'paid_leave_included_in_basic' => $preview['paid_leave_included_in_basic'] ?? false,
             'tardiness_deduction' => $preview['late_deduction'] ?? 0,
             'undertime_deduction' => $preview['undertime_deduction'] ?? 0,
             'sss_deduction' => $preview['sss'] ?? 0,
@@ -117,7 +123,7 @@ class PayrollGenerationService
             'overtime_effective_multiplier' => $preview['overtime_effective_multiplier'] ?? null,
             'overtime_rate' => $preview['overtime_rate'] ?? 0,
             'net_salary' => $preview['net_pay'] ?? 0,
-            'total_deductions' => $preview['deductions'] ?? 0,
+            'total_deductions' => $preview['total_deductions'] ?? $preview['deductions'] ?? 0,
             'absence_deduction' => $preview['absence_deduction'] ?? 0,
             'loan_deduction' => $preview['loan_deduction'] ?? 0,
             'adjustment_deductions' => ($preview['deductions_details']['other'] ?? 0),
@@ -263,13 +269,17 @@ class PayrollGenerationService
         }
 
         $leavePay = (float) (($preview['paid_leave_pay'] ?? 0) + ($preview['sick_leave_pay'] ?? 0));
-        if ($leavePay > 0) {
+        $paidLeaveDays = (float) ($preview['paid_leave_days'] ?? 0);
+        if ($paidLeaveDays > 0 || $leavePay > 0) {
+            $includedInBasic = (bool) ($preview['paid_leave_included_in_basic'] ?? false);
             $steps[] = [
-                'label' => 'Paid Leave / OB Pay',
-                'detail' => sprintf('%s days credited', number_format((float) ($preview['paid_leave_days'] ?? 0), 1)),
-                'formula' => '+' . $fmt($leavePay),
-                'amount' => $leavePay,
-                'type' => 'earning',
+                'label' => 'Paid Leave / OB',
+                'detail' => $includedInBasic
+                    ? sprintf('%s day(s) — already covered by cutoff basic salary', number_format($paidLeaveDays, 1))
+                    : sprintf('%s day(s) credited at daily rate', number_format($paidLeaveDays, 1)),
+                'formula' => $includedInBasic ? 'Included in basic' : ('+' . $fmt($leavePay)),
+                'amount' => $includedInBasic ? 0.0 : $leavePay,
+                'type' => $includedInBasic ? 'info' : 'earning',
             ];
         }
 
@@ -319,11 +329,16 @@ class PayrollGenerationService
         }
 
         $grossPay = (float) ($preview['gross_pay'] ?? 0);
+        $attendancePenalties = (float) ($preview['late_deduction'] ?? 0)
+            + (float) ($preview['undertime_deduction'] ?? 0)
+            + (float) ($preview['absence_deduction'] ?? 0)
+            + (float) ($preview['unpaid_leave_deduction'] ?? 0);
+        $grossAfterAttendance = round(max(0, $grossPay - $attendancePenalties), 2);
         $steps[] = [
             'label' => 'Total Gross Pay',
-            'detail' => 'Basic + earnings − attendance penalties',
-            'formula' => $fmt($grossPay),
-            'amount' => $grossPay,
+            'detail' => 'Basic + premiums − attendance penalties (late, absent, unpaid leave)',
+            'formula' => $fmt($grossAfterAttendance),
+            'amount' => $grossAfterAttendance,
             'type' => 'total',
         ];
 
@@ -1575,12 +1590,13 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
         // Calculate rest day premiums
         $restDayData = $this->calculateRestDayPremiumWithExcelRates($employee, $employeeRecords, $dailyRate);
 
-        // Calculate approved leave compensation for the payroll period
-        $leaveData = $this->calculateApprovedLeaveData($employee, $periodData, $employeeRecords);
+        // Calculate approved leave compensation for the payroll period using the
+        // same daily rate as OT, absence, and late penalties (not a stale employee field).
+        $leaveData = $this->calculateApprovedLeaveData($employee, $periodData, $employeeRecords, $dailyRate);
 
-        // Calculate only earned/configured allowances. Leave pay must come
-        // from approved leave dates, never from an unconditional five-day grant.
-        $allowances = $this->calculateAllowances($employee, $dailyRate, $leaveData);
+        // Fixed cutoff basic (monthly ÷ 2 or full monthly) already covers approved
+        // paid leave and OB days — do not add paid-leave pay on top of basic again.
+        $allowances = $this->calculateAllowances($employee, $dailyRate, $leaveData, true);
         if ($template && $template->allowances !== null) {
             $allowances['total'] = (float) $template->allowances;
         }
@@ -1611,7 +1627,10 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
         // Unpaid leave deduction (personal / emergency leave days × daily rate)
         $unpaidLeaveDeduction = $leaveData['unpaid_leave_deduction'] ?? 0;
 
-        $otherDeductions = $template && $template->deductions !== null
+        // Template-level fixed deductions apply in production payroll only.
+        // Sandbox demos use explicit toggles / demo adjustment fields instead.
+        $isSandboxRun = ! empty($periodData['sandbox_options']);
+        $otherDeductions = (! $isSandboxRun && $template && $template->deductions !== null)
             ? (float) $template->deductions
             : 0.0;
 
@@ -1722,6 +1741,8 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             'other_earnings' => $payrollAdjustments['other_earnings'],
             'paid_leave_days' => $leaveData['paid_leave_days'] ?? 0,
             'paid_leave_pay' => $leaveData['paid_leave_pay'] ?? 0,
+            'paid_leave_included_in_basic' => $allowances['paid_leave_included_in_basic'] ?? false,
+            'paid_leave_pay_in_gross' => $allowances['paid_leave_pay_in_gross'] ?? 0,
             'sick_leave_days' => $leaveData['sick_leave_days'] ?? 0,
             'sick_leave_pay' => $leaveData['sick_leave_pay'] ?? 0,
             'unpaid_leave_days' => $leaveData['unpaid_leave_days'] ?? 0,
@@ -1758,6 +1779,7 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
                 2
             ),
             'gross_pay' => $grossPay,
+            'gross_pay_after_attendance' => round(max(0, $grossPay - $appliedAttendanceDeductions), 2),
             'net_pay' => $netPay,
             // Holiday data for reference
             'holiday_basic_pay' => $holidayData['basic_pay'] ?? 0,
@@ -2076,25 +2098,30 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
     /**
      * Calculate allowances (incentive leave)
      */
-    private function calculateAllowances(Employee $employee, $dailyRate, array $leaveData = []): array
-    {
+    private function calculateAllowances(
+        Employee $employee,
+        $dailyRate,
+        array $leaveData = [],
+        bool $paidLeaveIncludedInBasic = false
+    ): array {
         // The old implementation granted five incentive-leave days on every
         // payroll run. That repeatedly paid an annual benefit and inflated all
         // employees' gross pay even when no leave was approved.
         $incentiveLeaveDays = 0;
         $incentiveLeavePay = 0;
         $paidLeavePay = (float) ($leaveData['paid_leave_pay'] ?? 0);
+        $paidLeavePayInGross = $paidLeaveIncludedInBasic ? 0.0 : $paidLeavePay;
 
-        // Preserve paid leave as an explicit payroll earning so approved paid
-        // days remain visible in the preview and gross-pay calculation.
-        $totalAllowance = $incentiveLeavePay + $paidLeavePay;
+        $totalAllowance = $incentiveLeavePay + $paidLeavePayInGross;
 
         return [
             'incentive_leave_days' => $incentiveLeaveDays,
             'paid_leave_days' => $leaveData['paid_leave_days'] ?? 0,
             'paid_leave_pay' => $paidLeavePay,
+            'paid_leave_pay_in_gross' => round($paidLeavePayInGross, 2),
+            'paid_leave_included_in_basic' => $paidLeaveIncludedInBasic && $paidLeavePay > 0,
             'incentive_leave_pay' => round($incentiveLeavePay, 2),
-            'total' => round($totalAllowance, 2)
+            'total' => round($totalAllowance, 2),
         ];
     }
 
@@ -2279,8 +2306,12 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
     /**
      * Calculate approved sick leave pay for the payroll period.
      */
-    private function calculateApprovedLeaveData(Employee $employee, array $periodData, $employeeRecords = null): array
-    {
+    private function calculateApprovedLeaveData(
+        Employee $employee,
+        array $periodData,
+        $employeeRecords = null,
+        float $dailyRate = 0.0
+    ): array {
         // Paid leave types are compensated for these days. Everything else
         // (LeaveRequest::UNCAPPED_LEAVE_TYPES) is unpaid and deducted from
         // gross pay. Derived from the canonical lists on LeaveRequest so
@@ -2306,7 +2337,9 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             })
             ->get();
 
-        $dailyRate          = $employee->daily_rate ?? 0;
+        if ($dailyRate <= 0) {
+            $dailyRate = (float) ($employee->daily_rate ?? 0);
+        }
         $paidLeaveDays      = 0;
         $unpaidLeaveDays    = 0;
         $paidLeaveDaysByType = [];
@@ -2990,6 +3023,8 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             'other_earnings' => $components['other_earnings'] ?? 0,
             'paid_leave_days' => $components['paid_leave_days'],
             'paid_leave_pay' => $components['paid_leave_pay'],
+            'paid_leave_included_in_basic' => $components['paid_leave_included_in_basic'] ?? false,
+            'paid_leave_pay_in_gross' => $components['paid_leave_pay_in_gross'] ?? 0,
             'sick_leave_days' => $components['sick_leave_days'] ?? 0,
             'sick_leave_pay' => $components['sick_leave_pay'] ?? 0,
             'unpaid_leave_days' => $components['unpaid_leave_days'] ?? 0,
@@ -3013,6 +3048,7 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             'tax_amount' => $components['tax_amount'],
             'taxable_pay' => $components['taxable_pay'] ?? $components['gross_pay'],
             'gross_pay' => $components['gross_pay'],
+            'gross_pay_after_attendance' => $components['gross_pay_after_attendance'] ?? null,
             'net_pay' => $components['net_pay'],
             'sss' => $components['sss'],
             'phic' => $components['phic'],
