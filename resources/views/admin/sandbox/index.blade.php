@@ -10,19 +10,13 @@
         <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div>
                 <div class="flex items-center space-x-3">
-                    <div class="p-3 bg-white/10 rounded-lg backdrop-blur-sm">
-                        <i class="fas fa-flask text-2xl text-yellow-300"></i>
-                    </div>
                     <div>
                         <h2 class="text-2xl font-bold">Payroll Simulation Demo</h2>
-                        <p class="text-blue-100 text-sm mt-1">
-                            Run sample DTR scenarios and preview payroll calculations — ideal for client demos and verification before live payroll runs.
-                        </p>
                     </div>
                 </div>
             </div>
             <div class="flex items-center space-x-2 bg-yellow-400/20 border border-yellow-300/30 px-3 py-1.5 rounded-lg text-xs font-semibold text-yellow-200">
-                <i class="fas fa-shield-alt mr-1"></i> Admin Demo Tool
+                <i></i> Simulation Demo
             </div>
         </div>
     </div>
@@ -443,7 +437,8 @@ document.addEventListener('DOMContentLoaded', function () {
             demo_allowance_de_minimis: 0, demo_deduction: 0,
         },
         perfect: {
-            regular_days: 10, ob_days: 0, vl_days: 0, absent_days: 0,
+            _fillAllWeekdays: true,
+            regular_days: 0, ob_days: 0, vl_days: 0, absent_days: 0,
             regular_holiday_days: 0, rest_day_hours: 0,
             late_minutes: 0, undertime_minutes: 0, overtime_hours: 0,
             overtime_multiplier: 1.25, shift_start: '08:00', shift_end: '17:00',
@@ -461,7 +456,7 @@ document.addEventListener('DOMContentLoaded', function () {
             daily_rate_divisor: 261, simulate_night_diff: false,
             include_statutory: false, include_withholding_tax: false,
             include_loans: true, include_adjustments: false,
-            sandbox_loan_amount: '1500', demo_bonus_taxable: 0,
+            sandbox_loan_amount: '500', demo_bonus_taxable: 0,
             demo_allowance_de_minimis: 0, demo_deduction: 0,
         },
     };
@@ -503,13 +498,31 @@ document.addEventListener('DOMContentLoaded', function () {
     updateWeekdayHint();
 
     function applyPreset(p) {
-        Object.keys(p).forEach(function (key) {
+        const adjusted = Object.assign({}, p);
+
+        if (adjusted._fillAllWeekdays) {
+            const weekdays = countWeekdays(
+                document.getElementById('start_date').value,
+                document.getElementById('end_date').value
+            );
+            const reserved =
+                (+adjusted.ob_days || 0) +
+                (+adjusted.vl_days || 0) +
+                (+adjusted.absent_days || 0) +
+                (+adjusted.regular_holiday_days || 0);
+            adjusted.regular_days = Math.max(0, weekdays - reserved);
+        }
+
+        Object.keys(adjusted).forEach(function (key) {
+            if (key.charAt(0) === '_') {
+                return;
+            }
             const el = document.getElementById(key);
             if (!el) return;
             if (el.type === 'checkbox') {
-                el.checked = !!p[key];
+                el.checked = !!adjusted[key];
             } else {
-                el.value = p[key];
+                el.value = adjusted[key];
             }
         });
         updateWeekdayHint();
@@ -665,12 +678,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
         document.getElementById('resBasicPay').textContent = fmt(calc.basic_pay || calc.basic_salary);
         document.getElementById('resOtPay').textContent = fmt(calc.overtime_pay || 0);
-        document.getElementById('resLeavePay').textContent = fmt(calc.leave_pay || 0);
+        document.getElementById('resLeavePay').textContent = calc.paid_leave_included_in_basic
+            ? 'Included in basic'
+            : fmt(calc.leave_pay || 0);
         document.getElementById('resNightDiff').textContent = fmt(calc.night_differential_pay || 0);
         document.getElementById('resHolidayPremium').textContent = fmt(
             (parseFloat(calc.holiday_pay || 0) + parseFloat(calc.rest_day_premium_pay || 0))
         );
-        document.getElementById('resGrossIncome').textContent = fmt(calc.gross_salary || calc.gross_pay);
+        document.getElementById('resGrossIncome').textContent = fmt(
+            calc.gross_after_attendance ?? calc.gross_salary ?? calc.gross_pay
+        );
 
         document.getElementById('resAbsenceDeduction').textContent = fmt(calc.absence_deduction || 0);
         document.getElementById('resLoanDeduction').textContent = fmt(calc.loan_deduction || 0);
@@ -802,7 +819,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const amountClass = step.type === 'deduction'
                 ? 'text-red-600'
-                : (step.type === 'net' || step.type === 'total' ? 'text-indigo-700 font-bold' : 'text-green-700');
+                : (step.type === 'info'
+                    ? 'text-gray-500 italic'
+                    : (step.type === 'net' || step.type === 'total' ? 'text-indigo-700 font-bold' : 'text-green-700'));
 
             li.innerHTML =
                 '<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">' +
