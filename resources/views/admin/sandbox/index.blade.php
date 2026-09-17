@@ -21,6 +21,8 @@
         </div>
     </div>
 
+    @include('admin.sandbox._computation-reference')
+
     <!-- Simulator Control Panel -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
