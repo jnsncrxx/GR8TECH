@@ -117,5 +117,31 @@ window.submitFormAjax = function(formElement, successCallback, errorCallback) {
         });
 };
 
+Alpine.data('sidebarFlyout', () => ({
+    open: false,
+    flyoutTop: 0,
+    flyoutLeft: 0,
+    closeTimer: null,
+    positionFlyout() {
+        const el = this.$refs.flyoutTrigger;
+        if (!el) {
+            return;
+        }
+        const rect = el.getBoundingClientRect();
+        this.flyoutTop = rect.top;
+        this.flyoutLeft = rect.right + 6;
+    },
+    showFlyout() {
+        clearTimeout(this.closeTimer);
+        this.positionFlyout();
+        this.open = true;
+    },
+    hideFlyout() {
+        this.closeTimer = setTimeout(() => {
+            this.open = false;
+        }, 120);
+    },
+}));
+
 // Start Alpine
 Alpine.start();
