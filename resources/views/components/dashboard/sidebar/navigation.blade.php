@@ -42,11 +42,8 @@
 
     $timeRoutes = [
         'attendance.daily', 'attendance.timekeeping', 'attendance.import-dtr',
-        'schedule-v2.index', 'schedule-v2.create', 'schedule-v2.show', 'schedule-v2.edit',
-        'schedule-templates.index', 'schedule-templates.create', 'schedule-templates.edit',
         'attendance.leave-management.create', 'attendance.period-management.index',
         'attendance.period-management.create', 'attendance.period-management.show',
-        'attendance.reports',
     ];
     $timeRoutesActive = in_array($activeRoute, $timeRoutes, true)
         || (!$isMineScope && in_array($activeRoute, $sharedScopedRoutes, true));
