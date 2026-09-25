@@ -471,7 +471,7 @@
             <span class="ml-auto bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full">New</span>
         </a>
 
-        @php $financeReportRoutes = ['reports.index', 'payrolls.summary']; @endphp
+        @php $financeReportRoutes = ['reports.index', 'payrolls.summary', 'allowances.index']; @endphp
         <x-dashboard.sidebar.flyout-nav
             label="Financial Reports"
             panel-class="w-72 max-h-96"
@@ -484,23 +484,23 @@
                 </div>
                 <i class="fas fa-chevron-right text-xs text-gray-400 transition-transform duration-200" :class="{ 'translate-x-0.5 text-blue-600': open }"></i>
             </x-slot:trigger>
+            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-book-open mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Account Entries</span></a>
+            <a href="{{ route('allowances.index') }}" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group {{ $activeRoute === 'allowances.index' ? 'border-l-4 border-blue-600 bg-blue-50 text-blue-600' : '' }}"><i class="fas fa-gift mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Allowances</span></a>
+            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-star mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Allowance Special Report</span></a>
+            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-university mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Bank Remittance</span></a>
             <a href="{{ route('reports.index') }}" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group {{ $activeRoute === 'reports.index' ? 'border-l-4 border-blue-600 bg-blue-50 text-blue-600' : '' }}"><i class="fas fa-file-export mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Consolidated Reports</span></a>
+            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-book mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Deduction Register</span></a>
+            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-coins mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Denominations</span></a>
+            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-piggy-bank mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Loan Balances</span></a>
+            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-shield-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Pag Ibig Report</span></a>
             <a href="{{ route('payrolls.summary') }}" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group {{ $activeRoute === 'payrolls.summary' ? 'border-l-4 border-blue-600 bg-blue-50 text-blue-600' : '' }}"><i class="fas fa-calculator mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Payroll Reports</span></a>
             <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-receipt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Payslips</span></a>
-            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-university mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Bank Remittance</span></a>
-            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-coins mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Denominations</span></a>
-            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-list mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Received List</span></a>
-            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-gift mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Allowances</span></a>
-            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-star mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Allowance Special Report</span></a>
-            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-piggy-bank mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Loan Balances</span></a>
-            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-book mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Deduction Register</span></a>
-            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-file-pdf mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>SSS Report</span></a>
             <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-heartbeat mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Philhealth Report & RF-1</span></a>
-            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-percent mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Tax Report</span></a>
-            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-shield-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Pag Ibig Report</span></a>
-            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-book-open mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Account Entries</span></a>
-            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-file-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Text File Reports</span></a>
             <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-print mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Print Undeducted Items</span></a>
+            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-list mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Received List</span></a>
+            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-file-pdf mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>SSS Report</span></a>
+            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-percent mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Tax Report</span></a>
+            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-file-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Text File Reports</span></a>
         </x-dashboard.sidebar.flyout-nav>
         @endif
         @endif

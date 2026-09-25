@@ -148,6 +148,19 @@ class RolePortalPersonalActionsTest extends TestCase
         $this->assertStringNotContainsString('Please go to the Time In/Out page first', $navigation);
     }
 
+    public function test_hr_can_open_allowance_adjustment_table_and_select_ot_or_basic_adjustments(): void
+    {
+        $hr = $this->account('hr');
+
+        $this->actingAs($hr)->withSession(['current_company_id' => $this->company->id])
+            ->get(route('allowances.index'))
+            ->assertOk()
+            ->assertSee('Allowances')
+            ->assertSee('OT Adjustment')
+            ->assertSee('Basic Adjustment')
+            ->assertSee($this->employee->full_name);
+    }
+
     private function clockInEmployee(): void
     {
         $attendance = AttendanceRecord::create([

@@ -282,6 +282,11 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
         Route::delete('/{payrollAdjustment}', [App\Http\Controllers\Web\PayrollAdjustmentController::class, 'destroy'])->name('destroy');
     });
 
+    Route::prefix('allowances')->name('allowances.')->middleware('role:admin,hr')->group(function () {
+        Route::get('/', [App\Http\Controllers\Web\AllowanceAdjustmentController::class, 'index'])->name('index');
+        Route::post('/', [App\Http\Controllers\Web\AllowanceAdjustmentController::class, 'store'])->name('store');
+    });
+
     // Loan Type and Loan routes
     Route::prefix('loan-types')->name('loan-types.')->middleware('role:admin,hr')->group(function () {
     Route::get('/', [App\Http\Controllers\Web\LoanTypeController::class, 'index'])->name('index');
