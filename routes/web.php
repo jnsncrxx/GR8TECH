@@ -287,6 +287,13 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
         Route::post('/', [App\Http\Controllers\Web\AllowanceAdjustmentController::class, 'store'])->name('store');
     });
 
+    Route::prefix('deduction-register')->name('deduction-register.')->middleware('role:admin,hr')->group(function () {
+        Route::get('/', [App\Http\Controllers\Web\DeductionRegisterController::class, 'index'])->name('index');
+        Route::post('/', [App\Http\Controllers\Web\DeductionRegisterController::class, 'store'])->name('store');
+        Route::put('/{deduction}', [App\Http\Controllers\Web\DeductionRegisterController::class, 'update'])->name('update');
+        Route::delete('/{deduction}', [App\Http\Controllers\Web\DeductionRegisterController::class, 'destroy'])->name('destroy');
+    });
+
     // Loan Type and Loan routes
     Route::prefix('loan-types')->name('loan-types.')->middleware('role:admin,hr')->group(function () {
     Route::get('/', [App\Http\Controllers\Web\LoanTypeController::class, 'index'])->name('index');

@@ -9,6 +9,7 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\LoanType;
 use App\Models\Loan;
+use App\Models\PayrollAdjustment;
 use App\Models\Position;
 use App\Models\TimeEntry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -153,12 +154,47 @@ class RolePortalPersonalActionsTest extends TestCase
         $hr = $this->account('hr');
 
         $this->actingAs($hr)->withSession(['current_company_id' => $this->company->id])
-            ->get(route('allowances.index'))
+            ->get(route('allowances.index', ['employee_id' => $this->employee->id]))
             ->assertOk()
             ->assertSee('Allowances')
+            ->assertSee('Selected employee')
+            ->assertSee('Adjustment Type')
             ->assertSee('OT Adjustment')
             ->assertSee('Basic Adjustment')
             ->assertSee($this->employee->full_name);
+    }
+
+    public function test_hr_can_save_multiple_deduction_register_entries_for_one_employee(): void
+    {
+        $hr = $this->account('hr');
+        $this->actingAs($hr)->withSession(['current_company_id' => $this->company->id]);
+
+        $this->get(route('deduction-register.index', ['employee_id' => $this->employee->id]))
+            ->assertOk()
+            ->assertSee('Deduction Register')
+            ->assertSee($this->employee->full_name)
+            ->assertSee('Deduction Type')
+            ->assertSee('Add Deduction');
+
+        $response = $this->post(route('deduction-register.store'), [
+            'employee_id' => $this->employee->id,
+            'deductions' => [
+                ['type' => 'Missed loan deduction', 'date' => '2026-09-15', 'amount' => '250.00'],
+                ['type' => 'Uniform deduction', 'date' => '2026-09-16', 'amount' => '75.50'],
+            ],
+        ]);
+
+        $response->assertRedirect(route('deduction-register.index', ['employee_id' => $this->employee->id]));
+        $this->assertSame(2, PayrollAdjustment::where('employee_id', $this->employee->id)
+            ->where('category', 'deduction')
+            ->where('direction', 'deduction')
+            ->count());
+        $this->assertDatabaseHas('payroll_adjustments', [
+            'employee_id' => $this->employee->id,
+            'name' => 'Missed loan deduction',
+            'amount' => '250.00',
+            'frequency' => 'one_time',
+        ]);
     }
 
     private function clockInEmployee(): void

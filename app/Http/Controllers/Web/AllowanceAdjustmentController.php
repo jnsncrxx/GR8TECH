@@ -11,20 +11,23 @@ use Illuminate\Support\Facades\Auth;
 
 class AllowanceAdjustmentController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $company = CompanyHelper::getCurrentCompany();
 
         $employees = Employee::query()
             ->when($company?->id, fn ($query) => $query->where('company_id', $company->id))
-            ->with('department')
+            ->with(['department', 'position'])
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get();
 
+        $selectedEmployee = $employees->firstWhere('id', $request->query('employee_id'));
+
         return view('allowances.index', [
             'user' => Auth::user(),
             'employees' => $employees,
+            'selectedEmployee' => $selectedEmployee,
             'today' => now()->toDateString(),
         ]);
     }

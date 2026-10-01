@@ -471,7 +471,7 @@
             <span class="ml-auto bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full">New</span>
         </a>
 
-        @php $financeReportRoutes = ['reports.index', 'payrolls.summary', 'allowances.index']; @endphp
+        @php $financeReportRoutes = ['reports.index', 'payrolls.summary', 'allowances.index', 'deduction-register.index']; @endphp
         <x-dashboard.sidebar.flyout-nav
             label="Financial Reports"
             panel-class="w-72 max-h-96"
@@ -489,7 +489,7 @@
             <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-star mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Allowance Special Report</span></a>
             <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-university mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Bank Remittance</span></a>
             <a href="{{ route('reports.index') }}" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group {{ $activeRoute === 'reports.index' ? 'border-l-4 border-blue-600 bg-blue-50 text-blue-600' : '' }}"><i class="fas fa-file-export mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Consolidated Reports</span></a>
-            <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-book mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Deduction Register</span></a>
+            <a href="{{ route('deduction-register.index') }}" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group {{ $activeRoute === 'deduction-register.index' ? 'border-l-4 border-blue-600 bg-blue-50 text-blue-600' : '' }}"><i class="fas fa-book mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Deduction Register</span></a>
             <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-coins mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Denominations</span></a>
             <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-piggy-bank mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Loan Balances</span></a>
             <a href="#" class="mx-2 flex items-center rounded-md px-3 py-2 text-sm group"><i class="fas fa-shield-alt mr-3 text-sm text-gray-400 group-hover:text-blue-600"></i><span>Pag Ibig Report</span></a>
