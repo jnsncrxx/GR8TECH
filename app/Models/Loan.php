@@ -11,6 +11,8 @@ class Loan extends Model
 {
     use HasUuids;
 
+    protected $appends = ['total_payments', 'current_payment', 'mtd_payments'];
+
     protected $keyType = 'string';
     public $incrementing = false;
 
@@ -67,6 +69,35 @@ class Loan extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(LoanPayment::class);
+    }
+
+    public function getTotalPaymentsAttribute(): float
+    {
+        return round((float) $this->payments()->sum('amount'), 2);
+    }
+
+    public function getCurrentPaymentAttribute(): float
+    {
+        return round((float) $this->payments()
+            ->whereMonth('payment_date', now()->month)
+            ->whereYear('payment_date', now()->year)
+            ->sum('amount'), 2);
+    }
+
+    public function getMtdPaymentsAttribute(): float
+    {
+        return $this->getCurrentPaymentAttribute();
+    }
+
+    public function getRemainingBalanceAttribute(): ?float
+    {
+        $value = parent::getAttributeFromArray('remaining_balance');
+
+        if ($value === null) {
+            return round((float) max(0, (float) ($this->total_repayable ?? 0) - (float) $this->total_payments), 2);
+        }
+
+        return round((float) $value, 2);
     }
 
     public function scopeForCompany($query, $companyId)

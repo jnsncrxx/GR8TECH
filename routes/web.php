@@ -307,6 +307,24 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
 Route::prefix('loans')->name('loans.')->middleware('auth')->group(function () {
     Route::get('/', [App\Http\Controllers\Web\LoanController::class, 'index'])->name('index');
 
+    Route::middleware('role:admin,hr,manager')->group(function () {
+        Route::get('/management', [App\Http\Controllers\Web\LoanController::class, 'management'])->name('management');
+        Route::post('/management/generate', [App\Http\Controllers\Web\LoanController::class, 'generateManagementLoan'])->name('management.generate');
+        Route::post('/management/payment', [App\Http\Controllers\Web\LoanController::class, 'storeManagementPayment'])->name('management.payment');
+        Route::delete('/management/payment/{payment}', [App\Http\Controllers\Web\LoanController::class, 'deleteManagementPayment'])->name('management.payment.delete');
+        Route::post('/management/export', [App\Http\Controllers\Web\LoanController::class, 'exportManagementLoans'])->name('management.export');
+        Route::post('/management/import', [App\Http\Controllers\Web\LoanController::class, 'importManagementLoans'])->name('management.import');
+        Route::post('/management/import-special', [App\Http\Controllers\Web\LoanController::class, 'importManagementLoansSpecial'])->name('management.import-special');
+        Route::post('/management/clean-codes', [App\Http\Controllers\Web\LoanController::class, 'cleanLoanCodes'])->name('management.clean-codes');
+        Route::post('/management/check-codes', [App\Http\Controllers\Web\LoanController::class, 'checkCodesWithCr'])->name('management.check-codes');
+        Route::post('/management/download-current', [App\Http\Controllers\Web\LoanController::class, 'downloadCurrentLoans'])->name('management.download-current');
+    });
+
+    Route::middleware('role:admin,hr')->group(function () {
+        Route::post('/management/delete-master', [App\Http\Controllers\Web\LoanController::class, 'deleteMasterRecords'])->name('management.delete-master');
+        Route::post('/management/delete-details', [App\Http\Controllers\Web\LoanController::class, 'deletePreviousLoanDetails'])->name('management.delete-details');
+    });
+
     // Any account linked to an employee may submit its own loan request.
     // HR/Admin management actions remain separately protected below.
     // This must be registered before the

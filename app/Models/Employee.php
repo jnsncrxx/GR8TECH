@@ -160,6 +160,15 @@ class Employee extends Model
         });
     }
 
+    public function isResigned(): bool
+    {
+        if (is_null($this->employee_status)) {
+            return false;
+        }
+
+        return in_array(strtolower((string) $this->employee_status), ['resigned', 'terminated', 'inactive'], true);
+    }
+
     /**
      * Whether the given manager (by employee id) is this employee's
      * manager for approval-scoping purposes — i.e. this employee's
