@@ -116,6 +116,7 @@
                         <th class="px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                         <th class="px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
                         <th class="px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Balance After</th>
+                        <th class="px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Remarks</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
@@ -124,6 +125,7 @@
                         <td class="px-6 py-3 text-sm text-gray-700">{{ $payment->payment_date->format('M j, Y') }}</td>
                         <td class="px-6 py-3 text-sm text-gray-700">₱{{ number_format((float) $payment->amount, 2) }}</td>
                         <td class="px-6 py-3 text-sm text-gray-700">₱{{ number_format((float) $payment->balance_after, 2) }}</td>
+                        <td class="px-6 py-3 text-sm text-gray-700">{{ $payment->remarks ?: '—' }}</td>
                     </tr>
                     @endforeach
                 </tbody>

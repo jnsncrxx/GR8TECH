@@ -9,6 +9,7 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\LoanType;
 use App\Models\Loan;
+use App\Models\LoanPayment;
 use App\Models\PayrollAdjustment;
 use App\Models\Position;
 use App\Models\TimeEntry;
@@ -108,6 +109,12 @@ class RolePortalPersonalActionsTest extends TestCase
             ->assertOk()
             ->assertSee('Loan Management')
             ->assertSee('Manage Loan Types');
+
+        $this->get(route('loans.management'))
+            ->assertOk()
+            ->assertSee('Loan Balances')
+            ->assertSee('Select Employee')
+            ->assertSee('Utilities');
     }
 
     public function test_authorized_reviewer_cannot_approve_or_reject_own_loan(): void
@@ -134,6 +141,54 @@ class RolePortalPersonalActionsTest extends TestCase
         $this->post(route('loans.approve', $loan))->assertForbidden();
         $this->post(route('loans.reject', $loan), ['rejection_reason' => 'Self review'])->assertForbidden();
         $this->assertSame('pending', $loan->fresh()->status);
+    }
+
+    public function test_full_loan_payment_requires_and_saves_remarks(): void
+    {
+        $hr = $this->account('hr');
+        $loan = Loan::create([
+            'company_id' => $this->company->id,
+            'employee_id' => $this->employee->id,
+            'loan_type_id' => LoanType::firstOrFail()->id,
+            'principal_amount' => 1000,
+            'interest_rate' => 0,
+            'interest_type' => 'flat',
+            'term_months' => 1,
+            'amortization_amount' => 1000,
+            'total_repayable' => 1000,
+            'remaining_balance' => 1000,
+            'status' => 'approved',
+            'requested_by' => $hr->id,
+        ]);
+        $this->actingAs($hr)->withSession(['current_company_id' => $this->company->id]);
+
+        $payment = [
+            'loan_id' => $loan->id,
+            'amount' => 1000,
+            'payment_date' => '2026-10-29',
+        ];
+        $balancesUrl = route('loans.management', ['employee_id' => $this->employee->id]);
+
+        $this->from($balancesUrl)
+            ->post(route('loans.management.payment'), $payment)
+            ->assertRedirect($balancesUrl)
+            ->assertSessionHasErrors('remarks');
+
+        $this->assertSame(0, LoanPayment::where('loan_id', $loan->id)->count());
+        $this->assertSame('approved', $loan->fresh()->status);
+
+        $this->from($balancesUrl)
+            ->post(route('loans.management.payment'), $payment + ['remarks' => 'Paid in full'])
+            ->assertRedirect($balancesUrl)
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('loan_payments', [
+            'loan_id' => $loan->id,
+            'remarks' => 'Paid in full',
+            'balance_after' => '0.00',
+        ]);
+        $this->assertSame('completed', $loan->fresh()->status);
+        $this->get($balancesUrl)->assertOk()->assertSee('Paid in full');
     }
 
     public function test_employee_linked_manager_sees_logout_choices_and_direct_clock_in_action(): void

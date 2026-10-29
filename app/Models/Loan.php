@@ -151,15 +151,22 @@ class Loan extends Model
      * decrementing the remaining balance and marking the loan completed
      * once fully paid.
      */
-    public function recordPayment(float $amount, ?string $payrollId = null, ?string $createdByAccountId = null): LoanPayment
+    public function recordPayment(
+        float $amount,
+        ?string $payrollId = null,
+        ?string $createdByAccountId = null,
+        ?string $paymentDate = null,
+        ?string $remarks = null
+    ): LoanPayment
     {
         $newBalance = max(0, round((float) $this->remaining_balance - $amount, 2));
 
         $payment = $this->payments()->create([
             'payroll_id' => $payrollId,
             'amount' => $amount,
-            'payment_date' => now()->toDateString(),
+            'payment_date' => $paymentDate ?? now()->toDateString(),
             'balance_after' => $newBalance,
+            'remarks' => $remarks,
             'created_by' => $createdByAccountId,
         ]);
 

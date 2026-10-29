@@ -39,6 +39,11 @@ class LoanController extends Controller
 
     public function index(Request $request)
     {
+        return $this->renderLoanPage($request, 'payroll.loans.index');
+    }
+
+    private function renderLoanPage(Request $request, string $view)
+    {
         $user = Auth::user();
         $isLoanManager = in_array($user->role, ['admin', 'hr', 'manager'], true);
         $isEmployeeView = $request->query('scope') === 'mine' || !$isLoanManager;
@@ -124,7 +129,7 @@ class LoanController extends Controller
             $loanTypes = $loanTypesQuery->get();
         }
 
-        return view('payroll.loans.index', [
+        return view($view, [
             'loans' => $loans,
             'employees' => $employees,
             'departments' => $departments,
@@ -141,7 +146,7 @@ class LoanController extends Controller
 
     public function management(Request $request)
     {
-        return $this->index($request);
+        return $this->renderLoanPage($request, 'payroll.loans.balances');
     }
 
     public function generateManagementLoan(Request $request)
@@ -190,7 +195,6 @@ class LoanController extends Controller
             'loan_id' => ['required', 'exists:loans,id'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'payment_date' => ['required', 'date'],
-            'remarks' => ['nullable', 'string', 'max:255'],
         ]);
 
         $loan = Loan::findOrFail($validated['loan_id']);
@@ -199,7 +203,19 @@ class LoanController extends Controller
             return back()->with('error', 'This loan is already fully paid.');
         }
 
-        $loan->recordPayment((float) $validated['amount'], null, Auth::id());
+        $paymentAmount = round((float) $validated['amount'], 2);
+        $remarksRules = $paymentAmount >= (float) $loan->remaining_balance
+            ? ['required', 'string', 'max:255']
+            : ['nullable', 'string', 'max:255'];
+        $validatedRemarks = $request->validate(['remarks' => $remarksRules])['remarks'] ?? null;
+
+        $loan->recordPayment(
+            $paymentAmount,
+            null,
+            Auth::id(),
+            $validated['payment_date'],
+            $validatedRemarks
+        );
 
         return back()->with('success', 'Payment recorded successfully.');
     }

@@ -19,6 +19,7 @@ class LoanPayment extends Model
         'amount',
         'payment_date',
         'balance_after',
+        'remarks',
         'created_by',
     ];
 
