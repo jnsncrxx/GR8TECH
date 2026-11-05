@@ -563,6 +563,7 @@ class PayrollController extends Controller
     public function summary(Request $request)
     {
         $user = Auth::user();
+        $report = $request->query('report');
 
         $validated = $request->validate([
             'start_date' => ['nullable', 'date'],
@@ -572,6 +573,26 @@ class PayrollController extends Controller
         // Use the more comprehensive summary method that supports date filtering
         $startDate = $validated['start_date'] ?? now()->startOfMonth()->format('Y-m-d');
         $endDate = $validated['end_date'] ?? now()->endOfMonth()->format('Y-m-d');
+
+        // Route to specific report views based on report parameter
+        if ($report === 'payslips') {
+            return $this->renderPayslipsReport($request, $user, $startDate, $endDate);
+        }
+
+        // Handle statutory and key reports
+        switch ($report) {
+            case 'pagibig':
+                return $this->renderStatutoryReport($request, $user, $startDate, $endDate, 'Pag-IBIG');
+            case 'philhealth':
+                return $this->renderStatutoryReport($request, $user, $startDate, $endDate, 'PhilHealth');
+            case 'sss':
+                return $this->renderStatutoryReport($request, $user, $startDate, $endDate, 'SSS');
+            case 'tax':
+                return $this->renderTaxReport($request, $user, $startDate, $endDate);
+            default:
+                // Continue with normal summary
+                break;
+        }
 
         $summary = $this->payrollService->getPayrollSummary(
             Carbon::parse($startDate),
@@ -596,6 +617,120 @@ class PayrollController extends Controller
             ->get();
 
         return view('payroll.summary', compact('user', 'summary', 'monthly_data', 'startDate', 'endDate'));
+    }
+
+    private function renderPayslipsReport(Request $request, $user, $startDate, $endDate)
+    {
+        $currentCompany = \App\Helpers\CompanyHelper::getCurrentCompany();
+
+        $employees = \App\Models\Employee::with('department')
+            ->when($currentCompany, fn ($q) => $q->forCompany($currentCompany->id))
+            ->orderBy('first_name')
+            ->get();
+
+        $selectedEmployeeId = $request->query('employee_id');
+        $selectedEmployee = $selectedEmployeeId
+            ? $employees->firstWhere('id', $selectedEmployeeId)
+            : null;
+
+        $selectedPayroll = null;
+        if ($selectedEmployee) {
+            $selectedPayroll = \App\Models\Payroll::where('employee_id', $selectedEmployee->id)
+                ->where('pay_period_start', '>=', $startDate)
+                ->where('pay_period_end', '<=', $endDate)
+                ->whereIn('status', ['approved', 'paid'])
+                ->latest('pay_period_start')
+                ->first();
+        }
+
+        return view('payroll.payslips-report', [
+            'user' => $user,
+            'employees' => $employees,
+            'selectedEmployee' => $selectedEmployee,
+            'selectedPayroll' => $selectedPayroll,
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+        ]);
+    }
+
+    private function renderGenericReport($user, $reportName, $startDate, $endDate)
+    {
+        $currentCompany = \App\Helpers\CompanyHelper::getCurrentCompany();
+
+        $data = [
+            'user' => $user,
+            'reportName' => $reportName,
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+            'company' => $currentCompany,
+            'message' => "Report functionality for {$reportName} is coming soon. This report will provide detailed insights based on payroll data."
+        ];
+
+        return view('payroll.generic-report', $data);
+    }
+
+    private function renderStatutoryReport(Request $request, $user, $startDate, $endDate, $statutoryName)
+    {
+        $currentCompany = \App\Helpers\CompanyHelper::getCurrentCompany();
+
+        $fieldMap = [
+            'SSS' => 'sss',
+            'PhilHealth' => 'phic',
+            'Pag-IBIG' => 'hdmf'
+        ];
+
+        $field = $fieldMap[$statutoryName] ?? 'sss';
+
+        $payrolls = \App\Models\Payroll::with('employee')
+            ->when($currentCompany, fn ($q) => $q->where('company_id', $currentCompany->id))
+            ->where('pay_period_start', '>=', $startDate)
+            ->where('pay_period_end', '<=', $endDate)
+            ->whereIn('status', ['approved', 'paid'])
+            ->where($field, '>', 0)
+            ->get();
+
+        $totalDeduction = $payrolls->sum($field);
+        $employeeCount = $payrolls->pluck('employee_id')->unique()->count();
+
+        return view('payroll.statutory-report', [
+            'user' => $user,
+            'reportName' => "{$statutoryName} Report",
+            'statutoryName' => $statutoryName,
+            'field' => $field,
+            'payrolls' => $payrolls,
+            'totalDeduction' => $totalDeduction,
+            'employeeCount' => $employeeCount,
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+        ]);
+    }
+
+    private function renderTaxReport(Request $request, $user, $startDate, $endDate)
+    {
+        $currentCompany = \App\Helpers\CompanyHelper::getCurrentCompany();
+
+        $payrolls = \App\Models\Payroll::with('employee')
+            ->when($currentCompany, fn ($q) => $q->where('company_id', $currentCompany->id))
+            ->where('pay_period_start', '>=', $startDate)
+            ->where('pay_period_end', '<=', $endDate)
+            ->whereIn('status', ['approved', 'paid'])
+            ->where('tax_amount', '>', 0)
+            ->get();
+
+        $totalTax = $payrolls->sum('tax_amount');
+        $totalGross = $payrolls->sum('gross_pay');
+        $employeeCount = $payrolls->pluck('employee_id')->unique()->count();
+
+        return view('payroll.tax-report', [
+            'user' => $user,
+            'reportName' => 'Tax Report',
+            'payrolls' => $payrolls,
+            'totalTax' => $totalTax,
+            'totalGross' => $totalGross,
+            'employeeCount' => $employeeCount,
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+        ]);
     }
 
     /**

@@ -93,8 +93,11 @@ class Loan extends Model
     {
         $value = parent::getAttributeFromArray('remaining_balance');
 
-        if ($value === null) {
-            return round((float) max(0, (float) ($this->total_repayable ?? 0) - (float) $this->total_payments), 2);
+        if ($value === null && isset($this->attributes['total_repayable'])) {
+            // Only compute if total_repayable is set to avoid triggering
+            // total_payments accessor which may query DB during save
+            $totalPayments = $this->payments()->sum('amount');
+            return round((float) max(0, (float) ($this->total_repayable ?? 0) - (float) $totalPayments), 2);
         }
 
         return round((float) $value, 2);
@@ -115,14 +118,25 @@ class Loan extends Model
 
     /**
      * Computes total repayable and per-cutoff amortization from the loan's
-     * principal, rate, and term. Flat interest only - diminishing balance
-     * is not implemented (interest_type is stored for future use but has
-     * no distinct calculation path yet).
+     * principal, rate, and term. Supports both flat and diminishing balance interest.
      */
     public function computeAmortization(): void
     {
-        $totalRepayable = (float) $this->principal_amount * (1 + ((float) $this->interest_rate / 100));
-        $amortization = $this->term_months > 0 ? $totalRepayable / $this->term_months : $totalRepayable;
+        $principal = (float) $this->principal_amount;
+        $rate = (float) $this->interest_rate / 100;
+        $term = max(1, (int) $this->term_months);
+
+        if ($this->interest_type === 'diminishing') {
+            // Monthly flat rate (e.g., 0.015 for 1.5% per month)
+            $monthlyRate = $rate;
+            // Amortization using standard reducing balance formula
+            $amortization = $principal * $monthlyRate / (1 - pow(1 + $monthlyRate, -$term));
+            $totalRepayable = $amortization * $term;
+        } else {
+            // Flat interest on principal
+            $totalRepayable = $principal * (1 + $rate);
+            $amortization = $totalRepayable / $term;
+        }
 
         $this->total_repayable = round($totalRepayable, 2);
         $this->amortization_amount = round($amortization, 2);

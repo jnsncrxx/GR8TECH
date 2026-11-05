@@ -2273,6 +2273,11 @@ $html .= '<tr class="total"><td>Total Earnings</td><td>₱' . number_format($pay
             return;
         }
 
+        // Additional guard: prevent recording if payroll is not in paid status
+        if ($payroll->status !== 'paid') {
+            return;
+        }
+
         $employee = Employee::find($payroll->employee_id);
         if (!$employee) {
             return;

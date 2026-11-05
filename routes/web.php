@@ -65,14 +65,7 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
 
     // Dashboard
     Route::get('/dashboard', [RoleBasedDashboardController::class, 'index'])->name('dashboard');
-    Route::get('/payroll/manage', [PayrollController::class, 'index'])->name('payroll.manage');
     Route::get('/payroll', [PayrollController::class, 'index'])->name('payroll.index');
-    // View-only, department-scoped payroll for managers. Same controller
-    // method as payroll.index — it branches internally on $user->role so
-    // the query/blade logic for scoping and read-only mode lives in one place.
-    Route::get('/payroll/team', [PayrollController::class, 'index'])
-        ->name('payroll.team')
-        ->middleware('role:manager');
     Route::get('/payroll-runs', [PayrollController::class, 'runs'])->name('payroll.runs');
     // Payroll calculation and the post-generation workflow belong to Payroll.
     // Attendance Period Management only prepares and validates cutoff data.
@@ -149,128 +142,25 @@ Route::middleware(['auth', 'require.timein'])->group(function () {
     Route::post('/payrolls/bulk-approve', [PayrollController::class, 'bulkApprove'])->name('payrolls.bulk-approve');
     Route::post('/payrolls/export-payroll', [PayrollController::class, 'exportPayroll'])->name('payrolls.export-payroll');
     Route::post('/payrolls/generate-payroll', [PayrollController::class, 'generatePayroll'])->name('payrolls.generate-payroll');
-    Route::post('/payroll/generate', [\App\Http\Controllers\Web\PayrollController::class, 'generate'])->name('payrolls.generate');
-    Route::get('/ajax/payrolls/approved', [\App\Http\Controllers\Web\PayrollController::class, 'getApprovedPayrolls']);
-    Route::post('/ajax/payrolls/process-payments', [\App\Http\Controllers\Web\PayrollController::class, 'processPaymentsApi']);
     Route::get('/ajax/payrolls/status-count', [PayrollController::class, 'getPayrollStatusCount']);
-    Route::post('/ajax/payrolls/bulk-approve', [PayrollController::class, 'ajaxBulkApprove']);
-    Route::get('/ajax/payrolls/payment-status', [PayrollController::class, 'checkPaidStatus']);
-    Route::get('/ajax/payrolls/pending', [\App\Http\Controllers\Web\PayrollController::class, 'getPendingPayrolls']);
     Route::post('/ajax/payrolls/approve-all', [\App\Http\Controllers\Web\PayrollController::class, 'approveAllViaAjax']);
     Route::post('/payroll/complete-workflow', [\App\Http\Controllers\Web\PayrollController::class, 'completePayrollWorkflow'])->name('payrolls.complete-workflow');
     Route::post('/payrolls/generate-payslips', [PayrollController::class, 'generatePayslips'])->name('payrolls.generate-payslips');
     Route::get('/payrolls/{payroll}/download-payslip', [PayrollController::class, 'downloadPayslip'])->name('payrolls.download-payslip');
     Route::get('/payrolls/download-all-payslips', [PayrollController::class, 'downloadAllPayslips'])->name('payrolls.download-all-payslips');
     Route::post('/payrolls/{payroll}/generate-payslip', [PayrollController::class, 'generateSinglePayslip'])->name('payrolls.generate-payslip');
-    Route::get('/payrolls/download-all-payslips', [PayrollController::class, 'downloadAllPayslips'])->name('payrolls.download-all-payslips');
     Route::post('/payrolls/mark-as-paid', [PayrollController::class, 'markAsPaid'])->name('payrolls.mark-as-paid');
     Route::post('/payrolls/approve-selected', [PayrollController::class, 'approveSelected'])->name('payrolls.approve-selected');
     Route::post('/payrolls/process-selected-payments', [PayrollController::class, 'processSelectedPayments'])->name('payrolls.process-selected-payments');
     Route::post('/payrolls/export-detailed', [PayrollController::class, 'exportDetailed'])->name('payrolls.export-detailed');
-    Route::post('/payrolls/mark-as-paid', [PayrollController::class, 'markAsPaid'])
-        ->name('payrolls.mark-as-paid')
-        ->middleware('auth');
-    Route::post('/payrolls/export-with-calculations', [PayrollController::class, 'exportWithCalculations'])
-        ->name('payrolls.export-with-calculations');
-    Route::post('/payrolls/export-with-calculations', [PayrollController::class, 'exportWithCalculations'])->name('payrolls.export-with-calculations');
-    Route::post('/payrolls/export-with-calculations', [PayrollController::class, 'exportWithCalculations'])
-        ->name('payrolls.export-with-calculations')
-        ->middleware('auth');
     Route::post('/payrolls/simple-export', [PayrollController::class, 'simpleExport'])->name('payrolls.simple-export');
-
-    Route::post('/payrolls/generate-payslips', [PayrollController::class, 'generatePayslips'])
-        ->name('payrolls.generate-payslips')
-        ->middleware('auth');
-
-    Route::get('/payrolls/download-all-payslips', [PayrollController::class, 'downloadAllPayslips'])
-        ->name('payrolls.download-all-payslips')
-        ->middleware('auth');
-
-    Route::post('/payrolls/mark-as-paid', [PayrollController::class, 'markAsPaid'])
-        ->name('payrolls.mark-as-paid')
-        ->middleware('auth');
-    Route::get('/debug-payroll-match', [PayrollController::class, 'debugPayrollMatching']);
 
     Route::post('/payroll/{payroll}/approve', [PayrollController::class, 'approvePayroll'])->name('payroll.approve');
     Route::post('/payroll/{payroll}/reject', [PayrollController::class, 'rejectPayroll'])->name('payroll.reject');
-    Route::get('/payroll/{payroll}/download-payslip', [PayrollController::class, 'downloadViewPayslip'])->name('payroll.download-payslip');
 
 
     // Payroll route aliases for consistency
-    Route::get('/payroll', [PayrollController::class, 'index'])->name('payroll.index');
     Route::get('/payroll/{payroll}', [PayrollController::class, 'show'])->name('payroll.show');
-
-    // Debug route for payroll functions
-    Route::get('/test-payroll-functions', function () {
-        $service = app(\App\Services\PayrollGenerationService::class);
-
-        // Test components
-        $paymentModelExists = class_exists(\App\Models\Payment::class);
-        $dompdfExists = class_exists(\Barryvdh\DomPDF\Facade\Pdf::class);
-        $payrolls = \App\Models\Payroll::where('status', 'approved')->take(2)->get();
-        $storageWritable = is_writable(storage_path());
-        $payslipColumnExists = \Illuminate\Support\Facades\Schema::hasColumn('payrolls', 'payslip_file');
-
-        return [
-            'payment_model_exists' => $paymentModelExists,
-            'dompdf_exists' => $dompdfExists,
-            'storage_writable' => $storageWritable,
-            'payslip_column_exists' => $payslipColumnExists,
-            'approved_payrolls_count' => $payrolls->count(),
-            'payrolls' => $payrolls->toArray()
-        ];
-    });
-
-    Route::get('/debug-payroll-dates', function () {
-        $payrolls = \App\Models\Payroll::select('id', 'employee_id', 'pay_period_start', 'pay_period_end', 'status', 'created_at')
-            ->orderBy('pay_period_start', 'desc')
-            ->limit(20)
-            ->get();
-
-        return response()->json([
-            'total_payrolls' => \App\Models\Payroll::count(),
-            'pending_count' => \App\Models\Payroll::where('status', 'pending')->count(),
-            'approved_count' => \App\Models\Payroll::where('status', 'approved')->count(),
-            'recent_payrolls' => $payrolls,
-            'unique_periods' => \App\Models\Payroll::select('pay_period_start', 'pay_period_end')
-                ->distinct()
-                ->orderBy('pay_period_start', 'desc')
-                ->get()
-        ]);
-    });
-
-    Route::get('/debug-current-payrolls', function () {
-        $allPayrolls = \App\Models\Payroll::select(
-            'id',
-            'employee_id',
-            'pay_period_start',
-            'pay_period_end',
-            'status',
-            'created_at'
-        )
-            ->with(['employee:id,employee_id,first_name,last_name'])
-            ->orderBy('pay_period_start', 'desc')
-            ->limit(50)
-            ->get();
-
-        $uniquePeriods = \App\Models\Payroll::select('pay_period_start', 'pay_period_end')
-            ->selectRaw('COUNT(*) as count')
-            ->groupBy('pay_period_start', 'pay_period_end')
-            ->orderBy('pay_period_start', 'desc')
-            ->get();
-
-        return response()->json([
-            'total_payrolls' => \App\Models\Payroll::count(),
-            'status_counts' => [
-                'pending' => \App\Models\Payroll::where('status', 'pending')->count(),
-                'approved' => \App\Models\Payroll::where('status', 'approved')->count(),
-                'paid' => \App\Models\Payroll::where('status', 'paid')->count(),
-            ],
-            'recent_payrolls' => $allPayrolls,
-            'unique_periods' => $uniquePeriods,
-            'database_date_format' => 'Check if dates are YYYY-MM-DD or include time'
-        ]);
-    });
 
     // Payroll Adjustments and Benefits
     Route::prefix('payroll-adjustments')->name('payroll-adjustments.')->middleware('role:admin,hr')->group(function () {

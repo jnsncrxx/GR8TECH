@@ -10,6 +10,30 @@
             <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Payroll Summary Report</h1>
             <p class="mt-1 text-sm text-gray-600">Overview of payroll statistics and trends</p>
         </div>
+        <!-- Features Section -->
+        <div class="mt-4 sm:mt-0">
+            <details class="group">
+                <summary class="cursor-pointer inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50">
+                    <i class="fas fa-list mr-2"></i>Available Reports
+                    <i class="fas fa-chevron-down ml-2 group-open:rotate-180 transition-transform"></i>
+                </summary>
+                <div class="mt-2 bg-white border border-gray-200 rounded-lg shadow-lg p-4 space-y-2">
+                    <a href="{{ route('payrolls.summary') }}" class="block text-sm text-blue-600 hover:text-blue-800">• Payroll Summary</a>
+                    <a href="{{ route('payrolls.summary', ['report' => 'payslips']) }}" class="block text-sm text-blue-600 hover:text-blue-800">• Payslips Report</a>
+                    <a href="{{ route('payrolls.summary', ['report' => 'account-entries']) }}" class="block text-sm text-blue-600 hover:text-blue-800">• Account Entries</a>
+                    <a href="{{ route('payrolls.summary', ['report' => 'allowance-special']) }}" class="block text-sm text-blue-600 hover:text-blue-800">• Allowance Special Report</a>
+                    <a href="{{ route('payrolls.summary', ['report' => 'bank-remittance']) }}" class="block text-sm text-blue-600 hover:text-blue-800">• Bank Remittance</a>
+                    <a href="{{ route('payrolls.summary', ['report' => 'denominations']) }}" class="block text-sm text-blue-600 hover:text-blue-800">• Denominations</a>
+                    <a href="{{ route('payrolls.summary', ['report' => 'pagibig']) }}" class="block text-sm text-blue-600 hover:text-blue-800">• Pag Ibig Report</a>
+                    <a href="{{ route('payrolls.summary', ['report' => 'philhealth']) }}" class="block text-sm text-blue-600 hover:text-blue-800">• Philhealth Report & RF-1</a>
+                    <a href="{{ route('payrolls.summary', ['report' => 'undeducted']) }}" class="block text-sm text-blue-600 hover:text-blue-800">• Print Undeducted Items</a>
+                    <a href="{{ route('payrolls.summary', ['report' => 'received']) }}" class="block text-sm text-blue-600 hover:text-blue-800">• Received List</a>
+                    <a href="{{ route('payrolls.summary', ['report' => 'sss']) }}" class="block text-sm text-blue-600 hover:text-blue-800">• SSS Report</a>
+                    <a href="{{ route('payrolls.summary', ['report' => 'tax']) }}" class="block text-sm text-blue-600 hover:text-blue-800">• Tax Report</a>
+                    <a href="{{ route('payrolls.summary', ['report' => 'text-files']) }}" class="block text-sm text-blue-600 hover:text-blue-800">• Text File Reports</span>
+                </div>
+            </details>
+        </div>
         <div class="mt-4 sm:mt-0 flex space-x-3">
             <a href="{{ route('payrolls.monthly', ['year' => now()->year, 'month' => now()->month]) }}" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50">
                 <i class="fas fa-calendar-alt mr-2"></i>
